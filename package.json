@@ -1,0 +1,29 @@
+{
+  "name": "luna-core",
+  "version": "0.1.0",
+  "description": "Luna Core — arquitetura de identidade artificial persistente (V0)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "demo": "tsx src/index.ts",
+    "policy": "tsx src/cli/policy.ts",
+    "analisar": "tsx src/cli/analisar.ts",
+    "chat": "tsx src/cli/chat.ts",
+    "validar:v0": "tsx src/cli/validar-v0.ts",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "zod": "^3.25.28"
+  }
+}
