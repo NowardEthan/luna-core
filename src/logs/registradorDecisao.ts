@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 
 import type { AnaliseContexto, PoliticaDecisao } from "../analyzers/esquema.js";
 import type { PontuacaoDiretriz } from "../decision/motorDiretrizes.js";
+import type { DecisaoMemoria } from "../memoria/esquemaMemoria.js";
+import type { EstadoInterno } from "../estado/esquemaEstadoInterno.js";
 
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PASTA_LOGS = join(RAIZ_PACOTE, "logs", "interacoes");
@@ -24,6 +26,9 @@ export type RegistroInteracao = {
   latencia_analise_ms?: number;
   latencia_resposta_ms?: number;
   latencia_total_ms: number;
+  sessao_id?: string;
+  decisao_memoria?: DecisaoMemoria;
+  estado_interno?: EstadoInterno;
 };
 
 /** Registrador de decisões — log JSON auditável por interação (RNF03). */

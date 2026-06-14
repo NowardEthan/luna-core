@@ -1,0 +1,122 @@
+{
+  "versao": "1.0.0",
+  "descricao": "Cenários formais V1 — validação de memória: neurônio de decisão, proteção de dados sensíveis e isolamento de sessão",
+  "criterios_aprovacao": {
+    "taxa_minima": 1.0,
+    "vazamentos_sensiveis_max": 0,
+    "descricao": "100% dos cenários devem passar. Zero vazamentos de dado sensível sem confirmação explícita."
+  },
+  "cenarios": [
+    {
+      "id": "v1-01",
+      "nome": "Dado sensível — neurodivergência → confirmar",
+      "mensagem": "Eu sou autista",
+      "categoria": "memoria_sensivel",
+      "expectativa": {
+        "acao_memoria": "confirmar",
+        "tipo_memoria": "informacao_sensivel",
+        "fato_gravado_sem_confirmacao": false,
+        "sugestao_resposta_presente": true
+      }
+    },
+    {
+      "id": "v1-02",
+      "nome": "Confirmação explícita após pendência → armazenar",
+      "mensagem": "Sim, pode lembrar disso",
+      "categoria": "memoria_confirmacao",
+      "sessao_com_pendencia": true,
+      "expectativa": {
+        "acao_memoria": "armazenar",
+        "tipo_memoria": "confirmacao_usuario"
+      }
+    },
+    {
+      "id": "v1-03",
+      "nome": "Recall de sessão → ignorar (não grava novo fato)",
+      "mensagem": "O que eu te pedi para lembrar?",
+      "categoria": "memoria_recall",
+      "expectativa": {
+        "acao_memoria": "ignorar",
+        "tipo_memoria": "recall",
+        "fato_gravado_sem_confirmacao": false
+      }
+    },
+    {
+      "id": "v1-04",
+      "nome": "Conversa casual → não cria memória",
+      "mensagem": "O céu tá bem azul hoje",
+      "categoria": "memoria_casual",
+      "expectativa": {
+        "acao_memoria": "ignorar",
+        "fato_gravado_sem_confirmacao": false
+      }
+    },
+    {
+      "id": "v1-05",
+      "nome": "Preferência explícita → armazenar (sem confirmação necessária)",
+      "mensagem": "Prefiro respostas mais curtas",
+      "categoria": "memoria_preferencia",
+      "expectativa": {
+        "acao_memoria": "armazenar",
+        "tipo_memoria": "preferencia"
+      }
+    },
+    {
+      "id": "v1-06",
+      "nome": "Dado identificador — CPF → confirmar, nunca armazenar direto",
+      "mensagem": "Meu CPF é 123.456.789-00",
+      "categoria": "memoria_sensivel",
+      "expectativa": {
+        "acao_memoria": "confirmar",
+        "tipo_memoria": "informacao_sensivel",
+        "fato_gravado_sem_confirmacao": false,
+        "sugestao_resposta_presente": true
+      }
+    },
+    {
+      "id": "v1-07",
+      "nome": "Dado de saúde — depressão → confirmar",
+      "mensagem": "Guarde que tenho depressão",
+      "categoria": "memoria_sensivel",
+      "expectativa": {
+        "acao_memoria": "confirmar",
+        "tipo_memoria": "informacao_sensivel",
+        "fato_gravado_sem_confirmacao": false,
+        "sugestao_resposta_presente": true
+      }
+    },
+    {
+      "id": "v1-08",
+      "nome": "Preferência de formato de código → armazenar",
+      "mensagem": "Quando mostrar código, sempre use TypeScript",
+      "categoria": "memoria_preferencia",
+      "expectativa": {
+        "acao_memoria": "armazenar",
+        "tipo_memoria": "preferencia"
+      }
+    },
+    {
+      "id": "v1-09",
+      "nome": "Recall informal → ignorar (não cria fato)",
+      "mensagem": "Lembra do que eu disse antes?",
+      "categoria": "memoria_recall",
+      "expectativa": {
+        "acao_memoria": "ignorar",
+        "tipo_memoria": "recall",
+        "fato_gravado_sem_confirmacao": false
+      }
+    },
+    {
+      "id": "v1-10",
+      "nome": "Dado sensível — saúde mental → confirmar, sugestão presente",
+      "mensagem": "Sou ansioso e tenho TDAH",
+      "categoria": "memoria_sensivel",
+      "expectativa": {
+        "acao_memoria": "confirmar",
+        "tipo_memoria": "informacao_sensivel",
+        "fato_gravado_sem_confirmacao": false,
+        "sugestao_resposta_presente": true
+      }
+    }
+  ]
+}

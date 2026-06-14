@@ -17,12 +17,16 @@ const PADROES_IDENTIDADE: RegExp[] = [
   /\bvoce e humana?\b/,
   /\bvoce e real\b/,
   /\bvoce e (so|apenas) (um )?(chatbot|bot|ia)\b/,
-  /\bvoce e (um )?(chatbot|bot|ia|assistente virtual)\b/,
+  /\bvoce e (uma? )?(chatbot|bot|ia|assistente virtual)\b/,
   /\bo que voce e\b/,
   /\bquem e voce\b/,
   /\bvoce tem consciencia\b/,
   /\be so um chatbot\b/,
   /\btem consciencia\b/,
+  /\bvoce e consciente\b/,
+  /\bvoce tem (sentimentos|emocoes|empatia|alma|vontade propria)\b/,
+  /\bce e (humana?|real|ia|bot|so um|apenas um)\b/,
+  /\bvoce (sente|sofre|chora)\b/,
 ];
 
 export function detectarPerguntaIdentitaria(mensagem: string): boolean {

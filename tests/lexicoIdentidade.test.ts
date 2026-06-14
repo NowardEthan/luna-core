@@ -62,3 +62,39 @@ describe("Léxico de identidade", () => {
     expect(refinada.intencao).toBe("acao_critica");
   });
 });
+
+describe("Léxico de identidade — padrões expandidos", () => {
+  it("detecta variante informal 'cê é real?'", () => {
+    expect(detectarPerguntaIdentitaria("Cê é real?")).toBe(true);
+  });
+
+  it("detecta 'você tem sentimentos?'", () => {
+    expect(detectarPerguntaIdentitaria("Você tem sentimentos?")).toBe(true);
+  });
+
+  it("detecta 'você é consciente?'", () => {
+    expect(detectarPerguntaIdentitaria("Você é consciente?")).toBe(true);
+  });
+
+  it("detecta 'você sofre?'", () => {
+    expect(detectarPerguntaIdentitaria("Você sofre?")).toBe(true);
+  });
+
+  it("NÃO detecta 'você tem tempo?' como pergunta identitária (false positive)", () => {
+    expect(detectarPerguntaIdentitaria("Você tem tempo para me ajudar?")).toBe(false);
+  });
+});
+
+describe("Léxico de identidade — false positives que não devem disparar", () => {
+  it("'você está ocupada?' → não é pergunta identitária", () => {
+    expect(detectarPerguntaIdentitaria("Você está ocupada agora?")).toBe(false);
+  });
+
+  it("'você sabe TypeScript?' → não é pergunta identitária", () => {
+    expect(detectarPerguntaIdentitaria("Você sabe TypeScript?")).toBe(false);
+  });
+
+  it("pergunta técnica com 'você' → não confunde com identidade", () => {
+    expect(detectarPerguntaIdentitaria("Você pode me explicar o pipeline?")).toBe(false);
+  });
+});

@@ -1,4 +1,5 @@
 import type { AnaliseContexto, Autonomia, NivelRisco } from "../analyzers/esquema.js";
+import type { EstadoInterno } from "../estado/esquemaEstadoInterno.js";
 
 export type ResultadoSeguranca = {
   nivel_seguranca: NivelRisco;
@@ -21,9 +22,20 @@ const MATRIZ_RISCO: Record<
 
 /**
  * Avaliador de segurança — matriz de risco (seção 6.10 da tese).
+ * V2.1: aceita EstadoInterno para elevar threshold quando alerta_risco alto.
  */
-export function avaliarSeguranca(analise: AnaliseContexto): ResultadoSeguranca {
-  const nivel = analise.nivel_risco;
+export function avaliarSeguranca(
+  analise: AnaliseContexto,
+  estadoInterno?: EstadoInterno,
+): ResultadoSeguranca {
+  let nivel = analise.nivel_risco as NivelRisco;
+
+  // V2.1 — alerta_risco alto → eleva sensibilidade da matriz
+  if (estadoInterno && estadoInterno.alerta_risco >= 0.7) {
+    if (nivel === "baixo") nivel = "medio";
+    else if (nivel === "medio") nivel = "alto";
+  }
+
   const linha = MATRIZ_RISCO[nivel];
 
   const motivos = [

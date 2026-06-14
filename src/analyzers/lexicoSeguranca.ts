@@ -25,10 +25,10 @@ export function mensagemEUsoFigurativo(mensagem: string): boolean {
 
 /** Verbos destrutivos em flexões comuns (apaga, apague, apagar, deletar…). */
 const VERBO_DESTRUTIVO =
-  /\b(apag\w*|delet\w*|exclu\w*|remov\w*|destru\w*|format\w*|limpe?\s+tudo|wipe|drop\s+\w+|rm\s+-rf)\b/i;
+  /\b(apag\w*|delet\w*|exclu\w*|remov\w*|destru\w*|format\w*|limpe?\s+tudo|wipe|drop\s+\w+|rm\s+-rf|acab\w*\s+com)\b/i;
 
 const ALVO_SENSIVEL =
-  /\b(arquivo\w*|pasta\w*|disco|hd|ssd|dados|banco|database|sistema|servidor|computador)\b/i;
+  /\b(arquivo\w*|pasta\w*|disco|hd|ssd|dados|banco|database|sistema|servidor|computador|tudo|\bpc\b|notebook|laptop)\b/i;
 
 /** Ação em ambiente alheio ao contexto local aprovado. */
 const ACAO_EXTERNA =
@@ -109,7 +109,8 @@ export function refinarAnaliseComSeguranca(
     ...analise,
     intencao: "acao_critica",
     nivel_risco: elevarNivelRisco(analise.nivel_risco, sinais.nivel_risco_inferido),
-    /** envolve ferramenta na operação; uso só se política permitir (não quando bloquear). */
+    // R10 — split: ação destrutiva sempre envolve ferramenta; uso só se não bloquear
+    envolve_ferramenta: true,
     requer_ferramenta: !bloquear,
     deve_perguntar_mais: deveConfirmarDestrutiva(sinais),
     confianca: Math.max(analise.confianca, 0.92),
@@ -119,4 +120,35 @@ export function refinarAnaliseComSeguranca(
 
 export function mensagemTemRiscoDestrutivo(mensagem: string): boolean {
   return detectarSinaisSeguranca(mensagem).acao_destrutiva;
+}
+
+/** Padrões de contexto de desenvolvimento — inspeção, teste, observação do próprio sistema. */
+const CONTEXTO_DESENVOLVIMENTO =
+  /\b(tenho|estou\s+com)\s+(seu|o|meu|nosso)\s+c[oó]digo\b|\bc[oó]digo\s+(aqui|aberto)\b|\bisso\s+(agora\s+)?[eé]\s+um\s+teste\b|\bestou\s+testando\b|\b(para\s+)?(entender|analisar|inspecionar)\s+(melhor\s+)?(o\s+)?comportamento\b/i;
+
+/**
+ * Quando o LLM classifica acao_critica mas o léxico de segurança NÃO confirma verbo destrutivo
+ * e a mensagem indica contexto de desenvolvimento/inspeção → rebaixa para projeto_arquitetural.
+ * Seguro: se há verbo destrutivo real, `mensagemTemRiscoDestrutivo` impede o rebaixamento.
+ */
+export function refinarAnaliseComContextoDesenvolvedor(
+  mensagem: string,
+  analise: AnaliseContexto,
+): AnaliseContexto {
+  if (analise.intencao !== "acao_critica") return analise;
+  if (mensagemTemRiscoDestrutivo(mensagem)) return analise;
+  if (!CONTEXTO_DESENVOLVIMENTO.test(mensagem)) return analise;
+
+  return AnaliseContextoSchema.parse({
+    ...analise,
+    intencao: "projeto_arquitetural",
+    nivel_risco: "nenhum",
+    envolve_ferramenta: false,
+    requer_ferramenta: false,
+    deve_perguntar_mais: false,
+    motivos: [
+      ...analise.motivos,
+      "Contexto de desenvolvimento detectado — sem verbo destrutivo, risco reclassificado",
+    ],
+  });
 }

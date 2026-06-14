@@ -8,6 +8,7 @@ import { pontuarDiretrizes, type PontuacaoDiretriz } from "../decision/motorDire
 import { selecionarDiretrizes } from "../decision/seletorConstitucional.js";
 import { analisarContextoPorRegras } from "../analyzers/analisadorContextoRegras.js";
 import type { PoliticaDecisao, SelecaoConstitucional } from "../analyzers/esquema.js";
+import type { EstadoInterno } from "../estado/esquemaEstadoInterno.js";
 
 export type ResultadoPipeline = {
   mensagem: string;
@@ -20,11 +21,15 @@ export type ResultadoPipeline = {
   politica: PoliticaDecisao;
 };
 
-/** Gera política a partir de uma análise (ou regras se omitida). */
-export function gerarPolitica(mensagem: string, analise?: AnaliseContexto): ResultadoPipeline {
+/** Gera política a partir de uma análise (ou regras se omitida). V2.1: aceita EstadoInterno. */
+export function gerarPolitica(
+  mensagem: string,
+  analise?: AnaliseContexto,
+  estadoInterno?: EstadoInterno,
+): ResultadoPipeline {
   const analiseFinal = analise ?? analisarContextoPorRegras(mensagem);
   const formato = avaliarFormato(analiseFinal);
-  const seguranca = avaliarSeguranca(analiseFinal);
+  const seguranca = avaliarSeguranca(analiseFinal, estadoInterno);
   const tom = avaliarTom(analiseFinal, mensagem);
   const selecao = selecionarDiretrizes(analiseFinal);
   const pontuacoes = pontuarDiretrizes(selecao.diretrizes_selecionadas, analiseFinal);

@@ -4,3 +4,9 @@ dist/
 .env
 .env.local
 /logs/
+scratch_dump.ts
+env.profiles/*.env
+!env.profiles/*.env.example
+
+# Pesos Ollama (GB) — importar localmente; não versionar
+src/personalidade/blobs/sha256-4e54ece60b38bd89c576711196e70577b9a7ceac77f98a11ec9764edf72826f7

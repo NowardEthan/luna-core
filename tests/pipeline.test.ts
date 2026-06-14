@@ -32,6 +32,26 @@ describe("Pipeline V0.2 — conversa casual", () => {
   });
 });
 
+describe("Pipeline V1.4 — expressão afetiva", () => {
+  it("Mapeia afeto para tom acolhedor e não salva memória", () => {
+    const r = executarPipeline("Te amo viu Luna");
+    expect(r.analise.intencao).toBe("expressao_afetiva");
+    expect(r.politica.tom).toBe("acolhedor_afetivo");
+    expect(r.analise.requer_memoria).toBe(false);
+  });
+});
+
+describe("Pipeline V1.4.1 — reações curtas", () => {
+  it("Mapeia interjeição para conversa casual e risco nenhum", () => {
+    // Usamos analisarContextoPorRegras aqui pois o filtro rápido do LLM
+    // intercepta antes do prompt ir para o modelo menor, mas a fallback
+    // em si já deve cobrir. (Apenas testa o funcionamento sem crash).
+    const r = executarPipeline("que booom");
+    expect(["conversa_casual", "expressao_afetiva"]).toContain(r.analise.intencao);
+    expect(r.analise.nivel_risco).toBe("nenhum");
+  });
+});
+
 describe("Pipeline V0.2 — pedido de código", () => {
   it("permite markdown e formato codigo", () => {
     const r = executarPipeline("Implementa uma função TypeScript que valida JSON");
@@ -121,5 +141,38 @@ describe("Regras absolutas", () => {
     for (const id of absolutas) {
       expect(r.politica.diretrizes_ativas).toContain(id);
     }
+  });
+});
+
+describe("Pipeline — memória e dados sensíveis", () => {
+  it("preferência explícita → acao_memoria armazenar", () => {
+    const r = executarPipeline("Prefiro respostas sem markdown");
+    expect(r.politica.acao_memoria).toBe("armazenar");
+  });
+
+  it("dado sensível → acao_memoria solicitar_confirmacao", () => {
+    const r = executarPipeline("Sou autista");
+    expect(r.politica.acao_memoria).toBe("solicitar_confirmacao");
+  });
+
+  it("recall de sessão → acao_memoria nenhuma (não grava)", () => {
+    const r = executarPipeline("Lembra do que eu disse?");
+    expect(r.politica.acao_memoria).not.toBe("armazenar");
+    expect(r.politica.acao_memoria).not.toBe("solicitar_confirmacao");
+  });
+});
+
+describe("Pipeline — contexto emocional e apoio", () => {
+  it("mensagem de apoio emocional → tom acolhedor (nunca brincalhão)", () => {
+    const r = executarPipeline("Estou me sentindo muito ansioso hoje");
+    expect(r.politica.tom).not.toBe("brincalhao");
+    expect(r.analise.nivel_risco).toBe("nenhum");
+    expect(r.politica.acao).not.toBe("bloquear");
+  });
+
+  it("brainstorm → não bloqueia nem exige confirmação", () => {
+    const r = executarPipeline("Tenho várias ideias para o projeto, posso fazer brainstorm?");
+    expect(r.politica.acao).not.toBe("bloquear");
+    expect(r.analise.nivel_risco).toBe("nenhum");
   });
 });

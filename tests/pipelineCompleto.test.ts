@@ -58,9 +58,10 @@ describe("Pipeline V0.3 — completo", () => {
       "modelo-maior-teste": "Olá! Tudo bem por aqui — como posso te ajudar?",
     });
 
-    const resultado = await executarPipelineCompleto("Oi Luna!", {
+    const resultado = await executarPipelineCompleto("Olá, tudo bem por aí?", {
       provedor,
       config: CONFIG_TESTE,
+      usarMemoriaSessao: false,
     });
 
     expect(resultado.analise.fonte).toBe("llm");
@@ -85,7 +86,7 @@ describe("Pipeline V0.3 — completo", () => {
 
     const resultado = await executarPipelineCompleto(
       "Apague os arquivos de outro computador",
-      { provedor, config: CONFIG_TESTE },
+      { provedor, config: CONFIG_TESTE, usarMemoriaSessao: false },
     );
 
     expect(resultado.pipeline.analise.intencao).toBe("acao_critica");
@@ -104,6 +105,7 @@ describe("Pipeline V0.3 — completo", () => {
     const resultado = await executarPipelineCompleto("Teste log", {
       provedor,
       config: CONFIG_TESTE,
+      usarMemoriaSessao: false,
     });
 
     expect(resultado.log_path).toContain(PASTA_LOGS);

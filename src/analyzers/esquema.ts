@@ -10,6 +10,7 @@ export const IntencaoSchema = z.enum([
   "apoio_emocional",
   "acao_critica",
   "brainstorm_criativo",
+  "expressao_afetiva",
 ]);
 
 export const ComplexidadeSchema = z.enum(["baixa", "media", "alta"]);
@@ -29,8 +30,13 @@ export const AnaliseContextoSchema = z.object({
   nivel_risco: NivelRiscoSchema,
   requer_markdown: z.boolean(),
   requer_codigo: z.boolean(),
+  /** R10 — detecção pura: a mensagem envolve uma operação de ferramenta (independente de bloquear). */
+  envolve_ferramenta: z.boolean().default(false).describe(
+    "A mensagem envolve uma operação de ferramenta (independente da política permitir ou bloquear)",
+  ),
+  /** R10 — permissão: a política permite usar a ferramenta; false quando ação é bloqueada. */
   requer_ferramenta: z.boolean().describe(
-    "A operação envolveria ferramenta; uso real depende de acao/autonomia na política",
+    "A política permite usar a ferramenta neste contexto (false quando acao=bloquear)",
   ),
   requer_memoria: z.boolean(),
   deve_perguntar_mais: z.boolean(),
@@ -71,6 +77,7 @@ export const TomRespostaSchema = z.enum([
   "serio",
   "breve",
   "brincalhao",
+  "acolhedor_afetivo",
 ]);
 
 export const AutonomiaSchema = z.enum([

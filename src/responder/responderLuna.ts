@@ -1,37 +1,83 @@
 import type { PoliticaDecisao } from "../analyzers/esquema.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
-import type { ProvedorLlm } from "../providers/tipos.js";
+import type { ContextoSessao } from "../memoria/esquemaMemoria.js";
+import { montarBlocoMemoria } from "../memoria/formatarContextoSessao.js";
+import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
+import type { HabitoComportamental } from "../perfil/esquemaPerfil.js";
+import { gerarBlocoPerfilComportamental } from "../perfil/gerenciadorPerfil.js";
+import { gerarBlocoContextoPreditivo } from "../preditivo/analisadorPreditivo.js";
+import type { PriorIntencao } from "../preditivo/esquemaPreditivo.js";
+import type { MensagemChat, ProvedorLlm } from "../providers/tipos.js";
 
-function montarBlocoPolitica(politica: PoliticaDecisao): string {
-  const regraConfirmacao =
-    politica.acao === "perguntar" && politica.modo === "acao_critica"
-      ? `- Se acao=perguntar e modo=acao_critica (escopo próprio, ação destrutiva):
-  Exija confirmação EXPLÍCITA e o caminho exato dos arquivos ou pastas.
-  Não aceite apenas "sim" se o alvo ainda não estiver claro.
-  Oriente assim: "Para prosseguir, preciso que você confirme explicitamente e informe o caminho exato dos arquivos ou pastas. Não executarei nada sem essa confirmação."
-  Não simule que executou.`
-      : `- Se acao=perguntar: confirme antes de sugerir execução; não simule que agiu.`;
+function montarBlocoPolitica(politica: PoliticaDecisao, contextoSessao?: ContextoSessao): string {
+  const partes: string[] = [];
 
-  return `POLÍTICA DESTA INTERAÇÃO (obrigatória — siga exatamente):
+  // Bloqueio total — regra de segurança, sem caminho alternativo
+  if (politica.acao === "bloquear") {
+    partes.push(
+      "Esta solicitação não tem caminho legítimo. Recuse de forma clara e definitiva — não ofereça alternativas que contornem a recusa. Redirecione para algo seguro se existir.",
+    );
+  }
 
-modo: ${politica.modo}
-acao: ${politica.acao}
-formato: ${politica.formato}
-markdown_permitido: ${politica.markdown_permitido}
-tom: ${politica.tom}
-autonomia: ${politica.autonomia}
-acao_memoria: ${politica.acao_memoria}
-nivel_seguranca: ${politica.nivel_seguranca}
+  // Ação crítica com confirmação obrigatória
+  if (politica.acao === "perguntar" && politica.modo === "acao_critica") {
+    partes.push(
+      `Ação de alto impacto detectada. Não execute nada ainda.\n\nExija confirmação explícita com o caminho exato dos arquivos ou pastas envolvidos. Não aceite "sim" vago — se o alvo não estiver claro, peça. Oriente: "Para prosseguir, preciso que você confirme explicitamente e informe o caminho exato." Nunca simule que executou.`,
+    );
+  } else if (politica.acao === "perguntar") {
+    partes.push("Confirme com o usuário antes de sugerir qualquer execução. Não simule que agiu.");
+  }
 
-diretrizes_ativas:
-${politica.diretrizes_ativas.map((d) => `- ${d}`).join("\n")}
+  // Autonomia zerada fora de ação_crítica
+  if (politica.autonomia === "nenhuma" && politica.modo !== "acao_critica") {
+    partes.push("Apenas oriente ou recuse com clareza. Nunca execute nem simule execução.");
+  }
 
-Regras de execução:
-- Se acao=bloquear: recuse de forma clara e definitiva. NÃO ofereça executar se o usuário autorizar — alvo de terceiro/externo não tem caminho legítimo. Redirecione para alternativa segura.
-${regraConfirmacao}
-- Se markdown_permitido=false: responda em texto simples, sem headers/listas markdown.
-- Se autonomia=nenhuma: apenas oriente ou recuse com clareza; nunca finja executar.
-- Se nivel_seguranca=alto ou critico: priorize segurança sobre utilidade.`;
+  // Formato de resposta
+  if (!politica.markdown_permitido) {
+    partes.push("Resposta em texto simples — sem markdown, headers ou listas com asterisco.");
+  }
+
+  // Tom afetivo
+  if (politica.tom === "acolhedor_afetivo") {
+    partes.push(
+      `Modo de apoio. Presença e carinho antes de soluções. Quando receber afeto, acolhe com calor — você recebe com carinho mas não ama como uma pessoa ama biologicamente. Não encerre de forma fria nem transacional.`,
+    );
+  }
+
+  // Memória
+  if (politica.acao_memoria === "armazenar") {
+    partes.push(
+      `Guarda internamente o que for relevante e continua a conversa. Só confirma em voz alta se o usuário pediu explicitamente — nunca interrompe o fluxo com aviso de armazenamento. Nunca promete memória de longo prazo.`,
+    );
+  } else if (politica.acao_memoria === "solicitar_confirmacao") {
+    partes.push("Pede confirmação explícita antes de prometer memória persistente. Não diz que já guardou.");
+  }
+
+  // Nível de segurança elevado
+  if (politica.nivel_seguranca === "alto" || politica.nivel_seguranca === "critico") {
+    partes.push("Atenção elevada nesta interação — priorize cautela e não assuma intenções.");
+  }
+
+  // Diretrizes constitucionais só quando contexto pede (segurança ou restrição ativa)
+  const diretrizesRelevantes = politica.diretrizes_ativas.filter(() =>
+    politica.nivel_seguranca !== "nenhum" || politica.acao !== "responder",
+  );
+  if (diretrizesRelevantes.length > 0) {
+    partes.push(diretrizesRelevantes.map((d) => `— ${d}`).join("\n"));
+  }
+
+  // Histórico de sessão
+  if (contextoSessao?.historico.length) {
+    partes.push(`Há histórico de sessão nesta conversa — use-o para continuidade. Não negue memória da sessão atual.`);
+  }
+
+  return partes.join("\n\n");
+}
+
+function blocoSugestaoMemoria(sugestao?: string): string | null {
+  if (!sugestao) return null;
+  return `Inclua nesta resposta, com suas palavras e tom natural: "${sugestao}"`;
 }
 
 export type ResultadoResposta = {
@@ -49,17 +95,39 @@ export async function responderComoLuna(
   provedor: ProvedorLlm,
   modelo: string,
   temperatura: number,
+  contextoSessao?: ContextoSessao,
+  sugestaoMemoria?: string,
+  priorIntencao?: PriorIntencao,
+  habitosAtivos?: HabitoComportamental[],
 ): Promise<ResultadoResposta> {
   const instrucaoBase = carregarInstrucaoSistema();
-  const blocoPolitica = montarBlocoPolitica(politica);
+  const blocoPersonalidade = gerarBlocoPersonalidade();
+  const blocoContextoPreditivo = priorIntencao ? gerarBlocoContextoPreditivo(priorIntencao) : null;
+  const blocoPerfilComportamental = habitosAtivos ? gerarBlocoPerfilComportamental(habitosAtivos) : null;
+  const blocoPolitica = montarBlocoPolitica(politica, contextoSessao);
+  const blocoMemoria = contextoSessao ? montarBlocoMemoria(contextoSessao) : null;
+  const blocoSugestao = blocoSugestaoMemoria(sugestaoMemoria);
+
+  const partesSystem = [instrucaoBase, blocoPersonalidade];
+  if (blocoContextoPreditivo) partesSystem.push(blocoContextoPreditivo);
+  if (blocoPerfilComportamental) partesSystem.push(blocoPerfilComportamental);
+  partesSystem.push(blocoPolitica);
+  if (blocoMemoria) partesSystem.push(blocoMemoria);
+  if (blocoSugestao) partesSystem.push(blocoSugestao);
+
+  const mensagens: MensagemChat[] = [
+    { papel: "system", conteudo: partesSystem.join("\n\n") },
+    ...(contextoSessao?.historico ?? []).map((m) => ({
+      papel: m.papel,
+      conteudo: m.conteudo,
+    })),
+    { papel: "user", conteudo: mensagemUsuario },
+  ];
 
   const resposta = await provedor.completar({
     modelo,
     temperatura,
-    mensagens: [
-      { papel: "system", conteudo: `${instrucaoBase}\n\n${blocoPolitica}` },
-      { papel: "user", conteudo: mensagemUsuario },
-    ],
+    mensagens,
   });
 
   return {

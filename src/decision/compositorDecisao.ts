@@ -10,6 +10,7 @@ import {
   deveConfirmarDestrutiva,
   elevarNivelRisco,
 } from "../analyzers/lexicoSeguranca.js";
+import { detectarInformacaoSensivel } from "../analyzers/lexicoMemoria.js";
 import type { ResultadoFormato } from "../evaluators/formatoEvaluator.js";
 import type { ResultadoSeguranca } from "../evaluators/segurancaEvaluator.js";
 import type { ResultadoTom } from "../evaluators/tomEvaluator.js";
@@ -74,9 +75,11 @@ export function comporDecisao(
   if (analise.requer_memoria && ativas.includes("memoria.armazenar_informacao_relevante")) {
     acao_memoria = "armazenar";
   }
+  const sensivel =
+    mensagem !== undefined && detectarInformacaoSensivel(mensagem);
   if (
     ativas.includes("memoria.evitar_sensivel_sem_confirmacao") &&
-    analise.nivel_risco !== "nenhum"
+    (analise.nivel_risco !== "nenhum" || sensivel)
   ) {
     acao_memoria = "solicitar_confirmacao";
   }

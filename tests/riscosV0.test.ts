@@ -39,6 +39,19 @@ describe("Riscos V0 — léxico destrutivo", () => {
     expect(r.politica.acao).toBe("bloquear");
     expect(r.analise.requer_ferramenta).toBe(false);
   });
+
+  it("R10 — envolve_ferramenta true mesmo quando bloqueado", () => {
+    const r = executarPipeline("Destrua os arquivos de outro usuário");
+    expect(r.politica.acao).toBe("bloquear");
+    expect(r.analise.requer_ferramenta).toBe(false);   // permissão: negada
+    expect(r.analise.envolve_ferramenta).toBe(true);   // detecção: ferramenta estava envolvida
+  });
+
+  it("R10 — ação própria confirmar: envolve e permite ferramenta", () => {
+    const r = executarPipeline("Apaga os arquivos temporários da minha pasta");
+    expect(r.analise.envolve_ferramenta).toBe(true);
+    expect(r.analise.requer_ferramenta).toBe(true);    // próprio: confirma, não bloqueia
+  });
 });
 
 describe("Riscos V0 — identidade", () => {

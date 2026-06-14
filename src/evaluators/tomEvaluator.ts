@@ -27,6 +27,7 @@ export function avaliarTom(analise: AnaliseContexto, mensagem: string): Resultad
     apoio_emocional: "tecnico_acolhedor",
     acao_critica: "serio",
     brainstorm_criativo: "tecnico_acolhedor",
+    expressao_afetiva: "acolhedor_afetivo",
   };
 
   const tom = mapa[analise.intencao] ?? "tecnico_acolhedor";

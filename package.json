@@ -1,28 +1,51 @@
 {
   "name": "luna-core",
-  "version": "0.1.0",
-  "description": "Luna Core — arquitetura de identidade artificial persistente (V0)",
+  "version": "0.2.0",
+  "description": "Luna Core — arquitetura de identidade artificial persistente (V1)",
   "type": "module",
+  "main": "./dist/entry-desktop.js",
+  "types": "./dist/entry-desktop.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/entry-desktop.d.ts",
+      "import": "./dist/entry-desktop.js"
+    },
+    "./pipeline": {
+      "types": "./dist/pipeline/executarPipelineCompleto.d.ts",
+      "import": "./dist/pipeline/executarPipelineCompleto.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
+    "build:watch": "tsc --watch",
     "check": "tsc --noEmit",
     "demo": "tsx src/index.ts",
     "policy": "tsx src/cli/policy.ts",
     "analisar": "tsx src/cli/analisar.ts",
+    "memoria": "tsx src/cli/memoria.ts",
     "chat": "tsx src/cli/chat.ts",
+    "refletir": "tsx src/cli/refletir.ts",
+    "estado": "tsx src/cli/estado.ts",
+    "empirico": "tsx src/cli/empirico.ts",
+    "presenca": "tsx src/cli/presenca.ts",
     "validar:v0": "tsx src/cli/validar-v0.ts",
+    "validar:v1": "tsx src/cli/validar-v1.ts",
+    "daemon": "tsx src/cli/daemon.ts",
     "test": "vitest run"
   },
   "engines": {
     "node": ">=20"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.21",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.4"
   },
   "dependencies": {
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^12.10.0",
     "dotenv": "^17.4.2",
     "zod": "^3.25.28"
   }
