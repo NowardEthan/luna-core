@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { join } from "node:path";
 
 import {
   isFirebaseAdminConfigured,
@@ -10,11 +12,42 @@ import { executarChatMobile } from "./loadCore.js";
 import { isCoreBuilt, resolveLunaCorePath } from "./resolveCorePath.js";
 import { isSttConfigured, transcribeAudio, TranscribeRequestSchema } from "./transcribeStt.js";
 import {
+  describeImages,
+  isVisionConfigured,
+  VisionRequestSchema,
+} from "./describeVision.js";
+import {
+  extractDocuments,
+  ExtractDocumentsRequestSchema,
+  isDocumentExtractAvailable,
+} from "./extractDocuments.js";
+import {
   ChatRequestSchema,
   type ChatResponse,
+  type ExtractDocumentsResponse,
   type HealthResponse,
   type TranscribeResponse,
+  type VisionResponse,
 } from "./types.js";
+
+/**
+ * Carrega o .env da luna-core no arranque, para que LUNA_API_KEY (chat + STT)
+ * esteja disponível antes do primeiro /v1/chat — senão /v1/transcribe falha
+ * quando um áudio é o primeiro pedido. No Railway as Variables já vêm no env.
+ */
+function bootstrapEnvFromCore(): void {
+  if (process.env.LUNA_API_KEY?.trim()) return;
+  const loadEnvFile = (process as { loadEnvFile?: (path: string) => void }).loadEnvFile;
+  if (typeof loadEnvFile !== "function") return;
+  try {
+    const envPath = join(resolveLunaCorePath(), ".env");
+    if (existsSync(envPath)) loadEnvFile(envPath);
+  } catch {
+    /* .env opcional — ignora se ausente ou ilegível */
+  }
+}
+
+bootstrapEnvFromCore();
 
 const HOST = process.env.LUNA_MOBILE_API_HOST?.trim() || "0.0.0.0";
 /** Railway injecta PORT; local usa LUNA_MOBILE_API_PORT ou 7742. */
@@ -71,6 +104,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       coreReady: isCoreBuilt(corePath),
       llmConfigured: Boolean(process.env.LUNA_API_KEY?.trim()),
       sttConfigured: isSttConfigured(),
+      visionConfigured: isVisionConfigured(),
+      documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,
       firebaseAuthRequired: isFirebaseAuthRequired(),
     };
@@ -141,6 +176,52 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
   }
 
+  if (method === "POST" && url.pathname === "/v1/vision") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        const payload: VisionResponse = {
+          ok: false,
+          error: "Autenticação Firebase obrigatória.",
+        };
+        return sendJson(res, 401, payload);
+      }
+
+      const body = await readJson(req);
+      const parsed = VisionRequestSchema.parse(body);
+      const descriptions = await describeImages(parsed);
+      const payload: VisionResponse = { ok: true, descriptions };
+      return sendJson(res, 200, payload);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const payload: VisionResponse = { ok: false, error: message };
+      return sendJson(res, 400, payload);
+    }
+  }
+
+  if (method === "POST" && url.pathname === "/v1/extract-documents") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        const payload: ExtractDocumentsResponse = {
+          ok: false,
+          error: "Autenticação Firebase obrigatória.",
+        };
+        return sendJson(res, 401, payload);
+      }
+
+      const body = await readJson(req);
+      const parsed = ExtractDocumentsRequestSchema.parse(body);
+      const documents = await extractDocuments(parsed);
+      const payload: ExtractDocumentsResponse = { ok: true, documents };
+      return sendJson(res, 200, payload);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const payload: ExtractDocumentsResponse = { ok: false, error: message };
+      return sendJson(res, 400, payload);
+    }
+  }
+
   sendJson(res, 404, { ok: false, error: "Rota não encontrada." });
 }
 
@@ -166,6 +247,8 @@ server.listen(PORT, HOST, () => {
   console.log("");
   console.log("  POST /v1/chat       { message, sessionId?, userMessageId?, lunaMessageId? }");
   console.log("  POST /v1/transcribe { audioBase64, mimeType?, language? }");
+  console.log("  POST /v1/vision            { images[], userPrompt? }");
+  console.log("  POST /v1/extract-documents { files[] }");
   console.log("  GET  /health");
   console.log("");
 });

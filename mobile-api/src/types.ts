@@ -29,6 +29,14 @@ export type TranscribeResponse =
   | { ok: true; text: string }
   | { ok: false; error: string };
 
+export type VisionResponse =
+  | { ok: true; descriptions: Array<{ name?: string; description: string }> }
+  | { ok: false; error: string };
+
+export type ExtractDocumentsResponse =
+  | { ok: true; documents: Array<{ name?: string; text: string; truncated?: boolean }> }
+  | { ok: false; error: string };
+
 export type HealthResponse = {
   ok: true;
   service: "luna-mobile-api";
@@ -36,6 +44,8 @@ export type HealthResponse = {
   coreReady: boolean;
   llmConfigured: boolean;
   sttConfigured: boolean;
+  visionConfigured: boolean;
+  documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
   firebaseAuthRequired: boolean;
 };
