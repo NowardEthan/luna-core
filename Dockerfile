@@ -29,11 +29,11 @@ COPY --from=core-builder /build /app/luna-core
 WORKDIR /app/api
 
 COPY mobile-api/package.json mobile-api/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci
 
 COPY mobile-api/tsconfig.json mobile-api/tsconfig.build.json ./
 COPY mobile-api/src ./src
-RUN npm run build
+RUN npm run build && npm prune --omit=dev && npm cache clean --force
 
 EXPOSE 7742
 
