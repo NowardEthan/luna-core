@@ -1,4 +1,4 @@
-import type { MemoriaSessao } from "../../src/memoria/esquemaMemoria.js";
+import type { MemoriaSessaoMobile } from "./typesMemoriaMobile.js";
 
 /** Texto máximo por arquivo dentro do turno enviado ao LLM. */
 export const MAX_ATTACHMENT_TEXT_IN_CHAT = 2_000;
@@ -76,7 +76,7 @@ function shrinkAttachmentBlocks(message: string): string {
 }
 
 /** Evita que turnos antigos com PDF inteiro estourem o TPM em conversas longas. */
-export function compactarSessaoMobile(sessao: MemoriaSessao): void {
+export function compactarSessaoMobile(sessao: MemoriaSessaoMobile): void {
   if (sessao.mensagens.length > 8) {
     sessao.mensagens = sessao.mensagens.slice(-8);
   }

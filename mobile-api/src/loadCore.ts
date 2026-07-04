@@ -4,9 +4,11 @@ import { resolveLunaCoreEntry, resolveLunaCorePath } from "./resolveCorePath.js"
 import {
   resolveLlmConfig,
   resolveLlmProviderSelection,
+  type ConfigLuna,
   type LlmProviderSelection,
 } from "./llmProviders.js";
-import { compactarSessaoMobile, truncateMobileChatMessage } from "./truncateForGroq.js";
+import { compactarSessaoPersistida } from "./sessaoMobile.js";
+import { truncateMobileChatMessage } from "./truncateForGroq.js";
 
 export type LunaCoreModule = {
   executarPipelineCompleto: (
@@ -17,7 +19,7 @@ export type LunaCoreModule = {
       gerarResposta?: boolean;
       raciocinioAtivo?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
-      config?: import("../../src/providers/tipos.js").ConfigLuna;
+      config?: ConfigLuna;
     },
   ) => Promise<{
     resposta?: { texto?: string };
@@ -82,11 +84,7 @@ export async function executarChatMobile(
 
     if (sessionId && selection.providerId === "groq") {
       try {
-        const { obterOuCriarSessao } = await import("../../src/memoria/gerenciadorSessao.js");
-        const { salvarSessao } = await import("../../src/memoria/storeSessao.js");
-        const sessao = obterOuCriarSessao(sessionId);
-        compactarSessaoMobile(sessao);
-        salvarSessao(sessao);
+        await compactarSessaoPersistida(sessionId);
       } catch {
         /* sessão opcional — não bloqueia o chat */
       }

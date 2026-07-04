@@ -16,6 +16,8 @@ type ConfigLuna = {
   baseUrlMenor?: string;
 };
 
+export type { ConfigLuna };
+
 export type LlmProviderId = "groq" | "openrouter" | "auto";
 
 export type LlmModelKey = "default" | "qwen-next" | "qwen-coder" | "auto";
@@ -36,9 +38,12 @@ export type LlmProviderOption = {
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
+type CatalogProviderId = Exclude<LlmProviderId, "auto">;
+type CatalogModelKey = Exclude<LlmModelKey, "auto">;
+
 const MODELS: Record<
-  LlmProviderId,
-  Partial<Record<LlmModelKey, { label: string; description: string; modelId: string }>>
+  CatalogProviderId,
+  Partial<Record<CatalogModelKey, { label: string; description: string; modelId: string }>>
 > = {
   groq: {
     default: {
