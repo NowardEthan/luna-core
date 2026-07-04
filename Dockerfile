@@ -14,6 +14,17 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+FROM node:22-bookworm-slim AS api-builder
+
+WORKDIR /build
+
+COPY mobile-api/package.json mobile-api/package-lock.json ./
+RUN npm ci
+
+COPY mobile-api/tsconfig.json mobile-api/tsconfig.build.json ./
+COPY mobile-api/src ./src
+RUN npm run build
+
 FROM node:22-bookworm-slim AS runtime
 
 RUN apt-get update \
@@ -29,11 +40,9 @@ COPY --from=core-builder /build /app/luna-core
 WORKDIR /app/api
 
 COPY mobile-api/package.json mobile-api/package-lock.json ./
-RUN npm ci
+RUN npm ci --omit=dev && npm cache clean --force
 
-COPY mobile-api/tsconfig.json mobile-api/tsconfig.build.json ./
-COPY mobile-api/src ./src
-RUN npm run build && npm prune --omit=dev && npm cache clean --force
+COPY --from=api-builder /build/dist ./dist
 
 EXPOSE 7742
 
