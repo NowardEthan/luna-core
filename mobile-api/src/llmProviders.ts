@@ -47,6 +47,16 @@ function openRouterBaseUrl(): string {
   return OPENROUTER_BASE;
 }
 
+function resolveOpenRouterModelId(
+  modelKey: "qwen-next" | "qwen-coder",
+  fallback: string,
+): string {
+  if (modelKey === "qwen-next") {
+    return process.env.OPENROUTER_MODEL_CHAT?.trim() || fallback;
+  }
+  return process.env.OPENROUTER_MODEL_CODE?.trim() || fallback;
+}
+
 type CatalogProviderId = Exclude<LlmProviderId, "auto">;
 type CatalogModelKey = Exclude<LlmModelKey, "auto">;
 
@@ -62,14 +72,16 @@ const MODELS: Record<
     },
   },
   openrouter: {
+    /** Chat geral — Mistral 24B free, tool calling, 128k (substitui Qwen 80B lento). */
     "qwen-next": {
-      label: "OpenRouter · Qwen3 Next 80B (free)",
-      description: "Assistente geral, contexto longo — grátis no OpenRouter.",
-      modelId: "qwen/qwen3-next-80b-a3b-instruct:free",
+      label: "OpenRouter · Mistral Small 3.1 (free)",
+      description: "Chat rápido, tool calling e contexto longo — grátis no OpenRouter.",
+      modelId: "mistralai/mistral-small-3.1-24b-instruct:free",
     },
+    /** Código — Qwen Coder free, tool calling para agentes. */
     "qwen-coder": {
-      label: "OpenRouter · Qwen3 Coder 480B (free)",
-      description: "Código e raciocínio técnico — grátis no OpenRouter.",
+      label: "OpenRouter · Qwen3 Coder (free)",
+      description: "Código e raciocínio técnico com tool calling — grátis no OpenRouter.",
       modelId: "qwen/qwen3-coder:free",
     },
   },
@@ -118,7 +130,7 @@ export function listConfiguredProviderOptions(): LlmProviderOption[] {
         modelKey: key,
         label: m.label,
         description: m.description,
-        modelId: m.modelId,
+        modelId: resolveOpenRouterModelId(key, m.modelId),
         configured: true,
       });
     }
@@ -138,7 +150,7 @@ export function listProviderOptionsForUi(): LlmProviderOption[] {
       modelKey: "auto",
       label: "Automático",
       description:
-        "A Luna escolhe por mensagem: Groq para chat rápido, Qwen Next para documentos, Qwen Coder para código.",
+        "A Luna escolhe por mensagem: Groq para chat rápido, Mistral para documentos, Qwen Coder para código.",
       modelId: "auto",
       configured: true,
     },
@@ -234,17 +246,27 @@ export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | 
   const modelDef = MODELS.openrouter[selection.modelKey as "qwen-next" | "qwen-coder"];
   if (!modelDef) return null;
 
-  const model = modelDef.modelId;
+  const model = resolveOpenRouterModelId(
+    selection.modelKey as "qwen-next" | "qwen-coder",
+    modelDef.modelId,
+  );
   const baseUrl = openRouterBaseUrl();
+
+  /** Pipeline auxiliar (análise/memória) no Groq rápido quando disponível — evita 2–3×80B no OpenRouter. */
+  const groqKey = groqApiKey();
+  const groqBase = process.env.LUNA_API_BASE?.trim() || "https://api.groq.com/openai/v1";
+  const groqMenor = process.env.LUNA_MODELO_MENOR?.trim() || "llama-3.1-8b-instant";
+  const usarGroqMenor = Boolean(groqKey);
+
   return {
     apiKey,
     baseUrl,
-    modeloMenor: model,
+    modeloMenor: usarGroqMenor ? groqMenor : model,
     modeloMaior: model,
     temperaturaMenor: 0,
     temperaturaMaior: Number(process.env.LUNA_TEMPERATURA_MAIOR ?? 0.85),
-    apiKeyMenor: apiKey,
-    baseUrlMenor: baseUrl,
+    apiKeyMenor: usarGroqMenor ? groqKey! : apiKey,
+    baseUrlMenor: usarGroqMenor ? groqBase : baseUrl,
   };
 }
 

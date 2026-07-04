@@ -83,8 +83,8 @@ export async function executarChatMobile(
     );
   }
 
-  const useOpenRouterLongContext =
-    selection.providerId === "openrouter" && selection.modelKey === "qwen-next";
+  const isOpenRouter = selection.providerId === "openrouter";
+  const useOpenRouterLongContext = isOpenRouter && selection.modelKey === "qwen-next";
   const mensagemLimit = useOpenRouterLongContext ? 14_000 : undefined;
 
   const corePath = resolveLunaCorePath();
@@ -106,6 +106,10 @@ export async function executarChatMobile(
 
     const detalheAmbiente = montarDetalheAmbienteMobile(userDisplayName);
 
+    const pipelineUsaGroqAuxiliar = config.baseUrlMenor?.includes("groq.com") ?? false;
+    const usarNeuronioMemoriaLlm =
+      mensagem.length < 4_000 && (!isOpenRouter || pipelineUsaGroqAuxiliar);
+
     const resultado = await core.executarPipelineCompleto(mensagem, {
       sessaoId: sessionId,
       config,
@@ -113,7 +117,7 @@ export async function executarChatMobile(
       detalhe_ambiente: detalheAmbiente,
       gerarResposta: true,
       raciocinioAtivo: false,
-      usarNeuronioMemoriaLlm: mensagem.length < 4_000,
+      usarNeuronioMemoriaLlm,
     });
 
     const text = resultado.resposta?.texto?.trim();

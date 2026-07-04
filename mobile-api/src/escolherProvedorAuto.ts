@@ -4,8 +4,8 @@ export type AutoRoutingReason = "codigo" | "contexto_longo" | "documento" | "cha
 
 export const AUTO_REASON_LABELS: Record<AutoRoutingReason, string> = {
   codigo: "Pedido com código — Qwen Coder",
-  contexto_longo: "Mensagem longa — Qwen Next",
-  documento: "Documento ou anexo — Qwen Next",
+  contexto_longo: "Mensagem longa — Mistral",
+  documento: "Documento ou anexo — Mistral",
   chat_rapido: "Conversa curta — Groq",
   fallback: "Melhor opção disponível",
 };
