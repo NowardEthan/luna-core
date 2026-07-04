@@ -25,6 +25,7 @@ import {
   isAnyLlmProviderConfigured,
   listProviderOptionsForUi,
 } from "./llmProviders.js";
+import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import {
   ChatRequestSchema,
   type ChatResponse,
@@ -98,6 +99,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
+  const billingHandled = await handleBillingRoute(
+    req,
+    res,
+    url.pathname,
+    sendJson,
+    readAuthHeader,
+  );
+  if (billingHandled) return;
+
   if (method === "GET" && url.pathname === "/health") {
     const corePath = resolveLunaCorePath();
     const firebaseConfigured = isFirebaseAdminConfigured();
@@ -119,6 +129,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,
       firebaseAuthRequired: isFirebaseAuthRequired(),
+      billingConfigured: isBillingConfigured(),
       llmProviders,
     };
     return sendJson(res, payload.coreReady && payload.llmConfigured ? 200 : 503, payload);
@@ -271,6 +282,8 @@ server.listen(PORT, HOST, () => {
   console.log(`  Firebase Admin: ${fb ? "sim" : "não (sem persistência cloud)"}`);
   console.log("");
   console.log("  POST /v1/chat       { message, sessionId?, userMessageId?, lunaMessageId? }");
+  console.log("  POST /v1/billing/checkout | sync | trial/sync | credit-pack");
+  console.log("  POST /v1/billing/webhook/asaas");
   console.log("  POST /v1/transcribe { audioBase64, mimeType?, language? }");
   console.log("  POST /v1/vision            { images[], userPrompt? }");
   console.log("  POST /v1/extract-documents { files[] }");

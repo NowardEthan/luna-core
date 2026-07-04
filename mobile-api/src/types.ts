@@ -59,6 +59,7 @@ export type HealthResponse = {
   documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
   firebaseAuthRequired: boolean;
+  billingConfigured?: boolean;
   llmProviders?: Array<{
     providerId: string;
     modelKey: string;
