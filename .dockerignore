@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+mobile-api/node_modules
+mobile-api/dist
+logs
+.env
+.env.*
+*.log
+scratch_dump.ts

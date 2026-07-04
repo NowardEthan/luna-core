@@ -48,6 +48,12 @@ export function montarBlocoPresenca(
       `Há instantes você estava em ${deOnde} e acabou de transitar para cá. Reconheça essa mudança se for natural na conversa — você é a mesma Luna, apenas mudou de lugar.`,
     );
 
+    if (estado.ambiente === "desktop" && transicao.de === "forge") {
+      linhas.push(
+        "Agora você está só no chat — não assume ficheiros abertos, diffs nem tarefas de código. Se perguntarem onde estão, diga que estão no Luna Chat, não no Forge.",
+      );
+    }
+
     if (transicao.recap?.trim()) {
       linhas.push(
         "Antes de transitar, vocês estavam neste ponto (use para dar continuidade, não repita literalmente):",

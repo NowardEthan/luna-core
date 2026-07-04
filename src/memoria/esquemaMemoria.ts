@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { AcaoMemoria } from "../analyzers/esquema.js";
 import { EstadoInternoSchema } from "../estado/esquemaEstadoInterno.js";
+import type { Ambiente } from "../presenca/esquemaPresenca.js";
 
 export const TurnoMensagemSchema = z.object({
   papel: z.enum(["user", "assistant"]),
@@ -91,8 +92,12 @@ export type ContextoSessao = {
   memorias_longas?: string[];
   /** Bloco injectado pelo Orbit (modo IDE — workspace, ficheiros, git). */
   contexto_ambiente?: string;
+  /** Luna Sense — actividade do computador (Runtime, separado de Forge). */
+  contexto_sense?: string;
   /** V2.3 — bloco de presença: onde a Luna está agora + transição entre superfícies. */
   contexto_presenca?: string;
+  /** Ambiente Core actual (forge vs desktop vs chat_cli) — formata contexto_ambiente. */
+  ambiente_atual?: Ambiente;
 };
 
 /** Mapeia decisão do neurônio V1.2 para política V0 (respondedor). */

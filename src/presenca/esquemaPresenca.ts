@@ -61,8 +61,8 @@ export const PRESENCA_INICIAL: EstadoPresenca = {
  */
 export const ROTULO_AMBIENTE: Record<Ambiente, string> = {
   chat_cli: "o chat de linha de comando (CLI de desenvolvimento)",
-  desktop: "o chat normal do Orbit (app desktop)",
-  forge: "o Luna Forge — o IDE integrado do Orbit (editor, terminal, git)",
+  desktop: "o Luna Chat (app desktop — conversa geral, sem IDE)",
+  forge: "o Luna Forge (ambiente de desenvolvimento — editor, terminal, git)",
   api: "uma chamada direta via API",
   lumen: "o portal Lumen",
   desconhecido: "um ambiente não identificado",

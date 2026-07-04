@@ -1,0 +1,12 @@
+# Railway — GitHub: NowardEthan/luna-core (root = repo root)
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+watchPatterns = ["src/**", "mobile-api/**", "package.json"]
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1

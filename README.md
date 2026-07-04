@@ -1,4 +1,4 @@
-# Luna Core
+﻿# Luna Core
 
 > **A LLM grande é a voz. Os modelos menores são os neurônios. O Core orquestra.**
 
@@ -223,7 +223,7 @@ npm run empirico      # regressão empírica
 
 Relatórios V0: `logs/validacao-v0/` · cenários: `tests/cenarios-v0.json`, `tests/cenarios-v1.json`.
 
-Documentação conceptual (teses, roadmap narrativo, continuidade para IA) vive no monorepo local `Core/Luna/Teses de Arquitetura/` — fora deste repo.
+Documentação conceptual (teses, roadmap narrativo, continuidade para IA) vive no monorepo local `Projects/Luna/core/Teses de Arquitetura/` — fora deste repo.
 
 ---
 

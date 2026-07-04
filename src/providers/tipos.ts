@@ -8,12 +8,15 @@ export type RequisicaoCompletacao = {
   mensagens: MensagemChat[];
   temperatura: number;
   json?: boolean;
+  /** Pedir raciocínio explícito quando o modelo suporta (default: true no respondedor). */
+  raciocinioAtivo?: boolean;
 };
 
 export type RespostaCompletacao = {
   conteudo: string;
   modelo: string;
   latencia_ms: number;
+  raciocinio?: string;
 };
 
 /** Interface abstrata de provedor LLM (RNF06 — portabilidade). */
@@ -57,6 +60,8 @@ export type RequisicaoAgente = {
   mensagens: MensagemChatAgente[];
   temperatura: number;
   ferramentas?: DefinicaoFerramenta[];
+  /** Pedir raciocínio explícito à API quando o modelo suporta (default: true no agente). */
+  raciocinioAtivo?: boolean;
 };
 
 /** Resposta agêntica — texto final OU chamadas de ferramentas a executar. */
@@ -65,6 +70,8 @@ export type RespostaAgente = {
   conteudo?: string;
   /** Chamadas de ferramentas quando o modelo quer executar ações. */
   chamadas?: ChamadaFerramenta[];
+  /** Pensamento do modelo (Groq reasoning, OpenRouter thinking, etc.). */
+  raciocinio?: string;
   modelo: string;
   latencia_ms: number;
 };

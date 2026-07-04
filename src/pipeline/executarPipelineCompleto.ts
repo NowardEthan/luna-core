@@ -24,6 +24,7 @@ import type { PriorIntencao } from "../preditivo/esquemaPreditivo.js";
 import { carregarPerfil, salvarPerfil } from "../perfil/storePerfil.js";
 import { ativarHabitos, adicionarOuIncrementarHabito } from "../perfil/gerenciadorPerfil.js";
 import type { HabitoComportamental } from "../perfil/esquemaPerfil.js";
+import { montarNarrativaRaciocinio } from "./montarNarrativaRaciocinio.js";
 
 export type ResultadoCompleto = {
   pipeline: ResultadoPipeline;
@@ -32,6 +33,8 @@ export type ResultadoCompleto = {
   resposta?: ResultadoResposta;
   prior?: PriorIntencao;
   habitos_ativos?: HabitoComportamental[];
+  /** Narrativa PT do pipeline PAIA — timeline rodada 1 no Orbit. */
+  narrativa_pipeline?: string;
   log_path: string;
   sessao?: MemoriaSessao;
 };
@@ -52,6 +55,25 @@ export type OpcoesPipelineCompleto = {
   contexto_cross_sessao?: string[];
   /** I5 Orbit IDE — snapshot do workspace (explorador, editor, terminal, git). */
   contexto_ide?: string;
+  /** Luna Sense — actividade do computador (separado de Forge). */
+  contexto_sense?: string;
+  /** Default true — pede raciocínio explícito ao modelo maior quando suportado. */
+  raciocinioAtivo?: boolean;
+  onStatusHint?: (hint: string) => void;
+  /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
+  onPipelineTrace?: (trace: {
+    intencao?: string;
+    complexidade?: string;
+    nivelRisco?: string;
+    politicaAcao?: string;
+    politicaTom?: string;
+    politicaModo?: string;
+    memoriaAcao?: string;
+    memoriaTipo?: string;
+    memoriaMotivo?: string;
+  }) => void;
+  /** Raciocínio do modelo maior — rodada 2 no chat (rodada 1 = pipeline). */
+  onRaciocinioRodada?: (rodada: number, texto: string, emProgresso: boolean) => void;
 };
 
 function resolverProvedor(config: ConfigLuna): ProvedorLlm {
@@ -84,6 +106,9 @@ export async function executarPipelineCompleto(
   const gerarResposta = opcoes.gerarResposta ?? Boolean(provedor && config);
   const usarMemoria = opcoes.usarMemoriaSessao ?? true;
   const neuronioLlm = opcoes.usarNeuronioMemoriaLlm ?? true;
+  const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
+
+  opcoes.onStatusHint?.("A analisar intenção…");
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -102,8 +127,13 @@ export async function executarPipelineCompleto(
     contextoSessao.contexto_ambiente = opcoes.contexto_ide.trim();
   }
 
+  if (contextoSessao && opcoes.contexto_sense?.trim()) {
+    contextoSessao.contexto_sense = opcoes.contexto_sense.trim();
+  }
+
   // V2.3 — injeta o bloco de presença (onde ela está + transição + recap de continuidade)
   if (contextoSessao && estadoPresenca) {
+    contextoSessao.ambiente_atual = estadoPresenca.ambiente;
     const sessaoAnterior = transicaoPresenca?.sessao_anterior_id;
     if (sessaoAnterior && sessaoAnterior !== opcoes.sessaoId) {
       const recap = montarRecapSessao(sessaoAnterior);
@@ -154,6 +184,12 @@ export async function executarPipelineCompleto(
     estadoInternoAnterior,
   );
 
+  opcoes.onPipelineTrace?.({
+    intencao: analise.analise.intencao,
+    complexidade: analise.analise.complexidade,
+    nivelRisco: analise.analise.nivel_risco,
+  });
+
   // V2.1 — recalcula e persiste estado interno após análise
   if (sessao) atualizarEstadoInterno(sessao, analise.analise);
   const estadoInterno = sessao?.estado_interno;
@@ -167,6 +203,17 @@ export async function executarPipelineCompleto(
 
   const pipeline = gerarPolitica(mensagem, analise.analise, estadoInterno);
 
+  opcoes.onPipelineTrace?.({
+    intencao: analise.analise.intencao,
+    complexidade: analise.analise.complexidade,
+    nivelRisco: analise.analise.nivel_risco,
+    politicaAcao: pipeline.politica.acao,
+    politicaTom: pipeline.politica.tom,
+    politicaModo: pipeline.politica.modo,
+  });
+
+  opcoes.onStatusHint?.("A consultar memória…");
+
   const memoria = await avaliarMemoria(
     mensagem,
     sessao,
@@ -179,9 +226,39 @@ export async function executarPipelineCompleto(
     acao_memoria: mapDecisaoParaAcaoMemoria(memoria.decisao),
   };
 
+  opcoes.onPipelineTrace?.({
+    intencao: analise.analise.intencao,
+    complexidade: analise.analise.complexidade,
+    nivelRisco: analise.analise.nivel_risco,
+    politicaAcao: politicaComMemoria.acao,
+    politicaTom: politicaComMemoria.tom,
+    politicaModo: politicaComMemoria.modo,
+    memoriaAcao: memoria.decisao.acao,
+    memoriaTipo: memoria.decisao.tipo,
+    memoriaMotivo: memoria.decisao.motivo,
+  });
+
+  const traceCompleto = {
+    intencao: analise.analise.intencao,
+    complexidade: analise.analise.complexidade,
+    nivelRisco: analise.analise.nivel_risco,
+    politicaAcao: politicaComMemoria.acao,
+    politicaTom: politicaComMemoria.tom,
+    politicaModo: politicaComMemoria.modo,
+    memoriaAcao: memoria.decisao.acao,
+    memoriaTipo: memoria.decisao.tipo,
+    memoriaMotivo: memoria.decisao.motivo,
+  };
+  const narrativaPipeline = montarNarrativaRaciocinio(traceCompleto);
+  if (raciocinioAtivo && narrativaPipeline) {
+    opcoes.onRaciocinioRodada?.(1, narrativaPipeline, true);
+    opcoes.onRaciocinioRodada?.(1, narrativaPipeline, false);
+  }
+
   let resposta: ResultadoResposta | undefined;
 
   if (gerarResposta && provedor && config) {
+    opcoes.onStatusHint?.("A redigir resposta…");
     resposta = await responderComoLuna(
       mensagem,
       politicaComMemoria,
@@ -192,7 +269,15 @@ export async function executarPipelineCompleto(
       memoria.decisao.sugestao_resposta,
       prior ?? undefined,
       habitosAtivos,
+      raciocinioAtivo,
+      config.baseUrl,
     );
+
+    const raciocinio = resposta.raciocinio?.trim() ?? "";
+    if (raciocinio && raciocinioAtivo) {
+      opcoes.onRaciocinioRodada?.(2, raciocinio, true);
+      opcoes.onRaciocinioRodada?.(2, raciocinio, false);
+    }
   }
 
   // V3.2 — atualiza perfil comportamental quando uma preferência é confirmada
@@ -252,6 +337,7 @@ export async function executarPipelineCompleto(
     resposta,
     prior: prior ?? undefined,
     habitos_ativos: habitosAtivos.length > 0 ? habitosAtivos : undefined,
+    narrativa_pipeline: narrativaPipeline || undefined,
     log_path,
     sessao: sessaoAtualizada,
   };

@@ -17,12 +17,15 @@
   },
   "scripts": {
     "build": "tsc",
+    "rebuild:native": "npm rebuild better-sqlite3",
+    "postinstall": "npm rebuild better-sqlite3",
     "build:watch": "tsc --watch",
     "check": "tsc --noEmit",
     "demo": "tsx src/index.ts",
     "policy": "tsx src/cli/policy.ts",
     "analisar": "tsx src/cli/analisar.ts",
     "memoria": "tsx src/cli/memoria.ts",
+    "memoria:reset": "tsx src/cli/resetMemoria.ts",
     "chat": "tsx src/cli/chat.ts",
     "refletir": "tsx src/cli/refletir.ts",
     "estado": "tsx src/cli/estado.ts",
@@ -31,7 +34,9 @@
     "validar:v0": "tsx src/cli/validar-v0.ts",
     "validar:v1": "tsx src/cli/validar-v1.ts",
     "daemon": "tsx src/cli/daemon.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "mobile-api": "npm run start --prefix mobile-api",
+    "mobile-api:dev": "npm run dev --prefix mobile-api"
   },
   "engines": {
     "node": ">=20"

@@ -310,6 +310,47 @@ describe("callbacks de progresso", () => {
 
     expect(onHint).toHaveBeenCalledWith("Executando run_terminal_command…");
   });
+
+  it("dispara onRaciocinioRodada quando o modelo devolve raciocínio", async () => {
+    const onRaciocinio = vi.fn();
+    const provedor: ProvedorAgente = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn()
+        .mockResolvedValueOnce({
+          chamadas: [{ id: "c1", nome: "read_file", argumentos: { path: "a.ts" } }],
+          raciocinio: "Preciso ler o ficheiro primeiro.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 10,
+        })
+        .mockResolvedValueOnce({
+          conteudo: "Feito.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 10,
+        }),
+    };
+
+    await executorAgentico(
+      opcoesBase({
+        provedor,
+        toolExecutor: vi.fn().mockResolvedValue("conteúdo"),
+        onRaciocinioRodada: onRaciocinio,
+      }),
+    );
+
+    expect(onRaciocinio).toHaveBeenCalledTimes(2);
+    expect(onRaciocinio).toHaveBeenNthCalledWith(
+      1,
+      1,
+      "Preciso ler o ficheiro primeiro.",
+      true,
+    );
+    expect(onRaciocinio).toHaveBeenNthCalledWith(
+      2,
+      1,
+      "Preciso ler o ficheiro primeiro.",
+      false,
+    );
+  });
 });
 
 // ─── Definições de ferramentas ────────────────────────────────────────────────

@@ -13,6 +13,10 @@ import {
   erroPermiteRetrySemJsonEstrito,
   usarJsonEstritoOpenAi,
 } from "./extrairJsonResposta.js";
+import {
+  aplicarCorpoRaciocinio,
+  resolverRaciocinioResposta,
+} from "./raciocinioApi.js";
 
 type OpcoesOpenAi = {
   apiKey: string;
@@ -82,6 +86,15 @@ async function completarUmaVez(
     corpo.response_format = { type: "json_object" };
   }
 
+  const raciocinioAtivo = requisicao.raciocinioAtivo !== false;
+  aplicarCorpoRaciocinio(
+    corpo,
+    requisicao.modelo,
+    url,
+    raciocinioAtivo,
+    false,
+  );
+
   const resposta = await fetchComRetry(
     `${url}/chat/completions`,
     {
@@ -97,13 +110,18 @@ async function completarUmaVez(
 
   const json = (await resposta.json()) as {
     model?: string;
-    choices?: Array<{ message?: { content?: string } }>;
+    choices?: Array<{ message?: Record<string, unknown> }>;
   };
 
-  const conteudo = json.choices?.[0]?.message?.content?.trim() ?? "";
+  const mensagem = json.choices?.[0]?.message;
+  let conteudo =
+    typeof mensagem?.content === "string" ? mensagem.content.trim() : "";
+  const resolvido = resolverRaciocinioResposta(mensagem, conteudo);
+  conteudo = resolvido.conteudo;
 
   return {
     conteudo,
+    raciocinio: resolvido.raciocinio,
     modelo: json.model ?? requisicao.modelo,
     latencia_ms: Date.now() - inicio,
   };
@@ -192,6 +210,15 @@ async function completarComFerramentasUmaVez(
     corpo.tool_choice = "auto";
   }
 
+  const raciocinioAtivo = requisicao.raciocinioAtivo !== false;
+  aplicarCorpoRaciocinio(
+    corpo,
+    requisicao.modelo,
+    url,
+    raciocinioAtivo,
+    Boolean(requisicao.ferramentas?.length),
+  );
+
   const resposta = await fetchComRetry(
     `${url}/chat/completions`,
     {
@@ -221,17 +248,30 @@ async function completarComFerramentasUmaVez(
   const mensagem = json.choices?.[0]?.message;
   const modelo = json.model ?? requisicao.modelo;
   const latencia_ms = Date.now() - inicio;
+  const raciocinioApi = resolverRaciocinioResposta(mensagem, "").raciocinio;
 
   const toolCalls = mensagem?.tool_calls;
   if (toolCalls?.length) {
     const chamadas = parsearChamadas(toolCalls);
     if (chamadas.length > 0) {
-      return { chamadas, modelo, latencia_ms };
+      return {
+        chamadas,
+        raciocinio: raciocinioApi,
+        modelo,
+        latencia_ms,
+      };
     }
   }
 
-  const conteudo = mensagem?.content?.trim() ?? "";
-  return { conteudo, modelo, latencia_ms };
+  let conteudo = mensagem?.content?.trim() ?? "";
+  const resolvido = resolverRaciocinioResposta(mensagem, conteudo);
+  conteudo = resolvido.conteudo;
+  return {
+    conteudo,
+    raciocinio: resolvido.raciocinio ?? raciocinioApi,
+    modelo,
+    latencia_ms,
+  };
 }
 
 // ─── Provider público ──────────────────────────────────────────────────────

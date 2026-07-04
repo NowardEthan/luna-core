@@ -1,4 +1,53 @@
 import type { ContextoSessao } from "./esquemaMemoria.js";
+import type { Ambiente } from "../presenca/esquemaPresenca.js";
+
+function formatarBlocoContextoAmbiente(
+  ambiente: Ambiente | undefined,
+  contextoAmbiente: string,
+): string[] {
+  if (ambiente === "forge") {
+    return [
+      "WORKSPACE DO LUNA FORGE (estado do IDE — editor, terminal, git):",
+      "O bloco abaixo inclui modo do composer (Agente vs Chat), estado do workspace, ficheiros e terminal.",
+      "Em modo Agente, ferramentas podem executar após a tua resposta; em modo Chat, limita-te a conversa/explicação.",
+      "Respeita o modo indicado nos metadados — não peças scripts externos para ler ficheiros que já estão no contexto.",
+      "",
+      contextoAmbiente,
+    ];
+  }
+
+  return [
+    "CONTEXTO OPERACIONAL (Luna Runtime — superfície activa):",
+    "Este bloco descreve onde estás agora (chat, CLI, etc.) e permissões. NÃO assumes IDE, ficheiros abertos nem Orbit/Forge salvo a superfície ser forge.",
+    "Se o utilizador perguntar onde está, responde com base em PRESENÇA + este bloco — não inventes Forge nem código em curso.",
+    "",
+    contextoAmbiente,
+  ];
+}
+
+function formatarBlocoSense(
+  ambiente: Ambiente | undefined,
+  contextoSense: string,
+): string[] {
+  if (ambiente === "forge") {
+    return [
+      "ACTIVIDADE DO COMPUTADOR (Luna Sense — em paralelo ao Forge):",
+      "Descreve apps, media e foco no PC. NÃO confundir com ficheiros abertos, diff ou terminal do IDE.",
+      "Se o utilizador perguntar o que está a fazer no PC, usa este bloco — não o workspace Forge.",
+      "",
+      contextoSense,
+    ];
+  }
+
+  return [
+    "ACTIVIDADE DO COMPUTADOR (Luna Sense):",
+    "Sinais locais sobre o que o utilizador está a fazer no PC (app focada, media, timeline).",
+    "«O que estou a fazer?» → secção Agora. «Últimos minutos/horas/o que fiz?» → secção Recente (timeline).",
+    "Não inventes Forge, código nem apps que não apareçam abaixo.",
+    "",
+    contextoSense,
+  ];
+}
 
 export function montarBlocoMemoria(contexto: ContextoSessao): string | null {
   const linhas: string[] = [];
@@ -9,14 +58,11 @@ export function montarBlocoMemoria(contexto: ContextoSessao): string | null {
   }
 
   if (contexto.contexto_ambiente?.trim()) {
-    linhas.push(
-      "WORKSPACE DO LUNA FORGE (estado do IDE — editor, terminal, git):",
-      "O bloco abaixo inclui modo do composer (Agente vs Chat), estado do workspace, ficheiros e terminal.",
-      "Em modo Agente, o Orbit pode executar ferramentas após a tua resposta; em modo Chat, limita-te a conversa/explicação.",
-      "Respeita o modo indicado no metadados — não peças scripts externos para ler ficheiros que já estão no contexto.",
-      "",
-      contexto.contexto_ambiente.trim(),
-    );
+    linhas.push(...formatarBlocoContextoAmbiente(contexto.ambiente_atual, contexto.contexto_ambiente.trim()));
+  }
+
+  if (contexto.contexto_sense?.trim()) {
+    linhas.push("", ...formatarBlocoSense(contexto.ambiente_atual, contexto.contexto_sense.trim()));
   }
 
   if (contexto.historico.length > 0) {

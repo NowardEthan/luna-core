@@ -33,9 +33,13 @@ export type OpcoeExecutor = {
   config: ConfigLuna;
   plano?: PlanoExecucao;
   maxRodadas?: number;
+  /** Default true — pede raciocínio explícito quando o modelo suporta. */
+  raciocinioAtivo?: boolean;
   onToolCallStart?: (nome: string, args: Record<string, unknown>, rodada: number) => void;
   onToolCallComplete?: (passo: PassoExecucao) => void;
   onStatusHint?: (hint: string) => void;
+  /** Texto de raciocínio do modelo por rodada (antes das ferramentas). */
+  onRaciocinioRodada?: (rodada: number, texto: string, emProgresso: boolean) => void;
   abortSignal?: AbortSignal;
 };
 
@@ -80,9 +84,11 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     config,
     plano,
     maxRodadas = 10,
+    raciocinioAtivo = true,
     onToolCallStart,
     onToolCallComplete,
     onStatusHint,
+    onRaciocinioRodada,
     abortSignal,
   } = opcoes;
 
@@ -111,7 +117,14 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       mensagens,
       temperatura: config.temperaturaMaior,
       ferramentas,
+      raciocinioAtivo,
     });
+
+    const raciocinio = resposta.raciocinio?.trim() ?? "";
+    if (raciocinio && raciocinioAtivo) {
+      onRaciocinioRodada?.(rodada, raciocinio, true);
+      onRaciocinioRodada?.(rodada, raciocinio, false);
+    }
 
     // Modelo respondeu com texto → fim do loop
     if (resposta.conteudo !== undefined) {

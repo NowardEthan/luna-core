@@ -37,6 +37,9 @@ export type OpcoesPipelineIde = {
   onStatusHint?: (hint: string) => void;
   onToolCallStart?: (nome: string, args: Record<string, unknown>, rodada: number) => void;
   onToolCallComplete?: (passo: PassoExecucao) => void;
+  /** Default true — expõe pensamento do modelo na UI quando disponível. */
+  raciocinioAtivo?: boolean;
+  onRaciocinioRodada?: (rodada: number, texto: string, emProgresso: boolean) => void;
   provedor?: ProvedorAgente;
   config?: ConfigLuna;
   maxRodadas?: number;
@@ -249,9 +252,11 @@ export async function executarAgenteIde(
     config,
     plano,
     maxRodadas: opcoes.maxRodadas ?? 10,
+    raciocinioAtivo: opcoes.raciocinioAtivo,
     onToolCallStart: opcoes.onToolCallStart,
     onToolCallComplete: opcoes.onToolCallComplete,
     onStatusHint: opcoes.onStatusHint,
+    onRaciocinioRodada: opcoes.onRaciocinioRodada,
     abortSignal: opcoes.abortSignal,
   });
 
@@ -288,9 +293,11 @@ export async function executarAgenteIde(
           config,
           plano,
           maxRodadas: Math.min(opcoes.maxRodadas ?? 10, 5),
+          raciocinioAtivo: opcoes.raciocinioAtivo,
           onToolCallStart: opcoes.onToolCallStart,
           onToolCallComplete: opcoes.onToolCallComplete,
           onStatusHint: opcoes.onStatusHint,
+          onRaciocinioRodada: opcoes.onRaciocinioRodada,
           abortSignal: opcoes.abortSignal,
         });
 

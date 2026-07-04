@@ -51,6 +51,42 @@ describe("lexicoMemoria", () => {
     expect(bloco).toContain("SESSÃO ATIVA");
     expect(bloco).toContain("NÃO diga que não lembra");
   });
+
+  it("contexto_ambiente em desktop não rotula como Luna Forge", () => {
+    const bloco = montarBlocoMemoria({
+      historico: [],
+      fatos: [],
+      preferencias: {},
+      ambiente_atual: "desktop",
+      contexto_ambiente: "[Luna Runtime · Postura operacional]\nSuperfície: Chat (chat)",
+    });
+    expect(bloco).toContain("CONTEXTO OPERACIONAL");
+    expect(bloco).not.toContain("WORKSPACE DO LUNA FORGE");
+  });
+
+  it("contexto_ambiente em forge mantém rótulo IDE", () => {
+    const bloco = montarBlocoMemoria({
+      historico: [],
+      fatos: [],
+      preferencias: {},
+      ambiente_atual: "forge",
+      contexto_ambiente: "ficheiro activo: x.ts",
+    });
+    expect(bloco).toContain("WORKSPACE DO LUNA FORGE");
+  });
+
+  it("contexto_sense separado — desktop menciona PC, não Forge", () => {
+    const bloco = montarBlocoMemoria({
+      historico: [],
+      fatos: [],
+      preferencias: {},
+      ambiente_atual: "desktop",
+      contexto_sense: "[Luna Sense · Actividade do computador]\n· Foco: Opera · YouTube",
+    });
+    expect(bloco).toContain("ACTIVIDADE DO COMPUTADOR");
+    expect(bloco).toContain("Opera · YouTube");
+    expect(bloco).not.toContain("WORKSPACE DO LUNA FORGE");
+  });
 });
 
 describe("detectarPreferencia — padrões explícitos", () => {
