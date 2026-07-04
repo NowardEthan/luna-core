@@ -138,10 +138,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = await readJson(req);
       const parsed = ChatRequestSchema.parse(body);
       const sessionId = parsed.sessionId ?? crypto.randomUUID();
-      const result = await executarChatMobile(parsed.message, sessionId, {
-        providerId: parsed.providerId,
-        modelKey: parsed.modelKey,
-      });
+      const result = await executarChatMobile(
+        parsed.message,
+        sessionId,
+        {
+          providerId: parsed.providerId,
+          modelKey: parsed.modelKey,
+        },
+        parsed.userDisplayName,
+      );
 
       if (auth) {
         await persistChatTurn({

@@ -47,12 +47,20 @@ function extrairEsperaSegundos(corpoErro: string): number | null {
   return Math.ceil(parseFloat(match[1]!) * 1000);
 }
 
-function formatarErroLlm(status: number, erro: string): string {
+function formatarErroLlm(status: number, erro: string, baseUrl?: string): string {
+  const isOpenRouter = baseUrl?.includes("openrouter.ai") ?? false;
+  const provedor = isOpenRouter ? "OpenRouter" : "Groq";
   if (
     erro.includes("rate_limit_exceeded") ||
     erro.includes("Request too large") ||
     (erro.includes("Limit") && erro.includes("Requested"))
   ) {
+    if (isOpenRouter) {
+      return (
+        `LLM ${status}: pedido grande demais ou limite do modelo free no OpenRouter. ` +
+        "Tente uma conversa nova ou escolha Groq nas definições."
+      );
+    }
     return (
       `LLM ${status}: a mensagem ficou grande demais para o modelo Groq (limite ~8000 tokens). ` +
       "Com PDFs longos, usa «Referenciar trecho» no visualizador ou pergunta sobre uma parte específica. " +
@@ -61,8 +69,7 @@ function formatarErroLlm(status: number, erro: string): string {
   }
   if (status === 429 || status === 503) {
     return (
-      `LLM ${status}: limite de pedidos do Groq. Aguarda alguns segundos e tenta de novo. ` +
-      "Se 429 persistir, aumente LUNA_API_PAUSA_MS ou reduza chamadas --ab."
+      `LLM ${status}: limite de pedidos do ${provedor}. Aguarda alguns segundos e tenta de novo.`
     );
   }
   let detail = erro.slice(0, 280);
@@ -79,8 +86,10 @@ async function fetchComRetry(
   url: string,
   init: RequestInit,
   maxTentativas: number,
+  baseUrl?: string,
 ): Promise<Response> {
   let ultimoErro = "";
+  const provedorBase = baseUrl ?? url.replace(/\/chat\/completions.*$/i, "");
 
   for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
     const resposta = await fetch(url, init);
@@ -91,12 +100,12 @@ async function fetchComRetry(
     ultimoErro = erro;
 
     if (resposta.status === 413) {
-      throw new Error(formatarErroLlm(resposta.status, erro));
+      throw new Error(formatarErroLlm(resposta.status, erro, provedorBase));
     }
 
     const retryavel = resposta.status === 429 || resposta.status === 503;
     if (!retryavel || tentativa === maxTentativas) {
-      throw new Error(formatarErroLlm(resposta.status, erro));
+      throw new Error(formatarErroLlm(resposta.status, erro, provedorBase));
     }
 
     const espera = extrairEsperaSegundos(erro) ?? tentativa * 5000;
@@ -145,6 +154,7 @@ async function completarUmaVez(
       body: JSON.stringify(corpo),
     },
     maxTentativas,
+    url,
   );
 
   const json = (await resposta.json()) as {
@@ -266,6 +276,7 @@ async function completarComFerramentasUmaVez(
       body: JSON.stringify(corpo),
     },
     maxTentativas,
+    url,
   );
 
   const json = (await resposta.json()) as {

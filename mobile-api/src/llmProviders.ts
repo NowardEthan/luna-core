@@ -38,6 +38,15 @@ export type LlmProviderOption = {
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
+/** OpenRouter exige base própria — não reutilizar LUNA_API_BASE_MENOR se apontar para Groq. */
+function openRouterBaseUrl(): string {
+  const explicit = process.env.OPENROUTER_API_BASE?.trim();
+  if (explicit) return explicit;
+  const menor = process.env.LUNA_API_BASE_MENOR?.trim();
+  if (menor && /openrouter\.ai/i.test(menor)) return menor;
+  return OPENROUTER_BASE;
+}
+
 type CatalogProviderId = Exclude<LlmProviderId, "auto">;
 type CatalogModelKey = Exclude<LlmModelKey, "auto">;
 
@@ -61,7 +70,7 @@ const MODELS: Record<
     "qwen-coder": {
       label: "OpenRouter · Qwen3 Coder 480B (free)",
       description: "Código e raciocínio técnico — grátis no OpenRouter.",
-      modelId: "qwen/qwen3-coder-480b-a35b-instruct:free",
+      modelId: "qwen/qwen3-coder:free",
     },
   },
 };
@@ -226,15 +235,16 @@ export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | 
   if (!modelDef) return null;
 
   const model = modelDef.modelId;
+  const baseUrl = openRouterBaseUrl();
   return {
     apiKey,
-    baseUrl: process.env.LUNA_API_BASE_MENOR?.trim() || OPENROUTER_BASE,
+    baseUrl,
     modeloMenor: model,
     modeloMaior: model,
     temperaturaMenor: 0,
     temperaturaMaior: Number(process.env.LUNA_TEMPERATURA_MAIOR ?? 0.85),
     apiKeyMenor: apiKey,
-    baseUrlMenor: process.env.LUNA_API_BASE_MENOR?.trim() || OPENROUTER_BASE,
+    baseUrlMenor: baseUrl,
   };
 }
 

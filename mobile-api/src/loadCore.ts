@@ -16,6 +16,7 @@ export type LunaCoreModule = {
     opcoes?: {
       sessaoId?: string;
       ambiente?: string;
+      detalhe_ambiente?: string;
       gerarResposta?: boolean;
       raciocinioAtivo?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
@@ -47,10 +48,23 @@ async function importCore(): Promise<LunaCoreModule> {
   return mod;
 }
 
+function montarDetalheAmbienteMobile(userDisplayName?: string): string | undefined {
+  const nome = userDisplayName?.trim();
+  if (!nome) return undefined;
+  const lower = nome.toLowerCase();
+  if (lower === "luna" || lower === "você" || lower === "voce") return undefined;
+  return (
+    `App mobile Orbit. O interlocutor chama-se «${nome}». ` +
+    `Trate-o(a) pelo nome «${nome}» quando fizer sentido. ` +
+    `Você é a Luna (assistente); «${nome}» é quem conversa consigo — não inverta os nomes.`
+  );
+}
+
 export async function executarChatMobile(
   message: string,
   sessionId?: string,
   llm?: Partial<LlmProviderSelection>,
+  userDisplayName?: string,
 ): Promise<{
   text: string;
   sessionId: string;
@@ -90,10 +104,13 @@ export async function executarChatMobile(
       }
     }
 
+    const detalheAmbiente = montarDetalheAmbienteMobile(userDisplayName);
+
     const resultado = await core.executarPipelineCompleto(mensagem, {
       sessaoId: sessionId,
       config,
       ambiente: "api",
+      detalhe_ambiente: detalheAmbiente,
       gerarResposta: true,
       raciocinioAtivo: false,
       usarNeuronioMemoriaLlm: mensagem.length < 4_000,
