@@ -1,6 +1,12 @@
 import { pathToFileURL } from "node:url";
 
 import { resolveLunaCoreEntry, resolveLunaCorePath } from "./resolveCorePath.js";
+import {
+  resolveLlmConfig,
+  resolveLlmProviderSelection,
+  type LlmProviderSelection,
+} from "./llmProviders.js";
+import { compactarSessaoMobile, truncateMobileChatMessage } from "./truncateForGroq.js";
 
 export type LunaCoreModule = {
   executarPipelineCompleto: (
@@ -10,6 +16,8 @@ export type LunaCoreModule = {
       ambiente?: string;
       gerarResposta?: boolean;
       raciocinioAtivo?: boolean;
+      usarNeuronioMemoriaLlm?: boolean;
+      config?: import("../../src/providers/tipos.js").ConfigLuna;
     },
   ) => Promise<{
     resposta?: { texto?: string };
@@ -40,12 +48,28 @@ async function importCore(): Promise<LunaCoreModule> {
 export async function executarChatMobile(
   message: string,
   sessionId?: string,
-): Promise<{ text: string; sessionId: string; turnCount: number }> {
-  if (!process.env.LUNA_API_KEY?.trim()) {
+  llm?: Partial<LlmProviderSelection>,
+): Promise<{
+  text: string;
+  sessionId: string;
+  turnCount: number;
+  provider: LlmProviderSelection;
+  providerReason?: string;
+  autoMode?: boolean;
+}> {
+  const resolved = resolveLlmProviderSelection(llm, message);
+  const selection = resolved?.selection ?? null;
+  const config = selection ? resolveLlmConfig(selection) : null;
+
+  if (!selection || !config) {
     throw new Error(
-      "LUNA_API_KEY não configurada no Railway. Vai a Variables e adiciona a chave Groq.",
+      "Nenhum provedor LLM configurado. Define LUNA_API_KEY (Groq) ou OPENROUTER_API_KEY no servidor.",
     );
   }
+
+  const useOpenRouterLongContext =
+    selection.providerId === "openrouter" && selection.modelKey === "qwen-next";
+  const mensagemLimit = useOpenRouterLongContext ? 14_000 : undefined;
 
   const corePath = resolveLunaCorePath();
   const core = await loadLunaCoreModule();
@@ -53,24 +77,48 @@ export async function executarChatMobile(
 
   try {
     process.chdir(corePath);
-    const resultado = await core.executarPipelineCompleto(message, {
+
+    const mensagem = truncateMobileChatMessage(message, { maxChars: mensagemLimit });
+
+    if (sessionId && selection.providerId === "groq") {
+      try {
+        const { obterOuCriarSessao } = await import("../../src/memoria/gerenciadorSessao.js");
+        const { salvarSessao } = await import("../../src/memoria/storeSessao.js");
+        const sessao = obterOuCriarSessao(sessionId);
+        compactarSessaoMobile(sessao);
+        salvarSessao(sessao);
+      } catch {
+        /* sessão opcional — não bloqueia o chat */
+      }
+    }
+
+    const resultado = await core.executarPipelineCompleto(mensagem, {
       sessaoId: sessionId,
+      config,
       ambiente: "api",
       gerarResposta: true,
-      raciocinioAtivo: true,
+      raciocinioAtivo: false,
+      usarNeuronioMemoriaLlm: mensagem.length < 4_000,
     });
 
     const text = resultado.resposta?.texto?.trim();
     if (!text) {
       throw new Error(
-        "A Luna não gerou texto. Verifica LUNA_API_KEY e os modelos Groq nas Variables do Railway.",
+        `A Luna não gerou texto. Verifica as chaves do provedor ${selection.providerId}.`,
       );
     }
 
     const sid = resultado.sessao?.id ?? sessionId ?? "unknown";
     const turnCount = resultado.sessao?.mensagens?.length ?? 0;
 
-    return { text, sessionId: sid, turnCount };
+    return {
+      text,
+      sessionId: sid,
+      turnCount,
+      provider: selection,
+      providerReason: resolved?.autoReasonLabel,
+      autoMode: Boolean(resolved?.autoReason),
+    };
   } finally {
     process.chdir(prevCwd);
   }

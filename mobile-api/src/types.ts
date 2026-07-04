@@ -1,12 +1,17 @@
 import { z } from "zod";
 
+export const LlmProviderIdSchema = z.enum(["groq", "openrouter", "auto"]);
+export const LlmModelKeySchema = z.enum(["default", "qwen-next", "qwen-coder", "auto"]);
+
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).max(16_000),
   sessionId: z.string().min(1).max(128).optional(),
-  /** ID da mensagem do utilizador (para dedupe com Firestore). */
   userMessageId: z.string().min(1).max(128).optional(),
-  /** ID da resposta Luna (dedupe com o mobile). */
   lunaMessageId: z.string().min(1).max(128).optional(),
+  /** Provedor LLM (Groq ou OpenRouter). */
+  providerId: LlmProviderIdSchema.optional(),
+  /** Variante do modelo dentro do provedor. */
+  modelKey: LlmModelKeySchema.optional(),
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
@@ -16,6 +21,10 @@ export type ChatResponseOk = {
   text: string;
   sessionId: string;
   turnCount: number;
+  providerId?: string;
+  modelKey?: string;
+  providerReason?: string;
+  autoMode?: boolean;
 };
 
 export type ChatResponseErr = {
@@ -48,4 +57,11 @@ export type HealthResponse = {
   documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
   firebaseAuthRequired: boolean;
+  llmProviders?: Array<{
+    providerId: string;
+    modelKey: string;
+    label: string;
+    description: string;
+    modelId: string;
+  }>;
 };

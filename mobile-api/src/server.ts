@@ -22,6 +22,10 @@ import {
   isDocumentExtractAvailable,
 } from "./extractDocuments.js";
 import {
+  isAnyLlmProviderConfigured,
+  listProviderOptionsForUi,
+} from "./llmProviders.js";
+import {
   ChatRequestSchema,
   type ChatResponse,
   type ExtractDocumentsResponse,
@@ -36,7 +40,7 @@ import {
  * quando um áudio é o primeiro pedido. No Railway as Variables já vêm no env.
  */
 function bootstrapEnvFromCore(): void {
-  if (process.env.LUNA_API_KEY?.trim()) return;
+  if (process.env.LUNA_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim()) return;
   const loadEnvFile = (process as { loadEnvFile?: (path: string) => void }).loadEnvFile;
   if (typeof loadEnvFile !== "function") return;
   try {
@@ -97,17 +101,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (method === "GET" && url.pathname === "/health") {
     const corePath = resolveLunaCorePath();
     const firebaseConfigured = isFirebaseAdminConfigured();
+    const llmProviders = listProviderOptionsForUi().map((o) => ({
+      providerId: o.providerId,
+      modelKey: o.modelKey,
+      label: o.label,
+      description: o.description,
+      modelId: o.modelId,
+    }));
     const payload: HealthResponse = {
       ok: true,
       service: "luna-mobile-api",
       corePath,
       coreReady: isCoreBuilt(corePath),
-      llmConfigured: Boolean(process.env.LUNA_API_KEY?.trim()),
+      llmConfigured: isAnyLlmProviderConfigured(),
       sttConfigured: isSttConfigured(),
       visionConfigured: isVisionConfigured(),
       documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,
       firebaseAuthRequired: isFirebaseAuthRequired(),
+      llmProviders,
     };
     return sendJson(res, payload.coreReady && payload.llmConfigured ? 200 : 503, payload);
   }
@@ -126,7 +138,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = await readJson(req);
       const parsed = ChatRequestSchema.parse(body);
       const sessionId = parsed.sessionId ?? crypto.randomUUID();
-      const result = await executarChatMobile(parsed.message, sessionId);
+      const result = await executarChatMobile(parsed.message, sessionId, {
+        providerId: parsed.providerId,
+        modelKey: parsed.modelKey,
+      });
 
       if (auth) {
         await persistChatTurn({
@@ -144,6 +159,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         text: result.text,
         sessionId: result.sessionId,
         turnCount: result.turnCount,
+        providerId: result.provider.providerId,
+        modelKey: result.provider.modelKey,
+        providerReason: result.providerReason,
+        autoMode: result.autoMode,
       };
       return sendJson(res, 200, payload);
     } catch (err) {

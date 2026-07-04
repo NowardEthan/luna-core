@@ -24,6 +24,19 @@ type OpcoesOpenAi = {
   maxTentativas?: number;
 };
 
+function buildLlmHeaders(apiKey: string, baseUrl: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  if (baseUrl.includes("openrouter.ai")) {
+    headers["HTTP-Referer"] =
+      process.env.OPENROUTER_HTTP_REFERER?.trim() || "https://github.com/luna-orbit";
+    headers["X-Title"] = process.env.OPENROUTER_APP_TITLE?.trim() || "Luna Orbit Mobile";
+  }
+  return headers;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -32,6 +45,34 @@ function extrairEsperaSegundos(corpoErro: string): number | null {
   const match = corpoErro.match(/try again in ([\d.]+)s/i);
   if (!match) return null;
   return Math.ceil(parseFloat(match[1]!) * 1000);
+}
+
+function formatarErroLlm(status: number, erro: string): string {
+  if (
+    erro.includes("rate_limit_exceeded") ||
+    erro.includes("Request too large") ||
+    (erro.includes("Limit") && erro.includes("Requested"))
+  ) {
+    return (
+      `LLM ${status}: a mensagem ficou grande demais para o modelo Groq (limite ~8000 tokens). ` +
+      "Com PDFs longos, usa «Referenciar trecho» no visualizador ou pergunta sobre uma parte específica. " +
+      "Se persistir, reduz o histórico da conversa ou faz uma conversa nova."
+    );
+  }
+  if (status === 429 || status === 503) {
+    return (
+      `LLM ${status}: limite de pedidos do Groq. Aguarda alguns segundos e tenta de novo. ` +
+      "Se 429 persistir, aumente LUNA_API_PAUSA_MS ou reduza chamadas --ab."
+    );
+  }
+  let detail = erro.slice(0, 280);
+  try {
+    const json = JSON.parse(erro) as { error?: { message?: string } };
+    if (json.error?.message) detail = json.error.message.slice(0, 280);
+  } catch {
+    /* corpo não-JSON */
+  }
+  return `LLM ${status} após tentativa(s): ${detail}`;
 }
 
 async function fetchComRetry(
@@ -49,12 +90,13 @@ async function fetchComRetry(
     const erro = await resposta.text();
     ultimoErro = erro;
 
+    if (resposta.status === 413) {
+      throw new Error(formatarErroLlm(resposta.status, erro));
+    }
+
     const retryavel = resposta.status === 429 || resposta.status === 503;
     if (!retryavel || tentativa === maxTentativas) {
-      throw new Error(
-        `LLM ${resposta.status} após ${tentativa} tentativa(s): ${erro}. ` +
-          `Se 429 persistir, aumente LUNA_API_PAUSA_MS ou reduza chamadas --ab.`,
-      );
+      throw new Error(formatarErroLlm(resposta.status, erro));
     }
 
     const espera = extrairEsperaSegundos(erro) ?? tentativa * 5000;
@@ -99,10 +141,7 @@ async function completarUmaVez(
     `${url}/chat/completions`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: buildLlmHeaders(apiKey, url),
       body: JSON.stringify(corpo),
     },
     maxTentativas,
@@ -223,10 +262,7 @@ async function completarComFerramentasUmaVez(
     `${url}/chat/completions`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: buildLlmHeaders(apiKey, url),
       body: JSON.stringify(corpo),
     },
     maxTentativas,
