@@ -41,6 +41,12 @@ export async function executarChatMobile(
   message: string,
   sessionId?: string,
 ): Promise<{ text: string; sessionId: string; turnCount: number }> {
+  if (!process.env.LUNA_API_KEY?.trim()) {
+    throw new Error(
+      "LUNA_API_KEY não configurada no Railway. Vai a Variables e adiciona a chave Groq.",
+    );
+  }
+
   const corePath = resolveLunaCorePath();
   const core = await loadLunaCoreModule();
   const prevCwd = process.cwd();
@@ -56,7 +62,9 @@ export async function executarChatMobile(
 
     const text = resultado.resposta?.texto?.trim();
     if (!text) {
-      throw new Error("A Luna não devolveu texto na resposta.");
+      throw new Error(
+        "A Luna não gerou texto. Verifica LUNA_API_KEY e os modelos Groq nas Variables do Railway.",
+      );
     }
 
     const sid = resultado.sessao?.id ?? sessionId ?? "unknown";

@@ -1,8 +1,20 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
+import {
+  isFirebaseAdminConfigured,
+  isFirebaseAuthRequired,
+  verifyFirebaseBearer,
+} from "./firebaseAdmin.js";
+import { persistChatTurn } from "./firestoreChat.js";
 import { executarChatMobile } from "./loadCore.js";
 import { isCoreBuilt, resolveLunaCorePath } from "./resolveCorePath.js";
-import { ChatRequestSchema, type ChatResponse, type HealthResponse } from "./types.js";
+import { isSttConfigured, transcribeAudio, TranscribeRequestSchema } from "./transcribeStt.js";
+import {
+  ChatRequestSchema,
+  type ChatResponse,
+  type HealthResponse,
+  type TranscribeResponse,
+} from "./types.js";
 
 const HOST = process.env.LUNA_MOBILE_API_HOST?.trim() || "0.0.0.0";
 /** Railway injecta PORT; local usa LUNA_MOBILE_API_PORT ou 7742. */
@@ -12,7 +24,7 @@ function corsHeaders(): Record<string, string> {
   return {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type, authorization",
   };
 }
 
@@ -34,6 +46,11 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(raw) as unknown;
 }
 
+function readAuthHeader(req: IncomingMessage): string | undefined {
+  const raw = req.headers.authorization;
+  return typeof raw === "string" ? raw : undefined;
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${HOST}:${PORT}`);
   const method = req.method ?? "GET";
@@ -46,20 +63,47 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (method === "GET" && url.pathname === "/health") {
     const corePath = resolveLunaCorePath();
+    const firebaseConfigured = isFirebaseAdminConfigured();
     const payload: HealthResponse = {
       ok: true,
       service: "luna-mobile-api",
       corePath,
       coreReady: isCoreBuilt(corePath),
+      llmConfigured: Boolean(process.env.LUNA_API_KEY?.trim()),
+      sttConfigured: isSttConfigured(),
+      firebaseConfigured,
+      firebaseAuthRequired: isFirebaseAuthRequired(),
     };
-    return sendJson(res, payload.coreReady ? 200 : 503, payload);
+    return sendJson(res, payload.coreReady && payload.llmConfigured ? 200 : 503, payload);
   }
 
   if (method === "POST" && url.pathname === "/v1/chat") {
     try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        const payload: ChatResponse = {
+          ok: false,
+          error: "Autenticação Firebase obrigatória. Envia Authorization: Bearer <idToken>.",
+        };
+        return sendJson(res, 401, payload);
+      }
+
       const body = await readJson(req);
       const parsed = ChatRequestSchema.parse(body);
-      const result = await executarChatMobile(parsed.message, parsed.sessionId);
+      const sessionId = parsed.sessionId ?? crypto.randomUUID();
+      const result = await executarChatMobile(parsed.message, sessionId);
+
+      if (auth) {
+        await persistChatTurn({
+          uid: auth.uid,
+          sessionId: result.sessionId,
+          userMessage: parsed.message,
+          lunaReply: result.text,
+          userMessageId: parsed.userMessageId,
+          lunaMessageId: parsed.lunaMessageId,
+        });
+      }
+
       const payload: ChatResponse = {
         ok: true,
         text: result.text,
@@ -70,6 +114,29 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const payload: ChatResponse = { ok: false, error: message };
+      return sendJson(res, 400, payload);
+    }
+  }
+
+  if (method === "POST" && url.pathname === "/v1/transcribe") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        const payload: TranscribeResponse = {
+          ok: false,
+          error: "Autenticação Firebase obrigatória.",
+        };
+        return sendJson(res, 401, payload);
+      }
+
+      const body = await readJson(req);
+      const parsed = TranscribeRequestSchema.parse(body);
+      const text = await transcribeAudio(parsed);
+      const payload: TranscribeResponse = { ok: true, text };
+      return sendJson(res, 200, payload);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const payload: TranscribeResponse = { ok: false, error: message };
       return sendJson(res, 400, payload);
     }
   }
@@ -89,13 +156,16 @@ const server = createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   const corePath = resolveLunaCorePath();
   const ready = isCoreBuilt(corePath);
+  const fb = isFirebaseAdminConfigured();
   console.log("");
   console.log("  Luna Mobile API");
   console.log(`  http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`);
   console.log(`  Core: ${corePath}`);
   console.log(`  Core compilada: ${ready ? "sim" : "NÃO — npm run build na raiz"}`);
+  console.log(`  Firebase Admin: ${fb ? "sim" : "não (sem persistência cloud)"}`);
   console.log("");
-  console.log("  POST /v1/chat  { message, sessionId? }");
+  console.log("  POST /v1/chat       { message, sessionId?, userMessageId?, lunaMessageId? }");
+  console.log("  POST /v1/transcribe { audioBase64, mimeType?, language? }");
   console.log("  GET  /health");
   console.log("");
 });
