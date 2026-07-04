@@ -146,6 +146,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           modelKey: parsed.modelKey,
         },
         parsed.userDisplayName,
+        auth?.uid ?? null,
       );
 
       if (auth) {

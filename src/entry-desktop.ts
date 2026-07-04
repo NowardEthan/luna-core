@@ -23,6 +23,8 @@ export {
   listarMemoriaLongaResumo,
   executarReflexaoSessao,
   vincularSessaoOrbit,
+  hidratarSessaoOrbit,
   type FatoMemoriaLongaResumo,
   type ResultadoReflexaoOrbit,
+  type OpcoesBuscaContextoCross,
 } from "./integracao/orbitIntegracao.js";

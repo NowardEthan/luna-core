@@ -1,5 +1,6 @@
 import { pathToFileURL } from "node:url";
 
+import { prepararMemoriaGlobalMobile } from "./crossSessionContext.js";
 import { resolveLunaCoreEntry, resolveLunaCorePath } from "./resolveCorePath.js";
 import {
   resolveLlmConfig,
@@ -20,6 +21,7 @@ export type LunaCoreModule = {
       gerarResposta?: boolean;
       raciocinioAtivo?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
+      contexto_cross_sessao?: string[];
       config?: ConfigLuna;
     },
   ) => Promise<{
@@ -27,6 +29,17 @@ export type LunaCoreModule = {
     sessao?: { id?: string; mensagens?: unknown[] };
     log_path: string;
   }>;
+  prepararSessaoOrbit: (sessaoId: string) => unknown;
+  buscarContextoOutrasSessoes: (
+    mensagem: string,
+    sessaoAtualId: string,
+    maxSessoes?: number,
+    opcoes?: { sempreAtivo?: boolean },
+  ) => string[];
+  hidratarSessaoOrbit: (
+    sessaoId: string,
+    mensagens: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp: string }>,
+  ) => unknown;
 };
 
 let cached: Promise<LunaCoreModule> | null = null;
@@ -65,6 +78,7 @@ export async function executarChatMobile(
   sessionId?: string,
   llm?: Partial<LlmProviderSelection>,
   userDisplayName?: string,
+  uid?: string | null,
 ): Promise<{
   text: string;
   sessionId: string;
@@ -106,18 +120,28 @@ export async function executarChatMobile(
 
     const detalheAmbiente = montarDetalheAmbienteMobile(userDisplayName);
 
+    const sidPipeline = sessionId ?? crypto.randomUUID();
+    const memoria = await prepararMemoriaGlobalMobile({
+      core,
+      uid: uid ?? null,
+      sessionId: sidPipeline,
+      mensagem: message,
+      maxSessoes: 3,
+    });
+
     const pipelineUsaGroqAuxiliar = config.baseUrlMenor?.includes("groq.com") ?? false;
     const usarNeuronioMemoriaLlm =
       mensagem.length < 4_000 && (!isOpenRouter || pipelineUsaGroqAuxiliar);
 
     const resultado = await core.executarPipelineCompleto(mensagem, {
-      sessaoId: sessionId,
+      sessaoId: sidPipeline,
       config,
       ambiente: "api",
       detalhe_ambiente: detalheAmbiente,
       gerarResposta: true,
       raciocinioAtivo: false,
       usarNeuronioMemoriaLlm,
+      contexto_cross_sessao: memoria.contextoCrossSessao,
     });
 
     const text = resultado.resposta?.texto?.trim();

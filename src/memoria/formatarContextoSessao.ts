@@ -98,9 +98,9 @@ export function montarBlocoMemoria(contexto: ContextoSessao): string | null {
     const fatos = contexto.memorias_longas.filter((m) => !m.startsWith("[Conversa "));
 
     if (cross.length > 0) {
-      linhas.push("\nOUTRAS CONVERSAS DO USUÁRIO (Orbit — recall entre sessões):");
+      linhas.push("\nOUTRAS CONVERSAS DO USUÁRIO (recall entre sessões):");
       linhas.push(
-        "O usuário pode referir-se a chats anteriores no Orbit. Os trechos abaixo são REAIS de outras sessões — use-os para responder.",
+        "O usuário pode referir-se a chats anteriores. Os trechos abaixo são REAIS de outras sessões — use-os para responder.",
         "NÃO diga que não lembra se o trecho relevante estiver abaixo. Resuma ou cite o que foi discutido.",
       );
       for (const trecho of cross) {

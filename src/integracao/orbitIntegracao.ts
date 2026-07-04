@@ -113,15 +113,23 @@ function resumirSessao(
   return `[Conversa "${titulo}" · ${sessao.atualizada_em.slice(0, 10)}]\n${linhas.join("\n")}`;
 }
 
+export type OpcoesBuscaContextoCross = {
+  /** Quando true, inclui sessões recentes mesmo sem pedido explícito de recall (mobile/API). */
+  sempreAtivo?: boolean;
+};
+
 /**
  * Busca trechos de outras sessões quando o usuário pede recall entre conversas.
+ * Com `sempreAtivo`, inclui até `maxSessoes` conversas recentes (memória global).
  */
 export function buscarContextoOutrasSessoes(
   mensagem: string,
   sessaoAtualId: string,
   maxSessoes = 3,
+  opcoes?: OpcoesBuscaContextoCross,
 ): string[] {
-  if (!RECALL_RE.test(mensagem)) return [];
+  const recallExplicito = RECALL_RE.test(mensagem);
+  if (!recallExplicito && !opcoes?.sempreAtivo) return [];
 
   const tokensBusca = tokensRelevantes(mensagem);
 
@@ -155,8 +163,9 @@ export function buscarContextoOutrasSessoes(
 
   candidatas.sort((a, b) => b.score - a.score);
 
-  candidatas.sort((a, b) => b.score - a.score);
-  let selecionadas = candidatas.filter((c) => c.score > 0).slice(0, maxSessoes);
+  let selecionadas = recallExplicito
+    ? candidatas.filter((c) => c.score > 0).slice(0, maxSessoes)
+    : [];
 
   if (selecionadas.length < maxSessoes) {
     const recentes: MemoriaSessao[] = [];
@@ -301,4 +310,21 @@ export async function executarReflexaoSessao(
 /** Sincroniza título/metadata Orbit na sessão (extensível). */
 export function vincularSessaoOrbit(sessaoId: string, _titulo?: string): MemoriaSessao {
   return obterOuCriarSessao(sessaoId);
+}
+
+/** Hidrata histórico local quando a fonte remota tem mais turnos (ex.: Firestore mobile). */
+export function hidratarSessaoOrbit(
+  sessaoId: string,
+  mensagens: MemoriaSessao["mensagens"],
+): MemoriaSessao {
+  const sessao = prepararSessaoOrbit(sessaoId);
+  if (mensagens.length <= sessao.mensagens.length) return sessao;
+
+  sessao.mensagens = mensagens;
+  const ultima = mensagens[mensagens.length - 1];
+  if (ultima?.timestamp) {
+    sessao.atualizada_em = ultima.timestamp;
+  }
+  salvarSessao(sessao);
+  return sessao;
 }
