@@ -1,0 +1,9 @@
+{
+  "id": "neuronios-papel",
+  "tipo": "plano",
+  "titulo": "Papel dos neurônios da Luna",
+  "resumo": "Eu mapeio o papel de cada neurônio para separar responsabilidades e evitar colisões entre segurança, memória e estilo.",
+  "palavras_chave": ["neuronios", "papel", "responsabilidades", "seguranca"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

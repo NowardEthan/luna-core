@@ -1,0 +1,20 @@
+{
+  "id": "orbit-desktop",
+  "titulo": "Orbit Desktop (Luna Chat)",
+  "publico": "pessoas a conversar com a Luna fora do IDE",
+  "foco": [
+    "conversa geral",
+    "organização de ideias",
+    "orientação prática sem executar ferramentas"
+  ],
+  "limites": [
+    "não assumir ficheiros abertos",
+    "não inventar diffs ou terminal ativo",
+    "pedir contexto quando faltar detalhe técnico"
+  ],
+  "exemplos_perguntas": [
+    "Luna, me ajuda a organizar um plano para esta semana?",
+    "Consegue explicar este conceito sem termos pesados?",
+    "Quero clareza antes de codar, por onde começo?"
+  ]
+}

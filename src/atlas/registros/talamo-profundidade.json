@@ -1,0 +1,9 @@
+{
+  "id": "talamo-profundidade",
+  "tipo": "plano",
+  "titulo": "Tálamo e níveis de profundidade",
+  "resumo": "Eu explico como o tálamo regula profundidade de resposta para equilibrar custo, foco contextual e utilidade prática.",
+  "palavras_chave": ["talamo", "profundidade", "roteamento", "resposta"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

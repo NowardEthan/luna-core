@@ -15,6 +15,8 @@ export const AmbienteSchema = z.enum([
   "desktop",     // Orbit — chat normal (desktop Electron)
   "forge",       // Orbit — Luna Forge (IDE integrado: editor, terminal, git)
   "api",         // chamada direta via API
+  "orbit_mobile", // app mobile Orbit (Expo)
+  "storybook",   // Storybook debug (opcional)
   "lumen",       // portal Lumen (futuro)
   "desconhecido",
 ]);
@@ -64,6 +66,8 @@ export const ROTULO_AMBIENTE: Record<Ambiente, string> = {
   desktop: "o Luna Chat (app desktop — conversa geral, sem IDE)",
   forge: "o Luna Forge (ambiente de desenvolvimento — editor, terminal, git)",
   api: "uma chamada direta via API",
+  orbit_mobile: "o app mobile Orbit (chat, voz, anexos)",
+  storybook: "o Storybook do Orbit (laboratório de UI)",
   lumen: "o portal Lumen",
   desconhecido: "um ambiente não identificado",
 };

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://luna-core.local/atlas/registro.schema.json",
+  "title": "RegistroAtlas",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "tipo",
+    "titulo",
+    "resumo",
+    "palavras_chave",
+    "estado",
+    "desde"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tipo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "titulo": {
+      "type": "string",
+      "minLength": 1
+    },
+    "resumo": {
+      "type": "string",
+      "minLength": 80,
+      "maxLength": 150
+    },
+    "palavras_chave": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "estado": {
+      "const": "implementado"
+    },
+    "desde": {
+      "const": "2026-07-05"
+    }
+  }
+}

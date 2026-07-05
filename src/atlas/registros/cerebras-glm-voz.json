@@ -1,0 +1,9 @@
+{
+  "id": "cerebras-glm-voz",
+  "tipo": "plano",
+  "titulo": "Cerebras GLM para voz",
+  "resumo": "Eu descrevo o uso do Cerebras GLM para voz quando preciso baixa latência e resposta falada com qualidade estável.",
+  "palavras_chave": ["cerebras", "glm", "voz", "latencia"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { montarSliceIdentidade } from "../identidade/montarSliceIdentidade.js";
 
 type ModosPresenca = {
   animada: string;
@@ -39,6 +40,11 @@ function carregarNucleo(): NucleoPersonalidade {
 }
 
 export function gerarBlocoPersonalidade(): string {
+  const sliceCompilado = montarSliceIdentidade();
+  if (sliceCompilado?.trim()) {
+    return sliceCompilado;
+  }
+
   const n = carregarNucleo();
 
   const tracos = n.tracos_core.join("; ");

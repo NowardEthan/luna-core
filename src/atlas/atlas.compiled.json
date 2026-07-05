@@ -1,0 +1,345 @@
+{
+  "manifest": {
+    "nome": "Atlas Lunar",
+    "versao": "2026.07.05",
+    "schema": "./schema/registro.schema.json",
+    "pasta_registros": "./registros",
+    "saida_compilada": "./atlas.compiled.json",
+    "total_registros_esperado": 22,
+    "ids_planejados": [
+      "paia-visao-geral",
+      "talamo-profundidade",
+      "pipeline-ordem-turno",
+      "neuronios-papel",
+      "compilador-orcamento",
+      "mundo-interior-expressao",
+      "constitution-tres-camadas",
+      "orbit-mobile-superficie",
+      "mobile-api-railway",
+      "como-mandar-foto",
+      "orbit-desktop-storybook",
+      "storybook-tres-arvores",
+      "lumen-modulo",
+      "forge-ide",
+      "runtime-presenca",
+      "cerebras-glm-voz",
+      "gemma-visao-tool",
+      "groq-fallback",
+      "atlas-consulta-tool",
+      "guardia-em-orbita",
+      "firebase-auth-mobile",
+      "humor-clima-relacao"
+    ]
+  },
+  "registros": [
+    {
+      "id": "atlas-consulta-tool",
+      "tipo": "plano",
+      "titulo": "Tool de consulta do Atlas",
+      "resumo": "Eu descrevo a tool de consulta do Atlas para recuperar contexto canônico de forma determinística e auditável.",
+      "palavras_chave": [
+        "atlas",
+        "consulta",
+        "tool",
+        "deterministico"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "cerebras-glm-voz",
+      "tipo": "plano",
+      "titulo": "Cerebras GLM para voz",
+      "resumo": "Eu descrevo o uso do Cerebras GLM para voz quando preciso baixa latência e resposta falada com qualidade estável.",
+      "palavras_chave": [
+        "cerebras",
+        "glm",
+        "voz",
+        "latencia"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "como-mandar-foto",
+      "tipo": "plano",
+      "titulo": "Como mandar foto no Orbit",
+      "resumo": "Eu ensino como mando foto no Orbit mobile com passos claros de anexo, envio e validação para evitar erro de upload.",
+      "palavras_chave": [
+        "como mando foto",
+        "mandar foto",
+        "enviar imagem",
+        "upload mobile"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "compilador-orcamento",
+      "tipo": "plano",
+      "titulo": "Compilador com orçamento contextual",
+      "resumo": "Eu registro como o compilador aplica orçamento de contexto para priorizar sinais úteis e reduzir desperdício de tokens.",
+      "palavras_chave": [
+        "compilador",
+        "orcamento",
+        "contexto",
+        "tokens"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "constitution-tres-camadas",
+      "tipo": "plano",
+      "titulo": "Constituição em três camadas",
+      "resumo": "Eu documento as três camadas constitucionais para priorizar regras imutáveis, políticas situacionais e ajustes locais.",
+      "palavras_chave": [
+        "constituicao",
+        "tres camadas",
+        "politica",
+        "regras"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "firebase-auth-mobile",
+      "tipo": "plano",
+      "titulo": "Firebase Auth no mobile",
+      "resumo": "Eu explico o fluxo de Firebase Auth no mobile para garantir identidade persistente, sessão segura e isolamento por UID.",
+      "palavras_chave": [
+        "firebase",
+        "auth",
+        "mobile",
+        "uid"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "forge-ide",
+      "tipo": "plano",
+      "titulo": "Forge IDE como ambiente",
+      "resumo": "Eu explico o ambiente Forge IDE para planejar execução agentica com contexto de workspace, arquivos e comandos.",
+      "palavras_chave": [
+        "forge",
+        "ide",
+        "ambiente",
+        "agente"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "gemma-visao-tool",
+      "tipo": "plano",
+      "titulo": "Tool de visão com Gemma",
+      "resumo": "Eu documento quando aciono a tool de visão com Gemma para leitura de imagens em tarefas rápidas de interpretação.",
+      "palavras_chave": [
+        "gemma",
+        "visao",
+        "tool",
+        "imagem"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "groq-fallback",
+      "tipo": "plano",
+      "titulo": "Fallback de inferência com Groq",
+      "resumo": "Eu explico o fallback com Groq para manter disponibilidade quando o provedor principal falha ou degrada desempenho.",
+      "palavras_chave": [
+        "groq",
+        "fallback",
+        "resiliencia",
+        "provedor"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "guardia-em-orbita",
+      "tipo": "plano",
+      "titulo": "Guardia em órbita",
+      "resumo": "Eu registro a Guardia em órbita para reforçar proteção contínua contra ações inseguras sem bloquear o fluxo útil.",
+      "palavras_chave": [
+        "guardia",
+        "orbita",
+        "seguranca",
+        "protecao"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "humor-clima-relacao",
+      "tipo": "plano",
+      "titulo": "Relação entre humor e clima",
+      "resumo": "Eu descrevo a relação entre humor e clima para ajustar tom da resposta com sensibilidade contextual e continuidade.",
+      "palavras_chave": [
+        "humor",
+        "clima",
+        "relacao",
+        "tom"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "lumen-modulo",
+      "tipo": "plano",
+      "titulo": "Módulo Lumen didático",
+      "resumo": "Eu registro o módulo Lumen para garantir trilhas atômicas, didática progressiva e validação pedagógica consistente.",
+      "palavras_chave": [
+        "lumen",
+        "modulo",
+        "didatica",
+        "trilhas"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "mobile-api-railway",
+      "tipo": "plano",
+      "titulo": "Mobile API no Railway",
+      "resumo": "Eu explico o deploy da Mobile API no Railway para manter sessão estável, autenticação e rota de inferência da Luna.",
+      "palavras_chave": [
+        "mobile api",
+        "railway",
+        "deploy",
+        "sessao"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "mundo-interior-expressao",
+      "tipo": "plano",
+      "titulo": "Mundo interior e expressão",
+      "resumo": "Eu explico como mundo interior influencia expressão verbal sem perder consistência, segurança e identidade da Luna.",
+      "palavras_chave": [
+        "mundo interior",
+        "expressao",
+        "identidade",
+        "tom"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "neuronios-papel",
+      "tipo": "plano",
+      "titulo": "Papel dos neurônios da Luna",
+      "resumo": "Eu mapeio o papel de cada neurônio para separar responsabilidades e evitar colisões entre segurança, memória e estilo.",
+      "palavras_chave": [
+        "neuronios",
+        "papel",
+        "responsabilidades",
+        "seguranca"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "orbit-desktop-storybook",
+      "tipo": "plano",
+      "titulo": "Orbit desktop via Storybook",
+      "resumo": "Eu descrevo como uso Storybook no desktop Orbit para validar componentes, estados e fluxos visuais antes de integrar.",
+      "palavras_chave": [
+        "orbit desktop",
+        "storybook",
+        "componentes",
+        "preview"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "orbit-mobile-superficie",
+      "tipo": "plano",
+      "titulo": "Orbit mobile como superfície",
+      "resumo": "Eu descrevo a superfície mobile do Orbit para garantir continuidade de experiência entre chat, contexto e ações rápidas.",
+      "palavras_chave": [
+        "orbit mobile",
+        "superficie",
+        "ux",
+        "continuidade"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "paia-visao-geral",
+      "tipo": "plano",
+      "titulo": "PAIA em visão geral",
+      "resumo": "Eu descrevo a visão macro da PAIA para alinhar propósito, limites e impacto esperado na arquitetura da Luna.",
+      "palavras_chave": [
+        "paia",
+        "visao geral",
+        "arquitetura",
+        "proposito"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "pipeline-ordem-turno",
+      "tipo": "plano",
+      "titulo": "Pipeline e ordem de turno",
+      "resumo": "Eu detalho a ordem do turno no pipeline para manter previsibilidade entre análise, decisão, memória e resposta final.",
+      "palavras_chave": [
+        "pipeline",
+        "ordem",
+        "turno",
+        "fluxo"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "runtime-presenca",
+      "tipo": "plano",
+      "titulo": "Runtime e presença da Luna",
+      "resumo": "Eu conecto runtime e presença para manter transições de superfície com contexto vivo e memória de continuidade.",
+      "palavras_chave": [
+        "runtime",
+        "presenca",
+        "transicao",
+        "continuidade"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "storybook-tres-arvores",
+      "tipo": "plano",
+      "titulo": "Storybook em três árvores",
+      "resumo": "Eu organizo Storybook em três árvores para separar Orbit DS, Concepts e Luna OS sem misturar responsabilidades.",
+      "palavras_chave": [
+        "storybook",
+        "tres arvores",
+        "orbit ds",
+        "concepts"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    },
+    {
+      "id": "talamo-profundidade",
+      "tipo": "plano",
+      "titulo": "Tálamo e níveis de profundidade",
+      "resumo": "Eu explico como o tálamo regula profundidade de resposta para equilibrar custo, foco contextual e utilidade prática.",
+      "palavras_chave": [
+        "talamo",
+        "profundidade",
+        "roteamento",
+        "resposta"
+      ],
+      "estado": "implementado",
+      "desde": "2026-07-05"
+    }
+  ],
+  "compilado_em": "2026-07-05T16:52:38.558Z"
+}

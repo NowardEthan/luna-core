@@ -238,13 +238,18 @@ export async function prepararMemoriaGlobalMobile(
   }
 
   if (resumos.length < maxSessoes) {
-    try {
-      const local = core.buscarContextoOutrasSessoes(mensagem, sessionId, maxSessoes, {
-        sempreAtivo: true,
-      });
-      resumos.push(...local);
-    } catch {
-      /* ignora falha local */
+    const crossLocal =
+      process.env.LUNA_CROSS_SESSION_LOCAL === "1" || process.env.LUNA_CROSS_SESSION_LOCAL === "true";
+    if (crossLocal && uid) {
+      try {
+        const local = core.buscarContextoOutrasSessoes(mensagem, sessionId, maxSessoes, {
+          sempreAtivo: true,
+          owner_uid: uid,
+        });
+        resumos.push(...local);
+      } catch {
+        /* ignora falha local */
+      }
     }
   }
 

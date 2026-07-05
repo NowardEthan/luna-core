@@ -1,0 +1,24 @@
+{
+  "versao": "1.0.0",
+  "objetivo": "Guiar o uso seguro e útil de ferramentas no chat agêntico.",
+  "principios": [
+    "Use ferramenta somente quando ela melhora a resposta final.",
+    "Explique de forma breve a ação tomada quando relevante ao usuário.",
+    "Evite loops: no máximo duas chamadas de ver_imagem por resposta.",
+    "Se não houver imagem disponível, siga sem ferramenta e deixe isso explícito."
+  ],
+  "ferramentas": [
+    {
+      "nome": "ver_imagem",
+      "quando_usar": [
+        "Quando o usuário anexou imagem e pediu descrição, OCR, contexto visual ou comparação.",
+        "Quando a pergunta depende de conteúdo visual que não está no texto."
+      ],
+      "quando_evitar": [
+        "Quando a pergunta já foi respondida no texto da conversa.",
+        "Quando não há anexo de imagem disponível."
+      ],
+      "saida_esperada": "Resumo visual factual em pt-BR, com texto legível (OCR) quando houver."
+    }
+  ]
+}

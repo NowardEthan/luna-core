@@ -39,6 +39,7 @@ import {
   type TranscribeResponse,
   type VisionResponse,
 } from "./types.js";
+import { mapearErroParaEventoSse } from "../../src/ux/mapearErroUsuario.js";
 
 /**
  * Carrega o .env da luna-core no arranque, para que LUNA_API_KEY (chat + STT)
@@ -75,6 +76,10 @@ function corsHeaders(extra?: Record<string, string>): Record<string, string> {
 function sendSseEvent(res: ServerResponse, event: string, data: unknown): void {
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+function sendMappedSseError(res: ServerResponse, erro: unknown): void {
+  sendSseEvent(res, "error", mapearErroParaEventoSse(erro));
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
@@ -221,11 +226,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         if (denied) {
           return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
         }
+        if (parsed.attachments?.length) {
+          const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
+          if (deniedImages) {
+            return sendJson(res, 429, quotaDeniedPayload(deniedImages) satisfies ChatResponse);
+          }
+        }
       }
 
       const result = await executarChatMobile(
         parsed.message,
         sessionId,
+        parsed.attachments,
         llmSelection,
         parsed.userDisplayName,
         auth?.uid ?? null,
@@ -295,6 +307,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         if (denied) {
           return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
         }
+        if (parsed.attachments?.length) {
+          const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
+          if (deniedImages) {
+            return sendJson(res, 429, quotaDeniedPayload(deniedImages) satisfies ChatResponse);
+          }
+        }
       }
 
       res.writeHead(200, {
@@ -306,7 +324,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sseStarted = true;
 
       const streamTimeout = setTimeout(() => {
-        sendSseEvent(res, "error", { error: "Timeout de streaming (120s)." });
+        sendMappedSseError(res, new Error("Timeout de streaming (120s)."));
         res.end();
       }, 120_000);
 
@@ -316,8 +334,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           onStatus: (phase) => sendSseEvent(res, "status", { phase }),
           onReasoningDelta: (delta) => sendSseEvent(res, "reasoning", { delta }),
           onContentDelta: (delta) => sendSseEvent(res, "content", { delta }),
+          onAcao: (acao) => sendSseEvent(res, "acao", acao),
         },
         sessionId,
+        parsed.attachments,
         llmSelection,
         parsed.userDisplayName,
         auth?.uid ?? null,
@@ -346,14 +366,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         turnCount: result.turnCount,
         providerReason: result.providerReason,
         autoMode: result.autoMode,
+        humor_atual: result.humor_atual,
       });
       res.end();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
       if (sseStarted) {
-        sendSseEvent(res, "error", { error: message });
+        sendMappedSseError(res, err);
         res.end();
       } else {
+        const message = err instanceof Error ? err.message : String(err);
         const payload: ChatResponse = { ok: false, error: message };
         return sendJson(res, 400, payload);
       }

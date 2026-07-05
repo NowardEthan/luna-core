@@ -27,6 +27,7 @@ describe("Pipeline V0.2 — conversa casual", () => {
     const r = executarPipeline("Oi Luna, tudo bem? kk");
     expect(r.politica.formato).toBe("texto_simples");
     expect(r.politica.markdown_permitido).toBe(false);
+    expect(r.formato.nivel_formato_md).toBe("nenhum");
     expect(r.politica.tom).toBe("brincalhao");
     expect(r.analise.intencao).toBe("conversa_casual");
   });
@@ -57,6 +58,7 @@ describe("Pipeline V0.2 — pedido de código", () => {
     const r = executarPipeline("Implementa uma função TypeScript que valida JSON");
     expect(r.analise.requer_codigo).toBe(true);
     expect(r.politica.markdown_permitido).toBe(true);
+    expect(r.formato.nivel_formato_md).toBe("estruturado");
     expect(["codigo", "markdown"]).toContain(r.politica.formato);
   });
 });
@@ -128,6 +130,15 @@ describe("Avaliadores determinísticos", () => {
     const fmt = avaliarFormato(analise);
     expect(analise.intencao).toBe("pergunta_tecnica");
     expect(fmt.formato).toBe("texto_simples");
+    expect(fmt.nivel_formato_md).toBe("nenhum");
+  });
+
+  it("formato markdown explícito mantém nível leve", () => {
+    const analise = analisarContextoPorRegras("Responda em markdown com uma lista curta");
+    const fmt = avaliarFormato(analise);
+    expect(fmt.formato).toBe("markdown");
+    expect(fmt.markdown_permitido).toBe(true);
+    expect(fmt.nivel_formato_md).toBe("leve");
   });
 });
 

@@ -5,6 +5,10 @@
 
 export type EntradasCompilador = {
   politica: string;
+  identidade?: string;
+  agentico?: string;
+  formato?: string;
+  ecossistema?: string;
   kernel?: string;
   humor?: string;
   presenca?: string;
@@ -13,6 +17,8 @@ export type EntradasCompilador = {
   ambiente?: string;
   preditivo?: string;
   habitos?: string;
+  habitat?: string;
+  vida?: string;
   sugestao_memoria?: string;
 };
 
@@ -30,16 +36,34 @@ type SecaoDef = {
 };
 
 const SECOES: SecaoDef[] = [
+  { chave: "identidade", titulo: "Identidade", prioridade: 1, orcamento: 180 },
+  { chave: "agentico", titulo: "Ferramentas", prioridade: 2, orcamento: 60 },
+  { chave: "formato", titulo: "Formato", prioridade: 2, orcamento: 80 },
   { chave: "kernel", titulo: "Continuidade", prioridade: 2, orcamento: 400 },
-  { chave: "humor", titulo: "Estado", prioridade: 3, orcamento: 60 },
-  { chave: "presenca", titulo: "Presença", prioridade: 4, orcamento: 250 },
+  { chave: "humor", titulo: "Estado", prioridade: 3, orcamento: 120 },
+  { chave: "ecossistema", titulo: "Ecossistema", prioridade: 5, orcamento: 80 },
+  { chave: "presenca", titulo: "Presença", prioridade: 4, orcamento: 200 },
   { chave: "memorias_longas", titulo: "Memórias", prioridade: 5, orcamento: 300 },
   { chave: "sense", titulo: "Sense", prioridade: 6, orcamento: 200 },
-  { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 250 },
-  { chave: "preditivo", titulo: "Padrão recente", prioridade: 8, orcamento: 60 },
+  { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 200 },
+  { chave: "habitat", titulo: "Habitat", prioridade: 8, orcamento: 100 },
+  { chave: "vida", titulo: "Vida interior", prioridade: 8, orcamento: 100 },
+  { chave: "preditivo", titulo: "Padrão recente", prioridade: 9, orcamento: 60 },
   { chave: "habitos", titulo: "Hábitos", prioridade: 9, orcamento: 80 },
   { chave: "sugestao_memoria", titulo: "Sugestão", prioridade: 10, orcamento: 60 },
 ];
+
+/** Orçamento vinculante por profundidade do tálamo (pkg-comp). */
+export function orcamentoPorProfundidade(profundidade: "simples" | "normal" | "profunda"): number {
+  switch (profundidade) {
+    case "simples":
+      return 900;
+    case "profunda":
+      return 1650;
+    default:
+      return 1300;
+  }
+}
 
 const ORCAMENTO_POLITICA = 150;
 

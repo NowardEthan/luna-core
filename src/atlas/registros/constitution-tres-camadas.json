@@ -1,0 +1,9 @@
+{
+  "id": "constitution-tres-camadas",
+  "tipo": "plano",
+  "titulo": "Constituição em três camadas",
+  "resumo": "Eu documento as três camadas constitucionais para priorizar regras imutáveis, políticas situacionais e ajustes locais.",
+  "palavras_chave": ["constituicao", "tres camadas", "politica", "regras"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

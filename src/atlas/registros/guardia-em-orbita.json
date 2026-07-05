@@ -1,0 +1,9 @@
+{
+  "id": "guardia-em-orbita",
+  "tipo": "plano",
+  "titulo": "Guardia em órbita",
+  "resumo": "Eu registro a Guardia em órbita para reforçar proteção contínua contra ações inseguras sem bloquear o fluxo útil.",
+  "palavras_chave": ["guardia", "orbita", "seguranca", "protecao"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

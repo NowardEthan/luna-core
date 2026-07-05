@@ -116,6 +116,8 @@ function resumirSessao(
 export type OpcoesBuscaContextoCross = {
   /** Quando true, inclui sessões recentes mesmo sem pedido explícito de recall (mobile/API). */
   sempreAtivo?: boolean;
+  /** Filtra sessões pelo UID do dono — obrigatório em produção multi-user. */
+  owner_uid?: string | null;
 };
 
 /**
@@ -151,6 +153,10 @@ export function buscarContextoOutrasSessoes(
     const sessao = carregarSessao(id);
     if (!sessao || sessao.mensagens.length < 2) continue;
 
+    if (opcoes?.owner_uid && sessao.owner_uid && sessao.owner_uid !== opcoes.owner_uid) {
+      continue;
+    }
+
     const userCount = sessao.mensagens.filter((m) => m.papel === "user").length;
     if (userCount < 1) continue;
 
@@ -174,6 +180,7 @@ export function buscarContextoOutrasSessoes(
       if (id === sessaoAtualId || id.startsWith("test-")) continue;
       const s = carregarSessao(id);
       if (s && s.mensagens.filter((m) => m.papel === "user").length >= 1) {
+        if (opcoes?.owner_uid && s.owner_uid && s.owner_uid !== opcoes.owner_uid) continue;
         recentes.push(s);
       }
     }

@@ -13,7 +13,8 @@ import {
   sessaoJaRefletida,
   ultimaEntradaDiario,
 } from "./diario/storeDiario.js";
-import { lerHumor } from "./humor/storeHumor.js";
+import { lerClimaGlobal } from "./humor/climaHumor.js";
+import { HUMOR_BASELINE } from "./humor/esquemaHumor.js";
 import { executarSono } from "./sono/consolidador.js";
 
 export async function despertar(
@@ -32,7 +33,7 @@ export async function despertar(
     if (anterior && provedorMenor && modeloMenor) {
       const entrada = await gerarEntradaDiario(anterior, provedorMenor, modeloMenor);
       if (entrada) {
-        const humor = lerHumor();
+        const clima = lerClimaGlobal();
         inserirEntradaDiario({
           sessao_id: anterior.id,
           quando: new Date().toISOString(),
@@ -41,9 +42,9 @@ export async function despertar(
           pendencias: entrada.pendencias,
           como_terminou: entrada.como_terminou,
           humor_no_fim: {
-            valencia: humor.valencia,
-            energia: humor.energia,
-            proximidade: humor.proximidade,
+            valencia: clima.valencia,
+            energia: clima.energia,
+            proximidade: HUMOR_BASELINE.proximidade,
           },
         });
       }

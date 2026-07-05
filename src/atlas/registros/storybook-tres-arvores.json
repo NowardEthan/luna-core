@@ -1,0 +1,9 @@
+{
+  "id": "storybook-tres-arvores",
+  "tipo": "plano",
+  "titulo": "Storybook em três árvores",
+  "resumo": "Eu organizo Storybook em três árvores para separar Orbit DS, Concepts e Luna OS sem misturar responsabilidades.",
+  "palavras_chave": ["storybook", "tres arvores", "orbit ds", "concepts"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

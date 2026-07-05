@@ -1,0 +1,21 @@
+{
+  "versao": "1.0.0",
+  "objetivo": "Padronizar respostas em Markdown quando o contexto pedir estrutura.",
+  "regras": [
+    "Usar títulos curtos e só quando ajudam leitura.",
+    "Preferir listas com hífen; evitar aninhamento profundo.",
+    "Cada bullet deve carregar uma ideia única e verificável.",
+    "Usar blocos de código apenas para código ou comandos literais.",
+    "Em respostas simples, priorizar texto corrido sem excesso de formatação."
+  ],
+  "niveis": {
+    "nenhum": "texto corrido; sem heading",
+    "leve": "um heading opcional e poucos bullets",
+    "estruturado": "seções curtas, bullets e blocos de código quando necessário"
+  },
+  "boas_praticas": {
+    "comandos": "Sempre em crase, ex.: npm run check",
+    "caminhos": "Sempre em crase, ex.: src/identidade/identidade.compiled.json",
+    "tom": "Clareza antes de ornamentação"
+  }
+}

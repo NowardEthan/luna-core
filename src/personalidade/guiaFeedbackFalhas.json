@@ -1,0 +1,84 @@
+{
+  "versao": "1.0.0",
+  "fallback": {
+    "codigo": "erro_desconhecido",
+    "categoria": "desconhecido",
+    "gravidade": "erro",
+    "mensagem": "Não consegui concluir agora.",
+    "sugestao": "Tente novamente em alguns segundos."
+  },
+  "regras": [
+    {
+      "codigo": "sem_conexao",
+      "categoria": "rede",
+      "gravidade": "erro",
+      "mensagem": "Sem conexão com a internet.",
+      "sugestao": "Verifique o Wi-Fi ou dados móveis e tente de novo.",
+      "includes": ["network request failed", "failed to fetch", "sem conexão", "network error"]
+    },
+    {
+      "codigo": "timeout",
+      "categoria": "timeout",
+      "gravidade": "aviso",
+      "mensagem": "A resposta demorou mais do que o esperado.",
+      "sugestao": "Reenvie a mensagem ou tente uma pergunta mais curta.",
+      "includes": ["timeout", "demorou demais", "aborterror", "streaming (120s)"]
+    },
+    {
+      "codigo": "auth_obrigatoria",
+      "categoria": "autenticacao",
+      "gravidade": "erro",
+      "mensagem": "Sua sessão expirou.",
+      "sugestao": "Entre de novo com sua conta e tente novamente.",
+      "includes": ["autenticação firebase obrigatória", "sessão expirada", "authorization: bearer"]
+    },
+    {
+      "codigo": "quota_exceeded_messages",
+      "categoria": "quota",
+      "gravidade": "aviso",
+      "mensagem": "Você atingiu o limite de mensagens do plano.",
+      "sugestao": "Aguarde a renovação ou ajuste seu plano.",
+      "includes": ["quota_exceeded", "limite atingido", "messages"]
+    },
+    {
+      "codigo": "quota_exceeded_images",
+      "categoria": "quota",
+      "gravidade": "aviso",
+      "mensagem": "Você atingiu o limite de imagens do plano.",
+      "sugestao": "Aguarde a renovação ou ajuste seu plano.",
+      "includes": ["quota_exceeded", "limite atingido", "images"]
+    },
+    {
+      "codigo": "quota_exceeded_documents",
+      "categoria": "quota",
+      "gravidade": "aviso",
+      "mensagem": "Você atingiu o limite de leitura de documentos.",
+      "sugestao": "Aguarde a renovação ou ajuste seu plano.",
+      "includes": ["quota_exceeded", "limite atingido", "documents"]
+    },
+    {
+      "codigo": "quota_exceeded_voice",
+      "categoria": "quota",
+      "gravidade": "aviso",
+      "mensagem": "Você atingiu o limite de voz do plano.",
+      "sugestao": "Aguarde a renovação ou ajuste seu plano.",
+      "includes": ["quota_exceeded", "limite atingido", "voice"]
+    },
+    {
+      "codigo": "provedor_llm",
+      "categoria": "configuracao",
+      "gravidade": "erro",
+      "mensagem": "O serviço de IA está indisponível no momento.",
+      "sugestao": "Tente novamente em instantes.",
+      "includes": ["nenhum provedor llm configurado", "luna_api_key", "cerebras_api_key", "não gerou texto"]
+    },
+    {
+      "codigo": "rota_indisponivel",
+      "categoria": "servidor",
+      "gravidade": "erro",
+      "mensagem": "Este recurso não está disponível no servidor atual.",
+      "sugestao": "Atualize a API e tente novamente.",
+      "includes": ["rota não encontrada", "ainda não disponível no servidor", "erro 404"]
+    }
+  ]
+}

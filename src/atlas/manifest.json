@@ -1,0 +1,32 @@
+{
+  "nome": "Atlas Lunar",
+  "versao": "2026.07.05",
+  "schema": "./schema/registro.schema.json",
+  "pasta_registros": "./registros",
+  "saida_compilada": "./atlas.compiled.json",
+  "total_registros_esperado": 22,
+  "ids_planejados": [
+    "paia-visao-geral",
+    "talamo-profundidade",
+    "pipeline-ordem-turno",
+    "neuronios-papel",
+    "compilador-orcamento",
+    "mundo-interior-expressao",
+    "constitution-tres-camadas",
+    "orbit-mobile-superficie",
+    "mobile-api-railway",
+    "como-mandar-foto",
+    "orbit-desktop-storybook",
+    "storybook-tres-arvores",
+    "lumen-modulo",
+    "forge-ide",
+    "runtime-presenca",
+    "cerebras-glm-voz",
+    "gemma-visao-tool",
+    "groq-fallback",
+    "atlas-consulta-tool",
+    "guardia-em-orbita",
+    "firebase-auth-mobile",
+    "humor-clima-relacao"
+  ]
+}

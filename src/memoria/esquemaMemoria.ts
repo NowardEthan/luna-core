@@ -73,6 +73,8 @@ export const MemoriaSessaoSchema = z.object({
   estado_interno: EstadoInternoSchema.optional(),
   /** M4 — resumo dos turnos descartados pelo LIMITE_HISTORICO. */
   resumo_rolante: z.string().optional(),
+  /** UID Firebase do dono da sessão (isolamento cross-sessão mobile). */
+  owner_uid: z.string().optional(),
 });
 
 export type TurnoMensagem = z.infer<typeof TurnoMensagemSchema>;

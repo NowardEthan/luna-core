@@ -14,12 +14,10 @@ export const EstadoHumorSchema = z.object({
 
 export type EstadoHumor = z.infer<typeof EstadoHumorSchema>;
 
-export const HUMOR_ID = "luna";
-
 export const HUMOR_BASELINE: EstadoHumor = {
-  valencia: 0.2,
-  energia: 0.5,
-  proximidade: 0.6,
+  valencia: 0.35,
+  energia: 0.55,
+  proximidade: 0.72,
   atualizado_em: new Date(0).toISOString(),
 };
 

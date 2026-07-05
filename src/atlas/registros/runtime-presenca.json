@@ -1,0 +1,9 @@
+{
+  "id": "runtime-presenca",
+  "tipo": "plano",
+  "titulo": "Runtime e presença da Luna",
+  "resumo": "Eu conecto runtime e presença para manter transições de superfície com contexto vivo e memória de continuidade.",
+  "palavras_chave": ["runtime", "presenca", "transicao", "continuidade"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

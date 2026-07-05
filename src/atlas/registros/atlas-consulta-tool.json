@@ -1,0 +1,9 @@
+{
+  "id": "atlas-consulta-tool",
+  "tipo": "plano",
+  "titulo": "Tool de consulta do Atlas",
+  "resumo": "Eu descrevo a tool de consulta do Atlas para recuperar contexto canônico de forma determinística e auditável.",
+  "palavras_chave": ["atlas", "consulta", "tool", "deterministico"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

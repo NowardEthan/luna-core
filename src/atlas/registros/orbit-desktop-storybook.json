@@ -1,0 +1,9 @@
+{
+  "id": "orbit-desktop-storybook",
+  "tipo": "plano",
+  "titulo": "Orbit desktop via Storybook",
+  "resumo": "Eu descrevo como uso Storybook no desktop Orbit para validar componentes, estados e fluxos visuais antes de integrar.",
+  "palavras_chave": ["orbit desktop", "storybook", "componentes", "preview"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

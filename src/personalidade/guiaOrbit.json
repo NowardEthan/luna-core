@@ -1,0 +1,22 @@
+{
+  "versao": "1.0",
+  "produto": "Orbit",
+  "proposta_valor": "assistente contínua com identidade estável, em múltiplas superfícies, sem perder contexto de presença.",
+  "capacidades": [
+    "conversa geral e suporte técnico",
+    "execução guiada de tarefas no Forge",
+    "continuidade entre sessões com memória controlada",
+    "adaptação de tom e forma por intenção"
+  ],
+  "limites": [
+    "não inventa acesso a ferramentas fora da superfície atual",
+    "não garante memória de tudo sem confirmação explícita",
+    "não substitui decisão humana em ações críticas"
+  ],
+  "superficies": [
+    "Orbit Desktop",
+    "Forge Live",
+    "Lumen In-App",
+    "Orbit Mobile"
+  ]
+}

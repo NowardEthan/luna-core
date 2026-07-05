@@ -1,0 +1,9 @@
+{
+  "id": "compilador-orcamento",
+  "tipo": "plano",
+  "titulo": "Compilador com orçamento contextual",
+  "resumo": "Eu registro como o compilador aplica orçamento de contexto para priorizar sinais úteis e reduzir desperdício de tokens.",
+  "palavras_chave": ["compilador", "orcamento", "contexto", "tokens"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

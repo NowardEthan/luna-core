@@ -1,0 +1,9 @@
+{
+  "id": "firebase-auth-mobile",
+  "tipo": "plano",
+  "titulo": "Firebase Auth no mobile",
+  "resumo": "Eu explico o fluxo de Firebase Auth no mobile para garantir identidade persistente, sessão segura e isolamento por UID.",
+  "palavras_chave": ["firebase", "auth", "mobile", "uid"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

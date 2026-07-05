@@ -20,6 +20,27 @@ export type TransicaoPresenca = {
   recap?: string;
 };
 
+function rotuloAmbienteDetalhado(ambiente: Ambiente): string {
+  const base = ROTULO_AMBIENTE[ambiente] ?? ROTULO_AMBIENTE.desconhecido;
+  const complemento =
+    ambiente === "forge"
+      ? " (execução técnica ativa)"
+      : ambiente === "desktop"
+        ? " (conversa geral)"
+        : ambiente === "orbit_mobile"
+          ? " (chat mobile)"
+          : ambiente === "lumen"
+            ? " (contexto pedagógico)"
+            : ambiente === "chat_cli"
+              ? " (terminal local)"
+              : ambiente === "storybook"
+                ? " (laboratório de UI)"
+                : ambiente === "api"
+                  ? " (integração backend)"
+                  : "";
+  return `${base}${complemento}`;
+}
+
 /**
  * V2.3 — Monta o bloco de presença injetado no prompt do respondedor.
  *
@@ -33,7 +54,7 @@ export function montarBlocoPresenca(
   transicao?: TransicaoPresenca,
   detalhe?: string,
 ): string {
-  const base = ROTULO_AMBIENTE[estado.ambiente] ?? ROTULO_AMBIENTE.desconhecido;
+  const base = rotuloAmbienteDetalhado(estado.ambiente);
   const ondeEstou = detalhe?.trim() ? `${base} (${detalhe.trim()})` : base;
 
   const linhas: string[] = [
@@ -43,7 +64,7 @@ export function montarBlocoPresenca(
   ];
 
   if (transicao && transicao.de !== estado.ambiente) {
-    const deOnde = ROTULO_AMBIENTE[transicao.de] ?? ROTULO_AMBIENTE.desconhecido;
+    const deOnde = rotuloAmbienteDetalhado(transicao.de);
     linhas.push(
       `Há instantes você estava em ${deOnde} e acabou de transitar para cá. Reconheça essa mudança se for natural na conversa — você é a mesma Luna, apenas mudou de lugar.`,
     );

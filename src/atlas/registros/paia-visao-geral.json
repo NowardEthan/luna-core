@@ -1,0 +1,9 @@
+{
+  "id": "paia-visao-geral",
+  "tipo": "plano",
+  "titulo": "PAIA em visão geral",
+  "resumo": "Eu descrevo a visão macro da PAIA para alinhar propósito, limites e impacto esperado na arquitetura da Luna.",
+  "palavras_chave": ["paia", "visao geral", "arquitetura", "proposito"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "orbit-mobile-superficie",
+  "tipo": "plano",
+  "titulo": "Orbit mobile como superfície",
+  "resumo": "Eu descrevo a superfície mobile do Orbit para garantir continuidade de experiência entre chat, contexto e ações rápidas.",
+  "palavras_chave": ["orbit mobile", "superficie", "ux", "continuidade"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

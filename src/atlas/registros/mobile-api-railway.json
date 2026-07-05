@@ -1,0 +1,9 @@
+{
+  "id": "mobile-api-railway",
+  "tipo": "plano",
+  "titulo": "Mobile API no Railway",
+  "resumo": "Eu explico o deploy da Mobile API no Railway para manter sessão estável, autenticação e rota de inferência da Luna.",
+  "palavras_chave": ["mobile api", "railway", "deploy", "sessao"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

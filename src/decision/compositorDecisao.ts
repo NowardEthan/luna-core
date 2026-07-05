@@ -42,6 +42,7 @@ export function comporDecisao(
   if (!markdown_permitido && formatoFinal === "markdown" && !analise.requer_codigo) {
     formatoFinal = "texto_simples";
   }
+  const nivelFormatoMd = markdown_permitido ? formato.nivel_formato_md : "nenhum";
 
   let acao: PoliticaDecisao["acao"] = "responder";
 
@@ -89,6 +90,7 @@ export function comporDecisao(
     acao,
     formato: formatoFinal,
     markdown_permitido,
+    nivel_formato_md: nivelFormatoMd,
     tom: tom.tom,
     autonomia,
     acao_memoria,

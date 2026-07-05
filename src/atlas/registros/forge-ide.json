@@ -1,0 +1,9 @@
+{
+  "id": "forge-ide",
+  "tipo": "plano",
+  "titulo": "Forge IDE como ambiente",
+  "resumo": "Eu explico o ambiente Forge IDE para planejar execução agentica com contexto de workspace, arquivos e comandos.",
+  "palavras_chave": ["forge", "ide", "ambiente", "agente"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

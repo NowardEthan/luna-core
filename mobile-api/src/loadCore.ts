@@ -12,11 +12,19 @@ import {
 import type { PlanId } from "./billing/planMapping.js";
 import { compactarSessaoPersistida } from "./sessaoMobile.js";
 import { truncateMobileChatMessage } from "./truncateForGroq.js";
+import { sanitizarInterlocutorPipeline } from "../../src/interlocutor/validadorInterlocutor.js";
 
 export type ChatStreamCallbacks = {
   onStatus?: (phase: "analysing" | "memory" | "writing") => void;
   onReasoningDelta?: (delta: string) => void;
   onContentDelta?: (delta: string) => void;
+  onAcao?: (acao: {
+    tipo: "inicio_ferramenta" | "fim_ferramenta";
+    ferramenta: string;
+    argumentos: Record<string, unknown>;
+    rodada: number;
+    sucesso?: boolean;
+  }) => void;
 };
 
 export type ChatMobileResult = {
@@ -27,6 +35,20 @@ export type ChatMobileResult = {
   provider: LlmProviderSelection;
   providerReason?: string;
   autoMode?: boolean;
+  humor_atual?: {
+    emoji: string;
+    label: string;
+    tema: string;
+    narrativa?: string;
+    accessibilityLabel: string;
+  };
+};
+
+export type ChatAttachmentInput = {
+  id?: string;
+  name?: string;
+  mimeType?: string;
+  imageBase64: string;
 };
 
 export type LunaCoreModule = {
@@ -40,15 +62,36 @@ export type LunaCoreModule = {
       raciocinioAtivo?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
+      interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
       config?: ConfigLuna;
       stream?: boolean;
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;
       onStreamContentDelta?: (delta: string) => void;
+      anexosImagem?: Array<{
+        id: string;
+        nome?: string;
+        mimeType?: string;
+        imageBase64: string;
+      }>;
+      onAcaoAgentico?: (acao: {
+        tipo: "inicio_ferramenta" | "fim_ferramenta";
+        ferramenta: string;
+        argumentos: Record<string, unknown>;
+        rodada: number;
+        sucesso?: boolean;
+      }) => void;
     },
   ) => Promise<{
     resposta?: { texto?: string; raciocinio?: string };
     sessao?: { id?: string; mensagens?: unknown[] };
+    humor_atual?: {
+      emoji: string;
+      label: string;
+      tema: string;
+      narrativa?: string;
+      accessibilityLabel: string;
+    };
     log_path: string;
   }>;
   prepararSessaoOrbit: (sessaoId: string) => unknown;
@@ -103,20 +146,29 @@ function nomeInterlocutorMobile(userDisplayName?: string): string | undefined {
   return nome;
 }
 
-function montarDetalheAmbienteMobile(userDisplayName?: string): string | undefined {
+function montarDetalheAmbienteMobile(
+  userDisplayName?: string,
+  criadorVerificado?: boolean,
+): string | undefined {
   const nome = nomeInterlocutorMobile(userDisplayName);
   const blocoApelidos =
     "Se o usuário te chamar de «luninha», «Lu» ou outro apelido SEU, isso é vocativo para você — NÃO é o nome dele(a). " +
     "Nunca chame o usuário pelo apelido que ele usou para você, salvo pedido explícito («me chame de…»).";
 
+  const blocoEthan = criadorVerificado
+    ? "Interlocutor: Ethan, criador verificado. Trate-o com proximidade canónica de vínculo — sem tom de assistente corporativa. "
+    : "";
+
   if (!nome) {
-    return `App mobile Orbit. ${blocoApelidos}`;
+    return `Orbit Mobile. ${blocoEthan}${blocoApelidos}`;
   }
 
   return (
-    `App mobile Orbit. O interlocutor chama-se «${nome}». ` +
+    "Orbit Mobile. " +
+    blocoEthan +
+    `O interlocutor chama-se «${nome}». ` +
     `Trate-o(a) pelo nome «${nome}» quando fizer sentido (ou use tratamento neutro). ` +
-    `Você é a Luna (assistente); «${nome}» é quem conversa consigo — não inverta os nomes. ` +
+    `Você é a Luna; «${nome}» é quem conversa consigo — não inverta os nomes. ` +
     blocoApelidos
   );
 }
@@ -132,6 +184,7 @@ function mapStatusHint(hint: string): "analysing" | "memory" | "writing" | null 
 async function prepararChatMobile(
   message: string,
   sessionId: string | undefined,
+  attachments: ChatAttachmentInput[] | undefined,
   llm: Partial<LlmProviderSelection> | undefined,
   userDisplayName: string | undefined,
   uid: string | null | undefined,
@@ -166,8 +219,19 @@ async function prepararChatMobile(
     }
   }
 
-  const detalheAmbiente = montarDetalheAmbienteMobile(userDisplayName);
+  const interlocutor = sanitizarInterlocutorPipeline(
+    uid != null
+      ? {
+          uid,
+          display_name: userDisplayName,
+        }
+      : undefined,
+  );
   const sidPipeline = sessionId ?? crypto.randomUUID();
+  const detalheAmbiente = montarDetalheAmbienteMobile(
+    userDisplayName,
+    interlocutor?.criador_verificado,
+  );
   const memoria = await prepararMemoriaGlobalMobile({
     core,
     uid: uid ?? null,
@@ -180,6 +244,12 @@ async function prepararChatMobile(
     selection.providerId === "groq" && mensagem.length < 4_000;
 
   const raciocinioAtivo = isCerebras;
+  const anexosImagem = (attachments ?? []).map((att, index) => ({
+    id: att.id?.trim() || `img-${index + 1}`,
+    nome: att.name?.trim() || undefined,
+    mimeType: att.mimeType?.trim() || "image/jpeg",
+    imageBase64: att.imageBase64.trim(),
+  }));
 
   return {
     core,
@@ -193,6 +263,8 @@ async function prepararChatMobile(
     usarNeuronioMemoriaLlm,
     raciocinioAtivo,
     detalheAmbiente,
+    interlocutor,
+    anexosImagem,
   };
 }
 
@@ -217,29 +289,33 @@ function resultadoFromPipeline(
     provider: selection,
     providerReason: resolved?.autoReasonLabel,
     autoMode: Boolean(resolved?.autoReason),
+    humor_atual: resultado.humor_atual,
   };
 }
 
 export async function executarChatMobile(
   message: string,
   sessionId?: string,
+  attachments?: ChatAttachmentInput[],
   llm?: Partial<LlmProviderSelection>,
   userDisplayName?: string,
   uid?: string | null,
   planId: PlanId = "free",
 ): Promise<ChatMobileResult> {
-  const prep = await prepararChatMobile(message, sessionId, llm, userDisplayName, uid, planId);
+  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
 
   try {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
-      ambiente: "api",
+      ambiente: "orbit_mobile",
       detalhe_ambiente: prep.detalheAmbiente,
+      interlocutor: prep.interlocutor,
       gerarResposta: true,
       raciocinioAtivo: prep.raciocinioAtivo,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
+      anexosImagem: prep.anexosImagem,
       stream: false,
     });
 
@@ -253,27 +329,30 @@ export async function executarChatMobileStream(
   message: string,
   callbacks: ChatStreamCallbacks,
   sessionId?: string,
+  attachments?: ChatAttachmentInput[],
   llm?: Partial<LlmProviderSelection>,
   userDisplayName?: string,
   uid?: string | null,
   planId: PlanId = "free",
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
-    return executarChatMobile(message, sessionId, llm, userDisplayName, uid, planId);
+    return executarChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
   }
 
-  const prep = await prepararChatMobile(message, sessionId, llm, userDisplayName, uid, planId);
+  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
 
   try {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
-      ambiente: "api",
+      ambiente: "orbit_mobile",
       detalhe_ambiente: prep.detalheAmbiente,
+      interlocutor: prep.interlocutor,
       gerarResposta: true,
       raciocinioAtivo: prep.raciocinioAtivo,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
+      anexosImagem: prep.anexosImagem,
       stream: true,
       onStatusHint: (hint) => {
         const phase = mapStatusHint(hint);
@@ -281,6 +360,7 @@ export async function executarChatMobileStream(
       },
       onStreamReasoningDelta: callbacks.onReasoningDelta,
       onStreamContentDelta: callbacks.onContentDelta,
+      onAcaoAgentico: callbacks.onAcao,
     });
 
     return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);

@@ -15,6 +15,18 @@ export const ChatRequestSchema = z.object({
   modelKey: LlmModelKeySchema.optional(),
   /** Nome preferido do utilizador (perfil/conta) — evita confundir com «Luna». */
   userDisplayName: z.string().min(1).max(64).optional(),
+  /** Anexos de imagem em base64 para visão agêntica no core. */
+  attachments: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(128).optional(),
+        name: z.string().min(1).max(256).optional(),
+        mimeType: z.string().min(1).max(64).optional(),
+        imageBase64: z.string().min(32).max(20_000_000),
+      }),
+    )
+    .max(5)
+    .optional(),
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;

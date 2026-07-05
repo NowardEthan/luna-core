@@ -1,0 +1,9 @@
+{
+  "id": "groq-fallback",
+  "tipo": "plano",
+  "titulo": "Fallback de inferência com Groq",
+  "resumo": "Eu explico o fallback com Groq para manter disponibilidade quando o provedor principal falha ou degrada desempenho.",
+  "palavras_chave": ["groq", "fallback", "resiliencia", "provedor"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

@@ -11,6 +11,8 @@ import {
 import { gerarBlocoContextoPreditivo } from "../preditivo/analisadorPreditivo.js";
 import { gerarBlocoPerfilComportamental } from "../perfil/gerenciadorPerfil.js";
 import { registrarNeuronio } from "./registro.js";
+import { coletarSliceEcossistema } from "./especialistas/neuronioEcossistema.js";
+import { coletarNeuronioVida } from "./especialistas/neuronioVida.js";
 
 let inicializado = false;
 
@@ -83,5 +85,27 @@ export function inicializarNeuroniosPadrao(): void {
       ctx.habitos && ctx.habitos.length > 0
         ? gerarBlocoPerfilComportamental(ctx.habitos)
         : null,
+  });
+
+  registrarNeuronio({
+    nome: "ecossistema",
+    descricao: "conhecimento canônico da arquitetura e do produto Luna/Orbit",
+    exemplos_ativacao: [
+      "como funciona essa arquitetura?",
+      "qual parte do ecossistema cuida disso?",
+      "o que é o Orbit nesse produto?",
+    ],
+    sempre_ativo: false,
+    prioridade_compilador: "ecossistema",
+    coletar: (ctx) => coletarSliceEcossistema(ctx),
+  });
+
+  registrarNeuronio({
+    nome: "vida",
+    descricao: "estado narrativo interno e eventos recentes da Luna",
+    exemplos_ativacao: ["como você está por dentro?", "o que mudou em você hoje?"],
+    sempre_ativo: false,
+    prioridade_compilador: "vida",
+    coletar: () => coletarNeuronioVida(),
   });
 }

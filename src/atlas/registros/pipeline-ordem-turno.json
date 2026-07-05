@@ -1,0 +1,9 @@
+{
+  "id": "pipeline-ordem-turno",
+  "tipo": "plano",
+  "titulo": "Pipeline e ordem de turno",
+  "resumo": "Eu detalho a ordem do turno no pipeline para manter previsibilidade entre análise, decisão, memória e resposta final.",
+  "palavras_chave": ["pipeline", "ordem", "turno", "fluxo"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

@@ -12,7 +12,8 @@ import type { MemoriaSessao } from "../memoria/esquemaMemoria.js";
 import { mapDecisaoParaAcaoMemoria } from "../memoria/esquemaMemoria.js";
 import { gerarPolitica, type ResultadoPipeline } from "./executarPipeline.js";
 import { responderComoLuna, responderComoLunaStream, type ResultadoResposta } from "../responder/responderLuna.js";
-import { carregarConfig, type ConfigLuna, type ProvedorLlm } from "../providers/tipos.js";
+import { responderComoLunaAgentico, type AcaoAgenticoChat } from "../responder/responderComoLunaAgentico.js";
+import { carregarConfig, type ConfigLuna, type ProvedorAgente, type ProvedorLlm } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 import { providerSupportsStream, type ChunkStreamLlm } from "../providers/completarStream.js";
 import { buscarFatosDePerfil, buscarFatosPorSimilaridade } from "../memoria/longa/storeSqlite.js";
@@ -26,18 +27,36 @@ import { carregarPerfil, salvarPerfil } from "../perfil/storePerfil.js";
 import { ativarHabitos, adicionarOuIncrementarHabito } from "../perfil/gerenciadorPerfil.js";
 import type { HabitoComportamental } from "../perfil/esquemaPerfil.js";
 import { montarNarrativaRaciocinio } from "./montarNarrativaRaciocinio.js";
-import { compilarContexto } from "../contexto/compiladorContexto.js";
+import { compilarContexto, orcamentoPorProfundidade } from "../contexto/compiladorContexto.js";
 import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
 import { despertar } from "../mundo/despertar.js";
 import { atualizarHumor } from "../mundo/humor/atualizadorHumor.js";
 import { humorParaFrase } from "../mundo/humor/humorParaFrase.js";
 import { lerHumor } from "../mundo/humor/storeHumor.js";
+import { lerClimaGlobal } from "../mundo/humor/climaHumor.js";
+import { lerRelacaoHumor } from "../mundo/humor/relacaoHumor.js";
+import { humorParaPerfilExpressao } from "../mundo/humor/humorParaPerfilExpressao.js";
+import { humorParaBadge, type HumorBadgePayload } from "../mundo/humor/humorParaBadge.js";
+import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/talamoPipeline.js";
 import { inicializarNeuroniosPadrao } from "../neuronios/inicializarNeuronios.js";
 import { coletarNeuroniosAtivos } from "../neuronios/roteador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
+import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
+import type { AnexoImagemChat } from "../agentico/especialistas/visaoGemma.js";
+import { obterSliceHabitatAtual } from "../mundo/habitat/storeHabitat.js";
+import { simularVidaInterior } from "../mundo/vida/simuladorVida.js";
+import { registrarGostoLuna } from "../mundo/gostos/storeGostos.js";
+import { inferirEFormatarConhecimento } from "../conhecimento/formatarConhecimento.js";
+import { formatarPerfilEscrita } from "../personalidade/vozParaPerfilEscrita.js";
 
 inicializarNeuroniosPadrao();
+
+function mapProfundidadeOrcamento(p: ProfundidadeAnalise): "simples" | "normal" | "profunda" {
+  if (p === "simples") return "simples";
+  if (p === "complexo" || p === "critico") return "profunda";
+  return "normal";
+}
 
 export type ResultadoCompleto = {
   pipeline: ResultadoPipeline;
@@ -48,6 +67,7 @@ export type ResultadoCompleto = {
   habitos_ativos?: HabitoComportamental[];
   /** Narrativa PT do pipeline PAIA — timeline rodada 1 no Orbit. */
   narrativa_pipeline?: string;
+  humor_atual?: HumorBadgePayload;
   log_path: string;
   sessao?: MemoriaSessao;
 };
@@ -64,6 +84,8 @@ export type OpcoesPipelineCompleto = {
   ambiente?: Ambiente;
   /** V2.3 — detalhe legível do ambiente atual (ex.: nome do workspace no Forge). */
   detalhe_ambiente?: string;
+  /** Interlocutor verificado — UID + flag criador (servidor). */
+  interlocutor?: InterlocutorPipeline;
   /** I4 Orbit — trechos de outras sessões (recall entre conversas). */
   contexto_cross_sessao?: string[];
   /** I5 Orbit IDE — snapshot do workspace (explorador, editor, terminal, git). */
@@ -92,7 +114,44 @@ export type OpcoesPipelineCompleto = {
   onStreamReasoningDelta?: (delta: string) => void;
   onStreamContentDelta?: (delta: string) => void;
   onStreamDone?: (resposta: ResultadoResposta) => void;
+  anexosImagem?: AnexoImagemChat[];
+  onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
 };
+
+function featureFlagAgenticoVisionAtiva(): boolean {
+  const raw = process.env.LUNA_AGENTIC_VISION?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "on";
+}
+
+function mensagemPedeImagem(mensagem: string): boolean {
+  return /\b(ver|veja|olha|analisa|analise|descreve|descrição|ocr|imagem|foto|print|captura)\b/i
+    .test(mensagem);
+}
+
+function ehProvedorAgente(provedor: ProvedorLlm): provedor is ProvedorAgente {
+  return typeof (provedor as ProvedorAgente).completarComFerramentas === "function";
+}
+
+function intencaoPedeEcossistema(intencao: string): boolean {
+  return (
+    intencao === "pergunta_arquitetura" ||
+    intencao === "pergunta_ecossistema" ||
+    intencao === "pergunta_produto"
+  );
+}
+
+function simularVidaPosResposta(
+  mensagem: string,
+  analise: Pick<ResultadoAnalise["analise"], "intencao" | "nivel_risco">,
+): void {
+  Promise.resolve().then(() => {
+    try {
+      simularVidaInterior(mensagem, analise);
+    } catch (e) {
+      console.error("Aviso: falha ao simular vida pós-resposta", e);
+    }
+  });
+}
 
 function resolverProvedor(config: ConfigLuna): ProvedorLlm {
   return criarProvedorOpenAi({ apiKey: config.apiKey, baseUrl: config.baseUrl });
@@ -139,6 +198,9 @@ export async function executarPipelineCompleto(
   }
 
   const sessao = usarMemoria ? obterOuCriarSessao(opcoes.sessaoId) : undefined;
+  if (sessao && opcoes.interlocutor?.uid && !sessao.owner_uid) {
+    sessao.owner_uid = opcoes.interlocutor.uid;
+  }
   const contextoSessao = sessao ? prepararContextoRespondedor(sessao) : undefined;
 
   let kernelDespertar: string | null = null;
@@ -216,9 +278,27 @@ export async function executarPipelineCompleto(
   // V2.1 — recalcula e persiste estado interno após análise
   if (sessao) atualizarEstadoInterno(sessao, analise.analise);
   const estadoInterno = sessao?.estado_interno;
+  let humorAtualBadge: HumorBadgePayload | undefined;
+  let perfilExpressaoAtual:
+    | ReturnType<typeof humorParaPerfilExpressao>
+    | undefined;
 
   try {
-    atualizarHumor(analise.analise, sessao?.mensagens.length ?? 0);
+    atualizarHumor(
+      analise.analise,
+      sessao?.mensagens.length ?? 0,
+      opcoes.interlocutor?.uid,
+      mensagem,
+    );
+    const clima = lerClimaGlobal();
+    const relacao = lerRelacaoHumor(opcoes.interlocutor?.uid);
+    const perfil = humorParaPerfilExpressao(clima, relacao, {
+      intencao: analise.analise.intencao,
+      nivel_risco: analise.analise.nivel_risco,
+      criador_verificado: opcoes.interlocutor?.criador_verificado,
+    });
+    perfilExpressaoAtual = perfil;
+    humorAtualBadge = humorParaBadge(perfil);
   } catch (e) {
     console.error("Aviso: falha ao atualizar humor", e);
   }
@@ -302,16 +382,37 @@ export async function executarPipelineCompleto(
     let humorLinha: string | null = null;
     try {
       humorLinha = humorParaFrase(lerHumor());
+      if (perfilExpressaoAtual) {
+        humorLinha = `${humorLinha}\n${formatarPerfilEscrita(perfilExpressaoAtual.perfil_escrita)}`;
+      }
     } catch {
       // humor opcional
+    }
+    const ecossistemaBase = intencaoPedeEcossistema(analise.analise.intencao)
+      ? await inferirEFormatarConhecimento(mensagem, 3, {
+        intencao: analise.analise.intencao,
+        ambiente: opcoes.ambiente,
+      })
+      : null;
+
+    let habitatAtual: string | undefined;
+    try {
+      habitatAtual = obterSliceHabitatAtual();
+    } catch {
+      habitatAtual = undefined;
     }
 
     let entradas = montarEntradasCompilador({
       politica: politicaComMemoria,
       kernel: kernelDespertar,
       humor: humorLinha,
+      habitat: habitatAtual,
+      mensagemUsuario: mensagem,
+      ecossistema: ecossistemaBase ?? undefined,
       sugestaoMemoria: memoria.decisao.sugestao_resposta,
       resumoRolante: sessao?.resumo_rolante,
+      interlocutor: opcoes.interlocutor,
+      intencao: analise.analise.intencao,
     });
 
     if (profundidade === "simples" && presencaBruta) {
@@ -339,13 +440,18 @@ export async function executarPipelineCompleto(
           humor: humorLinha,
           prior: prior ?? undefined,
           habitos: habitosAtivos,
+          habitat: habitatAtual,
+          mensagemUsuario: mensagem,
+          ecossistema: ecossistemaBase ?? undefined,
           sugestaoMemoria: memoria.decisao.sugestao_resposta,
           resumoRolante: sessao?.resumo_rolante,
+          interlocutor: opcoes.interlocutor,
+          intencao: analise.analise.intencao,
         });
       }
     }
 
-    const orcamento = profundidade === "simples" ? 700 : 1200;
+    const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));
     if (profundidade === "simples" && entradas.presenca) {
       const presenca = entradas.presenca;
       const { presenca: _p, ...semPresenca } = entradas;
@@ -360,10 +466,38 @@ export async function executarPipelineCompleto(
     }
     const historico = ctxRespondedor?.historico ?? [];
 
-    const usarStream =
-      opcoes.stream === true && providerSupportsStream(config.baseUrl);
+    const usarStream = opcoes.stream === true && providerSupportsStream(config.baseUrl);
+    const anexosImagem = opcoes.anexosImagem ?? [];
+    const usarAgenticoVision =
+      featureFlagAgenticoVisionAtiva() &&
+      (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
 
-    if (usarStream) {
+    if (usarAgenticoVision && ehProvedorAgente(provedor)) {
+      resposta = await responderComoLunaAgentico(
+        mensagem,
+        provedor,
+        config,
+        contextoCompilado,
+        {
+          historico,
+          anexosImagem,
+          raciocinioAtivo,
+          onAcao: opcoes.onAcaoAgentico,
+        },
+      );
+    } else if (usarAgenticoVision) {
+      resposta = await responderComoLuna(
+        mensagem,
+        politicaComMemoria,
+        provedor,
+        config.modeloMaior,
+        config.temperaturaMaior,
+        contextoCompilado,
+        historico,
+        raciocinioAtivo,
+        config.baseUrl,
+      );
+    } else if (usarStream) {
       resposta = await responderComoLunaStream(
         mensagem,
         politicaComMemoria,
@@ -419,6 +553,11 @@ export async function executarPipelineCompleto(
     } catch (e) {
       console.error("Aviso: falha ao salvar perfil comportamental", e);
     }
+    try {
+      registrarGostoLuna(memoria.decisao.conteudo, 0.7, "inferido de preferência confirmada");
+    } catch (e) {
+      console.error("Aviso: falha ao registrar gosto da Luna", e);
+    }
   }
 
   // V2.3 — resposta entregue, volta para aguardando_input
@@ -460,6 +599,11 @@ export async function executarPipelineCompleto(
     neuronios_ativos: neuroniosAtivos.length > 0 ? neuroniosAtivos : undefined,
   });
 
+  simularVidaPosResposta(mensagem, {
+    intencao: analise.analise.intencao,
+    nivel_risco: analise.analise.nivel_risco,
+  });
+
   return {
     pipeline: { ...pipeline, politica: politicaComMemoria },
     analise,
@@ -468,6 +612,7 @@ export async function executarPipelineCompleto(
     prior: prior ?? undefined,
     habitos_ativos: habitosAtivos.length > 0 ? habitosAtivos : undefined,
     narrativa_pipeline: narrativaPipeline || undefined,
+    humor_atual: humorAtualBadge,
     log_path,
     sessao: sessaoAtualizada,
   };

@@ -12,6 +12,9 @@ import { randomUUID } from "node:crypto";
 import { executarPipelineCompleto } from "../pipeline/executarPipelineCompleto.js";
 import { obterOuCriarSessao, registrarTurno } from "../memoria/gerenciadorSessao.js";
 import { DECISAO_MEMORIA_IGNORAR } from "../memoria/esquemaMemoria.js";
+import { validarFormaMd } from "../validacao/validadorFormaMd.js";
+import { validarInterlocutor } from "../validacao/validadorInterlocutor.js";
+import { validarTom } from "../validacao/validadorTom.js";
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const FIXTURE = join(RAIZ, "validacao", "termometro-v0.json");
@@ -45,10 +48,62 @@ function proxies(resposta: string, item: ItemTermometro): Record<string, unknown
     item.chave_continuidade
       .split(/\s+/)
       .some((k) => resposta.toLowerCase().includes(k.toLowerCase()));
+  const rubrica = pontuarRubrica(resposta, Boolean(ref));
   return {
     frases_ressalva: frases,
     tamanho_resposta: resposta.length,
     referencia_contexto: Boolean(ref),
+    rubrica,
+  };
+}
+
+function limitarNota(valor: number): number {
+  return Math.max(1, Math.min(5, Math.round(valor)));
+}
+
+function pontuarRubrica(
+  resposta: string,
+  referenciaContexto: boolean,
+): {
+  calor: number;
+  continuidade: number;
+  naturalidade: number;
+  identidade: number;
+  media: number;
+} {
+  const lower = resposta.toLowerCase();
+  const tom = validarTom(resposta);
+  const interlocutor = validarInterlocutor(resposta, { criador_verificado: false });
+  const formaMd = validarFormaMd(resposta);
+
+  const sinaisCalor = [
+    "entendo",
+    "tô contigo",
+    "vamos",
+    "faz sentido",
+    "pode contar comigo",
+    "valeu",
+  ];
+  const calorBase = sinaisCalor.some((sinal) => lower.includes(sinal)) ? 4 : 3;
+  const calor = limitarNota(calorBase - (tom.aprovado ? 0 : 1));
+
+  const continuidade = limitarNota(referenciaContexto ? 5 : 3);
+
+  const frasesRessalva = resposta.match(RE_RESSALVA)?.length ?? 0;
+  const naturalidade = limitarNota(5 - frasesRessalva - (tom.aprovado ? 0 : 1));
+
+  const falhasIdentidade =
+    (tom.aprovado ? 0 : 1) +
+    (interlocutor.aprovado ? 0 : 1) +
+    (formaMd.aprovado ? 0 : 1);
+  const identidade = limitarNota(5 - falhasIdentidade * 2);
+
+  return {
+    calor,
+    continuidade,
+    naturalidade,
+    identidade,
+    media: Number(((calor + continuidade + naturalidade + identidade) / 4).toFixed(2)),
   };
 }
 

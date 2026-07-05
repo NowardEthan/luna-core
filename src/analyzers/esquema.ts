@@ -11,6 +11,10 @@ export const IntencaoSchema = z.enum([
   "acao_critica",
   "brainstorm_criativo",
   "expressao_afetiva",
+  "pergunta_arquitetura",
+  "pergunta_ecossistema",
+  "pergunta_produto",
+  "reivindicacao_criador",
 ]);
 
 export const ComplexidadeSchema = z.enum(["baixa", "media", "alta"]);
@@ -94,12 +98,17 @@ export const AcaoMemoriaSchema = z.enum([
   "solicitar_confirmacao",
 ]);
 
+export const NivelFormatoMdSchema = z.enum(["nenhum", "leve", "estruturado"]);
+
+export type NivelFormatoMd = z.infer<typeof NivelFormatoMdSchema>;
+
 /** Política compacta gerada pelo Compositor de Decisão — guia o Respondedor (modelo grande). */
 export const PoliticaDecisaoSchema = z.object({
   modo: z.string(),
   acao: AcaoPoliticaSchema,
   formato: FormatoRespostaSchema,
   markdown_permitido: z.boolean(),
+  nivel_formato_md: NivelFormatoMdSchema.optional().default("nenhum"),
   tom: TomRespostaSchema,
   autonomia: AutonomiaSchema,
   acao_memoria: AcaoMemoriaSchema,

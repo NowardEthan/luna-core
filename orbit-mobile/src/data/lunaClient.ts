@@ -10,6 +10,12 @@ export type LunaChatRequest = {
   userDisplayName?: string;
   providerId?: 'groq' | 'cerebras' | 'auto';
   modelKey?: 'default' | 'glm-47' | 'auto';
+  attachments?: Array<{
+    id?: string;
+    name?: string;
+    mimeType?: string;
+    imageBase64: string;
+  }>;
 };
 
 export type LunaChatResponse =
@@ -75,13 +81,22 @@ export class LunaApiError extends Error {
   readonly code?: string;
   readonly status?: number;
   readonly quotaKind?: string;
+  readonly suggestion?: string;
 
-  constructor(message: string, opts?: { code?: string; status?: number; quotaKind?: string }) {
-    super(message);
+  constructor(
+    message: string,
+    opts?: { code?: string; status?: number; quotaKind?: string; suggestion?: string },
+  ) {
+    const composed =
+      opts?.suggestion && !message.toLowerCase().includes(opts.suggestion.toLowerCase())
+        ? `${message}\nDica: ${opts.suggestion}`
+        : message;
+    super(composed);
     this.name = 'LunaApiError';
     this.code = opts?.code;
     this.status = opts?.status;
     this.quotaKind = opts?.quotaKind;
+    this.suggestion = opts?.suggestion;
   }
 }
 
@@ -158,6 +173,7 @@ export async function lunaChat(request: LunaChatRequest): Promise<LunaChatRespon
         userDisplayName: request.userDisplayName,
         providerId: request.providerId,
         modelKey: request.modelKey,
+        attachments: request.attachments,
       }),
       signal: controller.signal,
     });
@@ -214,8 +230,15 @@ export type LunaStreamHandlers = {
   onStatus?: (phase: 'analysing' | 'memory' | 'writing') => void;
   onReasoningDelta?: (delta: string) => void;
   onContentDelta?: (delta: string) => void;
+  onAcao?: (acao: {
+    tipo: 'inicio_ferramenta' | 'fim_ferramenta';
+    ferramenta: string;
+    argumentos: Record<string, unknown>;
+    rodada: number;
+    sucesso?: boolean;
+  }) => void;
   onDone?: (payload: LunaStreamDone) => void;
-  onError?: (error: string) => void;
+  onError?: (error: string, details?: { code?: string; suggestion?: string; retryable?: boolean }) => void;
 };
 
 let cachedStreamSupported: boolean | null = null;
@@ -250,8 +273,27 @@ function parseSseBlock(
     case 'content':
       if (typeof data.delta === 'string') handlers.onContentDelta?.(data.delta);
       break;
+    case 'acao':
+      handlers.onAcao?.({
+        tipo: data.tipo === 'fim_ferramenta' ? 'fim_ferramenta' : 'inicio_ferramenta',
+        ferramenta: typeof data.ferramenta === 'string' ? data.ferramenta : 'desconhecida',
+        argumentos:
+          data.argumentos && typeof data.argumentos === 'object'
+            ? (data.argumentos as Record<string, unknown>)
+            : {},
+        rodada: Number(data.rodada ?? 0),
+        sucesso: data.sucesso === true ? true : data.sucesso === false ? false : undefined,
+      });
+      break;
     case 'error':
-      handlers.onError?.(typeof data.error === 'string' ? data.error : 'Erro de streaming.');
+      handlers.onError?.(
+        typeof data.error === 'string' ? data.error : 'Erro de streaming.',
+        {
+          code: typeof data.code === 'string' ? data.code : undefined,
+          suggestion: typeof data.suggestion === 'string' ? data.suggestion : undefined,
+          retryable: data.retryable === true,
+        },
+      );
       break;
     case 'done':
       return {
@@ -278,6 +320,8 @@ export async function lunaChatStream(
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
   let donePayload: LunaStreamDone | null = null;
+  let streamError: { message: string; code?: string; suggestion?: string; retryable?: boolean } | null =
+    null;
 
   try {
     await postSse({
@@ -291,16 +335,29 @@ export async function lunaChatStream(
         userDisplayName: request.userDisplayName,
         providerId: request.providerId,
         modelKey: request.modelKey,
+        attachments: request.attachments,
       }),
       signal: controller.signal,
       onEvent: (event, dataLine) => {
-        const parsed = parseSseBlock(event, dataLine, handlers);
+        const parsed = parseSseBlock(event, dataLine, {
+          ...handlers,
+          onError: (message, details) => {
+            streamError = { message, ...details };
+            handlers.onError?.(message, details);
+          },
+        });
         if (parsed) donePayload = parsed;
       },
     });
 
     const result = donePayload as LunaStreamDone | null;
     if (!result || !result.text.trim()) {
+      if (streamError) {
+        throw new LunaApiError(streamError.message, {
+          code: streamError.code,
+          suggestion: streamError.suggestion,
+        });
+      }
       throw new LunaApiError('A Luna não gerou texto via streaming.');
     }
 

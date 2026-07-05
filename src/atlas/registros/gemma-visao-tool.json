@@ -1,0 +1,9 @@
+{
+  "id": "gemma-visao-tool",
+  "tipo": "plano",
+  "titulo": "Tool de visão com Gemma",
+  "resumo": "Eu documento quando aciono a tool de visão com Gemma para leitura de imagens em tarefas rápidas de interpretação.",
+  "palavras_chave": ["gemma", "visao", "tool", "imagem"],
+  "estado": "implementado",
+  "desde": "2026-07-05"
+}

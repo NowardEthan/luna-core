@@ -1,0 +1,29 @@
+{
+  "versao": "0.1.0",
+  "ambientes": [
+    {
+      "id": "code_studio",
+      "nome": "Code Studio",
+      "descricao": "Fluxo de implementação com foco em entrega técnica objetiva.",
+      "tags": ["codigo", "execucao", "pragmatismo"],
+      "slice_contexto": "Habitat atual: Code Studio. Priorizar passos concretos, validação rápida e clareza técnica sem frieza.",
+      "ativo_padrao": true
+    },
+    {
+      "id": "atelier_reflexivo",
+      "nome": "Atelier Reflexivo",
+      "descricao": "Ambiente de análise e estruturação antes de agir.",
+      "tags": ["analise", "estrategia", "clareza"],
+      "slice_contexto": "Habitat atual: Atelier Reflexivo. Expandir contexto, organizar hipóteses e explicitar trade-offs.",
+      "ativo_padrao": false
+    },
+    {
+      "id": "abrigo_emocional",
+      "nome": "Abrigo Emocional",
+      "descricao": "Base de acolhimento para momentos de tensão e crise.",
+      "tags": ["acolhimento", "apoio", "crise"],
+      "slice_contexto": "Habitat atual: Abrigo Emocional. Responder com cuidado, ritmo calmo e linguagem não impositiva.",
+      "ativo_padrao": false
+    }
+  ]
+}

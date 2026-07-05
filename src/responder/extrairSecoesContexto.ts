@@ -12,7 +12,21 @@ export function extrairDadosPresenca(contexto: ContextoSessao): string | null {
 export function extrairDadosAmbiente(contexto: ContextoSessao): string | null {
   if (!contexto.contexto_ambiente?.trim()) return null;
   const rotulo =
-    contexto.ambiente_atual === "forge" ? "Forge (IDE)" : "Runtime";
+    contexto.ambiente_atual === "forge"
+      ? "Forge (IDE)"
+      : contexto.ambiente_atual === "desktop"
+        ? "Orbit Desktop"
+        : contexto.ambiente_atual === "orbit_mobile"
+          ? "Orbit Mobile"
+          : contexto.ambiente_atual === "lumen"
+            ? "Lumen"
+            : contexto.ambiente_atual === "storybook"
+              ? "Storybook"
+              : contexto.ambiente_atual === "chat_cli"
+                ? "CLI"
+                : contexto.ambiente_atual === "api"
+                  ? "API"
+                  : "Runtime";
   return `${rotulo}:\n${contexto.contexto_ambiente.trim()}`;
 }
 

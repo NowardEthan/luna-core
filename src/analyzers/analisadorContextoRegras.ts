@@ -57,6 +57,38 @@ function detectarIntencao(mensagem: string): { intencao: Intencao; confianca: nu
     };
   }
 
+  if (/\b(sou teu criador|eu te criei|sou o ethan que te fez|me criei você|criei você)\b/i.test(normalizada)) {
+    return {
+      intencao: "reivindicacao_criador",
+      confianca: 0.9,
+      motivos: ["Reivindicação de criador detectada"],
+    };
+  }
+
+  if (/\b(como (você|voce) funciona|tálamo|talamo|neurônio|neuronio|pipeline paia|paia)\b/i.test(normalizada)) {
+    return {
+      intencao: "pergunta_arquitetura",
+      confianca: 0.88,
+      motivos: ["Pergunta sobre arquitectura PAIA"],
+    };
+  }
+
+  if (/\b(orbit|lumen|storybook|forge|ecossistema lunar|o que é o orbit)\b/i.test(normalizada)) {
+    return {
+      intencao: "pergunta_ecossistema",
+      confianca: 0.85,
+      motivos: ["Pergunta sobre ecossistema"],
+    };
+  }
+
+  if (/\b(como mando foto|enviar imagem|mandar foto|anexar foto|composer)\b/i.test(normalizada)) {
+    return {
+      intencao: "pergunta_produto",
+      confianca: 0.88,
+      motivos: ["Pergunta sobre produto/UI mobile"],
+    };
+  }
+
   let melhor: Intencao = "conversa_casual";
   let melhorPontos = 0;
   const motivos: string[] = [];
@@ -115,7 +147,15 @@ function detectarRisco(mensagem: string, intencao: Intencao): AnaliseContexto["n
 function detectarComplexidade(mensagem: string, intencao: Intencao): AnaliseContexto["complexidade"] {
   const palavras = mensagem.trim().split(/\s+/).length;
   if (intencao === "projeto_arquitetural" || palavras > 40) return "alta";
-  if (palavras > 15 || intencao === "pergunta_tecnica" || intencao === "pedido_codigo") return "media";
+  if (
+    palavras > 15 ||
+    intencao === "pergunta_tecnica" ||
+    intencao === "pedido_codigo" ||
+    intencao === "pergunta_arquitetura" ||
+    intencao === "pergunta_ecossistema" ||
+    intencao === "pergunta_produto"
+  )
+    return "media";
   return "baixa";
 }
 
