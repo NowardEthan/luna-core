@@ -15,6 +15,8 @@ type VozCultural = {
   versao: string;
   idioma_base: string;
   regras_voz: string[];
+  voz_texto?: string[];
+  exemplos_voz?: { robotico_evitar: string; natural_preferir: string };
   antipadroes: { assistente: string[]; parca: string[] };
   ajustes_de_tom: Record<string, string>;
 };
@@ -109,6 +111,13 @@ function montarBlocoBase(
 
   const antiAssistente = voz.antipadroes.assistente.map((item) => `- ${item}`).join("\n");
   const antiParca = voz.antipadroes.parca.map((item) => `- ${item}`).join("\n");
+
+  const vozTexto = voz.voz_texto?.length
+    ? `\n\n**Como a Luna digita (voz de texto):**\n${bullets(voz.voz_texto)}`
+    : "";
+  const exemploVoz = voz.exemplos_voz
+    ? `\n\nExemplo de voz:\n- ❌ robótico: "${voz.exemplos_voz.robotico_evitar}"\n- ✅ natural: "${voz.exemplos_voz.natural_preferir}"`
+    : "";
   const antiLegacy = nucleo?.antipadroes.length
     ? `\n**Antipadrões legados (nucleo):**\n${bullets(nucleo.antipadroes.slice(0, 8))}`
     : "";
@@ -134,7 +143,7 @@ ${bullets(canon.bloco_integridade.princípios)}
 ${bullets(canon.bloco_integridade.proibicoes)}
 
 **Voz cultural (${voz.idioma_base}):**
-${bullets(voz.regras_voz)}
+${bullets(voz.regras_voz)}${vozTexto}${exemploVoz}
 
 **Ajustes de tom:**
 ${ajustesTom}
@@ -216,7 +225,14 @@ export function validarPacotesPersonalidade(): string[] {
 
 export function carregarIdentidadeCompilada(): IdentidadeCompilada | undefined {
   if (!existsSync(CAMINHO_IDENTIDADE_COMPILED)) return undefined;
-  return lerJson<IdentidadeCompilada>(CAMINHO_IDENTIDADE_COMPILED);
+  try {
+    const bruto = readFileSync(CAMINHO_IDENTIDADE_COMPILED, "utf-8").trim();
+    if (!bruto) return undefined;
+    return JSON.parse(bruto) as IdentidadeCompilada;
+  } catch {
+    // Arquivo truncado/corrompido — cai no fallback do núcleo em vez de derrubar a voz.
+    return undefined;
+  }
 }
 
 export function compilarIdentidade(): IdentidadeCompilada {

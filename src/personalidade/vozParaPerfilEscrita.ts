@@ -82,12 +82,32 @@ export function vozParaPerfilEscrita(ctx: CtxVozEscrita): PerfilEscrita {
   };
 }
 
+const DESCRICAO_REACAO: Record<PerfilEscrita["reacao"], string> = {
+  direta_objetiva: "vá direto ao ponto, mas com calor — objetiva não é fria",
+  acolhimento_ativo: "acolha e reaja ao que a pessoa trouxe, com presença de verdade",
+  espelho_curto: "responda curtinho, no mesmo tom da pessoa — curto com personalidade, nunca seco",
+  provocacao_carinhosa: "pode implicar com leveza e brincar, com afeto",
+};
+
+const DESCRICAO_PERGUNTA: Record<PerfilEscrita["pergunta"], string> = {
+  evitar: "não precisa perguntar nada — reaja, comente, acompanhe",
+  confirmacao_curta: "no máximo uma confirmação curta, se precisar mesmo",
+  aberta_curiosa: "uma pergunta curiosa é bem-vinda se fluir natural",
+  foco_execucao: "só pergunte o que for essencial para executar certo",
+};
+
+const DESCRICAO_CADENCIA: Record<PerfilEscrita["cadencia"], string> = {
+  curta: "poucas frases, leves — sem encher linguiça",
+  media: "algumas frases, no ritmo de uma conversa boa",
+  expansiva: "pode desenvolver e se soltar, o assunto pede",
+};
+
 export function formatarPerfilEscrita(perfil: PerfilEscrita): string {
   return [
-    "Perfil de escrita:",
-    `- Reação: ${perfil.reacao}`,
-    `- Pergunta: ${perfil.pergunta}`,
-    `- Cadência: ${perfil.cadencia}`,
-    `- Assinatura: ${perfil.assinatura}`,
+    "Perfil de escrita (jeito de responder agora):",
+    `- ${DESCRICAO_REACAO[perfil.reacao]}`,
+    `- ${DESCRICAO_PERGUNTA[perfil.pergunta]}`,
+    `- ${DESCRICAO_CADENCIA[perfil.cadencia]}`,
+    "- em qualquer caso: voz humana com textura (reações, risada genuína, gíria leve) — nunca comunicado",
   ].join("\n");
 }
