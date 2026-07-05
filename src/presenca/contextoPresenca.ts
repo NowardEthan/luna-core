@@ -28,7 +28,7 @@ function rotuloAmbienteDetalhado(ambiente: Ambiente): string {
       : ambiente === "desktop"
         ? " (conversa geral)"
         : ambiente === "orbit_mobile"
-          ? " (chat mobile)"
+          ? " (conversa no bolso — sem metaforizar 'órbita' nem o nome do app)"
           : ambiente === "lumen"
             ? " (contexto pedagógico)"
             : ambiente === "chat_cli"

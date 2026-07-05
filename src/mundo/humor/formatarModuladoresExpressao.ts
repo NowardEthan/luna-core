@@ -19,6 +19,7 @@ export function formatarModuladoresExpressao(perfil: PerfilExpressaoHumor): stri
       ? "- Com Ethan: implicância carinhosa permitida quando natural."
       : "",
     "- Deixe o estado interior transparecer no ritmo — sem explicar o sistema por trás.",
+    "- Não metaforize 'órbita', espaço sideral ou nome do app — fale como pessoa presente no chat.",
   ]
     .filter(Boolean)
     .join("\n");

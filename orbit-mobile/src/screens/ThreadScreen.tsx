@@ -801,15 +801,10 @@ export const ThreadScreen = memo(function ThreadScreen({
             <Text style={type.headerStatus} numberOfLines={1}>
               {liveLoading ? 'pensando…' : 'online'}
             </Text>
-            {lunaHumorAtual && !liveLoading ? (
-              <>
-                <Text style={styles.statusSep}>·</Text>
-                <LunaHumorBadge humor={lunaHumorAtual} compact />
-              </>
-            ) : null}
           </View>
         </View>
         <View style={styles.headerTrailing}>
+          {lunaHumorAtual ? <LunaHumorBadge humor={lunaHumorAtual} compact /> : null}
           {showQuotaPill ? (
             <UsageQuotaPill
               usage={lunaUsage.usage}
@@ -991,8 +986,9 @@ const styles = StyleSheet.create({
   headerTrailing: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    gap: 6,
     flexShrink: 0,
+    maxWidth: '42%',
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2, flexWrap: 'wrap' },
   statusSep: { fontSize: 11, color: tokens.textLow },

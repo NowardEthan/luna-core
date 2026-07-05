@@ -164,11 +164,10 @@ function montarDetalheAmbienteMobile(
     : "";
 
   if (!nome) {
-    return `Orbit Mobile. ${blocoEthan}${blocoApelidos}`;
+    return `${blocoEthan}${blocoApelidos}`.trim() || undefined;
   }
 
   return (
-    "Orbit Mobile. " +
     blocoEthan +
     `O interlocutor chama-se «${nome}». ` +
     `Trate-o(a) pelo nome «${nome}» quando fizer sentido (ou use tratamento neutro). ` +

@@ -266,10 +266,7 @@ export async function executarPipelineCompleto(
     }
   }
 
-  // V1.8 — lê contexto acumulado da sessão como prior top-down
   const contextoAcumulado = sessao?.contexto_acumulado;
-
-  // V2.1 — lê estado interno anterior como prior para o tálamo
   const estadoInternoAnterior = sessao?.estado_interno;
 
   const analise = await analisarContexto(
@@ -286,7 +283,6 @@ export async function executarPipelineCompleto(
     nivelRisco: analise.analise.nivel_risco,
   });
 
-  // V2.1 — recalcula e persiste estado interno após análise
   if (sessao) atualizarEstadoInterno(sessao, analise.analise);
   const estadoInterno = sessao?.estado_interno;
   let humorAtualBadge: HumorBadgePayload | undefined;
@@ -301,6 +297,11 @@ export async function executarPipelineCompleto(
       opcoes.interlocutor?.uid,
       mensagem,
     );
+  } catch (e) {
+    console.error("Aviso: falha ao atualizar humor", e);
+  }
+
+  try {
     const clima = lerClimaGlobal();
     const relacao = lerRelacaoHumor(opcoes.interlocutor?.uid);
     const perfil = humorParaPerfilExpressao(clima, relacao, {
@@ -311,7 +312,13 @@ export async function executarPipelineCompleto(
     perfilExpressaoAtual = perfil;
     humorAtualBadge = humorParaBadge(perfil);
   } catch (e) {
-    console.error("Aviso: falha ao atualizar humor", e);
+    console.error("Aviso: falha ao montar badge de humor", e);
+    humorAtualBadge = {
+      emoji: "😐",
+      label: "neutra",
+      tema: "neutro",
+      accessibilityLabel: "Humor da Luna: neutra",
+    };
   }
 
   const profundidade = analise.profundidade ?? "moderado";

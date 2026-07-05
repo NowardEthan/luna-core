@@ -11,7 +11,7 @@ describe("prepararNucleoMundoInterior", () => {
     });
 
     expect(nucleo.humor).toMatch(/Estado da Luna|Como agir neste turno/);
-    expect(nucleo.habitat).toMatch(/Orbit Mobile/);
+    expect(nucleo.habitat).toMatch(/conversa no celular/);
     expect(nucleo.vida).toMatch(/Fase:|Vida interior|Vontade narrativa/);
   });
 });

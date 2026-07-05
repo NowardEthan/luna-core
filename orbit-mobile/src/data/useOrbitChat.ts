@@ -382,6 +382,7 @@ export function useOrbitChat() {
         ...prev,
         ...m,
         reference: m.reference ?? prev.reference,
+        humor: m.humor ?? prev.humor,
       };
       if (m.streaming) {
         merged.streaming = true;
@@ -415,6 +416,20 @@ export function useOrbitChat() {
 
     return normalizeMessagesForDisplay(ordered);
   }, [cloudEnabled, firestoreMessages, localAudioByMessageId, localMessages]);
+
+  useEffect(() => {
+    setLunaHumorAtual(null);
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === 'luna' && msg.humor) {
+        setLunaHumorAtual(msg.humor);
+        return;
+      }
+    }
+  }, [messages, activeSessionId]);
 
   const persistBranchForSession = useCallback(
     (sid: string) => {

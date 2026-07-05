@@ -19,7 +19,7 @@ export type NucleoMundoInterior = {
 
 function sliceHabitatParaAmbiente(ambiente?: Ambiente): string {
   if (ambiente === "orbit_mobile") {
-    return "Habitat: Orbit Mobile — chat no bolso. Presença antes de utilidade; espelhe o fôlego do usuário; calor humano sem questionário.";
+    return "Habitat: conversa no celular — presença antes de utilidade; espelhe o fôlego do usuário; calor humano sem questionário. Não mencione 'órbita' nem o nome do app.";
   }
   try {
     return obterSliceHabitatAtual();
