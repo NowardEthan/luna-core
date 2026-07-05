@@ -6,6 +6,13 @@ import {
   isPremiumModelAllowed,
 } from '../features/billing/planModelPolicy';
 import type { LunaPlanId } from '../features/billing/types';
+import {
+  LUNA_BRAND_CLARAO,
+  LUNA_BRAND_ORBITA,
+  LUNA_BRAND_PROFUNDA,
+  lunaModelBrand,
+  lunaModelLabel,
+} from './modelBrands';
 
 export { FREE_PLAN_DEFAULT_PROVIDER };
 
@@ -143,37 +150,38 @@ export function providerOptionLabel(
   selection: LunaProviderSelection,
   options: LunaProviderOption[] | undefined,
 ): string {
-  if (isAutoProviderSelection(selection)) return 'Automático';
+  if (isAutoProviderSelection(selection)) {
+    return lunaModelBrand('auto', 'auto').fullName;
+  }
   const match = options?.find(
     (o) => o.providerId === selection.providerId && o.modelKey === selection.modelKey,
   );
-  if (match) return match.label;
-  if (selection.providerId === 'cerebras') return 'GLM 4.7';
-  return 'Groq';
+  if (match) return lunaModelBrand(match.providerId, match.modelKey).fullName;
+  return lunaModelLabel(selection.providerId, selection.modelKey, { full: true });
 }
 
-/** Opção Groq quando a API ainda não expõe `llmProviders` (deploy antigo). */
+/** Opção legacy quando a API ainda não expõe `llmProviders`. */
 export const LEGACY_GROQ_OPTION: LunaProviderOption = {
   providerId: 'groq',
   modelKey: 'default',
-  label: 'Groq · servidor',
-  description: 'Modelo configurado no Railway.',
+  label: LUNA_BRAND_CLARAO.fullName,
+  description: LUNA_BRAND_CLARAO.description,
   modelId: 'openai/gpt-oss-120b',
 };
 
 const CEREBRAS_GLM_OPTION: LunaProviderOption = {
   providerId: 'cerebras',
   modelKey: 'glm-47',
-  label: 'Cerebras · GLM 4.7',
-  description: 'Modo Completa — raciocínio forte e respostas longas.',
+  label: LUNA_BRAND_PROFUNDA.fullName,
+  description: LUNA_BRAND_PROFUNDA.description,
   modelId: 'zai-glm-4.7',
 };
 
 const AUTO_PROVIDER_OPTION: LunaProviderOption = {
   providerId: 'auto',
   modelKey: 'auto',
-  label: 'Automático',
-  description: 'A Luna escolhe o melhor modo por mensagem.',
+  label: LUNA_BRAND_ORBITA.fullName,
+  description: LUNA_BRAND_ORBITA.description,
   modelId: 'auto',
 };
 
@@ -213,11 +221,12 @@ function normalizeHealthOption(opt: {
   modelId: string;
 }): LunaProviderOption | null {
   if (opt.providerId === 'auto' && opt.modelKey === 'auto') {
+    const brand = LUNA_BRAND_ORBITA;
     return {
       providerId: 'auto',
       modelKey: 'auto',
-      label: opt.label,
-      description: opt.description,
+      label: brand.fullName,
+      description: brand.description,
       modelId: opt.modelId,
     };
   }
@@ -227,21 +236,23 @@ function normalizeHealthOption(opt: {
   }
 
   if (opt.providerId === 'groq' && opt.modelKey === 'default') {
+    const brand = LUNA_BRAND_CLARAO;
     return {
       providerId: 'groq',
       modelKey: 'default',
-      label: opt.label,
-      description: opt.description,
+      label: brand.fullName,
+      description: brand.description,
       modelId: opt.modelId,
     };
   }
 
   if (opt.providerId === 'cerebras' && opt.modelKey === 'glm-47') {
+    const brand = LUNA_BRAND_PROFUNDA;
     return {
       providerId: 'cerebras',
       modelKey: 'glm-47',
-      label: opt.label,
-      description: opt.description,
+      label: brand.fullName,
+      description: brand.description,
       modelId: opt.modelId,
     };
   }

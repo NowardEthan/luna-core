@@ -34,7 +34,7 @@ export const PLANS: PlanConfig[] = [
       { label: 'Imagens analisadas', available: 'limited', detail: '5 a cada 3 h' },
       { label: 'Arquivos lidos', available: 'limited', detail: '3 a cada 3 h' },
       { label: 'Transcrições de voz', available: 'limited', detail: '10 a cada 3 h' },
-      { label: 'Modelo Completa (GLM 4.7)', available: false, detail: 'Luna Plus' },
+      { label: 'Luna Profunda', available: false, detail: 'Luna Plus' },
       { label: 'Histórico na nuvem', available: true },
       { label: 'Memória entre conversas', available: 'limited' },
       { label: 'Sincronização entre dispositivos', available: false },
@@ -50,7 +50,7 @@ export const PLANS: PlanConfig[] = [
     cloudTurns: 1500,
     features: [
       { label: 'Mensagens na nuvem', available: true, detail: '1.500/mês' },
-      { label: 'Modelo Completa (GLM 4.7)', available: true },
+      { label: 'Luna Profunda', available: true },
       { label: 'Memória global', available: true },
       { label: 'Sincronização entre dispositivos', available: true },
       { label: 'Voz, imagens e documentos', available: true },
@@ -69,7 +69,7 @@ export const PLANS: PlanConfig[] = [
     badge: 'Recomendado',
     features: [
       { label: 'Mensagens na nuvem', available: true, detail: '5.000/mês' },
-      { label: 'Modelo Completa (GLM 4.7)', available: true },
+      { label: 'Luna Profunda', available: true },
       { label: 'Memória global completa', available: true },
       { label: 'Sincronização entre dispositivos', available: true },
       { label: 'Voz, imagens e documentos', available: true },

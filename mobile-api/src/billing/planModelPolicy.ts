@@ -1,6 +1,8 @@
 import type { PlanId } from "./planMapping.js";
 
-/** GLM 4.7 (Cerebras / zai-glm-4.7) — planos pagos e trial. */
+import { FREE_PLAN_BRAND_NOTICE } from "../modelBrands.js";
+
+/** GLM 4.7 / Luna Profunda — planos pagos e trial. */
 export function isPremiumModelAllowed(planId: PlanId): boolean {
   return planId !== "free";
 }
@@ -33,4 +35,4 @@ export function clampProviderSelectionForPlan(
   return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "auto" };
 }
 
-export const FREE_PLAN_MODEL_NOTICE = "Plano Grátis — modo Rápida (GLM 4.7 no Plus)";
+export const FREE_PLAN_MODEL_NOTICE = FREE_PLAN_BRAND_NOTICE;

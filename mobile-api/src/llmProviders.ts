@@ -8,10 +8,17 @@ import type { PlanId } from "./billing/planMapping.js";
 import {
   clampProviderSelectionForPlan,
   filterProviderOptionsForPlan,
-  FREE_PLAN_MODEL_NOTICE,
   isGlm47Provider,
   isPremiumModelAllowed,
 } from "./billing/planModelPolicy.js";
+import {
+  AUTO_BRAND_DESCRIPTION_FREE,
+  AUTO_BRAND_DESCRIPTION_PREMIUM,
+  FREE_PLAN_BRAND_NOTICE,
+  LUNA_BRAND_CLARAO,
+  LUNA_BRAND_ORBITA,
+  LUNA_BRAND_PROFUNDA,
+} from "./modelBrands.js";
 
 type ConfigLuna = {
   apiKey: string;
@@ -47,14 +54,14 @@ export type LlmProviderOption = {
 const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
 
 const GROQ_DEFAULT = {
-  label: "Groq · GPT-OSS 120B",
-  description: "Rápido; ideal para conversas do dia a dia.",
+  label: LUNA_BRAND_CLARAO.fullName,
+  description: LUNA_BRAND_CLARAO.description,
   modelId: "openai/gpt-oss-120b",
 };
 
 const CEREBRAS_GLM_47 = {
-  label: "Cerebras · Z.ai GLM 4.7",
-  description: "355B — raciocínio forte, ~1000 tok/s no tier free.",
+  label: LUNA_BRAND_PROFUNDA.fullName,
+  description: LUNA_BRAND_PROFUNDA.description,
   modelId: "zai-glm-4.7",
 };
 
@@ -186,14 +193,14 @@ export function listProviderOptionsForUi(planId: PlanId = "free"): LlmProviderOp
   if (configured.length <= 1) return configured;
 
   const autoDescription = isPremiumModelAllowed(planId)
-    ? "GLM 4.7 por padrão; Groq para respostas mais rápidas quando escolhido."
-    : "Groq por padrão no plano Grátis. GLM 4.7 no Plus.";
+    ? AUTO_BRAND_DESCRIPTION_PREMIUM
+    : AUTO_BRAND_DESCRIPTION_FREE;
 
   return [
     {
       providerId: "auto",
       modelKey: "auto",
-      label: "Automático",
+      label: LUNA_BRAND_ORBITA.fullName,
       description: autoDescription,
       modelId: "auto",
       configured: true,
@@ -204,7 +211,7 @@ export function listProviderOptionsForUi(planId: PlanId = "free"): LlmProviderOp
 
 /**
  * Lista completa para GET /health — **sem** filtro de plano.
- * O mobile filtra localmente (Grátis oculta GLM 4.7); o chat filtra por uid no POST.
+ * O mobile filtra localmente (Grátis oculta Profunda); o chat filtra por uid no POST.
  */
 export function listProviderOptionsForHealth(): LlmProviderOption[] {
   const configured = listConfiguredProviderOptions();
@@ -214,8 +221,8 @@ export function listProviderOptionsForHealth(): LlmProviderOption[] {
     {
       providerId: "auto",
       modelKey: "auto",
-      label: "Automático",
-      description: "A Luna escolhe o melhor modo por mensagem.",
+      label: LUNA_BRAND_ORBITA.fullName,
+      description: LUNA_BRAND_ORBITA.description,
       modelId: "auto",
       configured: true,
     },
@@ -255,7 +262,7 @@ export function resolveLlmProviderSelection(
         autoReason: "fallback",
         autoReasonLabel: isPremiumModelAllowed(planId)
           ? AUTO_REASON_LABELS.fallback
-          : FREE_PLAN_MODEL_NOTICE,
+          : FREE_PLAN_BRAND_NOTICE,
       };
     }
     const routed = escolherProvedorAuto(message, available);
@@ -264,7 +271,7 @@ export function resolveLlmProviderSelection(
     return {
       selection,
       autoReason: routed.reason,
-      autoReasonLabel: downgraded ? FREE_PLAN_MODEL_NOTICE : AUTO_REASON_LABELS[routed.reason],
+      autoReasonLabel: downgraded ? FREE_PLAN_BRAND_NOTICE : AUTO_REASON_LABELS[routed.reason],
     };
   }
 
@@ -283,7 +290,7 @@ export function resolveLlmProviderSelection(
       return {
         selection,
         ...(requestedGlm && !isPremiumModelAllowed(planId)
-          ? { autoReasonLabel: FREE_PLAN_MODEL_NOTICE }
+          ? { autoReasonLabel: FREE_PLAN_BRAND_NOTICE }
           : {}),
       };
     }
@@ -299,7 +306,7 @@ export function resolveLlmProviderSelection(
       return {
         selection,
         ...(requestedGlm && !isPremiumModelAllowed(planId)
-          ? { autoReasonLabel: FREE_PLAN_MODEL_NOTICE }
+          ? { autoReasonLabel: FREE_PLAN_BRAND_NOTICE }
           : {}),
       };
     }
@@ -309,7 +316,7 @@ export function resolveLlmProviderSelection(
   return {
     selection,
     ...(requestedGlm && !isPremiumModelAllowed(planId)
-      ? { autoReasonLabel: FREE_PLAN_MODEL_NOTICE }
+      ? { autoReasonLabel: FREE_PLAN_BRAND_NOTICE }
       : {}),
   };
 }

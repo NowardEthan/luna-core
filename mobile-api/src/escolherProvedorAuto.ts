@@ -1,5 +1,10 @@
 import type { LlmProviderOption, LlmProviderSelection } from "./llmProviders.js";
 
+import {
+  AUTO_ROUTING_BRAND_LABELS,
+  FREE_PLAN_BRAND_NOTICE,
+} from "./modelBrands.js";
+
 export type AutoRoutingReason =
   | "codigo"
   | "contexto_longo"
@@ -7,13 +12,16 @@ export type AutoRoutingReason =
   | "chat_rapido"
   | "fallback";
 
+/** Labels de roteamento automático — nomes Luna (não expõe provider). */
 export const AUTO_REASON_LABELS: Record<AutoRoutingReason, string> = {
-  codigo: "Pedido com código — GLM 4.7",
-  contexto_longo: "Mensagem longa — GLM 4.7",
-  documento: "Documento ou anexo — GLM 4.7",
-  chat_rapido: "Conversa — GLM 4.7",
-  fallback: "GLM 4.7 (padrão)",
+  codigo: AUTO_ROUTING_BRAND_LABELS.codigo,
+  contexto_longo: AUTO_ROUTING_BRAND_LABELS.contexto_longo,
+  documento: AUTO_ROUTING_BRAND_LABELS.documento,
+  chat_rapido: AUTO_ROUTING_BRAND_LABELS.chat_rapido,
+  fallback: AUTO_ROUTING_BRAND_LABELS.fallback_profunda,
 };
+
+export { FREE_PLAN_BRAND_NOTICE as FREE_PLAN_MODEL_NOTICE };
 
 const CODE_KEYWORDS =
   /\b(function|const|let|var|import|export|class|interface|typedef|def |async |await |npm |pnpm |yarn |git |typescript|javascript|python|rust|react|vue|angular|debug|stack\s?trace|erro:|bug:|refactor|api\.|http\.|sql|regex|componente|component|hook|useEffect|useState|\.tsx?|\.jsx?|\.py\b|\.rs\b|compil|lint|teste unit|unit test|pull request|pr\b|commit)\b/i;

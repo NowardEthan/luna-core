@@ -8,6 +8,10 @@ import {
   providerOptionLabel,
 } from '../lib/lunaProviderSettings';
 import { isGlm47Provider, isPremiumModelAllowed } from '../features/billing/planModelPolicy';
+import {
+  AUTO_BRAND_DESCRIPTION_FREE,
+  lunaModelBrand,
+} from '../lib/modelBrands';
 import type { LunaPlanId } from '../features/billing/types';
 import { tokens } from '../theme/tokens';
 
@@ -21,7 +25,7 @@ interface Props {
   compact?: boolean;
   /** Mostra todas as opções do servidor (modo avançado). */
   showAllOptions?: boolean;
-  /** Plano actual — oculta GLM 4.7 no Grátis. */
+  /** Plano actual — oculta Profunda no Grátis. */
   planId?: LunaPlanId;
 }
 
@@ -32,25 +36,15 @@ function optionKey(opt: LunaProviderOption): string {
 }
 
 function friendlyDescription(opt: LunaProviderOption, planLocked?: boolean): string {
-  if (opt.modelKey === 'auto') {
-    return planLocked
-      ? 'Groq por padrão no Grátis. GLM 4.7 no Plus.'
-      : 'A Luna decide o melhor modo para cada mensagem.';
+  const brand = lunaModelBrand(opt.providerId, opt.modelKey);
+  if (opt.modelKey === 'auto' && planLocked) {
+    return AUTO_BRAND_DESCRIPTION_FREE;
   }
-  if (opt.providerId === 'groq') {
-    return 'Respostas rápidas no dia a dia.';
-  }
-  if (opt.providerId === 'cerebras') {
-    return 'Raciocínio forte — código, documentos e temas complexos.';
-  }
-  return opt.description;
+  return brand.description;
 }
 
 function friendlyLabel(opt: LunaProviderOption): string {
-  if (opt.modelKey === 'auto') return 'Automático';
-  if (opt.providerId === 'groq') return 'Rápida';
-  if (opt.providerId === 'cerebras') return 'Completa';
-  return opt.label;
+  return lunaModelBrand(opt.providerId, opt.modelKey).name;
 }
 
 /** Seletor de modo de resposta — copy orientada ao utilizador. */
@@ -104,7 +98,7 @@ export function LunaProviderPicker({
       {list.map((opt) => {
         const active =
           opt.providerId === selection.providerId && opt.modelKey === selection.modelKey;
-        const label = showAllOptions ? opt.label : friendlyLabel(opt);
+        const label = showAllOptions ? lunaModelBrand(opt.providerId, opt.modelKey).fullName : friendlyLabel(opt);
         const description = showAllOptions ? opt.description : friendlyDescription(opt, freePlan);
 
         return (
@@ -142,8 +136,8 @@ export function LunaProviderPicker({
       {!showAllOptions ? (
         <Text style={styles.hint}>
           {isAutoProviderSelection(selection)
-            ? 'Recomendado para a maioria das conversas.'
-            : `Modo ativo: ${providerOptionLabel(selection, options)}.`}
+            ? lunaModelBrand('auto', 'auto').tagline
+            : `Modo activo: ${providerOptionLabel(selection, options)}.`}
         </Text>
       ) : null}
     </View>
