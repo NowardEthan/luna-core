@@ -1,4 +1,39 @@
-/** Acumula deltas SSE e revela texto por palavra completa, com throttle opcional. */
+/** Segmentos de texto para animação fade (palavras + espaços). */
+export function tokenizeStreamSegments(text: string): string[] {
+  if (!text) return [];
+  return text.match(/\S+\s*|\s+/g) ?? [text];
+}
+
+/** Duração do fade de opacidade de cada palavra ao entrar. */
+export const STREAM_FADE_MS = 820;
+/** Intervalo entre revelar cada palavra (a bolha cresce progressivamente). */
+export const STREAM_SEGMENT_STAGGER_MAX_MS = 46;
+export const STREAM_SEGMENT_STAGGER_MIN_MS = 12;
+export const STREAM_STAGGER_BUDGET_MS = 5000;
+/** Deslocamento vertical sutil no fade (px). */
+export const STREAM_FADE_LIFT_PX = 3;
+
+/** Atraso entre revelar cada palavra (adaptativo ao tamanho do texto). */
+export function segmentStaggerMs(segmentCount: number): number {
+  if (segmentCount <= 1) return 0;
+  return Math.min(
+    STREAM_SEGMENT_STAGGER_MAX_MS,
+    Math.max(
+      STREAM_SEGMENT_STAGGER_MIN_MS,
+      Math.floor(STREAM_STAGGER_BUDGET_MS / segmentCount),
+    ),
+  );
+}
+
+/** Tempo estimado para a revelação + fade terminarem (usado pelo caller). */
+export function estimateFadeDrainMs(text: string): number {
+  const n = tokenizeStreamSegments(text).length;
+  if (n <= 1) return STREAM_FADE_MS + 80;
+  const stagger = segmentStaggerMs(n);
+  return Math.min((n - 1) * stagger + STREAM_FADE_MS + 160, 12_000);
+}
+
+/** @deprecated Streaming agora é simulado no cliente (StreamWordReveal). */
 export function createWordStreamBuffer(
   onReveal: (text: string) => void,
   options?: { throttleMs?: number; instant?: boolean },
@@ -41,12 +76,7 @@ export function createWordStreamBuffer(
       timer = null;
     }
 
-    if (instant) {
-      tick(true);
-      return;
-    }
-
-    if (force) {
+    if (instant || force) {
       tick(true);
       return;
     }
@@ -73,13 +103,23 @@ export function createWordStreamBuffer(
     getText() {
       return buffer;
     },
+    waitUntilDrained(): Promise<void> {
+      return new Promise((resolve) => {
+        const poll = () => {
+          if (revealed.length >= buffer.length) {
+            if (timer) {
+              clearTimeout(timer);
+              timer = null;
+            }
+            resolve();
+            return;
+          }
+          tick(false);
+          if (revealed.length < buffer.length) schedule(false);
+          setTimeout(poll, throttleMs);
+        };
+        poll();
+      });
+    },
   };
-}
-
-/** Separa texto estável da palavra activa (último token) para animação. */
-export function splitStableActiveWord(text: string): { stable: string; active: string } {
-  if (!text) return { stable: '', active: '' };
-  const match = text.match(/^([\s\S]*?)(\S+\s*)$/);
-  if (!match) return { stable: '', active: text };
-  return { stable: match[1] ?? '', active: match[2] ?? '' };
 }

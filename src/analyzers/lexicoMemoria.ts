@@ -8,7 +8,49 @@ function normalizarTexto(mensagem: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-/** Usuário pede recall do que foi dito nesta sessão — não é pergunta identitária. */
+/** Apelidos reservados à Luna — nunca usar como nome do interlocutor. */
+export const APELIDOS_LUNA_RESERVADOS = new Set([
+  "luna",
+  "luninha",
+  "lu",
+  "luquinha",
+  "lunona",
+  "voce",
+  "você",
+]);
+
+export function ehApelidoDaLuna(nome: string): boolean {
+  const lower = nome
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  return APELIDOS_LUNA_RESERVADOS.has(lower);
+}
+
+/**
+ * Cumprimento ou vocativo dirigido à Luna («oi luninha») — não é nome do usuário.
+ */
+export function detectarVocativoParaLuna(mensagem: string): boolean {
+  const texto = normalizarTexto(mensagem);
+  const temApelidoLuna = /\b(luna|luninha|luquinha|lunona)\b/.test(texto);
+  if (!temApelidoLuna) return false;
+
+  if (/\b(meu nome|me chamo)\b/.test(texto)) return false;
+
+  if (
+    /^(oi|ola|e ai|bom dia|boa tarde|boa noite|hey|hi|salve|ta ai|tudo bem)\b/.test(
+      texto,
+    )
+  ) {
+    return true;
+  }
+
+  if (/\b(luna|luninha)[\s!?.…]*$/.test(texto)) return true;
+
+  return false;
+}
+
 const PADROES_RECALL_SESSAO: RegExp[] = [
   /\blembra\s+(do|da|de|que|o)\b/,
   /\blembrou\s+(do|da|de|que|o)\b/,

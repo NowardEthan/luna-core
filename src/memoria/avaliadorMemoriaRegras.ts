@@ -9,6 +9,7 @@ import {
   detectarInformacaoParaMemoria,
   detectarPreferencia,
   detectarRecallSessao,
+  detectarVocativoParaLuna,
 } from "../analyzers/lexicoMemoria.js";
 
 const SUGESTAO_SENSIVEL =
@@ -36,6 +37,15 @@ export function avaliarMemoriaPorRegras(
   sessao?: Pick<MemoriaSessao, "pendente_confirmacao" | "fatos">,
 ): DecisaoMemoria {
   const texto = normalizarTexto(mensagem);
+
+  if (detectarVocativoParaLuna(mensagem)) {
+    return DecisaoMemoriaSchema.parse({
+      acao: "ignorar",
+      tipo: "fato_geral",
+      conteudo: "",
+      motivo: "Vocativo à Luna (apelido da assistente) — não é nome nem fato do usuário",
+    });
+  }
 
   if (detectarRecallSessao(mensagem)) {
     return DecisaoMemoriaSchema.parse({

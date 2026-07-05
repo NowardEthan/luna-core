@@ -39,6 +39,8 @@ Regras:
 - NUNCA armazene metadados sobre a conversa ou sobre você mesma. Exemplos do que NÃO armazenar: "o usuário perguntou sobre minha natureza", "o usuário quer saber como funciono", "o usuário ficou curioso com X". Esses são eventos da conversa, não fatos sobre o usuário. Se não há dado útil sobre o usuário para guardar, use acao=ignorar.
 - NUNCA armazene inferências, interpretações ou suposições — só o que o usuário declarou LITERALMENTE. Se o usuário não disse exatamente aquilo com suas próprias palavras, não é um fato: é uma inferência sua, e inferências são proibidas. Quando em dúvida → acao=ignorar.
   Exemplos de inferências PROIBIDAS: "o usuário prefere não falar sobre X" (se não disse), "o usuário parece querer que eu evite Y", "o usuário ficou desconfortável com Z", "o usuário não quer que eu mencione a natureza de nossa relação".
+- Apelidos dirigidos À LUNA («luninha», «Lu», «Luna» no cumprimento) NÃO são nome do usuário → acao=ignorar. Ex.: «oi luninha», «bom dia Luna» = vocativo para a assistente, não perfil do interlocutor.
+- NUNCA armazene como nome do usuário um apelido que ele usou para chamar a Luna, salvo frase explícita («me chame de X», «meu nome é X»).
 
 NÃO invente fatos. NÃO fale sobre ser módulo interno.`;
 

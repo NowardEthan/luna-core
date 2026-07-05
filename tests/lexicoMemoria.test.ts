@@ -6,6 +6,8 @@ import {
   detectarInformacaoSensivel,
   detectarRecallSessao,
   detectarInformacaoParaMemoria,
+  detectarVocativoParaLuna,
+  ehApelidoDaLuna,
 } from "../src/analyzers/lexicoMemoria.js";
 import { analisarContextoPorRegras } from "../src/analyzers/analisadorContextoRegras.js";
 import { montarBlocoMemoria } from "../src/memoria/formatarContextoSessao.js";
@@ -120,6 +122,21 @@ describe("detectarPreferencia — padrões explícitos", () => {
 
   it("recall NÃO é preferência", () => {
     expect(detectarPreferencia("Lembra do que eu falei?")).toBe(false);
+  });
+});
+
+describe("apelidos da Luna — não confundir com nome do usuário", () => {
+  it("luninha é apelido reservado da Luna", () => {
+    expect(ehApelidoDaLuna("luninha")).toBe(true);
+    expect(ehApelidoDaLuna("Luna")).toBe(true);
+    expect(ehApelidoDaLuna("Ethan")).toBe(false);
+  });
+
+  it("cumprimento com luninha é vocativo, não perfil", () => {
+    expect(detectarVocativoParaLuna("oi luninha")).toBe(true);
+    expect(detectarVocativoParaLuna("bom dia luninha!")).toBe(true);
+    expect(detectarVocativoParaLuna("meu nome é Ethan")).toBe(false);
+    expect(detectarVocativoParaLuna("prefiro respostas curtas")).toBe(false);
   });
 });
 

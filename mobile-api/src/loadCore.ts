@@ -83,15 +83,41 @@ async function importCore(): Promise<LunaCoreModule> {
   return mod;
 }
 
-function montarDetalheAmbienteMobile(userDisplayName?: string): string | undefined {
+function nomeInterlocutorMobile(userDisplayName?: string): string | undefined {
   const nome = userDisplayName?.trim();
   if (!nome) return undefined;
-  const lower = nome.toLowerCase();
-  if (lower === "luna" || lower === "você" || lower === "voce") return undefined;
+  const lower = nome
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const reservados = new Set([
+    "luna",
+    "luninha",
+    "lu",
+    "luquinha",
+    "lunona",
+    "voce",
+    "você",
+  ]);
+  if (reservados.has(lower)) return undefined;
+  return nome;
+}
+
+function montarDetalheAmbienteMobile(userDisplayName?: string): string | undefined {
+  const nome = nomeInterlocutorMobile(userDisplayName);
+  const blocoApelidos =
+    "Se o usuário te chamar de «luninha», «Lu» ou outro apelido SEU, isso é vocativo para você — NÃO é o nome dele(a). " +
+    "Nunca chame o usuário pelo apelido que ele usou para você, salvo pedido explícito («me chame de…»).";
+
+  if (!nome) {
+    return `App mobile Orbit. ${blocoApelidos}`;
+  }
+
   return (
     `App mobile Orbit. O interlocutor chama-se «${nome}». ` +
-    `Trate-o(a) pelo nome «${nome}» quando fizer sentido. ` +
-    `Você é a Luna (assistente); «${nome}» é quem conversa consigo — não inverta os nomes.`
+    `Trate-o(a) pelo nome «${nome}» quando fizer sentido (ou use tratamento neutro). ` +
+    `Você é a Luna (assistente); «${nome}» é quem conversa consigo — não inverta os nomes. ` +
+    blocoApelidos
   );
 }
 

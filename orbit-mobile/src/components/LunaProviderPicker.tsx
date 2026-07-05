@@ -21,10 +21,8 @@ interface Props {
   onSelect: (next: LunaProviderSelection) => void;
   disabled?: boolean;
   apiReachable?: boolean;
-  /** Mostra só Automático + Rápida + Completa (modo utilizador). */
+  /** Mostra só Orbita + Pulse + Core (modo utilizador). */
   compact?: boolean;
-  /** Mostra todas as opções do servidor (modo avançado). */
-  showAllOptions?: boolean;
   /** Plano actual — oculta Core no Grátis. */
   planId?: LunaPlanId;
 }
@@ -55,7 +53,6 @@ export function LunaProviderPicker({
   disabled,
   apiReachable = true,
   compact = false,
-  showAllOptions = false,
   planId = 'free',
 }: Props) {
   if (!apiReachable) {
@@ -82,14 +79,12 @@ export function LunaProviderPicker({
 
   const freePlan = !isPremiumModelAllowed(planId);
 
-  const visible = showAllOptions
-    ? options
-    : compact
-      ? options.filter((o) => {
-          if (freePlan && isGlm47Provider(o.providerId, o.modelKey)) return false;
-          return COMPACT_KEYS.has(optionKey(o));
-        })
-      : options;
+  const visible = compact
+    ? options.filter((o) => {
+        if (freePlan && isGlm47Provider(o.providerId, o.modelKey)) return false;
+        return COMPACT_KEYS.has(optionKey(o));
+      })
+    : options;
 
   const list = visible.length > 0 ? visible : options.filter((o) => o.modelKey === 'auto' || o.modelKey === 'default');
 
@@ -98,8 +93,8 @@ export function LunaProviderPicker({
       {list.map((opt) => {
         const active =
           opt.providerId === selection.providerId && opt.modelKey === selection.modelKey;
-        const label = showAllOptions ? lunaModelBrand(opt.providerId, opt.modelKey).fullName : friendlyLabel(opt);
-        const description = showAllOptions ? opt.description : friendlyDescription(opt, freePlan);
+        const label = friendlyLabel(opt);
+        const description = friendlyDescription(opt, freePlan);
 
         return (
           <Pressable
@@ -133,7 +128,7 @@ export function LunaProviderPicker({
           </Pressable>
         );
       })}
-      {!showAllOptions ? (
+      {compact ? (
         <Text style={styles.hint}>
           {isAutoProviderSelection(selection)
             ? lunaModelBrand('auto', 'auto').tagline

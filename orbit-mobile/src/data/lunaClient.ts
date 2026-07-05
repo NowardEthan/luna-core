@@ -1,4 +1,5 @@
 import { getLunaApiUrl } from '../config/lunaApi';
+import { postSse } from '../lib/lunaSseClient';
 
 export type LunaChatRequest = {
   message: string;
@@ -227,9 +228,11 @@ export async function lunaChatStream(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120_000);
 
+  let donePayload: LunaStreamDone | null = null;
+
   try {
-    const res = await fetch(`${base}/v1/chat/stream`, {
-      method: 'POST',
+    await postSse({
+      url: `${base}/v1/chat/stream`,
       headers: authHeaders(request.idToken),
       body: JSON.stringify({
         message: request.message,
@@ -241,71 +244,38 @@ export async function lunaChatStream(
         modelKey: request.modelKey,
       }),
       signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      if (res.status === 401) {
-        throw new LunaApiError('Sessão expirada. Reinicie o app e tente novamente.', { status: 401 });
-      }
-      if (res.status === 429) {
-        throw new LunaApiError('Limite atingido. Faça upgrade em Ajustes → Planos ou aguarde a renovação.', {
-          code: 'quota_exceeded',
-          status: 429,
-        });
-      }
-      const errText = await res.text();
-      throw new LunaApiError(errText.slice(0, 280) || `Erro ${res.status}`, { status: res.status });
-    }
-
-    const reader = res.body?.getReader();
-    if (!reader) {
-      throw new LunaApiError('Streaming indisponível neste dispositivo.');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let currentEvent = 'message';
-    let donePayload: LunaStreamDone | null = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() ?? '';
-
-      for (const block of blocks) {
-        const lines = block.split('\n');
-        let event = currentEvent;
-        let dataLine = '';
-
-        for (const line of lines) {
-          if (line.startsWith('event:')) {
-            event = line.slice(6).trim();
-          } else if (line.startsWith('data:')) {
-            dataLine = line.slice(5).trim();
-          }
-        }
-
-        if (!dataLine) continue;
-        currentEvent = event;
+      onEvent: (event, dataLine) => {
         const parsed = parseSseBlock(event, dataLine, handlers);
         if (parsed) donePayload = parsed;
-      }
-    }
+      },
+    });
 
-    if (!donePayload?.text?.trim()) {
+    const result = donePayload as LunaStreamDone | null;
+    if (!result || !result.text.trim()) {
       throw new LunaApiError('A Luna não gerou texto via streaming.');
     }
 
-    handlers.onDone?.(donePayload);
-    return donePayload;
+    handlers.onDone?.(result);
+    return result;
   } catch (err) {
     if (err instanceof LunaApiError) throw err;
+    const status = err && typeof err === 'object' && 'status' in err ? Number(err.status) : undefined;
+    if (status === 401) {
+      throw new LunaApiError('Sessão expirada. Reinicie o app e tente novamente.', { status: 401 });
+    }
+    if (status === 429) {
+      throw new LunaApiError('Limite atingido. Faça upgrade em Ajustes → Planos ou aguarde a renovação.', {
+        code: 'quota_exceeded',
+        status: 429,
+      });
+    }
+    if (status != null && status >= 400) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new LunaApiError(message.slice(0, 280) || `Erro ${status}`, { status });
+    }
     if (isNetworkFailure(err)) {
       throw new LunaApiError(
-        'Sem conexão com a internet. Verifique o Wi‑Fi ou os dados móveis e tente de novo.',
+        'Sem conexão com a internet. Verifique o Wi‑Fi ou os dados móveis e tente novamente.',
       );
     }
     if (err instanceof Error && err.name === 'AbortError') {

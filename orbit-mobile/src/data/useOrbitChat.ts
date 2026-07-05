@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { ChatMessage, demoThread, sessions, VoiceClip, type SessionItem } from './fixtures';
-import { LunaApiError, lunaChat, lunaChatStream, lunaStreamSupported } from './lunaClient';
+import { LunaApiError, lunaChat } from './lunaClient';
 import { feedbackQuotaExceeded } from '../features/billing/quotaUtils';
 import type { QuotaKind } from '../features/billing/planQuotas';
 import { describeImageAttachmentsSafe } from './describeImageAttachments';
@@ -95,7 +95,8 @@ import {
   type ForkLink,
 } from '../lib/branchStorage';
 import { formatMessageWithReference, normalizeMessagesForDisplay, type ThreadReference } from '../lib/messageReference';
-import { createWordStreamBuffer } from '../lib/streamWordBuffer';
+import { estimateFadeDrainMs } from '../lib/streamWordBuffer';
+import { flushStreamRender } from '../lib/lunaSseClient';
 import { looksLikeMarkdown } from '../components/chat/detectMarkdown';
 import { useMotionProfile } from '../hooks/useMotionProfile';
 import {
@@ -372,7 +373,12 @@ export function useOrbitChat() {
         ...m,
         reference: m.reference ?? prev.reference,
       };
-      if (m.reference && m.text != null) {
+      if (m.streaming) {
+        merged.streaming = true;
+        merged.text = m.text ?? prev.text;
+        merged.reasoning = m.reasoning ?? prev.reasoning;
+        merged.reasoningStreaming = m.reasoningStreaming ?? prev.reasoningStreaming;
+      } else if (m.reference && m.text != null) {
         merged.text = m.text;
       }
       if (m.attachments?.length) {
@@ -548,72 +554,33 @@ export function useOrbitChat() {
       };
 
       try {
-        const useStream = await lunaStreamSupported();
-
-        if (useStream) {
-          let streamStarted = false;
-
-          const ensureStreamBubble = () => {
-            if (streamStarted) return;
-            streamStarted = true;
-            setLoading(false);
-            upsertStreamMessage({ text: '', streaming: true });
-          };
-
-          const bufferOpts = { throttleMs: 100, instant: reduceMotion };
-
-          const contentBuf = createWordStreamBuffer((text) => {
-            ensureStreamBubble();
-            upsertStreamMessage({ text, streaming: true });
-          }, bufferOpts);
-
-          const reasoningBuf = createWordStreamBuffer((reasoning) => {
-            ensureStreamBubble();
-            upsertStreamMessage({ reasoning, reasoningStreaming: true, streaming: true });
-          }, bufferOpts);
-
-          try {
-            const result = await lunaChatStream(chatRequest, {
-              onReasoningDelta: (delta) => reasoningBuf.push(delta),
-              onContentDelta: (delta) => contentBuf.push(delta),
-            });
-
-            contentBuf.flush();
-            reasoningBuf.flush();
-
-            sessionIdRef.current = result.sessionId;
-            if (result.providerReason) {
-              setLastRouting(result.providerReason);
-            }
-
-            const format = looksLikeMarkdown(result.text) ? ('markdown' as const) : undefined;
-            upsertStreamMessage({
-              text: result.text,
-              reasoning: result.reasoning,
-              streaming: false,
-              reasoningStreaming: false,
-              format,
-            });
-            setLoading(false);
-            return;
-          } catch (streamErr) {
-            if (streamStarted) throw streamErr;
-            /* fallback JSON se o stream falhar antes do primeiro token */
-          }
-        }
-
+        // Resposta completa via JSON — o efeito de streaming é simulado no cliente
+        // (o pipeline do luna-core não foi desenhado para SSE token a token).
         const result = await lunaChat(chatRequest);
         sessionIdRef.current = result.sessionId;
         if (result.providerReason) {
           setLastRouting(result.providerReason);
         }
-        deliverLunaReply(
-          result.text,
-          lunaMessageId,
-          cloudEnabled && auth.uid
-            ? { uid: auth.uid, sessionId: result.sessionId }
-            : undefined,
-        );
+
+        setLoading(false);
+        upsertStreamMessage({ text: result.text, streaming: true });
+        await flushStreamRender();
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, estimateFadeDrainMs(result.text));
+        });
+
+        const format = looksLikeMarkdown(result.text) ? ('markdown' as const) : undefined;
+        upsertStreamMessage({
+          text: result.text,
+          streaming: false,
+          format,
+        });
+
+        if (cloudEnabled && auth.uid) {
+          void writeLunaTextMessage(auth.uid, result.sessionId, lunaMessageId, result.text).catch(
+            () => {},
+          );
+        }
       } catch (err) {
         setLoading(false);
         if (err instanceof LunaApiError && err.code === 'quota_exceeded') {
