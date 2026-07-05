@@ -24,6 +24,7 @@ import {
 import {
   isAnyLlmProviderConfigured,
   isStreamSupported,
+  listProviderOptionsForHealth,
   listProviderOptionsForUi,
   normalizeLegacyProviderSelection,
 } from "./llmProviders.js";
@@ -145,7 +146,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (method === "GET" && url.pathname === "/health") {
     const corePath = resolveLunaCorePath();
     const firebaseConfigured = isFirebaseAdminConfigured();
-    const llmProviders = listProviderOptionsForUi().map((o) => ({
+    const llmProviders = listProviderOptionsForHealth().map((o) => ({
       providerId: o.providerId,
       modelKey: o.modelKey,
       label: o.label,

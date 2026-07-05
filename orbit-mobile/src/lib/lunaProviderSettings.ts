@@ -161,6 +161,44 @@ export const LEGACY_GROQ_OPTION: LunaProviderOption = {
   modelId: 'openai/gpt-oss-120b',
 };
 
+const CEREBRAS_GLM_OPTION: LunaProviderOption = {
+  providerId: 'cerebras',
+  modelKey: 'glm-47',
+  label: 'Cerebras · GLM 4.7',
+  description: 'Modo Completa — raciocínio forte e respostas longas.',
+  modelId: 'zai-glm-4.7',
+};
+
+const AUTO_PROVIDER_OPTION: LunaProviderOption = {
+  providerId: 'auto',
+  modelKey: 'auto',
+  label: 'Automático',
+  description: 'A Luna escolhe o melhor modo por mensagem.',
+  modelId: 'auto',
+};
+
+/** Repõe Cerebras/Auto se /health veio filtrado (bug deploy antigo ou plano free no servidor). */
+function ensureFullProviderCatalog(
+  options: LunaProviderOption[],
+  health: { streamSupported?: boolean },
+): LunaProviderOption[] {
+  const list = [...options];
+  const hasGroq = list.some((o) => o.providerId === 'groq' && o.modelKey === 'default');
+  const hasCerebras = list.some((o) => o.providerId === 'cerebras' && o.modelKey === 'glm-47');
+
+  if (health.streamSupported && hasGroq && !hasCerebras) {
+    list.push(CEREBRAS_GLM_OPTION);
+  }
+
+  const modes = list.filter((o) => o.modelKey !== 'auto');
+  const hasAuto = list.some((o) => o.modelKey === 'auto');
+  if (modes.length > 1 && !hasAuto) {
+    list.unshift(AUTO_PROVIDER_OPTION);
+  }
+
+  return list;
+}
+
 export type ProviderOptionsFromHealth = {
   options: LunaProviderOption[];
   apiReachable: boolean;
@@ -216,6 +254,7 @@ export function buildProviderOptionsFromHealth(
   health: {
     ok?: boolean;
     llmConfigured?: boolean;
+    streamSupported?: boolean;
     llmProviders?: Array<{
       providerId: string;
       modelKey: string;
@@ -230,9 +269,10 @@ export function buildProviderOptionsFromHealth(
   }
 
   if (health.llmProviders && health.llmProviders.length > 0) {
-    const options = health.llmProviders
-      .map(normalizeHealthOption)
-      .filter((o): o is LunaProviderOption => o !== null);
+    const options = ensureFullProviderCatalog(
+      health.llmProviders.map(normalizeHealthOption).filter((o): o is LunaProviderOption => o !== null),
+      health,
+    );
     if (options.length > 0) {
       return { options, apiReachable: true, legacyApi: false };
     }

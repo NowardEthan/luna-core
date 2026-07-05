@@ -202,6 +202,27 @@ export function listProviderOptionsForUi(planId: PlanId = "free"): LlmProviderOp
   ];
 }
 
+/**
+ * Lista completa para GET /health — **sem** filtro de plano.
+ * O mobile filtra localmente (Grátis oculta GLM 4.7); o chat filtra por uid no POST.
+ */
+export function listProviderOptionsForHealth(): LlmProviderOption[] {
+  const configured = listConfiguredProviderOptions();
+  if (configured.length <= 1) return configured;
+
+  return [
+    {
+      providerId: "auto",
+      modelKey: "auto",
+      label: "Automático",
+      description: "A Luna escolhe o melhor modo por mensagem.",
+      modelId: "auto",
+      configured: true,
+    },
+    ...configured,
+  ];
+}
+
 export type ResolvedLlmProvider = {
   selection: LlmProviderSelection;
   autoReason?: AutoRoutingReason;
