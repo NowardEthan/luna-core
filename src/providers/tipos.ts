@@ -19,6 +19,17 @@ export type RespostaCompletacao = {
   raciocinio?: string;
 };
 
+export type ChunkStreamLlm =
+  | { tipo: "content"; delta: string }
+  | { tipo: "reasoning"; delta: string };
+
+export type RespostaStreamCompletacao = {
+  conteudo: string;
+  raciocinio?: string;
+  modelo: string;
+  latencia_ms: number;
+};
+
 /** Interface abstrata de provedor LLM (RNF06 — portabilidade). */
 export interface ProvedorLlm {
   completar(requisicao: RequisicaoCompletacao): Promise<RespostaCompletacao>;

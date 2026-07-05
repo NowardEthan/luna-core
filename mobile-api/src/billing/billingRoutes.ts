@@ -55,7 +55,7 @@ async function requireAccountWithEmail(
     return { uid: auth.uid, email, name: user.displayName ?? null };
   } catch (err) {
     return {
-      error: err instanceof Error ? err.message : "Utilizador não encontrado.",
+      error: err instanceof Error ? err.message : "Usuário não encontrado.",
       status: 400,
     };
   }

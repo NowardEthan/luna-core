@@ -17,6 +17,7 @@ import {
   aplicarCorpoRaciocinio,
   resolverRaciocinioResposta,
 } from "./raciocinioApi.js";
+import { serializarCorpoLlm } from "./cerebrasPayload.js";
 
 type OpcoesOpenAi = {
   apiKey: string;
@@ -146,12 +147,15 @@ async function completarUmaVez(
     false,
   );
 
+  const { body, headers: bodyHeaders } = serializarCorpoLlm(corpo, url);
+  const headers = { ...buildLlmHeaders(apiKey, url), ...bodyHeaders };
+
   const resposta = await fetchComRetry(
     `${url}/chat/completions`,
     {
       method: "POST",
-      headers: buildLlmHeaders(apiKey, url),
-      body: JSON.stringify(corpo),
+      headers,
+      body,
     },
     maxTentativas,
     url,
@@ -268,12 +272,15 @@ async function completarComFerramentasUmaVez(
     Boolean(requisicao.ferramentas?.length),
   );
 
+  const { body, headers: bodyHeaders } = serializarCorpoLlm(corpo, url);
+  const headers = { ...buildLlmHeaders(apiKey, url), ...bodyHeaders };
+
   const resposta = await fetchComRetry(
     `${url}/chat/completions`,
     {
       method: "POST",
-      headers: buildLlmHeaders(apiKey, url),
-      body: JSON.stringify(corpo),
+      headers,
+      body,
     },
     maxTentativas,
     url,

@@ -11,9 +11,10 @@ import {
 import type { MemoriaSessao } from "../memoria/esquemaMemoria.js";
 import { mapDecisaoParaAcaoMemoria } from "../memoria/esquemaMemoria.js";
 import { gerarPolitica, type ResultadoPipeline } from "./executarPipeline.js";
-import { responderComoLuna, type ResultadoResposta } from "../responder/responderLuna.js";
+import { responderComoLuna, responderComoLunaStream, type ResultadoResposta } from "../responder/responderLuna.js";
 import { carregarConfig, type ConfigLuna, type ProvedorLlm } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
+import { providerSupportsStream, type ChunkStreamLlm } from "../providers/completarStream.js";
 import { buscarFatosDePerfil, buscarFatosPorSimilaridade } from "../memoria/longa/storeSqlite.js";
 import { entrarComTransicao, atualizarAtividade } from "../presenca/gerenciadorPresenca.js";
 import type { Ambiente, EstadoPresenca } from "../presenca/esquemaPresenca.js";
@@ -74,6 +75,11 @@ export type OpcoesPipelineCompleto = {
   }) => void;
   /** Raciocínio do modelo maior — rodada 2 no chat (rodada 1 = pipeline). */
   onRaciocinioRodada?: (rodada: number, texto: string, emProgresso: boolean) => void;
+  /** Streaming SSE — só quando stream=true e provider Cerebras. */
+  stream?: boolean;
+  onStreamReasoningDelta?: (delta: string) => void;
+  onStreamContentDelta?: (delta: string) => void;
+  onStreamDone?: (resposta: ResultadoResposta) => void;
 };
 
 function resolverProvedor(config: ConfigLuna): ProvedorLlm {
@@ -259,22 +265,52 @@ export async function executarPipelineCompleto(
 
   if (gerarResposta && provedor && config) {
     opcoes.onStatusHint?.("A redigir resposta…");
-    resposta = await responderComoLuna(
-      mensagem,
-      politicaComMemoria,
-      provedor,
-      config.modeloMaior,
-      config.temperaturaMaior,
-      contextoSessao,
-      memoria.decisao.sugestao_resposta,
-      prior ?? undefined,
-      habitosAtivos,
-      raciocinioAtivo,
-      config.baseUrl,
-    );
+
+    const usarStream =
+      opcoes.stream === true && providerSupportsStream(config.baseUrl);
+
+    if (usarStream) {
+      resposta = await responderComoLunaStream(
+        mensagem,
+        politicaComMemoria,
+        config.apiKey,
+        config.baseUrl,
+        config.modeloMaior,
+        config.temperaturaMaior,
+        contextoSessao,
+        memoria.decisao.sugestao_resposta,
+        prior ?? undefined,
+        habitosAtivos,
+        raciocinioAtivo,
+        {
+          onChunk: (chunk: ChunkStreamLlm) => {
+            if (chunk.tipo === "reasoning") {
+              opcoes.onStreamReasoningDelta?.(chunk.delta);
+            } else {
+              opcoes.onStreamContentDelta?.(chunk.delta);
+            }
+          },
+        },
+      );
+      opcoes.onStreamDone?.(resposta);
+    } else {
+      resposta = await responderComoLuna(
+        mensagem,
+        politicaComMemoria,
+        provedor,
+        config.modeloMaior,
+        config.temperaturaMaior,
+        contextoSessao,
+        memoria.decisao.sugestao_resposta,
+        prior ?? undefined,
+        habitosAtivos,
+        raciocinioAtivo,
+        config.baseUrl,
+      );
+    }
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";
-    if (raciocinio && raciocinioAtivo) {
+    if (raciocinio && raciocinioAtivo && !usarStream) {
       opcoes.onRaciocinioRodada?.(2, raciocinio, true);
       opcoes.onRaciocinioRodada?.(2, raciocinio, false);
     }

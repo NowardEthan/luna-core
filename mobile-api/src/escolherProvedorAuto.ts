@@ -11,8 +11,8 @@ export const AUTO_REASON_LABELS: Record<AutoRoutingReason, string> = {
   codigo: "Pedido com código — GLM 4.7",
   contexto_longo: "Mensagem longa — GLM 4.7",
   documento: "Documento ou anexo — GLM 4.7",
-  chat_rapido: "Conversa curta — Groq",
-  fallback: "Melhor opção disponível",
+  chat_rapido: "Conversa — GLM 4.7",
+  fallback: "GLM 4.7 (padrão)",
 };
 
 const CODE_KEYWORDS =
@@ -63,7 +63,7 @@ function isLongContext(message: string): boolean {
   return message.length > 3_500;
 }
 
-/** Escolhe Groq (rápido) ou Cerebras GLM 4.7 (complexo). */
+/** Escolhe GLM 4.7 por padrão; Groq só se Cerebras indisponível. */
 export function escolherProvedorAuto(
   message: string,
   available: LlmProviderOption[],
@@ -72,7 +72,7 @@ export function escolherProvedorAuto(
 
   if (backends.length === 0) {
     return {
-      selection: { providerId: "groq", modelKey: "default" },
+      selection: { providerId: "cerebras", modelKey: "glm-47" },
       reason: "fallback",
     };
   }
@@ -99,8 +99,10 @@ export function escolherProvedorAuto(
     return { selection: glm, reason: "contexto_longo" };
   }
 
+  if (glm) return { selection: glm, reason: "chat_rapido" };
+
   const groq = pick(backends, "groq", "default");
-  if (groq) return { selection: groq, reason: "chat_rapido" };
+  if (groq) return { selection: groq, reason: "fallback" };
 
   const first = backends[0]!;
   return {

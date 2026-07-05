@@ -4,6 +4,14 @@ import {
   isAutoProviderMode,
   type AutoRoutingReason,
 } from "./escolherProvedorAuto.js";
+import type { PlanId } from "./billing/planMapping.js";
+import {
+  clampProviderSelectionForPlan,
+  filterProviderOptionsForPlan,
+  FREE_PLAN_MODEL_NOTICE,
+  isGlm47Provider,
+  isPremiumModelAllowed,
+} from "./billing/planModelPolicy.js";
 
 type ConfigLuna = {
   apiKey: string;
@@ -93,6 +101,7 @@ function groqMaiorModelId(): string {
 /** Normaliza pedidos legados (OpenRouter / qwen) para Cerebras GLM ou Groq. */
 export function normalizeLegacyProviderSelection(
   input?: Partial<{ providerId?: string; modelKey?: string }>,
+  planId: PlanId = "free",
 ): Partial<LlmProviderSelection> | undefined {
   if (!input) return input;
 
@@ -100,13 +109,16 @@ export function normalizeLegacyProviderSelection(
   const modelKey = input.modelKey;
 
   if (providerId === "openrouter" || modelKey === "qwen-next" || modelKey === "qwen-coder") {
-    if (isProviderConfigured("cerebras")) {
+    if (isPremiumModelAllowed(planId) && isProviderConfigured("cerebras")) {
       return { providerId: "cerebras", modelKey: "glm-47" };
     }
     return { providerId: "groq", modelKey: "default" };
   }
 
   if (providerId === "cerebras" && (modelKey === "glm-47" || modelKey === "default" || !modelKey)) {
+    if (!isPremiumModelAllowed(planId)) {
+      return { providerId: "groq", modelKey: "default" };
+    }
     return { providerId: "cerebras", modelKey: "glm-47" };
   }
 
@@ -120,20 +132,9 @@ export function normalizeLegacyProviderSelection(
   return input as Partial<LlmProviderSelection>;
 }
 
-/** Opções expostas ao mobile. */
+/** Opções expostas ao mobile (Cerebras primeiro — default). */
 export function listConfiguredProviderOptions(): LlmProviderOption[] {
   const options: LlmProviderOption[] = [];
-
-  if (isProviderConfigured("groq") && MODELS.groq.default) {
-    options.push({
-      providerId: "groq",
-      modelKey: "default",
-      label: GROQ_DEFAULT.label,
-      description: GROQ_DEFAULT.description,
-      modelId: groqMaiorModelId(),
-      configured: true,
-    });
-  }
 
   if (isProviderConfigured("cerebras") && MODELS.cerebras["glm-47"]) {
     const m = MODELS.cerebras["glm-47"]!;
@@ -147,20 +148,53 @@ export function listConfiguredProviderOptions(): LlmProviderOption[] {
     });
   }
 
+  if (isProviderConfigured("groq") && MODELS.groq.default) {
+    options.push({
+      providerId: "groq",
+      modelKey: "default",
+      label: GROQ_DEFAULT.label,
+      description: GROQ_DEFAULT.description,
+      modelId: groqMaiorModelId(),
+      configured: true,
+    });
+  }
+
   return options;
 }
 
+function preferDefaultProvider(
+  available: LlmProviderOption[],
+  planId: PlanId = "free",
+): LlmProviderSelection {
+  if (isPremiumModelAllowed(planId)) {
+    const cerebras = available.find((o) => o.providerId === "cerebras" && o.modelKey === "glm-47");
+    if (cerebras) {
+      return { providerId: cerebras.providerId, modelKey: cerebras.modelKey };
+    }
+  }
+  const groq = available.find((o) => o.providerId === "groq" && o.modelKey === "default");
+  if (groq) {
+    return { providerId: groq.providerId, modelKey: groq.modelKey };
+  }
+  const first = available[0]!;
+  return { providerId: first.providerId, modelKey: first.modelKey };
+}
+
 /** Opções para UI — inclui automático quando há Groq + Cerebras. */
-export function listProviderOptionsForUi(): LlmProviderOption[] {
-  const configured = listConfiguredProviderOptions();
+export function listProviderOptionsForUi(planId: PlanId = "free"): LlmProviderOption[] {
+  const configured = filterProviderOptionsForPlan(planId, listConfiguredProviderOptions());
   if (configured.length <= 1) return configured;
+
+  const autoDescription = isPremiumModelAllowed(planId)
+    ? "GLM 4.7 por padrão; Groq para respostas mais rápidas quando escolhido."
+    : "Groq por padrão no plano Grátis. GLM 4.7 no Plus.";
 
   return [
     {
       providerId: "auto",
       modelKey: "auto",
       label: "Automático",
-      description: "Groq para chat rápido; GLM 4.7 para código, documentos e contexto longo.",
+      description: autoDescription,
       modelId: "auto",
       configured: true,
     },
@@ -181,27 +215,35 @@ export function isAnyLlmProviderConfigured(): boolean {
 export function resolveLlmProviderSelection(
   input?: Partial<LlmProviderSelection> & Partial<{ providerId?: string; modelKey?: string }>,
   message?: string,
+  planId: PlanId = "free",
 ): ResolvedLlmProvider | null {
-  const available = listConfiguredProviderOptions();
+  const available = filterProviderOptionsForPlan(planId, listConfiguredProviderOptions());
   if (available.length === 0) return null;
 
-  const normalized = normalizeLegacyProviderSelection(input) ?? input;
+  const requestedGlm = isGlm47Provider(input?.providerId, input?.modelKey);
+  const normalized = normalizeLegacyProviderSelection(input, planId) ?? input;
 
   if (isAutoProviderMode(normalized)) {
     if (!message?.trim()) {
-      const groq = available.find((o) => o.providerId === "groq");
-      const first = groq ?? available[0]!;
+      const selection = clampProviderSelectionForPlan(
+        planId,
+        preferDefaultProvider(available, planId),
+      );
       return {
-        selection: { providerId: first.providerId, modelKey: first.modelKey },
+        selection,
         autoReason: "fallback",
-        autoReasonLabel: AUTO_REASON_LABELS.fallback,
+        autoReasonLabel: isPremiumModelAllowed(planId)
+          ? AUTO_REASON_LABELS.fallback
+          : FREE_PLAN_MODEL_NOTICE,
       };
     }
     const routed = escolherProvedorAuto(message, available);
+    const selection = clampProviderSelectionForPlan(planId, routed.selection);
+    const downgraded = !isPremiumModelAllowed(planId) && isGlm47Provider(routed.selection.providerId, routed.selection.modelKey);
     return {
-      selection: routed.selection,
+      selection,
       autoReason: routed.reason,
-      autoReasonLabel: AUTO_REASON_LABELS[routed.reason],
+      autoReasonLabel: downgraded ? FREE_PLAN_MODEL_NOTICE : AUTO_REASON_LABELS[routed.reason],
     };
   }
 
@@ -213,22 +255,42 @@ export function resolveLlmProviderSelection(
       (o) => o.providerId === requestedProvider && o.modelKey === requestedModel,
     );
     if (match) {
-      return { selection: { providerId: match.providerId, modelKey: match.modelKey } };
+      const selection = clampProviderSelectionForPlan(planId, {
+        providerId: match.providerId,
+        modelKey: match.modelKey,
+      });
+      return {
+        selection,
+        ...(requestedGlm && !isPremiumModelAllowed(planId)
+          ? { autoReasonLabel: FREE_PLAN_MODEL_NOTICE }
+          : {}),
+      };
     }
   }
 
   if (requestedProvider && requestedProvider !== "auto") {
     const match = available.find((o) => o.providerId === requestedProvider);
     if (match) {
-      return { selection: { providerId: match.providerId, modelKey: match.modelKey } };
+      const selection = clampProviderSelectionForPlan(planId, {
+        providerId: match.providerId,
+        modelKey: match.modelKey,
+      });
+      return {
+        selection,
+        ...(requestedGlm && !isPremiumModelAllowed(planId)
+          ? { autoReasonLabel: FREE_PLAN_MODEL_NOTICE }
+          : {}),
+      };
     }
   }
 
-  const groq = available.find((o) => o.providerId === "groq");
-  if (groq) return { selection: { providerId: groq.providerId, modelKey: groq.modelKey } };
-
-  const first = available[0]!;
-  return { selection: { providerId: first.providerId, modelKey: first.modelKey } };
+  const selection = clampProviderSelectionForPlan(planId, preferDefaultProvider(available, planId));
+  return {
+    selection,
+    ...(requestedGlm && !isPremiumModelAllowed(planId)
+      ? { autoReasonLabel: FREE_PLAN_MODEL_NOTICE }
+      : {}),
+  };
 }
 
 function attachGroqAuxiliar(config: ConfigLuna): ConfigLuna {
@@ -283,4 +345,10 @@ export function providerLabel(selection: LlmProviderSelection): string {
     (o) => o.providerId === selection.providerId && o.modelKey === selection.modelKey,
   );
   return opt?.label ?? `${selection.providerId}/${selection.modelKey}`;
+}
+
+/** Stream SSE disponível quando Cerebras está configurado e LUNA_STREAM_ENABLED ≠ 0. */
+export function isStreamSupported(): boolean {
+  if (process.env.LUNA_STREAM_ENABLED === "0") return false;
+  return Boolean(cerebrasApiKey());
 }

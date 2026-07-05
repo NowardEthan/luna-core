@@ -56,10 +56,10 @@ export async function transcribeAudio(input: TranscribeRequest): Promise<string>
 
   const buffer = Buffer.from(input.audioBase64, "base64");
   if (buffer.length < 256) {
-    throw new Error("Áudio demasiado curto para transcrever.");
+    throw new Error("Áudio curto demais para transcrever.");
   }
   if (buffer.length > 20 * 1024 * 1024) {
-    throw new Error("Áudio demasiado grande (máx. ~20 MB).");
+    throw new Error("Áudio grande demais (máx. ~20 MB).");
   }
 
   const ext = extensionForMime(input.mimeType);
@@ -96,6 +96,6 @@ export async function transcribeAudio(input: TranscribeRequest): Promise<string>
 
   const data = (await res.json()) as { text?: string };
   const text = data.text?.trim();
-  if (!text) throw new Error("Não detetámos fala neste áudio.");
+  if (!text) throw new Error("Não detectamos fala neste áudio.");
   return text;
 }

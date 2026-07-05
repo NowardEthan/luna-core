@@ -33,6 +33,8 @@ export type ChatResponseOk = {
 export type ChatResponseErr = {
   ok: false;
   error: string;
+  code?: "quota_exceeded";
+  quotaKind?: string;
 };
 
 export type ChatResponse = ChatResponseOk | ChatResponseErr;
@@ -68,4 +70,6 @@ export type HealthResponse = {
     description: string;
     modelId: string;
   }>;
+  /** true quando Cerebras está configurado e streaming SSE está activo. */
+  streamSupported?: boolean;
 };

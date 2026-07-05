@@ -12,6 +12,10 @@ import {
   blocoPromptRaciocinioInline,
   precisaRaciocinioPorPrompt,
 } from "../providers/raciocinioApi.js";
+import {
+  completarStreamOpenAi,
+  type ChunkStreamLlm,
+} from "../providers/completarStream.js";
 
 function montarBlocoPolitica(politica: PoliticaDecisao, contextoSessao?: ContextoSessao): string {
   const partes: string[] = [];
@@ -104,22 +108,32 @@ export type ResultadoResposta = {
   raciocinio?: string;
 };
 
-/**
- * Respondedor Luna — modelo grande, voz final guiada pela política.
- */
-export async function responderComoLuna(
-  mensagemUsuario: string,
-  politica: PoliticaDecisao,
-  provedor: ProvedorLlm,
-  modelo: string,
-  temperatura: number,
-  contextoSessao?: ContextoSessao,
-  sugestaoMemoria?: string,
-  priorIntencao?: PriorIntencao,
-  habitosAtivos?: HabitoComportamental[],
-  raciocinioAtivo = true,
-  baseUrl = "",
-): Promise<ResultadoResposta> {
+export type OpcoesMensagensRespondedor = {
+  mensagemUsuario: string;
+  politica: PoliticaDecisao;
+  contextoSessao?: ContextoSessao;
+  sugestaoMemoria?: string;
+  priorIntencao?: PriorIntencao;
+  habitosAtivos?: HabitoComportamental[];
+  raciocinioAtivo?: boolean;
+  modelo: string;
+  baseUrl?: string;
+};
+
+/** Monta mensagens OpenAI a partir do contexto Luna — partilhado por completar e stream. */
+export function montarMensagensRespondedor(opcoes: OpcoesMensagensRespondedor): MensagemChat[] {
+  const {
+    mensagemUsuario,
+    politica,
+    contextoSessao,
+    sugestaoMemoria,
+    priorIntencao,
+    habitosAtivos,
+    raciocinioAtivo = true,
+    modelo,
+    baseUrl = "",
+  } = opcoes;
+
   const instrucaoBase = carregarInstrucaoSistema();
   const blocoPersonalidade = gerarBlocoPersonalidade();
   const blocoContextoPreditivo = priorIntencao ? gerarBlocoContextoPreditivo(priorIntencao) : null;
@@ -145,7 +159,7 @@ export async function responderComoLuna(
     partesSystem.push(blocoPromptRaciocinioInline());
   }
 
-  const mensagens: MensagemChat[] = [
+  return [
     { papel: "system", conteudo: partesSystem.join("\n\n") },
     ...(contextoSessao?.historico ?? []).map((m) => ({
       papel: m.papel,
@@ -153,6 +167,35 @@ export async function responderComoLuna(
     })),
     { papel: "user", conteudo: mensagemUsuario },
   ];
+}
+
+/**
+ * Respondedor Luna — modelo grande, voz final guiada pela política.
+ */
+export async function responderComoLuna(
+  mensagemUsuario: string,
+  politica: PoliticaDecisao,
+  provedor: ProvedorLlm,
+  modelo: string,
+  temperatura: number,
+  contextoSessao?: ContextoSessao,
+  sugestaoMemoria?: string,
+  priorIntencao?: PriorIntencao,
+  habitosAtivos?: HabitoComportamental[],
+  raciocinioAtivo = true,
+  baseUrl = "",
+): Promise<ResultadoResposta> {
+  const mensagens = montarMensagensRespondedor({
+    mensagemUsuario,
+    politica,
+    contextoSessao,
+    sugestaoMemoria,
+    priorIntencao,
+    habitosAtivos,
+    raciocinioAtivo,
+    modelo,
+    baseUrl,
+  });
 
   const resposta = await provedor.completar({
     modelo,
@@ -160,6 +203,51 @@ export async function responderComoLuna(
     mensagens,
     raciocinioAtivo,
   });
+
+  return {
+    texto: resposta.conteudo,
+    modelo: resposta.modelo,
+    latencia_ms: resposta.latencia_ms,
+    raciocinio: resposta.raciocinio,
+  };
+}
+
+export type CallbacksStreamRespondedor = {
+  onChunk?: (chunk: ChunkStreamLlm) => void;
+};
+
+/** Respondedor Luna com streaming SSE directo à API (Cerebras). */
+export async function responderComoLunaStream(
+  mensagemUsuario: string,
+  politica: PoliticaDecisao,
+  apiKey: string,
+  baseUrl: string,
+  modelo: string,
+  temperatura: number,
+  contextoSessao?: ContextoSessao,
+  sugestaoMemoria?: string,
+  priorIntencao?: PriorIntencao,
+  habitosAtivos?: HabitoComportamental[],
+  raciocinioAtivo = true,
+  callbacks: CallbacksStreamRespondedor = {},
+): Promise<ResultadoResposta> {
+  const mensagens = montarMensagensRespondedor({
+    mensagemUsuario,
+    politica,
+    contextoSessao,
+    sugestaoMemoria,
+    priorIntencao,
+    habitosAtivos,
+    raciocinioAtivo,
+    modelo,
+    baseUrl,
+  });
+
+  const resposta = await completarStreamOpenAi(
+    { apiKey, baseUrl },
+    { modelo, temperatura, mensagens, raciocinioAtivo },
+    callbacks.onChunk,
+  );
 
   return {
     texto: resposta.conteudo,

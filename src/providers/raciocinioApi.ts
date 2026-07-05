@@ -25,6 +25,9 @@ export function modeloSuportaRaciocinioExplicito(modelo: string, baseUrl: string
   if (/groq\.com/i.test(baseUrl)) {
     return /gpt-oss|qwen3/i.test(m);
   }
+  if (/cerebras\.ai/i.test(baseUrl)) {
+    return /zai-glm|glm-4|gpt-oss|gemma-4/i.test(m);
+  }
   if (/openrouter\.ai/i.test(baseUrl)) {
     return /ring|deepseek.*r1|qwen.*thinking|mai-ds-r|thinking/i.test(m);
   }
@@ -130,6 +133,41 @@ export function aplicarCorpoRaciocinio(
       corpo.reasoning = { effort: "medium" };
     } else {
       corpo.reasoning = { effort: "none" };
+    }
+    return;
+  }
+
+  if (/cerebras\.ai/i.test(baseUrl)) {
+    const effortRaw = process.env.CEREBRAS_REASONING_EFFORT?.trim().toLowerCase();
+    const effort =
+      effortRaw === "low" || effortRaw === "medium" || effortRaw === "high" || effortRaw === "none"
+        ? effortRaw
+        : "medium";
+
+    if (/gemma-4/i.test(m)) {
+      if (ativo) {
+        corpo.reasoning_effort = effort === "none" ? "low" : effort;
+        corpo.reasoning_format = "parsed";
+      }
+      return;
+    }
+
+    if (/zai-glm|glm-4/i.test(m)) {
+      if (ativo) {
+        corpo.reasoning_format = "parsed";
+        corpo.reasoning_effort = effort === "none" ? "none" : effort;
+      } else {
+        corpo.reasoning_effort = "none";
+        corpo.reasoning_format = "hidden";
+      }
+      return;
+    }
+
+    if (/gpt-oss/i.test(m)) {
+      corpo.reasoning_format = ativo ? "parsed" : "hidden";
+      if (ativo && effort !== "none") {
+        corpo.reasoning_effort = effort;
+      }
     }
   }
 }

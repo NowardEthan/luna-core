@@ -25,9 +25,9 @@ export type VisionDescription = {
 const DEFAULT_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 const DEFAULT_VISION_PROMPT =
-  "Descreve esta imagem em português do Brasil de forma factual e detalhada. " +
-  "Inclui todo o texto legível (OCR), elementos visuais, cores, layout e contexto. " +
-  "Responde só com a descrição, sem preâmbulo nem markdown.";
+  "Descreva esta imagem em português do Brasil de forma factual e detalhada. " +
+  "Inclua todo o texto legível (OCR), elementos visuais, cores, layout e contexto. " +
+  "Responda só com a descrição, sem preâmbulo nem markdown.";
 
 function resolveVisionConfig(): { apiKey: string; apiUrl: string; model: string; prompt: string } | null {
   const apiKey =
@@ -66,10 +66,10 @@ async function describeOneImage(
 ): Promise<string> {
   const buffer = Buffer.from(image.imageBase64, "base64");
   if (buffer.length < 64) {
-    throw new Error("Imagem demasiado pequena para analisar.");
+    throw new Error("Imagem pequena demais para analisar.");
   }
   if (buffer.length > 18 * 1024 * 1024) {
-    throw new Error("Imagem demasiado grande (máx. ~18 MB).");
+    throw new Error("Imagem grande demais (máx. ~18 MB).");
   }
 
   const mime = image.mimeType || "image/jpeg";
@@ -80,7 +80,7 @@ async function describeOneImage(
     instruction += `\n\nMensagem do utilizador sobre esta imagem: ${userPrompt.trim()}`;
   }
   if (image.name?.trim()) {
-    instruction += `\n\nNome do ficheiro: ${image.name.trim()}`;
+    instruction += `\n\nNome do arquivo: ${image.name.trim()}`;
   }
 
   const res = await fetch(cfg.apiUrl, {
@@ -122,7 +122,7 @@ async function describeOneImage(
     choices?: Array<{ message?: { content?: string | null } }>;
   };
   const text = data.choices?.[0]?.message?.content?.trim();
-  if (!text) throw new Error("O modelo de visão não devolveu descrição.");
+  if (!text) throw new Error("O modelo de visão não retornou descrição.");
   return text;
 }
 
