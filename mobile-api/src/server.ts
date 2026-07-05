@@ -40,7 +40,7 @@ import {
   type TranscribeResponse,
   type VisionResponse,
 } from "./types.js";
-import { mapearErroParaEventoSse } from "../../src/ux/mapearErroUsuario.js";
+import { mapearErroParaEventoSse } from "../../dist/ux/mapearErroUsuario.js";
 
 /**
  * Carrega o .env da luna-core no arranque, para que LUNA_API_KEY (chat + STT)

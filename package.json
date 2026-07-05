@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsc",
     "rebuild:native": "npm rebuild better-sqlite3",
-    "postinstall": "npm rebuild better-sqlite3",
+    "postinstall": "node scripts/postinstall-native.mjs",
     "build:watch": "tsc --watch",
     "check": "tsc --noEmit",
     "demo": "tsx src/index.ts",

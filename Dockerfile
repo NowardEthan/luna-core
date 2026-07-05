@@ -1,48 +1,59 @@
-# Deploy Railway — repo github.com/NowardEthan/luna-core (raiz = este pacote)
+# Deploy Railway — repo github.com/NowardEthan/luna-core
+#
+# Layout runtime = monorepo local (mobile-api dentro de luna-core) para imports ../../src.
+# OOM exit 137: npm ci --ignore-scripts evita recompilar better-sqlite3 no build.
 
 FROM node:22-bookworm-slim AS core-builder
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
 COPY package.json package-lock.json ./
-RUN npm ci
+COPY scripts/postinstall-native.mjs scripts/
+
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 COPY . .
-RUN npm run build
+RUN npm run build \
+  && npm prune --omit=dev \
+  && npm cache clean --force
 
 FROM node:22-bookworm-slim AS api-builder
 
-WORKDIR /build
+WORKDIR /build/mobile-api
 
 COPY mobile-api/package.json mobile-api/package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts --no-audit --no-fund
 
 COPY mobile-api/tsconfig.json mobile-api/tsconfig.build.json ./
 COPY mobile-api/src ./src
-RUN npm run build
+
+# Typecheck/compilação precisa dos .ts do core (imports ../../src)
+COPY --from=core-builder /build/src ../src
+COPY --from=core-builder /build/dist ../dist
+
+RUN npm run build \
+  && npm prune --omit=dev \
+  && npm cache clean --force
 
 FROM node:22-bookworm-slim AS runtime
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
-
 ENV NODE_ENV=production
+ENV LUNA_STORE=firestore
+ENV SKIP_SQLITE_REBUILD=1
 ENV LUNA_CORE_PATH=/app/luna-core
 ENV LUNA_MOBILE_API_HOST=0.0.0.0
 
-COPY --from=core-builder /build /app/luna-core
+# Core compilado + deps prod
+COPY --from=core-builder /build/dist /app/luna-core/dist
+COPY --from=core-builder /build/src /app/luna-core/src
+COPY --from=core-builder /build/node_modules /app/luna-core/node_modules
+COPY --from=core-builder /build/package.json /app/luna-core/package.json
 
-WORKDIR /app/api
-
+# Mobile API
+WORKDIR /app/luna-core/mobile-api
 COPY mobile-api/package.json mobile-api/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-COPY --from=api-builder /build/dist ./dist
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=api-builder /build/mobile-api/dist ./dist
 
 EXPOSE 7742
 

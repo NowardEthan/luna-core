@@ -1,22 +1,22 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 
-import { HUMOR_BASELINE } from "../../src/mundo/humor/esquemaHumor.js";
-import type { ClimaHumor } from "../../src/mundo/humor/climaHumor.js";
-import type { RelacaoHumor } from "../../src/mundo/humor/relacaoHumor.js";
-import type { FatoConfirmadoDb } from "../../src/memoria/longa/esquemaSqlite.js";
+import { HUMOR_BASELINE } from "../../dist/mundo/humor/esquemaHumor.js";
+import type { ClimaHumor } from "../../dist/mundo/humor/climaHumor.js";
+import type { RelacaoHumor } from "../../dist/mundo/humor/relacaoHumor.js";
+import type { FatoConfirmadoDb } from "../../dist/memoria/longa/esquemaSqlite.js";
 import {
   colMundoGlobal,
   colMemoriaFatos,
   docHumorRelacao,
   docMundoGlobal,
-} from "../../src/persistencia/caminhosFirestore.js";
+} from "../../dist/persistencia/caminhosFirestore.js";
 import {
   criarCacheMundoVazio,
   executarComCacheMundo,
   type CacheMundoPersistencia,
-} from "../../src/persistencia/contextoMundo.js";
-import type { EstadoVida } from "../../src/mundo/vida/storeVida.js";
-import { getAdminFirestore } from "../firebaseAdmin.js";
+} from "../../dist/persistencia/contextoMundo.js";
+import type { EstadoVida, EventoVidaPersistido } from "../../dist/mundo/vida/storeVida.js";
+import { getAdminFirestore } from "./firebaseAdmin.js";
 
 const LIMITE_GOSTOS = 40;
 const LIMITE_VONTADES = 30;
@@ -162,10 +162,10 @@ export async function hidratarCacheMundoFirestore(
     const d = doc.data();
     cache.vidaEventos.set(doc.id, {
       id: doc.id,
-      tipo: d.tipo,
+      tipo: d.tipo as EventoVidaPersistido["tipo"],
       narrativa: String(d.narrativa ?? ""),
       intensidade: Number(d.intensidade ?? 0),
-      origem: String(d.origem ?? "turno"),
+      origem: d.origem as EventoVidaPersistido["origem"],
       criado_em: String(d.criado_em ?? new Date().toISOString()),
     });
   }

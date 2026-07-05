@@ -12,7 +12,7 @@ import {
 import type { PlanId } from "./billing/planMapping.js";
 import { compactarSessaoPersistida } from "./sessaoMobile.js";
 import { truncateMobileChatMessage } from "./truncateForGroq.js";
-import { sanitizarInterlocutorPipeline } from "../../src/interlocutor/validadorInterlocutor.js";
+import { sanitizarInterlocutorPipeline } from "../../dist/interlocutor/validadorInterlocutor.js";
 import {
   deveUsarPersistenciaFirestore,
   executarComPersistenciaFirestore,

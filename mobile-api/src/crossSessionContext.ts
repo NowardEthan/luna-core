@@ -12,7 +12,7 @@ type LunaCoreCross = {
     mensagem: string,
     sessaoAtualId: string,
     maxSessoes?: number,
-    opcoes?: { sempreAtivo?: boolean },
+    opcoes?: { sempreAtivo?: boolean; owner_uid?: string },
   ) => string[];
   hidratarSessaoOrbit: (
     sessaoId: string,
