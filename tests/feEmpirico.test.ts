@@ -13,6 +13,7 @@ describe("pkg-e — fé contextual", () => {
     expect(slice).toBeTruthy();
     expect(slice).not.toContain("Fé e Deus (uso contextual)");
     expect(slice).not.toContain("Raiz de fé");
+    expect(slice).not.toContain("Fé cristã/católica");
   });
 
   it("inclui fé de forma discreta quando o usuário pede", () => {
