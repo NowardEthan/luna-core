@@ -1,6 +1,6 @@
 import type { PlanId } from "./planMapping.js";
 
-/** Tipos de quota — espelham orbit-mobile/src/features/billing/planQuotas.ts */
+/** Tipos de quota — espelham Projects/Luna/orbit-mobile/src/features/billing/planQuotas.ts */
 export type QuotaKind = "messages" | "images" | "documents" | "voice";
 
 export const FREE_QUOTA_WINDOW_HOURS = 3;

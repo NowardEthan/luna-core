@@ -15,11 +15,11 @@ Monorepo TypeScript do ecossistema **Luna / Orbit** — identidade artificial pe
 |-------|--------|--------|
 | [`src/`](src/) | **Luna Core** — pipeline, memória, presença, agente IDE, providers LLM | Compilado em `dist/`; consumido pela API e pelo desktop |
 | [`mobile-api/`](mobile-api/) | **Luna Mobile API** — HTTP para o app mobile (chat, STT, visão, billing) | **Railway** (`Dockerfile`, porta 7742) |
-| [`orbit-mobile/`](orbit-mobile/) | **Orbit Mobile** — app React Native / Expo (chat, perfil, planos) | APK local / lojas (não vai para Railway) |
+| **Orbit Mobile** (repo à parte) | App React Native / Expo — pasta canónica `Projects/Luna/orbit-mobile/` | APK local / lojas |
 | [`tests/`](tests/) | Vitest do Core | CI local |
 | [`env.profiles/`](env.profiles/) | Exemplos `.env` (local, Groq, Railway) | — |
 
-O **Orbit desktop** (Electron + Storybook) e runtimes vivem noutros repos / pastas do workspace local `Projects/Luna/` — não neste Git. O mobile e a API **dependem só deste repo**.
+O **Orbit desktop** (Electron + Storybook) e o **Orbit Mobile** (Expo) vivem noutros repos / pastas do workspace local `Projects/Luna/` — **não neste Git**. A API **depende só deste repo**; o app mobile consome a Mobile API.
 
 ---
 
@@ -136,7 +136,7 @@ curl http://localhost:7742/health
 
 ## Orbit Mobile
 
-App Expo em [`orbit-mobile/`](orbit-mobile/). Ver [orbit-mobile/README.md](orbit-mobile/README.md).
+App Expo na pasta canónica **`Projects/Luna/orbit-mobile/`** (repositório Git separado deste monorepo).
 
 ### Destaques
 
@@ -149,14 +149,12 @@ App Expo em [`orbit-mobile/`](orbit-mobile/). Ver [orbit-mobile/README.md](orbit
 ### Configuração
 
 ```bash
-cd orbit-mobile
+cd ../orbit-mobile   # a partir de Projects/Luna/luna-core, ou Projects/Luna/orbit-mobile
 npm install
 cp .env.example .env
 # EXPO_PUBLIC_LUNA_API_URL=https://seu-servico.up.railway.app
-npx expo start
+npm run android:run
 ```
-
-Build Android: `orbit-mobile/scripts/build-android-apk.ps1`
 
 ---
 
@@ -275,7 +273,6 @@ luna-core/
 │   ├── responder/          # responderComoLuna, responderComoLunaStream
 │   └── lumen/
 ├── mobile-api/src/         # server.ts, loadCore, billing, firestoreChat, …
-├── orbit-mobile/src/       # App Expo (chat, billing, firebase, …)
 ├── tests/                  # Vitest (incl. completarStream, cerebrasPayload)
 ├── env.profiles/           # Exemplos de ambiente
 ├── Dockerfile              # Railway
@@ -296,7 +293,7 @@ O shell Electron importa `dist/entry-desktop.js` com `LUNA_CORE_PATH` apontando 
 npm run build:watch    # Core
 npm run check          # typecheck raiz
 cd mobile-api && npm run check
-cd orbit-mobile && npx tsc --noEmit
+# Orbit Mobile (repo à parte): cd ../../orbit-mobile && npx tsc --noEmit
 ```
 
 ---

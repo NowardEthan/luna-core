@@ -1,6 +1,6 @@
 /**
  * Nomes de produto dos modos de resposta da Luna (UI).
- * Espelho: orbit-mobile/src/lib/modelBrands.ts
+ * Espelho: Projects/Luna/orbit-mobile/src/lib/modelBrands.ts
  *
  * | Interno   | Nome Luna   | Backend        |
  * |-----------|-------------|----------------|
