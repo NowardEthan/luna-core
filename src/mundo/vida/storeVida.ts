@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 import type { EventoVida, TipoEventoVida } from "./eventosVida.js";
 
@@ -37,12 +38,20 @@ function fasePorEvento(tipo: TipoEventoVida): EstadoVida["fase"] {
 }
 
 export function registrarEventoVida(evento: EventoVida): EventoVidaPersistido {
-  garantirTabelas();
+  const cache = getCacheMundo();
   const persistido: EventoVidaPersistido = {
     ...evento,
     id: randomUUID(),
     criado_em: new Date().toISOString(),
   };
+
+  if (cache) {
+    cache.vidaEventos.set(persistido.id, persistido);
+    cache.dirty.vidaEventos.add(persistido.id);
+    return persistido;
+  }
+
+  garantirTabelas();
   obterDb()
     .prepare(
       `INSERT INTO vida_eventos (id, tipo, narrativa, intensidade, origem, criado_em)
@@ -60,6 +69,13 @@ export function registrarEventoVida(evento: EventoVida): EventoVidaPersistido {
 }
 
 export function listarEventosVida(limite = 10): EventoVidaPersistido[] {
+  const cache = getCacheMundo();
+  if (cache) {
+    return [...cache.vidaEventos.values()]
+      .sort((a, b) => b.criado_em.localeCompare(a.criado_em))
+      .slice(0, limite);
+  }
+
   garantirTabelas();
   return obterDb()
     .prepare(
@@ -72,6 +88,13 @@ export function listarEventosVida(limite = 10): EventoVidaPersistido[] {
 }
 
 export function listarEventosVidaAntigos(corteIso: string): EventoVidaPersistido[] {
+  const cache = getCacheMundo();
+  if (cache) {
+    return [...cache.vidaEventos.values()]
+      .filter((e) => e.criado_em < corteIso)
+      .sort((a, b) => a.criado_em.localeCompare(b.criado_em));
+  }
+
   garantirTabelas();
   return obterDb()
     .prepare(
@@ -84,6 +107,9 @@ export function listarEventosVidaAntigos(corteIso: string): EventoVidaPersistido
 }
 
 export function lerEstadoVida(): EstadoVida {
+  const cache = getCacheMundo();
+  if (cache?.vidaEstado) return cache.vidaEstado;
+
   garantirTabelas();
   const row = obterDb()
     .prepare(
@@ -104,7 +130,7 @@ export function lerEstadoVida(): EstadoVida {
 export function atualizarEstadoVida(
   parcial: Partial<Pick<EstadoVida, "fase" | "energia_narrativa" | "foco">>,
 ): EstadoVida {
-  garantirTabelas();
+  const cache = getCacheMundo();
   const atual = lerEstadoVida();
   const proximo: EstadoVida = {
     fase: parcial.fase ?? atual.fase,
@@ -112,6 +138,14 @@ export function atualizarEstadoVida(
     foco: parcial.foco?.trim() || atual.foco,
     atualizado_em: new Date().toISOString(),
   };
+
+  if (cache) {
+    cache.vidaEstado = proximo;
+    cache.dirty.vidaEstado = true;
+    return proximo;
+  }
+
+  garantirTabelas();
   obterDb()
     .prepare(
       `INSERT INTO vida_estado (id, fase, energia_narrativa, foco, atualizado_em)
@@ -192,6 +226,15 @@ export function listarResumosVidaSemanais(limite = 12): ResumoVidaSemanal[] {
 
 export function removerEventosVida(ids: string[]): void {
   if (ids.length === 0) return;
+  const cache = getCacheMundo();
+  if (cache) {
+    for (const id of ids) {
+      cache.vidaEventos.delete(id);
+      cache.dirty.vidaEventosRemovidos.add(id);
+    }
+    return;
+  }
+
   garantirTabelas();
   const stmt = obterDb().prepare(`DELETE FROM vida_eventos WHERE id = ?`);
   for (const id of ids) stmt.run(id);

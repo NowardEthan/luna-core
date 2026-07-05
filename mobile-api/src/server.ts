@@ -7,6 +7,7 @@ import {
   isFirebaseAuthRequired,
   verifyFirebaseBearer,
 } from "./firebaseAdmin.js";
+import { deveUsarPersistenciaFirestore } from "./persistenciaFirestore.js";
 import { persistChatTurn } from "./firestoreChat.js";
 import { executarChatMobile, executarChatMobileStream } from "./loadCore.js";
 import { isCoreBuilt, resolveLunaCorePath } from "./resolveCorePath.js";
@@ -59,6 +60,10 @@ function bootstrapEnvFromCore(): void {
 }
 
 bootstrapEnvFromCore();
+
+if (isFirebaseAdminConfigured() && !process.env.LUNA_STORE?.trim()) {
+  process.env.LUNA_STORE = "firestore";
+}
 
 const HOST = process.env.LUNA_MOBILE_API_HOST?.trim() || "0.0.0.0";
 /** Railway injecta PORT; local usa LUNA_MOBILE_API_PORT ou 7742. */
@@ -491,6 +496,7 @@ server.listen(PORT, HOST, () => {
   console.log(`  Core: ${corePath}`);
   console.log(`  Core compilada: ${ready ? "sim" : "NÃO — npm run build na raiz"}`);
   console.log(`  Firebase Admin: ${fb ? "sim" : "não (sem persistência cloud)"}`);
+  console.log(`  LUNA_STORE: ${deveUsarPersistenciaFirestore() ? "firestore" : "sqlite"}`);
   console.log("");
   console.log("  POST /v1/chat        { message, sessionId?, userMessageId?, lunaMessageId? }");
   console.log("  POST /v1/chat/stream SSE — status | reasoning | content | done | error");

@@ -8,6 +8,7 @@ import {
   type CatalogoHabitat,
   type EstadoHabitat,
 } from "./esquemaHabitat.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const CAMINHO_ESTADO = join(RAIZ_PACOTE, "logs", "habitat.estado.json");
@@ -24,12 +25,22 @@ function obterAmbientePadrao(): AmbienteHabitat {
 }
 
 function persistirEstado(estado: EstadoHabitat): void {
+  const cache = getCacheMundo();
+  if (cache) {
+    cache.habitat = estado;
+    cache.dirty.habitat = true;
+    return;
+  }
+
   const dirLogs = join(RAIZ_PACOTE, "logs");
   if (!existsSync(dirLogs)) mkdirSync(dirLogs, { recursive: true });
   writeFileSync(CAMINHO_ESTADO, `${JSON.stringify(estado, null, 2)}\n`);
 }
 
 function lerEstadoPersistido(): EstadoHabitat | undefined {
+  const cache = getCacheMundo();
+  if (cache?.habitat) return cache.habitat;
+
   if (!existsSync(CAMINHO_ESTADO)) return undefined;
   try {
     const bruto = JSON.parse(readFileSync(CAMINHO_ESTADO, "utf-8")) as unknown;

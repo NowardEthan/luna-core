@@ -13,6 +13,10 @@ import type { PlanId } from "./billing/planMapping.js";
 import { compactarSessaoPersistida } from "./sessaoMobile.js";
 import { truncateMobileChatMessage } from "./truncateForGroq.js";
 import { sanitizarInterlocutorPipeline } from "../../src/interlocutor/validadorInterlocutor.js";
+import {
+  deveUsarPersistenciaFirestore,
+  executarComPersistenciaFirestore,
+} from "./persistenciaFirestore.js";
 
 export type ChatStreamCallbacks = {
   onStatus?: (phase: "analysing" | "memory" | "writing") => void;
@@ -304,7 +308,7 @@ export async function executarChatMobile(
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
 
-  try {
+  const rodarPipeline = async () => {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
@@ -318,8 +322,14 @@ export async function executarChatMobile(
       anexosImagem: prep.anexosImagem,
       stream: false,
     });
-
     return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
+  };
+
+  try {
+    if (deveUsarPersistenciaFirestore() && uid) {
+      return await executarComPersistenciaFirestore(uid, rodarPipeline);
+    }
+    return await rodarPipeline();
   } finally {
     process.chdir(prep.prevCwd);
   }
@@ -341,7 +351,7 @@ export async function executarChatMobileStream(
 
   const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
 
-  try {
+  const rodarPipeline = async () => {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
@@ -362,8 +372,14 @@ export async function executarChatMobileStream(
       onStreamContentDelta: callbacks.onContentDelta,
       onAcaoAgentico: callbacks.onAcao,
     });
-
     return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
+  };
+
+  try {
+    if (deveUsarPersistenciaFirestore() && uid) {
+      return await executarComPersistenciaFirestore(uid, rodarPipeline);
+    }
+    return await rodarPipeline();
   } finally {
     process.chdir(prep.prevCwd);
   }

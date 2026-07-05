@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 
 export type VontadeNarrativa = {
@@ -24,7 +25,7 @@ function garantirTabelas(): void {
 export function criarVontadeNarrativa(
   entrada: Pick<VontadeNarrativa, "sessao_id" | "vontade" | "gatilho" | "prioridade">,
 ): VontadeNarrativa {
-  garantirTabelas();
+  const cache = getCacheMundo();
   const agora = new Date().toISOString();
   const vontade: VontadeNarrativa = {
     id: randomUUID(),
@@ -36,6 +37,14 @@ export function criarVontadeNarrativa(
     criado_em: agora,
     atualizado_em: agora,
   };
+
+  if (cache) {
+    cache.vontades.set(vontade.id, vontade);
+    cache.dirty.vontades.add(vontade.id);
+    return vontade;
+  }
+
+  garantirTabelas();
   obterDb()
     .prepare(
       `INSERT INTO vontades_narrativas
@@ -56,6 +65,14 @@ export function criarVontadeNarrativa(
 }
 
 export function listarVontadesAtivas(limite = 10): VontadeNarrativa[] {
+  const cache = getCacheMundo();
+  if (cache) {
+    return [...cache.vontades.values()]
+      .filter((v) => v.status === "ativa")
+      .sort((a, b) => b.prioridade - a.prioridade || b.atualizado_em.localeCompare(a.atualizado_em))
+      .slice(0, limite);
+  }
+
   garantirTabelas();
   return obterDb()
     .prepare(
@@ -72,6 +89,17 @@ export function atualizarStatusVontade(
   id: string,
   status: VontadeNarrativa["status"],
 ): void {
+  const cache = getCacheMundo();
+  if (cache) {
+    const atual = cache.vontades.get(id);
+    if (atual) {
+      const proximo = { ...atual, status, atualizado_em: new Date().toISOString() };
+      cache.vontades.set(id, proximo);
+      cache.dirty.vontades.add(id);
+    }
+    return;
+  }
+
   garantirTabelas();
   obterDb()
     .prepare(`UPDATE vontades_narrativas SET status = ?, atualizado_em = ? WHERE id = ?`)

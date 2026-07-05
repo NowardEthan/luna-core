@@ -1,4 +1,5 @@
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 import { HUMOR_BASELINE } from "./esquemaHumor.js";
 
@@ -53,6 +54,12 @@ function baselineRelacao(interlocutorId: string): RelacaoHumor {
 
 export function lerRelacaoHumor(interlocutorId: string | null | undefined): RelacaoHumor {
   if (!interlocutorId) return baselineRelacao("desconhecido");
+
+  const cache = getCacheMundo();
+  if (cache?.relacao && cache.relacao.interlocutor_id === interlocutorId) {
+    return clampRelacao(cache.relacao);
+  }
+
   garantirTabelas();
 
   const row = obterDb()
@@ -68,13 +75,20 @@ export function lerRelacaoHumor(interlocutorId: string | null | undefined): Rela
 }
 
 export function salvarRelacaoHumor(relacao: RelacaoHumor): RelacaoHumor {
-  garantirTabelas();
+  const cache = getCacheMundo();
   const atual = clampRelacao({
     ...relacao,
     disposicao: inferirDisposicao(relacao.proximidade, relacao.ultimo_impacto),
     atualizado_em: new Date().toISOString(),
   });
 
+  if (cache) {
+    cache.relacao = atual;
+    cache.dirty.relacao = true;
+    return atual;
+  }
+
+  garantirTabelas();
   obterDb()
     .prepare(
       `INSERT INTO humor_relacao_interlocutor

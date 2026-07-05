@@ -1,4 +1,5 @@
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 
 export type TipoEventoAfetivo = "magoa" | "carinho" | "irritacao" | "desculpas";
@@ -37,6 +38,13 @@ export function limparEventosAfetivosExpirados(agora = new Date()): void {
 }
 
 export function registrarEventoAfetivo(evento: NovoEventoAfetivo): void {
+  const cache = getCacheMundo();
+  if (cache) {
+    cache.eventosAfetivosPendentes.push(evento);
+    cache.dirty.eventosAfetivos = true;
+    return;
+  }
+
   garantirTabelas();
   limparEventosAfetivosExpirados();
   const agora = new Date();

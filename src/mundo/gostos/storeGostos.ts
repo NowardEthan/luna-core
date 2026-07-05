@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 
 export type GostoLuna = {
@@ -23,10 +24,38 @@ export function registrarGostoLuna(
   afinidade: number,
   evidencia: string,
 ): GostoLuna {
-  garantirTabelas();
+  const cache = getCacheMundo();
   const limpo = topico.trim().toLowerCase();
   const agora = new Date().toISOString();
   const valorAfinidade = Math.max(0, Math.min(1, afinidade));
+
+  if (cache) {
+    const existente = [...cache.gostos.values()].find((g) => g.topico === limpo);
+    if (existente) {
+      const proximaAfinidade = existente.afinidade * 0.7 + valorAfinidade * 0.3;
+      const atualizado: GostoLuna = {
+        ...existente,
+        afinidade: proximaAfinidade,
+        evidencia,
+        atualizado_em: agora,
+      };
+      cache.gostos.set(atualizado.id, atualizado);
+      cache.dirty.gostos.add(atualizado.id);
+      return atualizado;
+    }
+    const novo: GostoLuna = {
+      id: randomUUID(),
+      topico: limpo,
+      afinidade: valorAfinidade,
+      evidencia,
+      atualizado_em: agora,
+    };
+    cache.gostos.set(novo.id, novo);
+    cache.dirty.gostos.add(novo.id);
+    return novo;
+  }
+
+  garantirTabelas();
   const existente = obterDb()
     .prepare(
       `SELECT id, topico, afinidade, evidencia, atualizado_em
@@ -69,6 +98,13 @@ export function registrarGostoLuna(
 }
 
 export function listarGostosLuna(limite = 5): GostoLuna[] {
+  const cache = getCacheMundo();
+  if (cache) {
+    return [...cache.gostos.values()]
+      .sort((a, b) => b.afinidade - a.afinidade || b.atualizado_em.localeCompare(a.atualizado_em))
+      .slice(0, limite);
+  }
+
   garantirTabelas();
   return obterDb()
     .prepare(

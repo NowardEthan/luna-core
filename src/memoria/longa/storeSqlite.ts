@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from "node:fs";
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 import { SQL_CRIAR_TABELAS, type FatoConfirmadoDb } from "./esquemaSqlite.js";
+import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { obterMotorEmbeddings } from "./motorEmbeddings.js";
 import { calcularCosineSimilarity } from "./cosineSimilarity.js";
 import { calcularSaliencia, calcularScoreRetrieval, type InputSaliencia } from "./calculadorSaliencia.js";
@@ -92,7 +93,7 @@ export function inserirFatoLongo(
     utilidade_futura?: "baixa" | "media" | "alta";
   }
 ): FatoConfirmadoDb {
-  const db = obterDb();
+  const cache = getCacheMundo();
   const agora = new Date().toISOString();
 
   const inputSaliencia: InputSaliencia = {
@@ -131,6 +132,13 @@ export function inserirFatoLongo(
     embedding_json: embeddingJson ?? null,
   };
 
+  if (cache) {
+    cache.memoriaFatos.set(novo.id, novo);
+    cache.dirty.memoriaFatos.add(novo.id);
+    return novo;
+  }
+
+  const db = obterDb();
   const stmt = db.prepare(`
     INSERT INTO fatos_confirmados (
       id, sessao_origem_id, conteudo, uso_recomendado, tipo,
@@ -154,6 +162,13 @@ export function inserirFatoLongo(
  * Filtra status='ativo' para evitar vazar fatos pendentes de confirmação do usuário.
  */
 export function buscarFatosDePerfil(): FatoConfirmadoDb[] {
+  const cache = getCacheMundo();
+  if (cache) {
+    return [...cache.memoriaFatos.values()]
+      .filter((f) => f.escopo === "perfil" && f.ativo === 1 && f.status === "ativo")
+      .sort((a, b) => b.saliencia_score - a.saliencia_score || b.atualizado_em.localeCompare(a.atualizado_em));
+  }
+
   const db = obterDb();
   const stmt = db.prepare(`
     SELECT * FROM fatos_confirmados
@@ -174,7 +189,9 @@ export function buscarFatosDePerfil(): FatoConfirmadoDb[] {
  */
 export async function buscarFatosPorSimilaridade(mensagem: string, threshold = 0.3, limit = 5): Promise<FatoConfirmadoDb[]> {
   if (!mensagem.trim()) return [];
-  const db = obterDb();
+
+  const cache = getCacheMundo();
+  const db = cache ? null : obterDb();
 
   const motor = obterMotorEmbeddings();
   const msgVector = await motor.gerarEmbedding(mensagem);
@@ -198,13 +215,25 @@ export async function buscarFatosPorSimilaridade(mensagem: string, threshold = 0
     return resultado.sort((a, b) => b.score - a.score);
   }
 
+  function fatosAtivosLongoPrazo(): FatoConfirmadoDb[] {
+    if (cache) {
+      return [...cache.memoriaFatos.values()].filter(
+        (f) => f.ativo === 1 && f.status === "ativo" && f.embedding_json,
+      );
+    }
+    const stmt = db!.prepare(`
+      SELECT * FROM fatos_confirmados
+      WHERE ativo = 1 AND status = 'ativo' AND embedding_json IS NOT NULL
+    `);
+    return stmt.all() as FatoConfirmadoDb[];
+  }
+
   // Busca primária — mesma categoria da query
-  const stmtPrimario = db.prepare(`
-    SELECT * FROM fatos_confirmados
-    WHERE escopo != 'perfil' AND ativo = 1 AND embedding_json IS NOT NULL
-      AND categoria = ?
-  `);
-  const primarios = rankear(stmtPrimario.all(categoriaQuery) as FatoConfirmadoDb[]);
+  const primarios = rankear(
+    fatosAtivosLongoPrazo().filter(
+      (f) => f.escopo !== "perfil" && f.categoria === categoriaQuery,
+    ),
+  );
 
   if (primarios.length >= limit) {
     return primarios.slice(0, limit).map((r) => r.fato);
@@ -213,19 +242,14 @@ export async function buscarFatosPorSimilaridade(mensagem: string, threshold = 0
   // Fallback — categorias relacionadas para complementar
   const idsJaIncluidos = new Set(primarios.map((r) => r.fato.id));
   const categoriasRelacionadas = CATEGORIAS_RELACIONADAS[categoriaQuery] ?? [];
-  const placeholders = categoriasRelacionadas.map(() => "?").join(", ");
 
-  let fallbacks: Array<{ fato: FatoConfirmadoDb; score: number }> = [];
-  if (categoriasRelacionadas.length > 0) {
-    const stmtFallback = db.prepare(`
-      SELECT * FROM fatos_confirmados
-      WHERE escopo != 'perfil' AND ativo = 1 AND embedding_json IS NOT NULL
-        AND categoria IN (${placeholders})
-    `);
-    const candidatos = (stmtFallback.all(...categoriasRelacionadas) as FatoConfirmadoDb[])
-      .filter((f) => !idsJaIncluidos.has(f.id));
-    fallbacks = rankear(candidatos);
-  }
+  const candidatosFallback = fatosAtivosLongoPrazo().filter(
+    (f) =>
+      f.escopo !== "perfil" &&
+      categoriasRelacionadas.includes(f.categoria as CategoriaMemoria) &&
+      !idsJaIncluidos.has(f.id),
+  );
+  const fallbacks = rankear(candidatosFallback);
 
   const combinados = [...primarios, ...fallbacks];
   return combinados.slice(0, limit).map((r) => r.fato);
