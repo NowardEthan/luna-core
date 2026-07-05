@@ -69,11 +69,15 @@ export function normalizeLegacyProviderSelection(
   }
 
   if (providerId === 'groq' && (modelKey === 'default' || modelKey === undefined)) {
-    return { providerId: 'groq', modelKey: 'default' };
+    return isPremiumModelAllowed(planId)
+      ? DEFAULT_LUNA_PROVIDER
+      : { providerId: 'groq', modelKey: 'default' };
   }
 
   if (providerId === 'auto' || modelKey === 'auto') {
-    return { providerId: 'auto', modelKey: 'auto' };
+    return isPremiumModelAllowed(planId)
+      ? DEFAULT_LUNA_PROVIDER
+      : { providerId: 'auto', modelKey: 'auto' };
   }
 
   if (isProviderId(providerId) && isModelKey(modelKey)) {
@@ -132,6 +136,11 @@ export function pickAvailableProvider(
   const normalized = normalizeLegacyProviderSelection(current, planId);
   if (isProviderOptionAvailable(normalized, options)) return normalized;
 
+  if (isPremiumModelAllowed(planId)) {
+    const cerebras = options?.find((o) => o.providerId === 'cerebras' && o.modelKey === 'glm-47');
+    if (cerebras) return { providerId: cerebras.providerId, modelKey: cerebras.modelKey };
+  }
+
   const groq = options?.find((o) => o.providerId === 'groq' && o.modelKey === 'default');
   if (groq) return { providerId: groq.providerId, modelKey: groq.modelKey };
 
@@ -139,11 +148,10 @@ export function pickAvailableProvider(
   if (auto) return { providerId: 'auto', modelKey: 'auto' };
 
   if (isPremiumModelAllowed(planId)) {
-    const cerebras = options?.find((o) => o.providerId === 'cerebras' && o.modelKey === 'glm-47');
-    if (cerebras) return { providerId: cerebras.providerId, modelKey: cerebras.modelKey };
+    return DEFAULT_LUNA_PROVIDER;
   }
 
-  return isPremiumModelAllowed(planId) ? DEFAULT_LUNA_PROVIDER : FREE_PLAN_DEFAULT_PROVIDER;
+  return FREE_PLAN_DEFAULT_PROVIDER;
 }
 
 export function providerOptionLabel(
