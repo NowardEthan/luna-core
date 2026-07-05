@@ -73,7 +73,7 @@ async function transcribeViaDirectGroq(clip: VoiceClip): Promise<string> {
 
   const data = (await res.json()) as { text?: string };
   const text = data.text?.trim();
-  if (!text) throw new Error('Não detetámos fala neste áudio.');
+  if (!text) throw new Error('Não detectamos fala neste áudio.');
   return text;
 }
 

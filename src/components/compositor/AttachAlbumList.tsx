@@ -24,7 +24,7 @@ export function AttachAlbumList({ albums, loading, onSelectAlbum, onSelectAllPho
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={tokens.accentBright} />
-        <Text style={styles.loadingLabel}>A carregar pastas…</Text>
+        <Text style={styles.loadingLabel}>Carregando pastas…</Text>
       </View>
     );
   }

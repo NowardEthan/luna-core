@@ -1,23 +1,26 @@
 import React, { memo, useCallback } from 'react';
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableWithoutFeedback,
-  Keyboard,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { UsageLimitChip } from '../components/billing/UsageLimitChip';
 import { Composer } from '../components/Composer';
 import { ComposerDock } from '../components/ComposerDock';
 import { ConversationRow } from '../components/ConversationRow';
 import { ConversationSelectionBar } from '../components/ConversationSelectionBar';
-import { SuggestionCard } from '../components/SuggestionCard';
-import { SessionItem, UserProfile, suggestions, VoiceClip } from '../data/fixtures';
+import { HomeFeatureGrid } from '../components/HomeFeatureGrid';
+import { LunaAvatar } from '../components/LunaAvatar';
+import { UserAvatarButton } from '../components/UserAvatarButton';
+import { SessionItem, UserProfile, VoiceClip } from '../data/fixtures';
 import { useConversationSelection } from '../hooks/useConversationSelection';
 import { useHeaderTopPadding } from '../hooks/useLayoutInsets';
-import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
+import { useLunaUsageContext } from '../hooks/LunaUsageContext';
 import { tokens } from '../theme/tokens';
+import { layout } from '../theme/layout';
 import { type } from '../theme/typography';
 
 function greeting(): string {
@@ -29,32 +32,37 @@ function greeting(): string {
 
 interface Props {
   user: UserProfile;
+  avatarUrl?: string | null;
   recents: SessionItem[];
   draft: string;
   onChange: (t: string) => void;
   onSend: () => void;
-  onSuggestion: (t: string) => void;
   onOpenRecent: (id: string) => void;
   onPrefetchSession?: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onVoiceSend: (clip: VoiceClip) => void;
+  onOpenPlans?: () => void;
+  onOpenProfile?: () => void;
+  onOpenConversas?: () => void;
 }
 
 export const HomeScreen = memo(function HomeScreen({
   user,
+  avatarUrl,
   recents,
   draft,
   onChange,
   onSend,
-  onSuggestion,
   onOpenRecent,
   onPrefetchSession,
   onDeleteSession,
   onVoiceSend,
+  onOpenPlans,
+  onOpenProfile,
+  onOpenConversas,
 }: Props) {
-  const keyboardHeight = useKeyboardHeight();
-  const headerTopPad = useHeaderTopPadding(10);
-  const keyboardOpen = keyboardHeight > 0;
+  const lunaUsage = useLunaUsageContext();
+  const headerTopPad = useHeaderTopPadding(8);
   const selection = useConversationSelection();
 
   const handleConfirmDelete = useCallback(() => {
@@ -65,121 +73,218 @@ export const HomeScreen = memo(function HomeScreen({
   }, [onDeleteSession, selection]);
 
   return (
-    <View style={[styles.container, { paddingTop: headerTopPad, paddingBottom: keyboardHeight }]}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={styles.top}>
-          <LinearGradient
-            colors={[tokens.accentMid, tokens.accentDeep]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.avatar}
-          >
-            <Text style={styles.avatarText}>{user.initials}</Text>
-          </LinearGradient>
-          <Text style={type.greeting}>{greeting()}</Text>
-          <Text style={type.displayName}>{user.name}</Text>
-          {!keyboardOpen ? (
-            <Text style={type.tagline}>O que vamos explorar hoje?</Text>
-          ) : null}
-        </View>
-      </TouchableWithoutFeedback>
-
-      <View style={styles.flex} />
-
-      {!keyboardOpen && recents.length > 0 && (
-        <View style={styles.recents}>
-          <ConversationSelectionBar
-            visible={selection.active}
-            count={selection.count}
-            title={selection.summaryTitle}
-            confirmingDelete={selection.confirmingDelete}
-            onClose={selection.exit}
-            onDelete={selection.requestDelete}
-            onConfirmDelete={handleConfirmDelete}
-            onCancelConfirm={selection.cancelDelete}
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: headerTopPad }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <View style={styles.topBar}>
+          <View style={styles.topBarSide} />
+          <UserAvatarButton
+            initials={user.initials}
+            avatarUrl={avatarUrl}
+            size={42}
+            onPress={onOpenProfile}
           />
-          {!selection.active ? (
-            <Text style={[type.section, styles.sectionPad]}>Recentes</Text>
-          ) : null}
-          {recents.slice(0, 2).map((s) => {
-            const selected = selection.isSelected(s.id);
-            return (
-              <ConversationRow
-                key={s.id}
-                session={s}
-                selected={selected}
-                selectionMode={selection.active}
-                onPress={() => {
-                  if (selection.active) {
-                    selection.toggle(s.id, s.title);
-                    return;
-                  }
-                  onOpenRecent(s.id);
-                }}
-                onPressIn={() => {
-                  if (!selection.active) onPrefetchSession?.(s.id);
-                }}
-                onLongPress={() => {
-                  if (selection.active) {
-                    selection.toggle(s.id, s.title);
-                    return;
-                  }
-                  selection.enter(s.id, s.title);
-                }}
+        </View>
+
+        <View style={styles.hero}>
+          <View style={styles.heroGlow} pointerEvents="none">
+            <LinearGradient
+              colors={['rgba(75,117,242,0.28)', 'rgba(75,117,242,0)']}
+              style={styles.heroGlowGradient}
+            />
+          </View>
+          <View style={styles.lunaFrame}>
+            <LunaAvatar size={56} zoom={1.12} />
+          </View>
+          <Text style={[type.greeting, styles.heroGreeting]}>{greeting()}</Text>
+          <Text style={[type.displayName, styles.heroName]} numberOfLines={1}>
+            {user.name}
+          </Text>
+          <Text style={[type.tagline, styles.heroTagline]}>O que vamos explorar hoje?</Text>
+        </View>
+
+        {recents.length > 0 || selection.active ? (
+          <View style={styles.section}>
+            {!selection.active ? (
+              <View style={styles.sectionHeader}>
+                <Text style={type.section}>Recentes</Text>
+                {recents.length > 0 && onOpenConversas ? (
+                  <Pressable
+                    onPress={onOpenConversas}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Ver todas as conversas"
+                  >
+                    <Text style={styles.sectionAction}>Ver todas</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : (
+              <ConversationSelectionBar
+                visible
+                count={selection.count}
+                title={selection.summaryTitle}
+                confirmingDelete={selection.confirmingDelete}
+                onClose={selection.exit}
+                onDelete={selection.requestDelete}
+                onConfirmDelete={handleConfirmDelete}
+                onCancelConfirm={selection.cancelDelete}
               />
-            );
-          })}
-        </View>
-      )}
+            )}
 
-      {!keyboardOpen && (
-        <View style={styles.suggestionsBlock}>
-          <Text style={[type.section, styles.sectionPad]}>Sugestões</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.suggestions}
-            keyboardShouldPersistTaps="handled"
-          >
-            {suggestions.map((s) => (
-              <SuggestionCard key={s.text} text={s.text} icon={s.icon} onPress={() => onSuggestion(s.text)} />
-            ))}
-          </ScrollView>
-        </View>
-      )}
+            <View style={styles.recents}>
+              {recents.slice(0, 3).map((s) => {
+                const selected = selection.isSelected(s.id);
+                return (
+                  <ConversationRow
+                    key={s.id}
+                    session={s}
+                    selected={selected}
+                    selectionMode={selection.active}
+                    onPress={() => {
+                      if (selection.active) {
+                        selection.toggle(s.id, s.title);
+                        return;
+                      }
+                      onOpenRecent(s.id);
+                    }}
+                    onPressIn={() => {
+                      if (!selection.active) onPrefetchSession?.(s.id);
+                    }}
+                    onLongPress={() => {
+                      if (selection.active) {
+                        selection.toggle(s.id, s.title);
+                        return;
+                      }
+                      selection.enter(s.id, s.title);
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
 
-      <ComposerDock>
-        <Composer
-          value={draft}
-          onChange={onChange}
-          onSend={onSend}
-          onVoiceResult={onVoiceSend}
-          placeholder="Toque para começar com a Luna"
-        />
-      </ComposerDock>
+        <View style={styles.section}>
+          <Text style={[type.section, styles.sectionLabel]}>Ferramentas da Luna</Text>
+          <HomeFeatureGrid />
+        </View>
+      </ScrollView>
+
+      <View style={styles.composerZone}>
+        <ComposerDock>
+          <Composer
+            value={draft}
+            onChange={onChange}
+            onSend={onSend}
+            onVoiceResult={onVoiceSend}
+            placeholder="Escreva para a Luna…"
+            editable={!lunaUsage.isExceeded}
+          />
+        </ComposerDock>
+        {lunaUsage.quotaApplies ? (
+          <View style={styles.quotaFloat} pointerEvents="box-none">
+            <UsageLimitChip
+              floating
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              exceeded={lunaUsage.isExceeded}
+              onPress={lunaUsage.isExceeded ? onOpenPlans : undefined}
+            />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 22 },
-  top: { flexShrink: 0 },
-  flex: { flex: 1, minHeight: 12 },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: tokens.accent,
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+  container: { flex: 1 },
+  scroll: { flex: 1 },
+  scrollContent: {
+    paddingHorizontal: layout.screenPaddingX,
+    paddingBottom: 12,
+    flexGrow: 1,
   },
-  avatarText: { color: tokens.onAccent, fontSize: 17, fontWeight: '700' },
-  recents: { gap: 8, marginBottom: 18 },
-  suggestionsBlock: { marginBottom: 14 },
-  sectionPad: { marginBottom: 10 },
-  suggestions: { gap: 10, paddingRight: 6 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    minHeight: 44,
+    marginBottom: 4,
+  },
+  topBarSide: { flex: 1 },
+  hero: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 22,
+    position: 'relative',
+  },
+  heroGlow: {
+    position: 'absolute',
+    top: -12,
+    width: 220,
+    height: 140,
+    alignSelf: 'center',
+  },
+  heroGlowGradient: {
+    flex: 1,
+    borderRadius: 110,
+  },
+  lunaFrame: {
+    marginBottom: 14,
+    shadowColor: tokens.accent,
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  heroGreeting: {
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  heroName: {
+    textAlign: 'center',
+    maxWidth: '100%',
+  },
+  heroTagline: {
+    textAlign: 'center',
+    marginTop: 8,
+    maxWidth: 280,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionLabel: {
+    marginBottom: 10,
+  },
+  sectionAction: {
+    color: tokens.accentBright,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  recents: { gap: 8 },
+  composerZone: {
+    position: 'relative',
+  },
+  quotaFloat: {
+    position: 'absolute',
+    left: layout.composerPaddingX,
+    right: layout.composerPaddingX,
+    bottom: '100%',
+    marginBottom: 2,
+    alignItems: 'center',
+    zIndex: 4,
+  },
 });

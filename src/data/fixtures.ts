@@ -20,6 +20,11 @@ export interface ChatMessage {
   reference?: import('../lib/messageReference').ThreadReference;
   /** Imagens e arquivos anexados (como Orbit concept). */
   attachments?: import('../lib/composerAttachmentModel').ComposerAttachment[];
+  /** Resposta em streaming SSE (Cerebras). */
+  streaming?: boolean;
+  /** Texto de raciocínio do modelo (faixa live acima da bolha). */
+  reasoning?: string;
+  reasoningStreaming?: boolean;
 }
 
 export interface SessionItem {
@@ -27,6 +32,8 @@ export interface SessionItem {
   title: string;
   preview: string;
   updatedAt: string;
+  pinned?: boolean;
+  messageCount?: number;
 }
 
 export interface UserProfile {
@@ -64,10 +71,30 @@ export const demoThread: ChatMessage[] = [
 ];
 
 export const suggestions = [
-  { text: 'Explique um conceito passo a passo', icon: 'sparkles' as const },
-  { text: 'Crie um plano de estudo para a semana', icon: 'calendar' as const },
-  { text: 'Faça perguntas para revisar a matéria', icon: 'help-circle' as const },
-  { text: 'Resuma este texto em tópicos', icon: 'list' as const },
+  {
+    text: 'Explicar um conceito passo a passo',
+    subtitle: 'Do básico ao avançado, no seu ritmo',
+    icon: 'sparkles' as const,
+    accent: '#88C1F2',
+  },
+  {
+    text: 'Montar um plano de estudo',
+    subtitle: 'Rotina clara para a semana',
+    icon: 'calendar' as const,
+    accent: '#6BC4A0',
+  },
+  {
+    text: 'Fazer um quiz de revisão',
+    subtitle: 'Perguntas para fixar a matéria',
+    icon: 'help-circle' as const,
+    accent: '#C792EA',
+  },
+  {
+    text: 'Resumir texto em tópicos',
+    subtitle: 'Lista objetiva do essencial',
+    icon: 'list' as const,
+    accent: '#82AAFF',
+  },
 ];
 
 export const lunaDemoReply =

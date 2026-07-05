@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { BubbleEnter } from './BubbleEnter';
 import { LunaBubbleShell } from './LunaBubbleShell';
 import { LunarPulse } from './LunarPulse';
 import { useMotionProfile } from '../hooks/useMotionProfile';
@@ -21,13 +20,11 @@ export function LunaThinking() {
   }, [motion.decorativeMotion, motion.snappy]);
 
   return (
-    <BubbleEnter role="luna" animate>
-      <View style={styles.wrap} accessibilityLiveRegion="polite" accessibilityLabel="Luna pensando">
-        <LunaBubbleShell firstInGroup thinking compact>
-          <LunarPulse compact whisper={WHISPERS[whisperIndex]} />
-        </LunaBubbleShell>
-      </View>
-    </BubbleEnter>
+    <View style={styles.wrap} accessibilityLiveRegion="polite" accessibilityLabel="Luna pensando">
+      <LunaBubbleShell firstInGroup thinking compact>
+        <LunarPulse compact whisper={WHISPERS[whisperIndex]} />
+      </LunaBubbleShell>
+    </View>
   );
 }
 

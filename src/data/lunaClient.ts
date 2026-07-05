@@ -6,8 +6,9 @@ export type LunaChatRequest = {
   userMessageId?: string;
   lunaMessageId?: string;
   idToken?: string | null;
-  providerId?: 'groq' | 'openrouter' | 'auto';
-  modelKey?: 'default' | 'qwen-next' | 'qwen-coder' | 'auto';
+  userDisplayName?: string;
+  providerId?: 'groq' | 'cerebras' | 'auto';
+  modelKey?: 'default' | 'glm-47' | 'auto';
 };
 
 export type LunaChatResponse =
@@ -24,6 +25,8 @@ export type LunaChatResponse =
   | {
       ok: false;
       error: string;
+      code?: 'quota_exceeded';
+      quotaKind?: string;
     };
 
 export type LunaTranscribeResponse =
@@ -46,19 +49,38 @@ export type LunaHealthResponse = {
   visionConfigured?: boolean;
   documentExtractAvailable?: boolean;
   firebaseConfigured?: boolean;
+  streamSupported?: boolean;
   llmProviders?: Array<{
-    providerId: 'groq' | 'openrouter' | 'auto';
-    modelKey: 'default' | 'qwen-next' | 'qwen-coder' | 'auto';
+    providerId: 'groq' | 'cerebras' | 'auto';
+    modelKey: 'default' | 'glm-47' | 'auto';
     label: string;
     description: string;
     modelId: string;
   }>;
 };
 
+function isNetworkFailure(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    err.name === 'AbortError' ||
+    msg.includes('network request failed') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('network error')
+  );
+}
+
 export class LunaApiError extends Error {
-  constructor(message: string) {
+  readonly code?: string;
+  readonly status?: number;
+  readonly quotaKind?: string;
+
+  constructor(message: string, opts?: { code?: string; status?: number; quotaKind?: string }) {
     super(message);
     this.name = 'LunaApiError';
+    this.code = opts?.code;
+    this.status = opts?.status;
+    this.quotaKind = opts?.quotaKind;
   }
 }
 
@@ -83,6 +105,7 @@ export async function lunaChat(request: LunaChatRequest): Promise<LunaChatRespon
         sessionId: request.sessionId,
         userMessageId: request.userMessageId,
         lunaMessageId: request.lunaMessageId,
+        userDisplayName: request.userDisplayName,
         providerId: request.providerId,
         modelKey: request.modelKey,
       }),
@@ -93,19 +116,203 @@ export async function lunaChat(request: LunaChatRequest): Promise<LunaChatRespon
 
     if (!data.ok) {
       if (res.status === 401) {
-        throw new LunaApiError('Sessão expirada. Reinicie o app e tente novamente.');
+        throw new LunaApiError('Sessão expirada. Reinicie o app e tente novamente.', {
+          status: 401,
+        });
       }
-      throw new LunaApiError(data.error || `Erro ${res.status}`);
+      if (res.status === 429 || data.code === 'quota_exceeded') {
+        throw new LunaApiError(
+          data.error ||
+            'Limite atingido. Faça upgrade em Ajustes → Planos ou aguarde a renovação.',
+          { code: 'quota_exceeded', status: 429, quotaKind: data.quotaKind },
+        );
+      }
+      throw new LunaApiError(data.error || `Erro ${res.status}`, { status: res.status });
     }
 
     return data;
   } catch (err) {
     if (err instanceof LunaApiError) throw err;
+    if (isNetworkFailure(err)) {
+      throw new LunaApiError(
+        'Sem conexão com a internet. Verifique o Wi‑Fi ou os dados móveis e tente de novo.',
+      );
+    }
     if (err instanceof Error && err.name === 'AbortError') {
       throw new LunaApiError('A Luna demorou demais para responder. Tente novamente.');
     }
     throw new LunaApiError(
-      'Não consegui falar com a Luna. Verifique se a API está rodando (`npm run luna-api`).',
+      'Não consegui falar com a Luna. Verifique a conexão ou se a API está online.',
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export type LunaStreamDone = {
+  text: string;
+  reasoning?: string;
+  sessionId: string;
+  turnCount: number;
+  providerId?: string;
+  modelKey?: string;
+  providerReason?: string;
+  autoMode?: boolean;
+};
+
+export type LunaStreamHandlers = {
+  onStatus?: (phase: 'analysing' | 'memory' | 'writing') => void;
+  onReasoningDelta?: (delta: string) => void;
+  onContentDelta?: (delta: string) => void;
+  onDone?: (payload: LunaStreamDone) => void;
+  onError?: (error: string) => void;
+};
+
+let cachedStreamSupported: boolean | null = null;
+
+/** Indica se o servidor suporta POST /v1/chat/stream (cache em memória). */
+export async function lunaStreamSupported(): Promise<boolean> {
+  if (cachedStreamSupported != null) return cachedStreamSupported;
+  const health = await lunaHealth();
+  cachedStreamSupported = health?.streamSupported === true;
+  return cachedStreamSupported;
+}
+
+function parseSseBlock(
+  event: string,
+  dataLine: string,
+  handlers: LunaStreamHandlers,
+): LunaStreamDone | null {
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(dataLine) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  switch (event) {
+    case 'status':
+      handlers.onStatus?.(data.phase as 'analysing' | 'memory' | 'writing');
+      break;
+    case 'reasoning':
+      if (typeof data.delta === 'string') handlers.onReasoningDelta?.(data.delta);
+      break;
+    case 'content':
+      if (typeof data.delta === 'string') handlers.onContentDelta?.(data.delta);
+      break;
+    case 'error':
+      handlers.onError?.(typeof data.error === 'string' ? data.error : 'Erro de streaming.');
+      break;
+    case 'done':
+      return {
+        text: String(data.text ?? ''),
+        reasoning: typeof data.reasoning === 'string' ? data.reasoning : undefined,
+        sessionId: String(data.sessionId ?? ''),
+        turnCount: Number(data.turnCount ?? 0),
+        providerId: typeof data.providerId === 'string' ? data.providerId : undefined,
+        modelKey: typeof data.modelKey === 'string' ? data.modelKey : undefined,
+        providerReason: typeof data.providerReason === 'string' ? data.providerReason : undefined,
+        autoMode: data.autoMode === true,
+      };
+  }
+  return null;
+}
+
+/** Envia turno de chat com streaming SSE (Cerebras). */
+export async function lunaChatStream(
+  request: LunaChatRequest,
+  handlers: LunaStreamHandlers,
+): Promise<LunaStreamDone> {
+  const base = getLunaApiUrl();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+
+  try {
+    const res = await fetch(`${base}/v1/chat/stream`, {
+      method: 'POST',
+      headers: authHeaders(request.idToken),
+      body: JSON.stringify({
+        message: request.message,
+        sessionId: request.sessionId,
+        userMessageId: request.userMessageId,
+        lunaMessageId: request.lunaMessageId,
+        userDisplayName: request.userDisplayName,
+        providerId: request.providerId,
+        modelKey: request.modelKey,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        throw new LunaApiError('Sessão expirada. Reinicie o app e tente novamente.', { status: 401 });
+      }
+      if (res.status === 429) {
+        throw new LunaApiError('Limite atingido. Faça upgrade em Ajustes → Planos ou aguarde a renovação.', {
+          code: 'quota_exceeded',
+          status: 429,
+        });
+      }
+      const errText = await res.text();
+      throw new LunaApiError(errText.slice(0, 280) || `Erro ${res.status}`, { status: res.status });
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      throw new LunaApiError('Streaming indisponível neste dispositivo.');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentEvent = 'message';
+    let donePayload: LunaStreamDone | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() ?? '';
+
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        let event = currentEvent;
+        let dataLine = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            event = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            dataLine = line.slice(5).trim();
+          }
+        }
+
+        if (!dataLine) continue;
+        currentEvent = event;
+        const parsed = parseSseBlock(event, dataLine, handlers);
+        if (parsed) donePayload = parsed;
+      }
+    }
+
+    if (!donePayload?.text?.trim()) {
+      throw new LunaApiError('A Luna não gerou texto via streaming.');
+    }
+
+    handlers.onDone?.(donePayload);
+    return donePayload;
+  } catch (err) {
+    if (err instanceof LunaApiError) throw err;
+    if (isNetworkFailure(err)) {
+      throw new LunaApiError(
+        'Sem conexão com a internet. Verifique o Wi‑Fi ou os dados móveis e tente de novo.',
+      );
+    }
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new LunaApiError('A Luna demorou demais para responder. Tente novamente.');
+    }
+    throw new LunaApiError(
+      'Não consegui falar com a Luna. Verifique a conexão ou se a API está online.',
     );
   } finally {
     clearTimeout(timeout);

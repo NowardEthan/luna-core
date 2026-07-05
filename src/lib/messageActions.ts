@@ -2,7 +2,7 @@ import * as Clipboard from 'expo-clipboard';
 
 import type { ChatMessage } from '../data/fixtures';
 
-export type MessageActionKind = 'copy' | 'resend' | 'redo' | 'fork' | 'branch' | 'truncate' | 'reference';
+export type MessageActionKind = 'copy' | 'resend' | 'redo' | 'fork' | 'branch' | 'truncate' | 'reference' | 'quota';
 
 export type MessageActionFeedback = {
   id: string;
@@ -259,7 +259,7 @@ export function feedbackForBranchDeleted(which: 'active' | 'inactive'): MessageA
     detail:
       which === 'inactive'
         ? 'O ramo arquivado foi removido. A conversa continua só com o ramo atual.'
-        : 'O ramo actual foi removido. O outro ramo passou a ser a conversa.',
+        : 'O ramo atual foi removido. O outro ramo passou a ser a conversa.',
   };
 }
 

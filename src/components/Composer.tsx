@@ -1,10 +1,21 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputScrollEventData,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { tokens } from '../theme/tokens';
 import { type } from '../theme/typography';
 import { VoiceClip } from '../data/fixtures';
+import { useComposerSessionControls } from '../hooks/ComposerSessionContext';
 import type { ThreadReference } from '../lib/messageReference';
 import type { ComposerAttachment, ComposerSendPayload } from '../lib/composerAttachmentModel';
 import { ComposerReferenceChip } from './ComposerReferenceChip';
@@ -16,19 +27,50 @@ import { VoiceRecordingOverlay } from './VoiceRecordingOverlay';
 import { IDLE_VOICE_UI, type VoiceHoldUi } from './voiceUi';
 
 const MIN_INPUT_HEIGHT = 40;
-const MAX_INPUT_HEIGHT = 128;
+/** ~7 linhas visíveis antes do scroll interno. */
+const MAX_INPUT_HEIGHT = 168;
+const SCROLL_FADE_HEIGHT = 20;
 const OUTER_BTN = 46;
-const INPUT_PAD_V = 18;
-const LINE_HEIGHT = 23;
-const FONT_SIZE = 15.5;
+/** Slot do botão de voz — compacto; overflow visible para gestos de gravação. */
+const MIC_ACTION_SLOT = 54;
+const LINE_HEIGHT = 22;
 
-function estimateInputHeight(text: string, width: number): number {
-  if (!text.trim() || width <= 0) return MIN_INPUT_HEIGHT;
-  const charsPerLine = Math.max(8, Math.floor(width / (FONT_SIZE * 0.52)));
-  const lines = text.split('\n').reduce((sum, line) => {
-    return sum + Math.max(1, Math.ceil(line.length / charsPerLine));
-  }, 0);
-  return Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, lines * LINE_HEIGHT + INPUT_PAD_V));
+type ScrollHints = {
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+  isScrollable: boolean;
+};
+
+const EMPTY_SCROLL_HINTS: ScrollHints = {
+  canScrollUp: false,
+  canScrollDown: false,
+  isScrollable: false,
+};
+
+/** Indica texto oculto acima/abaixo quando o campo faz scroll interno. */
+function ComposerScrollFades({ canScrollUp, canScrollDown }: Pick<ScrollHints, 'canScrollUp' | 'canScrollDown'>) {
+  if (!canScrollUp && !canScrollDown) return null;
+
+  const fadeColor = 'rgba(22, 24, 31, 0.96)';
+
+  return (
+    <>
+      {canScrollUp ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={[fadeColor, 'transparent']}
+          style={styles.fadeTop}
+        />
+      ) : null}
+      {canScrollDown ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={['transparent', fadeColor]}
+          style={styles.fadeBottom}
+        />
+      ) : null}
+    </>
+  );
 }
 
 interface Props {
@@ -46,7 +88,7 @@ export interface ComposerHandle {
   focus: () => void;
 }
 
-export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
+export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer(
   {
     value,
     onChange,
@@ -60,9 +102,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   ref,
 ) {
   const inputRef = useRef<TextInput>(null);
+  const session = useComposerSessionControls();
   const [voiceUi, setVoiceUi] = useState<VoiceHoldUi>(IDLE_VOICE_UI);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
-  const [inputWidth, setInputWidth] = useState(0);
+  const [contentHeight, setContentHeight] = useState(MIN_INPUT_HEIGHT);
+  const [scrollHints, setScrollHints] = useState<ScrollHints>(EMPTY_SCROLL_HINTS);
+  const [scrollEnabled, setScrollEnabled] = useState(false);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [attachSheetOpen, setAttachSheetOpen] = useState(false);
 
@@ -78,11 +123,35 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
   const canRecord = editable && !!onVoiceResult && !canSend;
   const recording = voiceUi.active;
   const expanded = inputHeight > MIN_INPUT_HEIGHT + 2 || value.includes('\n');
+  const isScrollClipped = contentHeight > MAX_INPUT_HEIGHT + 1;
   const hasAttachments = attachments.length > 0;
+
+  const resetInputLayout = useCallback(() => {
+    setInputHeight(MIN_INPUT_HEIGHT);
+    setContentHeight(MIN_INPUT_HEIGHT);
+    setScrollHints(EMPTY_SCROLL_HINTS);
+    setScrollEnabled(false);
+  }, []);
 
   const handleUiChange = useCallback((ui: VoiceHoldUi) => {
     setVoiceUi(ui);
   }, []);
+
+  useEffect(() => {
+    session.setAttachOpen(attachSheetOpen);
+  }, [attachSheetOpen, session]);
+
+  useEffect(() => {
+    session.setVoiceActive(recording);
+  }, [recording, session]);
+
+  useEffect(() => {
+    return () => {
+      session.setFocused(false);
+      session.setAttachOpen(false);
+      session.setVoiceActive(false);
+    };
+  }, [session]);
 
   useEffect(() => {
     Animated.timing(inputOpacity, {
@@ -95,18 +164,70 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
   useEffect(() => {
     if (!value.trim()) {
-      setInputHeight(MIN_INPUT_HEIGHT);
+      resetInputLayout();
       return;
     }
-    if (Platform.OS !== 'android' || inputWidth <= 0) return;
-    setInputHeight(estimateInputHeight(value, inputWidth));
-  }, [inputWidth, value]);
+    if (!value.includes('\n')) return;
+
+    const lineCount = value.split('\n').length;
+    const fromLines = Math.min(
+      MAX_INPUT_HEIGHT,
+      Math.max(MIN_INPUT_HEIGHT, lineCount * LINE_HEIGHT + 18),
+    );
+    setInputHeight(fromLines);
+    setContentHeight(fromLines);
+    if (fromLines <= MAX_INPUT_HEIGHT) {
+      setScrollEnabled(false);
+      setScrollHints(EMPTY_SCROLL_HINTS);
+    }
+  }, [resetInputLayout, value]);
+
+  const handleFocus = useCallback(() => {
+    session.setFocused(true);
+  }, [session]);
+
+  const handleBlur = useCallback(() => {
+    session.setFocused(false);
+  }, [session]);
+
+  const updateScrollHints = useCallback((offsetY: number, layoutH: number, contentH: number) => {
+    const overflow = contentH - layoutH;
+    if (overflow <= 4) {
+      setScrollHints(EMPTY_SCROLL_HINTS);
+      return;
+    }
+    setScrollHints({
+      isScrollable: true,
+      canScrollUp: offsetY > 4,
+      canScrollDown: offsetY < overflow - 4,
+    });
+  }, []);
 
   const onContentSizeChange = useCallback((height: number) => {
-    if (Platform.OS === 'android') return;
-    const next = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, Math.ceil(height)));
+    const measured = Math.ceil(height);
+    setContentHeight(measured);
+    const next = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, measured));
     setInputHeight(next);
+
+    if (measured <= MAX_INPUT_HEIGHT + 1) {
+      setScrollEnabled(false);
+      setScrollHints(EMPTY_SCROLL_HINTS);
+    } else {
+      setScrollEnabled(true);
+      setScrollHints({
+        isScrollable: true,
+        canScrollUp: true,
+        canScrollDown: false,
+      });
+    }
   }, []);
+
+  const onInputScroll = useCallback(
+    (e: NativeSyntheticEvent<TextInputScrollEventData>) => {
+      updateScrollHints(e.nativeEvent.contentOffset.y, inputHeight, contentHeight);
+    },
+    [contentHeight, inputHeight, updateScrollHints],
+  );
 
   const pillMinHeight = Math.max(OUTER_BTN, inputHeight + 8);
 
@@ -118,7 +239,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
     });
     setAttachments([]);
     setAttachSheetOpen(false);
-  }, [attachments, canSend, onSend, value]);
+    resetInputLayout();
+  }, [attachments, canSend, onSend, resetInputLayout, value]);
 
   const addAttachments = useCallback((picked: ComposerAttachment[]) => {
     if (picked.length === 0) return;
@@ -140,7 +262,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
 
       <View style={styles.row}>
         <Glass
-          radius={expanded ? 22 : 24}
+          radius={22}
           intensity={28}
           strong
           style={[
@@ -148,7 +270,6 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
             { minHeight: pillMinHeight },
             recording && styles.pillRecording,
             expanded && styles.pillExpanded,
-            expanded && styles.pillGrow,
           ]}
         >
           <View
@@ -161,33 +282,40 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
             <VoiceRecordingOverlay ui={voiceUi} />
 
             <Animated.View style={[styles.fieldRow, { opacity: inputOpacity, minHeight: inputHeight }]}>
-              <View
-                style={styles.inputWrap}
-                onLayout={(e) => setInputWidth(e.nativeEvent.layout.width)}
-              >
+              <View style={[styles.inputWrap, styles.inputWrapMultiline]}>
                 <TextInput
                   ref={inputRef}
                   value={value}
                   onChangeText={onChange}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
                   editable={editable && !recording}
                   placeholder={placeholder}
                   placeholderTextColor={tokens.textLow}
+                  importantForAutofill="no"
+                  autoCorrect
+                  autoCapitalize="sentences"
                   style={[
                     type.message,
                     styles.input,
                     {
                       height: inputHeight,
-                      textAlignVertical:
-                        Platform.OS === 'android' || expanded ? 'top' : 'center',
-                      paddingTop: Platform.OS === 'android' || expanded ? 10 : 9,
+                      lineHeight: LINE_HEIGHT,
                     },
                   ]}
                   multiline
-                  scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT - 1}
+                  scrollEnabled={scrollEnabled || isScrollClipped}
                   blurOnSubmit={false}
+                  onScroll={onInputScroll}
                   onContentSizeChange={(e) => onContentSizeChange(e.nativeEvent.contentSize.height)}
                   pointerEvents={recording ? 'none' : 'auto'}
                 />
+                {isScrollClipped ? (
+                  <ComposerScrollFades
+                    canScrollUp={scrollHints.canScrollUp}
+                    canScrollDown={scrollHints.canScrollDown}
+                  />
+                ) : null}
               </View>
 
               <Pressable
@@ -209,7 +337,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
         </Glass>
 
         <View style={styles.outerAction}>
-          {canSend ? (
+          <View
+            style={[styles.actionLayer, !canSend && styles.actionHidden]}
+            pointerEvents={canSend ? 'auto' : 'none'}
+          >
             <Pressable
               onPress={handleSend}
               onPressIn={() => {
@@ -242,13 +373,24 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
                 </LinearGradient>
               </Animated.View>
             </Pressable>
-          ) : canRecord ? (
-            <VoiceMicRecorder onVoiceResult={onVoiceResult} onUiChange={handleUiChange} />
-          ) : (
-            <View style={[styles.actionButton, styles.buttonDisabled]}>
-              <Ionicons name="mic" size={20} color={tokens.onAccent} />
-            </View>
-          )}
+          </View>
+
+          <View
+            style={[styles.actionLayer, canSend && styles.actionHidden]}
+            pointerEvents={canSend ? 'none' : 'box-none'}
+          >
+            {onVoiceResult ? (
+              <VoiceMicRecorder
+                onVoiceResult={onVoiceResult}
+                onUiChange={handleUiChange}
+                disabled={!canRecord}
+              />
+            ) : (
+              <View style={[styles.actionButton, styles.buttonDisabled]}>
+                <Ionicons name="mic" size={20} color={tokens.onAccent} />
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
@@ -260,13 +402,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer(
       />
     </>
   );
-});
+}));
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+    gap: 6,
+    overflow: 'visible',
   },
   pill: {
     flex: 1,
@@ -298,15 +441,37 @@ const styles = StyleSheet.create({
   inputWrap: {
     flex: 1,
     minWidth: 0,
+    position: 'relative',
+  },
+  inputWrapMultiline: {
+    overflow: 'hidden',
+    borderRadius: 18,
+  },
+  fadeTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: SCROLL_FADE_HEIGHT,
+    zIndex: 1,
+  },
+  fadeBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: SCROLL_FADE_HEIGHT,
+    zIndex: 1,
   },
   input: {
     width: '100%',
     color: tokens.textHigh,
-    paddingTop: 9,
-    paddingBottom: 9,
+    paddingTop: 10,
+    paddingBottom: 10,
     paddingLeft: 12,
     paddingRight: 4,
     fontSize: 16,
+    textAlignVertical: 'top',
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   attachBtn: {
@@ -324,12 +489,20 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-45deg' }],
   },
   outerAction: {
-    width: OUTER_BTN,
-    height: OUTER_BTN,
+    width: MIC_ACTION_SLOT,
+    height: MIC_ACTION_SLOT,
+    marginBottom: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 1,
     overflow: 'visible',
+  },
+  actionLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionHidden: {
+    opacity: 0,
   },
   actionButton: {
     width: OUTER_BTN,

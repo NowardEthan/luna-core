@@ -1,19 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { ActivityIndicator, Animated, Platform, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ChatScreenStack } from './src/components/ChatScreenStack';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { OfflineBanner } from './src/components/OfflineBanner';
 import { OrbitBackground } from './src/components/OrbitBackground';
 import { MainShell } from './src/screens/MainShell';
 import { ThreadScreen } from './src/screens/ThreadScreen';
+import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { useOrbitChat } from './src/data/useOrbitChat';
 import { demoUser } from './src/data/fixtures';
+import { ComposerSessionProvider } from './src/hooks/ComposerSessionContext';
 import { LunaAuthProvider, useLunaAuth } from './src/hooks/useLunaAuth';
-import { LunaProviderProvider } from './src/hooks/LunaProviderContext';
+import { LunaUsageProvider } from './src/hooks/LunaUsageContext';
+import { LunaProviderProvider, useLunaProvider } from './src/hooks/LunaProviderContext';
+import { useNetworkStatus } from './src/hooks/useNetworkStatus';
+import { useUserProfile } from './src/hooks/useUserProfile';
 import { MotionProfileProvider, useMotionProfile } from './src/hooks/useMotionProfile';
 import { motion, springs } from './src/lib/motionTokens';
 import { tokens } from './src/theme/tokens';
+import { useAndroidBackHandler } from './src/hooks/useAndroidBackHandler';
 
 /**
  * Fundo com profundidade coordenada: recua (escala + dim) quando uma conversa
@@ -59,8 +66,25 @@ function DepthBackground({ isThread }: { isThread: boolean }) {
 function OrbitApp() {
   const auth = useLunaAuth();
   const chat = useOrbitChat();
+  const lunaProvider = useLunaProvider();
+  const network = useNetworkStatus();
+  const profile = useUserProfile(auth.user, demoUser.name);
   const visitedThread = useRef(chat.screen === 'thread');
   if (chat.screen === 'thread') visitedThread.current = true;
+
+  const handleRootBack = useCallback((): boolean => {
+    if (chat.screen === 'thread') {
+      chat.backToHome();
+      return true;
+    }
+    if (chat.mainTab !== 'inicio') {
+      chat.setMainTab('inicio');
+      return true;
+    }
+    return false;
+  }, [chat.screen, chat.mainTab, chat.backToHome, chat.setMainTab]);
+
+  useAndroidBackHandler(handleRootBack, Boolean(auth.user) && chat.navReady);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -69,14 +93,16 @@ function OrbitApp() {
     RNStatusBar.setBarStyle('light-content');
   }, []);
 
+  const displayName = profile.displayName || auth.user?.email?.split('@')[0] || 'Você';
   const user = auth.user
     ? {
-        name: auth.user.displayName || auth.user.email?.split('@')[0] || 'Você',
-        initials: (
-          auth.user.displayName?.[0] ||
-          auth.user.email?.[0] ||
-          'L'
-        ).toUpperCase(),
+        name: displayName,
+        initials: (() => {
+          const parts = displayName.trim().split(/\s+/).filter(Boolean);
+          if (parts.length === 0) return 'V';
+          if (parts.length === 1) return parts[0]![0]!.toUpperCase();
+          return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase();
+        })(),
       }
     : demoUser;
 
@@ -89,9 +115,36 @@ function OrbitApp() {
     );
   }
 
+  if (auth.configured && !auth.user) {
+    return (
+      <View style={styles.root}>
+        <StatusBar style="light" />
+        <OrbitBackground variant="home" />
+        <WelcomeScreen
+          onContinueAsGuest={auth.continueAsGuest}
+          authError={auth.error}
+        />
+      </View>
+    );
+  }
+
+  if (!chat.navReady) {
+    return (
+      <View style={styles.boot}>
+        <ActivityIndicator color={tokens.accent} size="large" />
+        <Text style={styles.bootText}>Recuperando sessão…</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <OfflineBanner
+        deviceOffline={network.offline}
+        apiReachable={!lunaProvider.loaded || lunaProvider.apiReachable}
+        onRetry={() => void lunaProvider.refreshFromServer()}
+      />
       <DepthBackground isThread={chat.screen === 'thread'} />
 
       <ChatScreenStack
@@ -101,6 +154,7 @@ function OrbitApp() {
         home={
           <MainShell
             user={user}
+            avatarUrl={profile.avatarUrl}
             uid={auth.uid}
             email={auth.user?.email ?? null}
             photoURL={auth.user?.photoURL ?? null}
@@ -109,10 +163,11 @@ function OrbitApp() {
             onResetSession={auth.signOutAndReset}
             sessions={chat.recents}
             syncError={chat.syncError}
+            mainTab={chat.mainTab}
+            onMainTabChange={chat.setMainTab}
             draft={chat.draft}
             onDraftChange={chat.setDraft}
             onSendFromHome={chat.sendFromHome}
-            onSuggestion={chat.sendSuggestion}
             onOpenSession={chat.openSession}
             onPrefetchSession={chat.prefetchSession}
             onDeleteSession={(id) => void chat.deleteConversation(id)}
@@ -121,6 +176,7 @@ function OrbitApp() {
             onPermanentDeleteTrash={(id) => void chat.permanentDeleteTrash(id)}
             onNewChat={chat.startNewChat}
             onVoiceSend={chat.sendVoiceMessage}
+            onOpenPlans={() => chat.setMainTab('definicoes')}
           />
         }
         thread={
@@ -160,6 +216,13 @@ function OrbitApp() {
               messageReference={chat.messageReference}
               onSetMessageReference={chat.setMessageReference}
               onReferenceFeedback={chat.setMessageFeedback}
+              initialScrollY={chat.threadScrollRestore}
+              onScrollOffsetChange={chat.onThreadScrollOffset}
+              onScrollRestoreApplied={chat.clearThreadScrollRestore}
+              onOpenPlans={() => {
+                chat.backToHome();
+                chat.setMainTab('definicoes');
+              }}
             />
           ) : null
         }
@@ -173,11 +236,15 @@ export default function App() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <LunaAuthProvider>
-          <LunaProviderProvider>
-            <MotionProfileProvider>
-              <OrbitApp />
-            </MotionProfileProvider>
-          </LunaProviderProvider>
+          <LunaUsageProvider>
+            <ComposerSessionProvider>
+              <LunaProviderProvider>
+                <MotionProfileProvider>
+                  <OrbitApp />
+                </MotionProfileProvider>
+              </LunaProviderProvider>
+            </ComposerSessionProvider>
+          </LunaUsageProvider>
         </LunaAuthProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

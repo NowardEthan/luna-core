@@ -36,7 +36,7 @@ export function MessageRedoChoiceSheet({
             </Text>
             <MessageActionPreview message={message} />
             <Text style={styles.lead}>
-              Ramifique e guarde o ramo anterior, ou apague tudo a partir daqui e recomece com esta
+              Ramifique e salve o ramo anterior, ou apague tudo a partir daqui e recomece com esta
               mensagem.
             </Text>
 

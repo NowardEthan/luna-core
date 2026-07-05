@@ -63,7 +63,7 @@ export function AttachPhotoGrid({
       <View style={styles.empty}>
         <Ionicons name="images-outline" size={28} color={tokens.textLow} />
         <Text style={styles.emptyTitle}>Permissão da galeria necessária</Text>
-        <Text style={styles.emptyHint}>Permite acesso às fotos nas definições do sistema.</Text>
+        <Text style={styles.emptyHint}>Permita acesso às fotos nas configurações do sistema.</Text>
       </View>
     );
   }
@@ -72,7 +72,7 @@ export function AttachPhotoGrid({
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={tokens.accentBright} />
-        <Text style={styles.loadingLabel}>A carregar fotos…</Text>
+        <Text style={styles.loadingLabel}>Carregando fotos…</Text>
       </View>
     );
   }
@@ -83,7 +83,7 @@ export function AttachPhotoGrid({
         <Ionicons name="images-outline" size={28} color={tokens.textLow} />
         <Text style={styles.emptyTitle}>Nenhuma foto visível</Text>
         <Text style={styles.emptyHint}>
-          Escolhe quais fotos o Orbit pode mostrar, ou abre a galeria completa.
+          Escolha quais fotos o Orbit pode mostrar, ou abra a galeria completa.
         </Text>
         <View style={styles.emptyActions}>
           {onSelectPhotosAccess ? (
@@ -95,7 +95,7 @@ export function AttachPhotoGrid({
               {selectAccessBusy ? (
                 <ActivityIndicator color={tokens.onAccent} size="small" />
               ) : (
-                <Text style={styles.emptyBtnLabel}>Seleccionar fotos</Text>
+                <Text style={styles.emptyBtnLabel}>Selecionar fotos</Text>
               )}
             </Pressable>
           ) : null}

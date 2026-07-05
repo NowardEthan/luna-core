@@ -96,7 +96,7 @@ export function AttachFileBrowserPanel({
         if (result.reason === 'denied') {
           Alert.alert(
             'Sem autorização',
-            'Não foi possível abrir esta pasta. Usa «Procurar PDF, DOCX, MD…» para escolher ficheiros.',
+            'Não foi possível abrir esta pasta. Use «Procurar PDF, DOCX, MD…» para escolher arquivos.',
           );
         }
       });
@@ -156,7 +156,7 @@ export function AttachFileBrowserPanel({
         if (items.length === 0) {
           setDirError(
             Platform.OS === 'android'
-              ? 'Nenhum documento aqui. Toca em «Autorizar pasta» ou «Procurar arquivo».'
+              ? 'Nenhum documento aqui. Toque em «Autorizar pasta» ou «Procurar arquivo».'
               : 'Pasta vazia ou sem permissão de leitura.',
           );
         }
@@ -271,8 +271,8 @@ export function AttachFileBrowserPanel({
             </Pressable>
             {androidPickerOnly ? (
               <Text style={styles.androidHint}>
-                O Android abre o gerenciador de ficheiros. Não precisas autorizar pastas — escolhe
-                PDF, DOCX, MD ou TXT e volta aqui.
+                O Android abre o gerenciador de arquivos. Não precisa autorizar pastas — escolha
+                PDF, DOCX, MD ou TXT e volte aqui.
               </Text>
             ) : null}
           </>
@@ -280,7 +280,7 @@ export function AttachFileBrowserPanel({
 
         {!androidPickerOnly && deviceDocs.length > 0 ? (
           <>
-            <Text style={styles.sectionLabel}>No telemóvel</Text>
+            <Text style={styles.sectionLabel}>No celular</Text>
             {deviceDocs.map((doc) =>
               renderDocRow(doc, `device-${doc.id}`, () => onToggleEntry(doc)),
             )}
@@ -306,8 +306,8 @@ export function AttachFileBrowserPanel({
           <View style={styles.emptyRecent}>
             <Text style={styles.emptyRecentText}>
               {androidPickerOnly
-                ? 'Toca em «Escolher arquivos» para anexar PDF, DOCX, MD, TXT e outros. Os recentes aparecem aqui.'
-                : 'PDF, DOCX, MD, TXT e JSON aparecem aqui. Usa «Procurar» ou abre uma pasta abaixo.'}
+                ? 'Toque em «Escolher arquivos» para anexar PDF, DOCX, MD, TXT e outros. Os recentes aparecem aqui.'
+                : 'PDF, DOCX, MD, TXT e JSON aparecem aqui. Use «Procurar» ou abra uma pasta abaixo.'}
             </Text>
           </View>
         ) : null}
@@ -397,7 +397,7 @@ export function AttachFileBrowserPanel({
       {inFolder && loadingDir && entries.length === 0 ? (
         <View style={styles.loading}>
           <ActivityIndicator color={tokens.accentBright} />
-          <Text style={styles.loadingLabel}>A abrir pasta…</Text>
+          <Text style={styles.loadingLabel}>Abrindo pasta…</Text>
         </View>
       ) : inFolder && dirError && entries.length === 0 ? (
         <View style={styles.empty}>

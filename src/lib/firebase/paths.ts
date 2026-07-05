@@ -34,3 +34,8 @@ export function userConversationTrashMessagesCol(uid: string, conversationId: st
 export function userMessageTrashCol(uid: string, conversationId: string): string {
   return `${userConversationDoc(uid, conversationId)}/messages_trash`;
 }
+
+/** Uso mensal de mensagens na nuvem (billing). */
+export function userUsageDoc(uid: string, monthKey: string): string {
+  return `${userDoc(uid)}/usage/${monthKey}`;
+}

@@ -210,7 +210,7 @@ export function AttachGalleryPanel({
       <View style={styles.empty}>
         <Ionicons name="images-outline" size={28} color={tokens.textLow} />
         <Text style={styles.emptyTitle}>Permissão da galeria necessária</Text>
-        <Text style={styles.emptyHint}>Permite acesso às fotos nas definições do sistema.</Text>
+        <Text style={styles.emptyHint}>Permita acesso às fotos nas configurações do sistema.</Text>
       </View>
     );
   }
@@ -268,14 +268,14 @@ export function AttachGalleryPanel({
       ) : loadingInitial && photos.length === 0 ? (
         <View style={styles.loading}>
           <ActivityIndicator color={tokens.accentBright} />
-          <Text style={styles.loadingLabel}>A carregar fotos…</Text>
+          <Text style={styles.loadingLabel}>Carregando fotos…</Text>
         </View>
       ) : photosEmpty ? (
         <View style={styles.empty}>
           <Ionicons name="images-outline" size={28} color={tokens.textLow} />
           <Text style={styles.emptyTitle}>Nenhuma foto visível</Text>
           <Text style={styles.emptyHint}>
-            Escolhe quais fotos o Orbit pode aceder ou abre as pastas.
+            Escolha quais fotos o Orbit pode acessar ou abra as pastas.
           </Text>
           <View style={styles.emptyActions}>
             <Pressable
@@ -286,7 +286,7 @@ export function AttachGalleryPanel({
               {selectAccessBusy ? (
                 <ActivityIndicator color={tokens.onAccent} size="small" />
               ) : (
-                <Text style={styles.emptyBtnLabel}>Seleccionar fotos</Text>
+                <Text style={styles.emptyBtnLabel}>Selecionar fotos</Text>
               )}
             </Pressable>
             <Pressable style={styles.emptyBtnSecondary} onPress={() => setSubView('albums')}>

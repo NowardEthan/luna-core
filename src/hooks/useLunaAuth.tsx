@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, signInAnonymously, signOut, type User } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, signOut, updateProfile, type User } from 'firebase/auth';
 
 import { isFirebaseConfigured } from '../lib/firebase/config';
 import { getLunaAuth } from '../lib/firebase/client';
 import { ensureUserProfile } from '../lib/firebase/firestoreChat';
+import { clearLegacyLocalProfile, saveLocalProfile } from '../lib/profileStorage';
 
 export type LunaAuthContextValue = {
   configured: boolean;
@@ -12,6 +13,7 @@ export type LunaAuthContextValue = {
   uid: string | null;
   error: string | null;
   getIdToken: () => Promise<string | null>;
+  continueAsGuest: (displayName: string) => Promise<void>;
   signOutAndReset: () => Promise<void>;
 };
 
@@ -41,23 +43,15 @@ export function LunaAuthProvider({ children }: { children: ReactNode }) {
     const unsub = onAuthStateChanged(auth, async (next) => {
       if (cancelled) return;
 
-      if (!next) {
-        try {
-          const cred = await signInAnonymously(auth);
-          if (!cancelled) setUser(cred.user);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Falha ao autenticar.';
-          if (!cancelled) {
-            setError(msg);
-            setLoading(false);
-          }
-        }
-        return;
-      }
-
       setUser(next);
       setError(null);
       setLoading(false);
+
+      if (!next) return;
+
+      if (!next.isAnonymous) {
+        await clearLegacyLocalProfile();
+      }
 
       try {
         await ensureUserProfile(next);
@@ -81,11 +75,29 @@ export function LunaAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const continueAsGuest = useCallback(async (displayName: string): Promise<void> => {
+    const auth = getLunaAuth();
+    if (!auth) throw new Error('Firebase não inicializou.');
+
+    const nome = displayName.trim();
+    if (nome.length < 2) throw new Error('Informe um nome com pelo menos 2 caracteres.');
+
+    setError(null);
+    const cred = await signInAnonymously(auth);
+    try {
+      await updateProfile(cred.user, { displayName: nome });
+    } catch {
+      /* displayName opcional no Auth — guardamos local/Firestore */
+    }
+    await saveLocalProfile({ displayName: nome }, cred.user.uid);
+    await ensureUserProfile(cred.user);
+    setUser(cred.user);
+  }, []);
+
   const signOutAndReset = useCallback(async (): Promise<void> => {
     const auth = getLunaAuth();
     if (!auth) return;
     await signOut(auth);
-    await signInAnonymously(auth);
   }, []);
 
   const value = useMemo<LunaAuthContextValue>(
@@ -96,9 +108,10 @@ export function LunaAuthProvider({ children }: { children: ReactNode }) {
       uid: user?.uid ?? null,
       error,
       getIdToken,
+      continueAsGuest,
       signOutAndReset,
     }),
-    [configured, loading, user, error, getIdToken, signOutAndReset],
+    [configured, loading, user, error, getIdToken, continueAsGuest, signOutAndReset],
   );
 
   return <LunaAuthContext.Provider value={value}>{children}</LunaAuthContext.Provider>;
@@ -114,6 +127,7 @@ export function useLunaAuth(): LunaAuthContextValue {
       uid: null,
       error: null,
       getIdToken: async () => null,
+      continueAsGuest: async () => {},
       signOutAndReset: async () => {},
     };
   }

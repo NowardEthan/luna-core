@@ -124,7 +124,7 @@ export function getStorageShortcuts(): StorageShortcut[] {
         id: 'download',
         label: 'Downloads',
         uri: '',
-        hint: 'PDFs e ficheiros transferidos',
+        hint: 'PDFs e arquivos transferidos',
         androidSafFolder: 'Download',
       },
       {
@@ -138,7 +138,7 @@ export function getStorageShortcuts(): StorageShortcut[] {
         id: 'pick',
         label: 'Escolher pasta…',
         uri: '',
-        hint: 'Qualquer pasta do telemóvel',
+        hint: 'Qualquer pasta do celular',
         androidSafFolder: 'pick',
       },
     ];

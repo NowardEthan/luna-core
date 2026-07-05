@@ -7,6 +7,8 @@ import {
   isAutoProviderSelection,
   providerOptionLabel,
 } from '../lib/lunaProviderSettings';
+import { isGlm47Provider, isPremiumModelAllowed } from '../features/billing/planModelPolicy';
+import type { LunaPlanId } from '../features/billing/types';
 import { tokens } from '../theme/tokens';
 
 interface Props {
@@ -15,25 +17,59 @@ interface Props {
   onSelect: (next: LunaProviderSelection) => void;
   disabled?: boolean;
   apiReachable?: boolean;
-  legacyApi?: boolean;
+  /** Mostra só Automático + Rápida + Completa (modo utilizador). */
+  compact?: boolean;
+  /** Mostra todas as opções do servidor (modo avançado). */
+  showAllOptions?: boolean;
+  /** Plano actual — oculta GLM 4.7 no Grátis. */
+  planId?: LunaPlanId;
 }
 
-/** Seletor de provedor/modelo LLM para o chat mobile. */
+const COMPACT_KEYS = new Set(['auto-auto', 'groq-default', 'cerebras-glm-47']);
+
+function optionKey(opt: LunaProviderOption): string {
+  return `${opt.providerId}-${opt.modelKey}`;
+}
+
+function friendlyDescription(opt: LunaProviderOption, planLocked?: boolean): string {
+  if (opt.modelKey === 'auto') {
+    return planLocked
+      ? 'Groq por padrão no Grátis. GLM 4.7 no Plus.'
+      : 'A Luna decide o melhor modo para cada mensagem.';
+  }
+  if (opt.providerId === 'groq') {
+    return 'Respostas rápidas no dia a dia.';
+  }
+  if (opt.providerId === 'cerebras') {
+    return 'Raciocínio forte — código, documentos e temas complexos.';
+  }
+  return opt.description;
+}
+
+function friendlyLabel(opt: LunaProviderOption): string {
+  if (opt.modelKey === 'auto') return 'Automático';
+  if (opt.providerId === 'groq') return 'Rápida';
+  if (opt.providerId === 'cerebras') return 'Completa';
+  return opt.label;
+}
+
+/** Seletor de modo de resposta — copy orientada ao utilizador. */
 export function LunaProviderPicker({
   options,
   selection,
   onSelect,
   disabled,
   apiReachable = true,
-  legacyApi = false,
+  compact = false,
+  showAllOptions = false,
+  planId = 'free',
 }: Props) {
   if (!apiReachable) {
     return (
       <View style={styles.empty}>
         <Ionicons name="cloud-offline-outline" size={20} color={tokens.textMid} />
         <Text style={styles.emptyText}>
-          Não consegui ligar à Luna API. Verifique EXPO_PUBLIC_LUNA_API_URL e se o servidor está
-          online.
+          Não foi possível falar com a Luna. Verifique sua conexão com a internet.
         </Text>
       </View>
     );
@@ -44,21 +80,36 @@ export function LunaProviderPicker({
       <View style={styles.empty}>
         <Ionicons name="alert-circle-outline" size={20} color="#E57373" />
         <Text style={styles.emptyText}>
-          Nenhum LLM configurado no servidor. Adicione LUNA_API_KEY (e opcionalmente
-          OPENROUTER_API_KEY) no Railway.
+          A Luna está temporariamente indisponível. Tente novamente dentro de momentos.
         </Text>
       </View>
     );
   }
 
+  const freePlan = !isPremiumModelAllowed(planId);
+
+  const visible = showAllOptions
+    ? options
+    : compact
+      ? options.filter((o) => {
+          if (freePlan && isGlm47Provider(o.providerId, o.modelKey)) return false;
+          return COMPACT_KEYS.has(optionKey(o));
+        })
+      : options;
+
+  const list = visible.length > 0 ? visible : options.filter((o) => o.modelKey === 'auto' || o.modelKey === 'default');
+
   return (
     <View style={styles.list}>
-      {options.map((opt) => {
+      {list.map((opt) => {
         const active =
           opt.providerId === selection.providerId && opt.modelKey === selection.modelKey;
+        const label = showAllOptions ? opt.label : friendlyLabel(opt);
+        const description = showAllOptions ? opt.description : friendlyDescription(opt, freePlan);
+
         return (
           <Pressable
-            key={`${opt.providerId}-${opt.modelKey}`}
+            key={optionKey(opt)}
             disabled={disabled}
             onPress={() => onSelect({ providerId: opt.providerId, modelKey: opt.modelKey })}
             style={({ pressed }) => [
@@ -69,9 +120,8 @@ export function LunaProviderPicker({
             ]}
           >
             <View style={styles.rowMain}>
-              <Text style={[styles.label, active && styles.labelActive]}>{opt.label}</Text>
-              <Text style={styles.description}>{opt.description}</Text>
-              {opt.modelId !== 'auto' ? <Text style={styles.modelId}>{opt.modelId}</Text> : null}
+              <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
+              <Text style={styles.description}>{description}</Text>
             </View>
             {active ? (
               <Ionicons
@@ -89,13 +139,13 @@ export function LunaProviderPicker({
           </Pressable>
         );
       })}
-      <Text style={styles.hint}>
-        {legacyApi
-          ? 'Servidor sem multi-provider — só Groq até fazer redeploy da Luna API.'
-          : isAutoProviderSelection(selection)
-            ? 'Modo automático — a Luna escolhe o modelo ideal para cada mensagem.'
-            : `Modelo fixo: ${providerOptionLabel(selection, options)}. Aplica-se às próximas mensagens.`}
-      </Text>
+      {!showAllOptions ? (
+        <Text style={styles.hint}>
+          {isAutoProviderSelection(selection)
+            ? 'Recomendado para a maioria das conversas.'
+            : `Modo ativo: ${providerOptionLabel(selection, options)}.`}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -120,12 +170,6 @@ const styles = StyleSheet.create({
   label: { color: tokens.textHigh, fontSize: 15, fontWeight: '600' },
   labelActive: { color: tokens.accentBright },
   description: { color: tokens.textMid, fontSize: 12, lineHeight: 17 },
-  modelId: {
-    color: tokens.textLow,
-    fontSize: 10,
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
   hint: { color: tokens.textLow, fontSize: 11, lineHeight: 16, marginTop: 4 },
   empty: {
     flexDirection: 'row',

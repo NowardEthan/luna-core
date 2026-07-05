@@ -2,12 +2,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApp, getApps, initializeApp, type FirebaseApp, type FirebaseOptions } from 'firebase/app';
 // @ts-expect-error getReactNativePersistence — export RN; tipos publicados são do browser
 import { getAuth, getReactNativePersistence, initializeAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
 
 import { isFirebaseConfigured, readFirebasePublicConfig } from './config';
 
 let appInstance: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
+let firestoreInstance: Firestore | null = null;
 
 function toFirebaseOptions(cfg: NonNullable<ReturnType<typeof readFirebasePublicConfig>>): FirebaseOptions {
   return {
@@ -50,5 +51,19 @@ export function getLunaAuth(): Auth | null {
 
 export function getLunaFirestore(): Firestore | null {
   const app = getFirebaseApp();
-  return app ? getFirestore(app) : null;
+  if (!app) return null;
+  if (firestoreInstance) return firestoreInstance;
+
+  try {
+    // RN: WebChannel + fetch streams devolve string em vez de Blob → "Invalid response for blob".
+    firestoreInstance = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      // @ts-expect-error opção interna do SDK — desactiva fetch streams no RN
+      useFetchStreams: false,
+    });
+  } catch {
+    firestoreInstance = getFirestore(app);
+  }
+
+  return firestoreInstance;
 }

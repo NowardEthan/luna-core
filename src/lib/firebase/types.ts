@@ -46,6 +46,8 @@ export type FirestoreConversationDoc = {
   /** Soft delete — conversa na lixeira (sem regras extra). */
   deletedAt?: Timestamp | number;
   messageCount?: number;
+  /** Fixada no perfil / lista de conversas. */
+  pinned?: boolean;
 };
 
 export type FirestoreTrashConversationDoc = FirestoreConversationDoc & {

@@ -90,7 +90,7 @@ export function screenPushDistance(mode: 'push' | 'pushQuick'): number {
   return Math.round(screenWidth * ratio);
 }
 
-export const TAB_ORDER = ['inicio', 'conversas', 'lumen', 'conta'] as const;
+export const TAB_ORDER = ['inicio', 'conversas', 'conta', 'definicoes'] as const;
 
 export type TabOrderId = (typeof TAB_ORDER)[number];
 

@@ -19,6 +19,7 @@ import type { ForkLink } from '../lib/branchStorage';
 import { ThreadScrollToBottomFab } from '../components/ThreadScrollToBottomFab';
 import { ThreadBranchPill } from '../components/ThreadBranchPill';
 import { Composer, type ComposerHandle } from '../components/Composer';
+import { UsageLimitChip } from '../components/billing/UsageLimitChip';
 import { ForkSourceBanner } from '../components/ForkSourceBanner';
 import { MessageArchivedBranch } from '../components/MessageArchivedBranch';
 import { ComposerDock } from '../components/ComposerDock';
@@ -36,7 +37,10 @@ import {
   threadRowFirstInGroup,
   useProgressiveThreadWindow,
 } from '../hooks/useProgressiveThreadWindow';
+import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
+import { useLunaUsageContext } from '../hooks/LunaUsageContext';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
+import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 import { hapticLongPress, hapticListTap } from '../lib/haptics';
 import { QuotePickOverlay } from '../components/QuotePickOverlay';
 import {
@@ -55,6 +59,7 @@ import { redoUserNeedsChoice, type MessageSheetAction } from '../lib/messageActi
 import type { MessageActionFeedback } from '../lib/messageActions';
 import type { RedoUserChoice } from '../lib/messageActions';
 import { tokens } from '../theme/tokens';
+import { layout } from '../theme/layout';
 import { type } from '../theme/typography';
 
 const REFERENCE_HIGHLIGHT_MS = 2800;
@@ -102,6 +107,11 @@ interface Props {
   messageReference: ThreadReference | null;
   onSetMessageReference: (ref: ThreadReference | null) => void;
   onReferenceFeedback: (feedback: MessageActionFeedback) => void;
+  /** Posição de scroll guardada (lista invertida). */
+  initialScrollY?: number;
+  onScrollOffsetChange?: (y: number) => void;
+  onScrollRestoreApplied?: () => void;
+  onOpenPlans?: () => void;
 }
 
 interface Row {
@@ -223,16 +233,44 @@ const ThreadMessageRow = memo(function ThreadMessageRow({
   );
 });
 
-function useAnimatedMessageIds(sessionKey: string | null, messages: ChatMessage[]) {
+const BUBBLE_ENTER_MS = 420;
+
+/** Esconde resposta da Luna que chegou cedo via Firestore enquanto o indicador “pensando” está ativo. */
+function threadMessagesWhileLoading(messages: ChatMessage[], loading: boolean): ChatMessage[] {
+  if (!loading || messages.length === 0) return messages;
+  const last = messages[messages.length - 1];
+  if (last.role === 'luna' && !last.streaming) return messages.slice(0, -1);
+  return messages;
+}
+
+function useAnimatedMessageIds(
+  sessionKey: string | null,
+  messages: ChatMessage[],
+  loading: boolean,
+) {
   const seenIds = useRef(new Set<string>());
   const hydratedRef = useRef(false);
+  const loadingWasRef = useRef(false);
+  const skipEnterIdsRef = useRef(new Set<string>());
   const [enterIds, setEnterIds] = useState<ReadonlySet<string>>(() => new Set());
 
   React.useEffect(() => {
     seenIds.current = new Set();
     hydratedRef.current = false;
+    loadingWasRef.current = false;
+    skipEnterIdsRef.current = new Set();
     setEnterIds(new Set());
   }, [sessionKey]);
+
+  React.useEffect(() => {
+    if (loadingWasRef.current && !loading) {
+      const last = messages[messages.length - 1];
+      if (last?.role === 'luna') {
+        skipEnterIdsRef.current.add(last.id);
+      }
+    }
+    loadingWasRef.current = loading;
+  }, [loading, messages]);
 
   React.useEffect(() => {
     const added = messages.filter((m) => !seenIds.current.has(m.id));
@@ -247,11 +285,24 @@ function useAnimatedMessageIds(sessionKey: string | null, messages: ChatMessage[
       isInitialHydration && (added.length > 1 || messages.length > added.length);
 
     if (!isHistoryBatch) {
+      const addedIds = added.map((m) => m.id);
       setEnterIds((prev) => {
         const next = new Set(prev);
-        added.forEach((m) => next.add(m.id));
+        added.forEach((m) => {
+          if (!skipEnterIdsRef.current.has(m.id)) {
+            next.add(m.id);
+          }
+        });
         return next;
       });
+      const timer = setTimeout(() => {
+        setEnterIds((prev) => {
+          const next = new Set(prev);
+          addedIds.forEach((id) => next.delete(id));
+          return next;
+        });
+      }, BUBBLE_ENTER_MS);
+      return () => clearTimeout(timer);
     }
   }, [messages]);
 
@@ -291,11 +342,18 @@ export const ThreadScreen = memo(function ThreadScreen({
   messageReference,
   onSetMessageReference,
   onReferenceFeedback,
+  initialScrollY,
+  onScrollOffsetChange,
+  onScrollRestoreApplied,
+  onOpenPlans,
 }: Props) {
   const listRef = useRef<FlatList<ThreadListItem>>(null);
   const composerRef = useRef<ComposerHandle>(null);
+  const lunaUsage = useLunaUsageContext();
+  const keyboardOpen = useKeyboardOpen();
   const rawKeyboard = useKeyboardHeight();
-  const keyboardHeight = threadVisible ? rawKeyboard : 0;
+  const keyboardVisible = threadVisible && rawKeyboard > 0;
+  const keyboardWasOpenRef = useRef(false);
   const { reduceMotion } = useMotionProfile();
   const headerTopPad = useHeaderTopPadding(6);
 
@@ -311,11 +369,44 @@ export const ThreadScreen = memo(function ThreadScreen({
   const referenceHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingReferenceScrollId = useRef<string | null>(null);
 
+  useAndroidBackHandler(
+    useCallback(() => {
+      if (branchNavVisible) {
+        setBranchNavVisible(false);
+        return true;
+      }
+      if (redoChoice) {
+        setRedoChoice(null);
+        return true;
+      }
+      if (sheetMessage) {
+        setSheetMessage(null);
+        return true;
+      }
+      if (docPreviewTarget) {
+        setDocPreviewTarget(null);
+        setDocPreviewSourceMessage(null);
+        return true;
+      }
+      if (quotePickerMessage) {
+        setQuotePickerMessage(null);
+        return true;
+      }
+      return false;
+    }, [branchNavVisible, redoChoice, sheetMessage, docPreviewTarget, quotePickerMessage]),
+    threadVisible,
+  );
+
   const liveMessages = useFrozenWhenHidden(threadVisible, messages);
   const liveTitle = useFrozenWhenHidden(threadVisible, title);
   const liveLoading = useFrozenWhenHidden(threadVisible, loading);
   const liveDraft = useFrozenWhenHidden(threadVisible, draft);
   const liveHydrating = useFrozenWhenHidden(threadVisible, hydrating);
+
+  const displayMessages = useMemo(
+    () => threadMessagesWhileLoading(liveMessages, liveLoading),
+    [liveLoading, liveMessages],
+  );
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
@@ -329,12 +420,12 @@ export const ThreadScreen = memo(function ThreadScreen({
     windowingActive,
   } = useProgressiveThreadWindow(
     sessionKey,
-    liveMessages,
+    displayMessages,
     threadVisible,
     ensureVisibleMessageId,
   );
 
-  const enterIds = useAnimatedMessageIds(sessionKey, liveMessages);
+  const enterIds = useAnimatedMessageIds(sessionKey, displayMessages, liveLoading);
 
   const inactiveMessageIds = useMemo(
     () => new Set(archivedBranch?.messages.map((m) => m.id) ?? []),
@@ -362,9 +453,9 @@ export const ThreadScreen = memo(function ThreadScreen({
   }, [activeTimeline, archivedBranch]);
 
   const activeTailMessages = useMemo(() => {
-    if (branchPoint == null) return liveMessages;
-    return liveMessages.slice(branchPoint);
-  }, [branchPoint, liveMessages]);
+    if (branchPoint == null) return displayMessages;
+    return displayMessages.slice(branchPoint);
+  }, [branchPoint, displayMessages]);
 
   const hasBranchNav =
     (branchPoint != null && archivedBranch != null) || forkSource != null || childForks.length > 0;
@@ -647,9 +738,10 @@ export const ThreadScreen = memo(function ThreadScreen({
     }) => {
       const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
       onListScroll(contentOffset.y, contentSize.height, layoutMeasurement.height);
+      onScrollOffsetChange?.(contentOffset.y);
       setScrolledUp(contentOffset.y > SCROLL_AWAY_THRESHOLD);
     },
-    [onListScroll],
+    [onListScroll, onScrollOffsetChange],
   );
 
   const scrollToBottom = useCallback(() => {
@@ -663,20 +755,31 @@ export const ThreadScreen = memo(function ThreadScreen({
   }, [expandWindow, hasOlderHidden]);
 
   React.useEffect(() => {
-    if (keyboardHeight > 0 && liveMessages.length > 0) {
-      requestAnimationFrame(() => {
-        listRef.current?.scrollToOffset({ offset: 0, animated: !reduceMotion });
-      });
-      setScrolledUp(false);
-    }
-  }, [keyboardHeight, liveMessages.length, reduceMotion]);
+    const justOpened = keyboardVisible && !keyboardWasOpenRef.current;
+    keyboardWasOpenRef.current = keyboardVisible;
+    if (!justOpened) return;
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: 0, animated: !reduceMotion });
+    });
+    setScrolledUp(false);
+  }, [keyboardVisible, reduceMotion]);
 
   React.useEffect(() => {
     setScrolledUp(false);
   }, [sessionKey]);
 
+  React.useEffect(() => {
+    if (initialScrollY == null || initialScrollY <= 0 || !hasMessages) return;
+    const frame = requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({ offset: initialScrollY, animated: false });
+      setScrolledUp(initialScrollY > SCROLL_AWAY_THRESHOLD);
+      onScrollRestoreApplied?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [sessionKey, initialScrollY, hasMessages, onScrollRestoreApplied]);
+
   return (
-    <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
+    <View style={styles.flex}>
       <View style={[styles.header, { paddingTop: headerTopPad }]}>
         <Pressable onPress={onBack} hitSlop={12} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={22} color={tokens.textHigh} />
@@ -766,7 +869,7 @@ export const ThreadScreen = memo(function ThreadScreen({
         </View>
       )}
 
-      <MessageActionToast feedback={messageFeedback} />
+      <MessageActionToast feedback={threadVisible && keyboardOpen ? null : messageFeedback} />
 
       {quotePickerMessage ? (
         <QuotePickOverlay
@@ -778,25 +881,40 @@ export const ThreadScreen = memo(function ThreadScreen({
         />
       ) : null}
 
-      <ComposerDock style={styles.composerDock}>
-        <Composer
-          ref={composerRef}
-          value={liveDraft}
-          onChange={onChange}
-          onSend={onSend}
-          onVoiceResult={onVoiceSend}
-          placeholder={
-            quotePickActive
-              ? 'Selecione o trecho na bolha…'
-              : liveLoading
-                ? 'Luna pensando…'
-                : 'Converse com a Luna…'
-          }
-          editable={!liveLoading && !quotePickActive && !docPreviewActive}
-          messageReference={messageReference}
-          onClearReference={() => onSetMessageReference(null)}
-        />
-      </ComposerDock>
+      <View style={styles.composerZone}>
+        <ComposerDock>
+          <Composer
+            ref={composerRef}
+            value={liveDraft}
+            onChange={onChange}
+            onSend={onSend}
+            onVoiceResult={onVoiceSend}
+            placeholder={
+              quotePickActive
+                ? 'Selecione o trecho na bolha…'
+                : liveLoading
+                  ? 'Luna pensando…'
+                  : lunaUsage.isExceeded
+                    ? 'Limite mensal atingido'
+                    : 'Converse com a Luna…'
+            }
+            editable={!liveLoading && !quotePickActive && !docPreviewActive && !lunaUsage.isExceeded}
+            messageReference={messageReference}
+            onClearReference={() => onSetMessageReference(null)}
+          />
+        </ComposerDock>
+        {lunaUsage.quotaApplies ? (
+          <View style={styles.quotaFloat} pointerEvents="box-none">
+            <UsageLimitChip
+              floating
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              exceeded={lunaUsage.isExceeded}
+              onPress={lunaUsage.isExceeded ? onOpenPlans : undefined}
+            />
+          </View>
+        ) : null}
+      </View>
 
       <AttachmentPreviewModal
         visible={docPreviewTarget != null}
@@ -882,5 +1000,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 260,
   },
-  composerDock: { paddingHorizontal: 14 },
+  composerZone: {
+    position: 'relative',
+  },
+  quotaFloat: {
+    position: 'absolute',
+    left: layout.composerPaddingX,
+    right: layout.composerPaddingX,
+    bottom: '100%',
+    marginBottom: 2,
+    alignItems: 'center',
+    zIndex: 4,
+  },
 });

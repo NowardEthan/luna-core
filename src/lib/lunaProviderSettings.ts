@@ -1,7 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type LunaProviderId = 'groq' | 'openrouter' | 'auto';
-export type LunaModelKey = 'default' | 'qwen-next' | 'qwen-coder' | 'auto';
+import {
+  FREE_PLAN_DEFAULT_PROVIDER,
+  isGlm47Provider,
+  isPremiumModelAllowed,
+} from '../features/billing/planModelPolicy';
+import type { LunaPlanId } from '../features/billing/types';
+
+export { FREE_PLAN_DEFAULT_PROVIDER };
+
+export type LunaProviderId = 'groq' | 'cerebras' | 'auto';
+
+export type LunaModelKey = 'default' | 'glm-47' | 'auto';
 
 export type LunaProviderSelection = {
   providerId: LunaProviderId;
@@ -19,16 +29,54 @@ export type LunaProviderOption = {
 const STORAGE_KEY = 'orbit.luna.provider';
 
 export const DEFAULT_LUNA_PROVIDER: LunaProviderSelection = {
-  providerId: 'auto',
-  modelKey: 'auto',
+  providerId: 'cerebras',
+  modelKey: 'glm-47',
 };
 
 function isProviderId(v: unknown): v is LunaProviderId {
-  return v === 'groq' || v === 'openrouter' || v === 'auto';
+  return v === 'groq' || v === 'cerebras' || v === 'auto';
 }
 
 function isModelKey(v: unknown): v is LunaModelKey {
-  return v === 'default' || v === 'qwen-next' || v === 'qwen-coder' || v === 'auto';
+  return v === 'default' || v === 'glm-47' || v === 'auto';
+}
+
+/** Converte escolhas antigas (OpenRouter / qwen) e aplica política do plano. */
+export function normalizeLegacyProviderSelection(
+  raw: Partial<{ providerId?: unknown; modelKey?: unknown }>,
+  planId: LunaPlanId = 'free',
+): LunaProviderSelection {
+  const providerId = raw.providerId;
+  const modelKey = raw.modelKey;
+
+  if (providerId === 'openrouter' || modelKey === 'qwen-next' || modelKey === 'qwen-coder') {
+    return isPremiumModelAllowed(planId)
+      ? { providerId: 'cerebras', modelKey: 'glm-47' }
+      : FREE_PLAN_DEFAULT_PROVIDER;
+  }
+
+  if (providerId === 'cerebras' && (modelKey === 'glm-47' || modelKey === 'default' || !modelKey)) {
+    return isPremiumModelAllowed(planId)
+      ? { providerId: 'cerebras', modelKey: 'glm-47' }
+      : FREE_PLAN_DEFAULT_PROVIDER;
+  }
+
+  if (providerId === 'groq' && (modelKey === 'default' || modelKey === undefined)) {
+    return { providerId: 'groq', modelKey: 'default' };
+  }
+
+  if (providerId === 'auto' || modelKey === 'auto') {
+    return { providerId: 'auto', modelKey: 'auto' };
+  }
+
+  if (isProviderId(providerId) && isModelKey(modelKey)) {
+    if (!isPremiumModelAllowed(planId) && isGlm47Provider(providerId, modelKey)) {
+      return FREE_PLAN_DEFAULT_PROVIDER;
+    }
+    return { providerId, modelKey };
+  }
+
+  return isPremiumModelAllowed(planId) ? DEFAULT_LUNA_PROVIDER : FREE_PLAN_DEFAULT_PROVIDER;
 }
 
 export function isAutoProviderSelection(selection: LunaProviderSelection): boolean {
@@ -36,18 +84,20 @@ export function isAutoProviderSelection(selection: LunaProviderSelection): boole
 }
 
 /** Lê a escolha persistida no dispositivo. */
-export async function loadLunaProviderSelection(): Promise<LunaProviderSelection> {
+export async function loadLunaProviderSelection(
+  planId: LunaPlanId = 'free',
+): Promise<LunaProviderSelection> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_LUNA_PROVIDER;
-    const parsed = JSON.parse(raw) as Partial<LunaProviderSelection>;
-    if (isProviderId(parsed.providerId) && isModelKey(parsed.modelKey)) {
-      return { providerId: parsed.providerId, modelKey: parsed.modelKey };
+    if (!raw) {
+      return isPremiumModelAllowed(planId) ? DEFAULT_LUNA_PROVIDER : FREE_PLAN_DEFAULT_PROVIDER;
     }
+    const parsed = JSON.parse(raw) as Partial<{ providerId?: unknown; modelKey?: unknown }>;
+    return normalizeLegacyProviderSelection(parsed, planId);
   } catch {
     /* ignora JSON inválido */
   }
-  return DEFAULT_LUNA_PROVIDER;
+  return isPremiumModelAllowed(planId) ? DEFAULT_LUNA_PROVIDER : FREE_PLAN_DEFAULT_PROVIDER;
 }
 
 /** Grava a escolha no dispositivo. */
@@ -66,25 +116,27 @@ export function isProviderOptionAvailable(
   );
 }
 
-/** Primeira opção disponível no servidor ou fallback automático. */
+/** Primeira opção disponível no servidor, respeitando o plano. */
 export function pickAvailableProvider(
   options: LunaProviderOption[] | undefined,
   current: LunaProviderSelection,
+  planId: LunaPlanId = 'free',
 ): LunaProviderSelection {
-  if (isProviderOptionAvailable(current, options)) return current;
-
-  if (isAutoProviderSelection(current)) {
-    const auto = options?.find((o) => o.providerId === 'auto' && o.modelKey === 'auto');
-    if (auto) return { providerId: 'auto', modelKey: 'auto' };
-  }
+  const normalized = normalizeLegacyProviderSelection(current, planId);
+  if (isProviderOptionAvailable(normalized, options)) return normalized;
 
   const groq = options?.find((o) => o.providerId === 'groq' && o.modelKey === 'default');
   if (groq) return { providerId: groq.providerId, modelKey: groq.modelKey };
 
-  const first = options?.find((o) => o.modelKey !== 'auto');
-  if (first) return { providerId: first.providerId, modelKey: first.modelKey };
+  const auto = options?.find((o) => o.providerId === 'auto' && o.modelKey === 'auto');
+  if (auto) return { providerId: 'auto', modelKey: 'auto' };
 
-  return DEFAULT_LUNA_PROVIDER;
+  if (isPremiumModelAllowed(planId)) {
+    const cerebras = options?.find((o) => o.providerId === 'cerebras' && o.modelKey === 'glm-47');
+    if (cerebras) return { providerId: cerebras.providerId, modelKey: cerebras.modelKey };
+  }
+
+  return isPremiumModelAllowed(planId) ? DEFAULT_LUNA_PROVIDER : FREE_PLAN_DEFAULT_PROVIDER;
 }
 
 export function providerOptionLabel(
@@ -96,9 +148,8 @@ export function providerOptionLabel(
     (o) => o.providerId === selection.providerId && o.modelKey === selection.modelKey,
   );
   if (match) return match.label;
-  if (selection.providerId === 'groq') return 'Groq';
-  if (selection.modelKey === 'qwen-coder') return 'Qwen Coder (OpenRouter)';
-  return 'Qwen Next (OpenRouter)';
+  if (selection.providerId === 'cerebras') return 'GLM 4.7';
+  return 'Groq';
 }
 
 /** Opção Groq quando a API ainda não expõe `llmProviders` (deploy antigo). */
@@ -106,7 +157,7 @@ export const LEGACY_GROQ_OPTION: LunaProviderOption = {
   providerId: 'groq',
   modelKey: 'default',
   label: 'Groq · servidor',
-  description: 'Modelo configurado no Railway. Faça redeploy para ver Auto e OpenRouter.',
+  description: 'Modelo configurado no Railway.',
   modelId: 'openai/gpt-oss-120b',
 };
 
@@ -116,12 +167,62 @@ export type ProviderOptionsFromHealth = {
   legacyApi: boolean;
 };
 
+function normalizeHealthOption(opt: {
+  providerId: string;
+  modelKey: string;
+  label: string;
+  description: string;
+  modelId: string;
+}): LunaProviderOption | null {
+  if (opt.providerId === 'auto' && opt.modelKey === 'auto') {
+    return {
+      providerId: 'auto',
+      modelKey: 'auto',
+      label: opt.label,
+      description: opt.description,
+      modelId: opt.modelId,
+    };
+  }
+
+  if (opt.providerId === 'openrouter' || opt.modelKey === 'qwen-next' || opt.modelKey === 'qwen-coder') {
+    return null;
+  }
+
+  if (opt.providerId === 'groq' && opt.modelKey === 'default') {
+    return {
+      providerId: 'groq',
+      modelKey: 'default',
+      label: opt.label,
+      description: opt.description,
+      modelId: opt.modelId,
+    };
+  }
+
+  if (opt.providerId === 'cerebras' && opt.modelKey === 'glm-47') {
+    return {
+      providerId: 'cerebras',
+      modelKey: 'glm-47',
+      label: opt.label,
+      description: opt.description,
+      modelId: opt.modelId,
+    };
+  }
+
+  return null;
+}
+
 /** Constrói lista de modelos a partir do /health (compatível com API antiga). */
 export function buildProviderOptionsFromHealth(
   health: {
     ok?: boolean;
     llmConfigured?: boolean;
-    llmProviders?: LunaProviderOption[];
+    llmProviders?: Array<{
+      providerId: string;
+      modelKey: string;
+      label: string;
+      description: string;
+      modelId: string;
+    }>;
   } | null,
 ): ProviderOptionsFromHealth {
   if (!health?.ok) {
@@ -129,7 +230,12 @@ export function buildProviderOptionsFromHealth(
   }
 
   if (health.llmProviders && health.llmProviders.length > 0) {
-    return { options: health.llmProviders, apiReachable: true, legacyApi: false };
+    const options = health.llmProviders
+      .map(normalizeHealthOption)
+      .filter((o): o is LunaProviderOption => o !== null);
+    if (options.length > 0) {
+      return { options, apiReachable: true, legacyApi: false };
+    }
   }
 
   if (health.llmConfigured) {
@@ -137,4 +243,9 @@ export function buildProviderOptionsFromHealth(
   }
 
   return { options: [], apiReachable: true, legacyApi: false };
+}
+
+/** Há mais de um modo de resposta para mostrar na UI? */
+export function hasMultipleProviderOptions(options: LunaProviderOption[]): boolean {
+  return options.filter((o) => o.modelKey !== 'auto').length > 1;
 }

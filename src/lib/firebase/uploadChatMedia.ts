@@ -4,22 +4,22 @@ import type { ComposerAttachment } from '../composerAttachmentModel';
 import type { VoiceClip } from '../../data/fixtures';
 import { getLunaStorage } from './storageClient';
 
-function sanitizeFileName(name: string): string {
-  const cleaned = name.replace(/[^\w.\-()+@]/g, '_').trim();
-  return cleaned.length > 0 ? cleaned.slice(0, 120) : 'arquivo';
-}
-
 export function isRemoteMediaUri(uri: string | undefined): boolean {
   if (!uri) return false;
   return uri.startsWith('https://') || uri.startsWith('http://');
 }
 
-async function localUriToBlob(uri: string): Promise<Blob> {
+export async function localUriToBlob(uri: string): Promise<Blob> {
   const response = await fetch(uri);
   if (!response.ok) {
-    throw new Error(`Não foi possível ler o ficheiro local (${response.status}).`);
+    throw new Error(`Não foi possível ler o arquivo local (${response.status}).`);
   }
   return response.blob();
+}
+
+function sanitizeFileName(name: string): string {
+  const cleaned = name.replace(/[^\w.\-()+@]/g, '_').trim();
+  return cleaned.length > 0 ? cleaned.slice(0, 120) : 'arquivo';
 }
 
 function audioExtension(uri: string): string {

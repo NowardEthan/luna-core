@@ -46,7 +46,7 @@ export function AttachFileList({
       {loading && files.length === 0 ? (
         <View style={styles.loading}>
           <ActivityIndicator color={tokens.accentBright} />
-          <Text style={styles.loadingLabel}>A carregar recentes…</Text>
+          <Text style={styles.loadingLabel}>Carregando recentes…</Text>
         </View>
       ) : null}
 
@@ -99,7 +99,7 @@ export function AttachFileList({
           <Ionicons name="document-outline" size={28} color={tokens.textLow} />
           <Text style={styles.emptyTitle}>Nenhum arquivo recente</Text>
           <Text style={styles.emptyHint}>
-            Os ficheiros que anexares ficam guardados aqui para reutilizares rápido.
+            Os arquivos que você anexar ficam salvos aqui para reutilizar rápido.
           </Text>
         </View>
       ) : null}

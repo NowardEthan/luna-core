@@ -48,7 +48,7 @@ type Tab = 'photos' | 'files';
 function showRebuildAlert(moduleName: string) {
   Alert.alert(
     'Recompile o app',
-    `O módulo ${moduleName} ainda não está no build instalado. Corre na pasta orbit-mobile:\n\nnpm run android:run\n\ne reinstala no telemóvel.`,
+    `O módulo ${moduleName} ainda não está no build instalado. Rode na pasta orbit-mobile:\n\nnpm run android:run\n\ne reinstale no celular.`,
     [{ text: 'Entendi' }],
   );
 }

@@ -65,7 +65,7 @@ export const MessageReferenceQuote = memo(function MessageReferenceQuote({
       {interactive ? (
         <Pressable
           onPress={onPress}
-          style={({ pressed }) => [pressed && styles.pressed]}
+          style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityHint="Abre e destaca a mensagem citada na conversa"
         >
@@ -108,11 +108,18 @@ const styles = StyleSheet.create({
   wrapUserBubble: {
     marginBottom: 10,
   },
+  pressable: {
+    alignSelf: 'stretch',
+    width: '100%',
+    minWidth: 0,
+  },
   pressed: {
     opacity: 0.88,
   },
   card: {
     flexDirection: 'row',
+    alignSelf: 'stretch',
+    minWidth: 0,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: 'rgba(0, 0, 0, 0.22)',
@@ -131,6 +138,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+    minWidth: 0,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 5,
@@ -162,6 +170,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   excerpt: {
+    flexShrink: 1,
     color: 'rgba(255, 255, 255, 0.94)',
     fontSize: 13,
     lineHeight: 18,

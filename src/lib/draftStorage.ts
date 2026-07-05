@@ -32,16 +32,50 @@ export async function saveDraft(scope: string, text: string): Promise<void> {
 /** Metadados da sessão ativa — restaura thread + rascunho após kill da app. */
 const META_KEY = `${PREFIX}.meta`;
 
+export type MainTabId = 'inicio' | 'conversas' | 'conta' | 'definicoes';
+
 export interface ChatDraftMeta {
   screen: 'home' | 'thread';
   sessionId: string | null;
+  /** Aba do shell quando em home. */
+  mainTab?: MainTabId;
+  /** Offset vertical da lista invertida (0 = fim da conversa). */
+  threadScrollY?: number;
+  /** Título em cache para header instantâneo no restore. */
+  title?: string;
+}
+
+const MAIN_TABS: MainTabId[] = ['inicio', 'conversas', 'conta', 'definicoes'];
+
+function parseMainTab(value: unknown): MainTabId | undefined {
+  return typeof value === 'string' && MAIN_TABS.includes(value as MainTabId)
+    ? (value as MainTabId)
+    : undefined;
+}
+
+export function parseChatDraftMeta(raw: unknown): ChatDraftMeta | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const screen = o.screen === 'thread' || o.screen === 'home' ? o.screen : null;
+  if (!screen) return null;
+  const sessionId =
+    o.sessionId === null || typeof o.sessionId === 'string' ? (o.sessionId as string | null) : null;
+  const threadScrollY = typeof o.threadScrollY === 'number' ? o.threadScrollY : undefined;
+  const title = typeof o.title === 'string' ? o.title : undefined;
+  return {
+    screen,
+    sessionId,
+    mainTab: parseMainTab(o.mainTab),
+    threadScrollY,
+    title,
+  };
 }
 
 export async function loadChatDraftMeta(): Promise<ChatDraftMeta | null> {
   try {
     const raw = await AsyncStorage.getItem(META_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as ChatDraftMeta;
+    return parseChatDraftMeta(JSON.parse(raw));
   } catch {
     return null;
   }

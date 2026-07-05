@@ -5,6 +5,8 @@ import { BubbleEnter } from './BubbleEnter';
 import { LunaBubbleShell } from './LunaBubbleShell';
 import { VoiceMessageBubble } from './VoiceMessageBubble';
 import { MessageMarkdown } from './chat/MessageMarkdown';
+import { StreamWordReveal } from './chat/StreamWordReveal';
+import { ReasoningLiveStrip } from './chat/ReasoningLiveStrip';
 import { ExcerptHighlightText } from './chat/excerptHighlight';
 import { shouldRenderMarkdown } from './chat/detectMarkdown';
 import { ThreadReferenceQuote } from './ThreadReferenceQuote';
@@ -49,7 +51,10 @@ function messageEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.reference?.kind === b.reference?.kind &&
     attachmentsEqual(a.attachments, b.attachments) &&
     a.audio?.uri === b.audio?.uri &&
-    a.audio?.durationMs === b.audio?.durationMs
+    a.audio?.durationMs === b.audio?.durationMs &&
+    a.streaming === b.streaming &&
+    a.reasoning === b.reasoning &&
+    a.reasoningStreaming === b.reasoningStreaming
   );
 }
 
@@ -76,7 +81,8 @@ function MessageBubbleInner({
   const isVoice = !!message.audio;
   const hasAttachments = Boolean(message.attachments?.length);
   const hasText = Boolean(message.text?.trim());
-  const richText = shouldRenderMarkdown(message);
+  const isStreaming = Boolean(message.streaming);
+  const richText = !isStreaming && shouldRenderMarkdown(message);
   const role = isUser ? 'user' : 'luna';
   const handleReferencePress = message.reference
     ? () => onThreadReferencePress?.(message.reference!)
@@ -120,8 +126,12 @@ function MessageBubbleInner({
         colors={[tokens.bubbleUserStart, tokens.bubbleUserEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.userBubble}
+        style={[
+          styles.userBubble,
+          hasAttachments && !hasText && !message.reference && styles.userBubbleMediaSolo,
+        ]}
       >
+        <View style={styles.userBubbleInner}>
         {message.reference ? (
           <ThreadReferenceQuote
             reference={message.reference}
@@ -141,14 +151,19 @@ function MessageBubbleInner({
             onTranscribe={onTranscribe}
           />
         </Pressable>
+        </View>
       </LinearGradient>
     ) : (
       <LinearGradient
         colors={[tokens.bubbleUserStart, tokens.bubbleUserEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.userBubble}
+        style={[
+          styles.userBubble,
+          hasAttachments && !hasText && !message.reference && styles.userBubbleMediaSolo,
+        ]}
       >
+        <View style={styles.userBubbleInner}>
         {message.reference ? (
           <ThreadReferenceQuote
             reference={message.reference}
@@ -164,7 +179,7 @@ function MessageBubbleInner({
           />
         ) : null}
         {message.text ? (
-          <Pressable onLongPress={onLongPress} delayLongPress={420}>
+          <Pressable onLongPress={onLongPress} delayLongPress={420} style={styles.userTextPress}>
             <ExcerptHighlightText
               text={message.text}
               excerpt={highlightExcerpt}
@@ -179,6 +194,7 @@ function MessageBubbleInner({
             />
           </Pressable>
         ) : null}
+        </View>
       </LinearGradient>
     )
   ) : isVoice && message.audio ? (
@@ -210,7 +226,19 @@ function MessageBubbleInner({
           onOpenDocumentPreview={onOpenDocumentPreview}
         />
       ) : null}
-      {richText ? (
+      {message.reasoning?.trim() || message.reasoningStreaming ? (
+        <ReasoningLiveStrip
+          reasoning={message.reasoning}
+          streaming={message.reasoningStreaming}
+        />
+      ) : null}
+      {isStreaming ? (
+        <StreamWordReveal
+          text={message.text ?? ''}
+          streaming
+          style={[type.message, styles.lunaText]}
+        />
+      ) : richText ? (
         <MessageMarkdown content={message.text || ' '} highlightExcerpt={highlightExcerpt} />
       ) : (
         <ExcerptHighlightText
@@ -294,8 +322,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', width: '100%' },
   rowUser: { justifyContent: 'flex-end' },
   rowLuna: { justifyContent: 'flex-start', paddingRight: 28 },
-  bubbleShell: { position: 'relative', maxWidth: '88%' },
-  shellUser: { maxWidth: '78%', alignSelf: 'flex-end' },
+  bubbleShell: { position: 'relative', maxWidth: '88%', minWidth: 0 },
+  shellUser: { maxWidth: '78%', alignSelf: 'flex-end', minWidth: 0 },
   shellLuna: { alignSelf: 'flex-start' },
   selectionGlow: {
     ...StyleSheet.absoluteFillObject,
@@ -313,6 +341,10 @@ const styles = StyleSheet.create({
   },
   lunaText: { color: tokens.textHigh },
   userBubble: {
+    alignSelf: 'stretch',
+    maxWidth: '100%',
+    minWidth: 0,
+    overflow: 'hidden',
     borderRadius: 20,
     borderBottomRightRadius: 6,
     paddingHorizontal: 15,
@@ -322,6 +354,19 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
+  },
+  userBubbleMediaSolo: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  userBubbleInner: {
+    alignSelf: 'stretch',
+    width: '100%',
+    minWidth: 0,
+  },
+  userTextPress: {
+    alignSelf: 'stretch',
+    minWidth: 0,
   },
   userText: { color: tokens.onAccent },
   userExcerptHighlight: {

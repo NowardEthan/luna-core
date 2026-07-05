@@ -126,6 +126,9 @@ export function MessageAttachments({
 
 const styles = StyleSheet.create({
   root: {
+    alignSelf: 'stretch',
+    width: '100%',
+    minWidth: 0,
     gap: 8,
     marginTop: 4,
   },
@@ -137,12 +140,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   imageTile: {
+    alignSelf: 'stretch',
     borderRadius: 14,
     overflow: 'hidden',
     maxWidth: '100%',
+    minWidth: 0,
   },
   imageTileSolo: {
-    minWidth: 160,
+    width: '100%',
   },
   imageFrame: {
     position: 'relative',
@@ -183,6 +188,10 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.65)',
   },
   fileCard: {
+    alignSelf: 'stretch',
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

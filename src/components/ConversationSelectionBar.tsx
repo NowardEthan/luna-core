@@ -47,7 +47,7 @@ export function ConversationSelectionBar({
     ]).start();
   }, [interactions, opacity, reduceMotion, translateY, visible]);
 
-  if (!visible && !interactions) return null;
+  if (!visible) return null;
 
   const countLabel = count === 1 ? '1 selecionada' : `${count} selecionadas`;
   const confirmText =
@@ -161,7 +161,7 @@ export function TrashSelectionBar({
     ]).start();
   }, [interactions, opacity, reduceMotion, translateY, visible]);
 
-  if (!visible && !interactions) return null;
+  if (!visible) return null;
 
   const countLabel = count === 1 ? '1 na lixeira' : `${count} na lixeira`;
   const confirmCopy =

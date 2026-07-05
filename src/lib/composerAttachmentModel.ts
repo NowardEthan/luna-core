@@ -57,7 +57,7 @@ export type LunaAttachmentEnrichment = {
 const MAX_LUNA_ATTACHMENT_CHARS = 2_000;
 
 const LUNA_DOC_TRUNCATE_NOTICE =
-  '\n\n[… parte omitida — arquivo longo; referencie um trecho ou pergunte sobre uma secção …]';
+  '\n\n[… parte omitida — arquivo longo; referencie um trecho ou pergunte sobre uma seção …]';
 
 function truncateTextForLunaApi(text: string): string {
   const normalized = text.replace(/\r\n/g, '\n').trim();

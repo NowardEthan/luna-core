@@ -1,5 +1,6 @@
 import React, { createContext, useContext, type ReactNode } from 'react';
 import { useLunaProviderSettings } from './useLunaProviderSettings';
+import { useLunaUsageContext } from './LunaUsageContext';
 import type { LunaProviderOption, LunaProviderSelection } from '../lib/lunaProviderSettings';
 import type { LunaHealthResponse } from '../data/lunaClient';
 
@@ -23,7 +24,8 @@ type LunaProviderContextValue = {
 const LunaProviderContext = createContext<LunaProviderContextValue | null>(null);
 
 export function LunaProviderProvider({ children }: { children: ReactNode }) {
-  const value = useLunaProviderSettings();
+  const { plan } = useLunaUsageContext();
+  const value = useLunaProviderSettings(plan);
   return <LunaProviderContext.Provider value={value}>{children}</LunaProviderContext.Provider>;
 }
 

@@ -1,5 +1,5 @@
 import type { ChatMessage } from '../data/fixtures';
-import type { ComposerAttachment } from './composerAttachmentModel';
+import { attachmentsPreviewLabel, type ComposerAttachment } from './composerAttachmentModel';
 import { excerpt, messageCopyText } from './messageActions';
 
 export type MessageReference = {
@@ -266,27 +266,38 @@ export function resolveReferencePrompt(
   return resolveMessageReference(parsed, messages);
 }
 
+function stripAttachmentFallbackText(message: ChatMessage): ChatMessage {
+  const text = message.text?.trim();
+  if (!text || !message.attachments?.length) return message;
+  const fallback = attachmentsPreviewLabel(message.attachments);
+  if (text !== fallback) return message;
+  return { ...message, text: undefined };
+}
+
 /** Separa cartão de referência + pergunta (inclui mensagens legadas). */
 export function normalizeMessageForDisplay(
   message: ChatMessage,
   messages: ChatMessage[],
 ): ChatMessage {
+  let normalized: ChatMessage;
+
   if (message.reference) {
     const parsed = parseReferencePrompt(message.text);
-    if (parsed) {
-      return { ...message, text: parsed.userText || undefined };
-    }
-    return message;
+    normalized = parsed
+      ? { ...message, text: parsed.userText || undefined }
+      : message;
+  } else {
+    const parsed = parseReferencePrompt(message.text);
+    normalized = parsed
+      ? {
+          ...message,
+          text: parsed.userText || undefined,
+          reference: resolveReferencePrompt(parsed, messages),
+        }
+      : message;
   }
 
-  const parsed = parseReferencePrompt(message.text);
-  if (!parsed) return message;
-
-  return {
-    ...message,
-    text: parsed.userText || undefined,
-    reference: resolveReferencePrompt(parsed, messages),
-  };
+  return stripAttachmentFallbackText(normalized);
 }
 
 /** @deprecated Use normalizeMessageForDisplay */

@@ -73,7 +73,7 @@ export const DocumentReferenceQuote = memo(function DocumentReferenceQuote({
       {interactive ? (
         <Pressable
           onPress={onPress}
-          style={({ pressed }) => [pressed && styles.pressed]}
+          style={({ pressed }) => [styles.pressable, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityHint="Abre o documento e destaca o trecho citado"
         >
@@ -109,9 +109,16 @@ function excerptLooksLikeCode(text: string): boolean {
 const styles = StyleSheet.create({
   wrap: { width: '100%' },
   wrapUserBubble: { marginBottom: 10 },
+  pressable: {
+    alignSelf: 'stretch',
+    width: '100%',
+    minWidth: 0,
+  },
   pressed: { opacity: 0.88 },
   card: {
     flexDirection: 'row',
+    alignSelf: 'stretch',
+    minWidth: 0,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth * 2,
@@ -129,6 +136,7 @@ const styles = StyleSheet.create({
   accentBarLuna: { backgroundColor: 'rgba(255, 193, 120, 0.75)' },
   body: {
     flex: 1,
+    minWidth: 0,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 5,
@@ -159,6 +167,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 210, 120, 0.95)',
   },
   excerpt: {
+    flexShrink: 1,
     fontSize: 13,
     lineHeight: 18,
     color: tokens.textHigh,

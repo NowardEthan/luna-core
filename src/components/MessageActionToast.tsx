@@ -85,4 +85,7 @@ const styles = StyleSheet.create({
   branch: {},
   truncate: {},
   reference: {},
+  quota: {
+    borderColor: 'rgba(229, 115, 115, 0.45)',
+  },
 });

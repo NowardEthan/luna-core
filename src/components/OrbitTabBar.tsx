@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePressSpring } from '../hooks/usePressSpring';
 import { tokens } from '../theme/tokens';
 
-export type OrbitTabId = 'inicio' | 'conversas' | 'lumen' | 'conta';
+export type OrbitTabId = 'inicio' | 'conversas' | 'conta' | 'definicoes';
 
 export const TAB_BAR_HEIGHT = 56;
 
@@ -23,8 +23,8 @@ const LEFT: TabItem[] = [
 ];
 
 const RIGHT: TabItem[] = [
-  { id: 'lumen', label: 'Lumen', icon: 'sparkles-outline', iconActive: 'sparkles' },
-  { id: 'conta', label: 'Conta', icon: 'person-outline', iconActive: 'person' },
+  { id: 'conta', label: 'Perfil', icon: 'person-outline', iconActive: 'person' },
+  { id: 'definicoes', label: 'Ajustes', icon: 'options-outline', iconActive: 'options' },
 ];
 
 interface Props {

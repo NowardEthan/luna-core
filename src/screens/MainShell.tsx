@@ -1,18 +1,19 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { OrbitTabBar, OrbitTabId } from '../components/OrbitTabBar';
 import { TabPane } from '../components/TabPane';
 import { SessionItem, UserProfile, VoiceClip } from '../data/fixtures';
-import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
+import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
 import type { TrashSessionItem } from '../lib/firebase/firestoreTrash';
 import { tabSlideDirection } from '../lib/motionTokens';
 import { ConversationsScreen } from './ConversationsScreen';
 import { HomeScreen } from './HomeScreen';
-import { AccountScreen } from './AccountScreen';
-import { PlaceholderScreen } from './PlaceholderScreen';
+import { ProfileScreen } from './ProfileScreen';
+import { SettingsScreen } from './SettingsScreen';
 
 interface Props {
   user: UserProfile;
+  avatarUrl?: string | null;
   uid: string | null;
   email: string | null;
   photoURL: string | null;
@@ -21,10 +22,11 @@ interface Props {
   onResetSession: () => Promise<void>;
   sessions: SessionItem[];
   syncError?: string | null;
+  mainTab: OrbitTabId;
+  onMainTabChange: (tab: OrbitTabId) => void;
   draft: string;
   onDraftChange: (t: string) => void;
   onSendFromHome: () => void;
-  onSuggestion: (t: string) => void;
   onOpenSession: (id: string) => void;
   onPrefetchSession?: (id: string) => void;
   onDeleteSession: (id: string) => void;
@@ -33,18 +35,20 @@ interface Props {
   onPermanentDeleteTrash: (id: string) => void;
   onNewChat: () => void;
   onVoiceSend: (clip: VoiceClip) => void;
+  onOpenPlans?: () => void;
 }
 
 const INITIAL_MOUNT: Record<OrbitTabId, boolean> = {
   inicio: true,
   conversas: false,
-  lumen: false,
   conta: false,
+  definicoes: false,
 };
 
 /** Shell principal — abas montadas + transição suave entre painéis. */
 export const MainShell = memo(function MainShell({
   user,
+  avatarUrl,
   uid,
   email,
   photoURL,
@@ -53,10 +57,11 @@ export const MainShell = memo(function MainShell({
   onResetSession,
   sessions,
   syncError,
+  mainTab,
+  onMainTabChange,
   draft,
   onDraftChange,
   onSendFromHome,
-  onSuggestion,
   onOpenSession,
   onPrefetchSession,
   onDeleteSession,
@@ -65,21 +70,28 @@ export const MainShell = memo(function MainShell({
   onPermanentDeleteTrash,
   onNewChat,
   onVoiceSend,
+  onOpenPlans,
 }: Props) {
-  const [tab, setTab] = useState<OrbitTabId>('inicio');
+  const tab = mainTab;
   const [mounted, setMounted] = useState(INITIAL_MOUNT);
   const [enterDirection, setEnterDirection] = useState(0);
   const [stackOrder, setStackOrder] = useState(1);
-  const keyboardHeight = useKeyboardHeight();
-  const keyboardOpen = keyboardHeight > 0;
+  const keyboardOpen = useKeyboardOpen();
 
-  const selectTab = useCallback((next: OrbitTabId) => {
-    if (next === tab) return;
-    setEnterDirection(tabSlideDirection(tab, next));
-    setStackOrder((n) => n + 1);
-    setMounted((prev) => (prev[next] ? prev : { ...prev, [next]: true }));
-    setTab(next);
-  }, [tab]);
+  useEffect(() => {
+    setMounted((prev) => (prev[mainTab] ? prev : { ...prev, [mainTab]: true }));
+  }, [mainTab]);
+
+  const selectTab = useCallback(
+    (next: OrbitTabId) => {
+      if (next === tab) return;
+      setEnterDirection(tabSlideDirection(tab, next));
+      setStackOrder((n) => n + 1);
+      setMounted((prev) => (prev[next] ? prev : { ...prev, [next]: true }));
+      onMainTabChange(next);
+    },
+    [onMainTabChange, tab],
+  );
 
   return (
     <View style={styles.root}>
@@ -88,15 +100,18 @@ export const MainShell = memo(function MainShell({
           <TabPane visible={tab === 'inicio'} enterDirection={enterDirection} stackOrder={stackOrder}>
             <HomeScreen
               user={user}
+              avatarUrl={avatarUrl}
               recents={sessions}
               draft={draft}
               onChange={onDraftChange}
               onSend={onSendFromHome}
-              onSuggestion={onSuggestion}
               onOpenRecent={onOpenSession}
               onPrefetchSession={onPrefetchSession}
               onDeleteSession={onDeleteSession}
               onVoiceSend={onVoiceSend}
+              onOpenPlans={onOpenPlans}
+              onOpenProfile={() => selectTab('conta')}
+              onOpenConversas={() => selectTab('conversas')}
             />
           </TabPane>
         ) : null}
@@ -116,28 +131,15 @@ export const MainShell = memo(function MainShell({
           </TabPane>
         ) : null}
 
-        {mounted.lumen ? (
-          <TabPane visible={tab === 'lumen'} enterDirection={enterDirection} stackOrder={stackOrder}>
-            <PlaceholderScreen
-              title="Lumen"
-              subtitle="Trilhas e mapa estelar — sua jornada de aprendizagem com a Luna."
-              icon="sparkles"
-            />
+        {mounted.conta ? (
+          <TabPane visible={tab === 'conta'} enterDirection={enterDirection} stackOrder={stackOrder}>
+            <ProfileScreen sessions={sessions} onOpenSession={onOpenSession} />
           </TabPane>
         ) : null}
 
-        {mounted.conta ? (
-          <TabPane visible={tab === 'conta'} enterDirection={enterDirection} stackOrder={stackOrder}>
-            <AccountScreen
-              displayName={user.name}
-              initials={user.initials}
-              email={email}
-              photoURL={photoURL}
-              uid={uid}
-              isAnonymous={isAnonymous}
-              authError={authError}
-              onResetSession={onResetSession}
-            />
+        {mounted.definicoes ? (
+          <TabPane visible={tab === 'definicoes'} enterDirection={enterDirection} stackOrder={stackOrder}>
+            <SettingsScreen isAnonymous={isAnonymous} onResetSession={onResetSession} />
           </TabPane>
         ) : null}
       </View>

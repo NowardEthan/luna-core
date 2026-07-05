@@ -147,7 +147,7 @@ export function VoiceMessageBubble({
         <View style={styles.transcriptLoading}>
           <ActivityIndicator size="small" color={isUser ? 'rgba(255,255,255,0.9)' : tokens.accentBright} />
           <Text style={[styles.transcriptLoadingText, isUser ? styles.timeUser : styles.timeLuna]}>
-            A transcrever…
+            Transcrevendo…
           </Text>
         </View>
       ) : null}

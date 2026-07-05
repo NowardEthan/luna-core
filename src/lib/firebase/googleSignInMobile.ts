@@ -7,6 +7,7 @@ import {
 
 import { getLunaAuth } from './client';
 import { ensureUserProfile } from './firestoreChat';
+import { clearLegacyLocalProfile } from '../profileStorage';
 
 function firebaseAuthCode(err: unknown): string {
   if (err && typeof err === 'object' && 'code' in err) {
@@ -48,12 +49,14 @@ export async function completeGoogleSignInWithIdToken(
     if (current?.isAnonymous) {
       try {
         const linked = await linkWithCredential(current, credential);
+        await clearLegacyLocalProfile();
         await ensureUserProfile(linked.user);
         return linked.user;
       } catch (err) {
         const code = firebaseAuthCode(err);
         if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
           const result = await signInWithCredential(auth, credential);
+          await clearLegacyLocalProfile();
           await ensureUserProfile(result.user);
           return result.user;
         }
@@ -62,6 +65,7 @@ export async function completeGoogleSignInWithIdToken(
     }
 
     const result = await signInWithCredential(auth, credential);
+    await clearLegacyLocalProfile();
     await ensureUserProfile(result.user);
     return result.user;
   } catch (err) {

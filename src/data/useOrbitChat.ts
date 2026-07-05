@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { ChatMessage, demoThread, sessions, VoiceClip, type SessionItem } from './fixtures';
-import { LunaApiError, lunaChat } from './lunaClient';
+import { LunaApiError, lunaChat, lunaChatStream, lunaStreamSupported } from './lunaClient';
+import { feedbackQuotaExceeded } from '../features/billing/quotaUtils';
+import type { QuotaKind } from '../features/billing/planQuotas';
 import { describeImageAttachmentsSafe } from './describeImageAttachments';
 import { extractDocumentAttachmentsSafe } from './extractDocumentAttachments';
 import { transcribeVoiceClip } from './transcribeVoice';
 import { formatVoiceDuration } from '../hooks/useVoiceRecording';
 import { useLunaAuth } from '../hooks/useLunaAuth';
+import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
+import { useDeferredMessageFeedback } from '../hooks/useDeferredMessageFeedback';
+import { useLunaUsageContext } from '../hooks/LunaUsageContext';
 import { useLunaProvider } from '../hooks/LunaProviderContext';
+import { useUserProfile } from '../hooks/useUserProfile';
 import { usePersistedDraft } from '../hooks/usePersistedDraft';
 import {
   DRAFT_SCOPE_HOME,
   draftScopeForSession,
+  loadChatDraftMeta,
   saveChatDraftMeta,
 } from '../lib/draftStorage';
 import {
@@ -42,6 +50,7 @@ import {
   subscribeTrashConversations,
   type TrashSessionItem,
 } from '../lib/firebase/firestoreTrash';
+import { mergeUserMilestones } from '../lib/firebase/firestoreUserProfile';
 import {
   attachmentsPreviewLabel,
   formatAttachmentsForApi,
@@ -50,7 +59,6 @@ import {
 } from '../lib/composerAttachmentModel';
 import { isReadableDocumentAttachment } from '../lib/readableDocuments';
 import {
-  MESSAGE_FEEDBACK_MS,
   copyMessageAction,
   feedbackForBranch,
   feedbackForBranchContinuation,
@@ -87,6 +95,9 @@ import {
   type ForkLink,
 } from '../lib/branchStorage';
 import { formatMessageWithReference, normalizeMessagesForDisplay, type ThreadReference } from '../lib/messageReference';
+import { createWordStreamBuffer } from '../lib/streamWordBuffer';
+import { looksLikeMarkdown } from '../components/chat/detectMarkdown';
+import { useMotionProfile } from '../hooks/useMotionProfile';
 import {
   localTrashBackupConversation,
   localTrashList,
@@ -97,8 +108,15 @@ import { hapticScreenPop, hapticScreenPush } from '../lib/haptics';
 import { runAfterTransition } from '../hooks/useNavigationPerf';
 import { useConversationPrefetch, prefetchSessionOnTouch } from '../hooks/useConversationPrefetch';
 import type { ScreenEnterMode } from '../components/ScreenPane';
+import type { OrbitTabId } from '../components/OrbitTabBar';
 
 type Screen = 'home' | 'thread';
+
+type OpenSessionOptions = {
+  restore?: boolean;
+  scrollY?: number;
+  cachedTitle?: string;
+};
 
 function newSessionId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -114,10 +132,21 @@ function newMessageId(prefix: 'u' | 'l'): string {
 
 export function useOrbitChat() {
   const auth = useLunaAuth();
+  const keyboardOpen = useKeyboardOpen();
+  const lunaUsage = useLunaUsageContext();
+  const profile = useUserProfile(auth.user, 'Você');
+  const { reduceMotion } = useMotionProfile();
   const { selection: lunaProvider, legacyApi, setLastRouting } = useLunaProvider();
   const cloudEnabled = auth.configured && auth.uid != null;
 
   const [screen, setScreen] = useState<Screen>('home');
+  const [navReady, setNavReady] = useState(false);
+  const [mainTab, setMainTabState] = useState<OrbitTabId>('inicio');
+  const [threadScrollRestore, setThreadScrollRestore] = useState<number | undefined>();
+  const mainTabRef = useRef<OrbitTabId>('inicio');
+  const threadScrollYRef = useRef(0);
+  const navRestoredRef = useRef(false);
+  const titleRef = useRef('Luna');
   const [threadEnter, setThreadEnter] = useState<{ key: number; mode: ScreenEnterMode }>({
     key: 0,
     mode: 'push',
@@ -135,7 +164,15 @@ export function useOrbitChat() {
   const [localAudioByMessageId, setLocalAudioByMessageId] = useState<Record<string, VoiceClip>>({});
   const [trashSessions, setTrashSessions] = useState<TrashSessionItem[]>([]);
   const [deletedDemoIds, setDeletedDemoIds] = useState<Set<string>>(() => new Set());
-  const [messageFeedback, setMessageFeedback] = useState<MessageActionFeedback | null>(null);
+  const { feedback: messageFeedback, pushFeedback: setMessageFeedback } =
+    useDeferredMessageFeedback(keyboardOpen);
+
+  const blockIfQuotaExceeded = useCallback((): boolean => {
+    if (lunaUsage.canSendCloudTurn) return false;
+    setMessageFeedback(feedbackQuotaExceeded(lunaUsage.usage, 'messages'));
+    return true;
+  }, [lunaUsage.canSendCloudTurn, lunaUsage.usage, setMessageFeedback]);
+
   const [archivedBranch, setArchivedBranch] = useState<ArchivedBranch | null>(null);
   const [branchPoint, setBranchPoint] = useState<number | null>(null);
   const [activeTimeline, setActiveTimeline] = useState<ActiveTimeline>('continuation');
@@ -191,8 +228,46 @@ export function useOrbitChat() {
   }, []);
 
   useEffect(() => {
-    void saveChatDraftMeta({ screen, sessionId: activeSessionId });
+    titleRef.current = title;
+  }, [title]);
+
+  const persistNavMeta = useCallback(() => {
+    void saveChatDraftMeta({
+      screen,
+      sessionId: activeSessionId,
+      mainTab: mainTabRef.current,
+      threadScrollY: threadScrollYRef.current,
+      title: titleRef.current,
+    });
   }, [screen, activeSessionId]);
+
+  useEffect(() => {
+    persistNavMeta();
+  }, [persistNavMeta, mainTab, title]);
+
+  useEffect(() => {
+    const onChange = (state: AppStateStatus) => {
+      if (state === 'background' || state === 'inactive') {
+        persistNavMeta();
+        void flush();
+      }
+    };
+    const sub = AppState.addEventListener('change', onChange);
+    return () => sub.remove();
+  }, [flush, persistNavMeta]);
+
+  const setMainTab = useCallback((tab: OrbitTabId) => {
+    mainTabRef.current = tab;
+    setMainTabState(tab);
+  }, []);
+
+  const onThreadScrollOffset = useCallback((y: number) => {
+    threadScrollYRef.current = y;
+  }, []);
+
+  const clearThreadScrollRestore = useCallback(() => {
+    setThreadScrollRestore(undefined);
+  }, []);
 
   useEffect(() => {
     if (!cloudEnabled || !auth.uid) {
@@ -259,12 +334,6 @@ export function useOrbitChat() {
       (err) => setSyncError(err.message || 'Erro ao carregar lixeira.'),
     );
   }, [cloudEnabled, auth.uid]);
-
-  useEffect(() => {
-    if (!messageFeedback) return;
-    const t = setTimeout(() => setMessageFeedback(null), MESSAGE_FEEDBACK_MS);
-    return () => clearTimeout(t);
-  }, [messageFeedback]);
 
   const recentsList = useMemo(
     () => (cloudEnabled ? recents : sessions.filter((s) => !deletedDemoIds.has(s.id))),
@@ -394,13 +463,14 @@ export function useOrbitChat() {
   const deliverLunaReply = useCallback(
     (reply: string, lunaMessageId: string, persist?: { uid: string; sessionId: string }) => {
       const lunaMsg: ChatMessage = { id: lunaMessageId, role: 'luna', text: reply };
+      // loading=false antes da bolha — evita “pensando” + resposta ao mesmo tempo
+      setLoading(false);
       setLocalMessages((m) => {
         if (m.some((msg) => msg.id === lunaMessageId)) {
           return m.map((msg) => (msg.id === lunaMessageId ? lunaMsg : msg));
         }
         return [...m, lunaMsg];
       });
-      setLoading(false);
       if (persist) {
         void writeLunaTextMessage(persist.uid, persist.sessionId, lunaMessageId, reply).catch(() => {
           /* mantém mensagem local como fallback */
@@ -440,26 +510,99 @@ export function useOrbitChat() {
 
   const callLuna = useCallback(
     async (message: string, userMessageId: string) => {
+      if (blockIfQuotaExceeded()) return;
+
       const sessionId = ensureSessionId();
       const lunaMessageId = `l-${sessionId}-${Date.now()}`;
       setLoading(true);
 
       const idToken = cloudEnabled ? await auth.getIdToken() : null;
+      const chatRequest = {
+        message,
+        sessionId,
+        userMessageId,
+        lunaMessageId,
+        idToken,
+        userDisplayName: profile.displayName,
+        ...(legacyApi
+          ? {}
+          : {
+              providerId: lunaProvider.providerId,
+              modelKey: lunaProvider.modelKey,
+            }),
+      };
+
+      const upsertStreamMessage = (patch: Partial<ChatMessage>) => {
+        setLocalMessages((m) => {
+          const existing = m.find((msg) => msg.id === lunaMessageId);
+          const base: ChatMessage = existing ?? {
+            id: lunaMessageId,
+            role: 'luna',
+            text: '',
+            streaming: true,
+          };
+          const next: ChatMessage = { ...base, ...patch };
+          if (existing) return m.map((msg) => (msg.id === lunaMessageId ? next : msg));
+          return [...m, next];
+        });
+      };
 
       try {
-        const result = await lunaChat({
-          message,
-          sessionId,
-          userMessageId,
-          lunaMessageId,
-          idToken,
-          ...(legacyApi
-            ? {}
-            : {
-                providerId: lunaProvider.providerId,
-                modelKey: lunaProvider.modelKey,
-              }),
-        });
+        const useStream = await lunaStreamSupported();
+
+        if (useStream) {
+          let streamStarted = false;
+
+          const ensureStreamBubble = () => {
+            if (streamStarted) return;
+            streamStarted = true;
+            setLoading(false);
+            upsertStreamMessage({ text: '', streaming: true });
+          };
+
+          const bufferOpts = { throttleMs: 100, instant: reduceMotion };
+
+          const contentBuf = createWordStreamBuffer((text) => {
+            ensureStreamBubble();
+            upsertStreamMessage({ text, streaming: true });
+          }, bufferOpts);
+
+          const reasoningBuf = createWordStreamBuffer((reasoning) => {
+            ensureStreamBubble();
+            upsertStreamMessage({ reasoning, reasoningStreaming: true, streaming: true });
+          }, bufferOpts);
+
+          try {
+            const result = await lunaChatStream(chatRequest, {
+              onReasoningDelta: (delta) => reasoningBuf.push(delta),
+              onContentDelta: (delta) => contentBuf.push(delta),
+            });
+
+            contentBuf.flush();
+            reasoningBuf.flush();
+
+            sessionIdRef.current = result.sessionId;
+            if (result.providerReason) {
+              setLastRouting(result.providerReason);
+            }
+
+            const format = looksLikeMarkdown(result.text) ? ('markdown' as const) : undefined;
+            upsertStreamMessage({
+              text: result.text,
+              reasoning: result.reasoning,
+              streaming: false,
+              reasoningStreaming: false,
+              format,
+            });
+            setLoading(false);
+            return;
+          } catch (streamErr) {
+            if (streamStarted) throw streamErr;
+            /* fallback JSON se o stream falhar antes do primeiro token */
+          }
+        }
+
+        const result = await lunaChat(chatRequest);
         sessionIdRef.current = result.sessionId;
         if (result.providerReason) {
           setLastRouting(result.providerReason);
@@ -473,10 +616,19 @@ export function useOrbitChat() {
         );
       } catch (err) {
         setLoading(false);
+        if (err instanceof LunaApiError && err.code === 'quota_exceeded') {
+          const kind: QuotaKind =
+            err.quotaKind === 'images' ||
+            err.quotaKind === 'documents' ||
+            err.quotaKind === 'voice'
+              ? err.quotaKind
+              : 'messages';
+          setMessageFeedback(feedbackQuotaExceeded(lunaUsage.usage, kind));
+        }
         deliverLunaError(err);
       }
     },
-    [auth, cloudEnabled, ensureSessionId, deliverLunaError, deliverLunaReply, lunaProvider, legacyApi, setLastRouting],
+    [auth, cloudEnabled, ensureSessionId, deliverLunaError, deliverLunaReply, lunaProvider, legacyApi, setLastRouting, profile.displayName, lunaUsage.usage, blockIfQuotaExceeded, reduceMotion, setMessageFeedback],
   );
 
   const submitPayload = useCallback(
@@ -485,6 +637,21 @@ export function useOrbitChat() {
       const clean = payload.text.trim();
       const attachments = payload.attachments;
       if (loading || (!clean && !ref && attachments.length === 0)) return;
+      if (blockIfQuotaExceeded()) return;
+
+      const imageAttachments = attachments.filter((a) => a.kind === 'image' && a.uri);
+      const fileAttachments = attachments.filter(
+        (a) => a.kind === 'file' && a.uri && isReadableDocumentAttachment(a),
+      );
+
+      if (imageAttachments.length > 0 && !lunaUsage.canAnalyzeImages(imageAttachments.length)) {
+        setMessageFeedback(feedbackQuotaExceeded(lunaUsage.usage, 'images'));
+        return;
+      }
+      if (fileAttachments.length > 0 && !lunaUsage.canExtractDocuments(fileAttachments.length)) {
+        setMessageFeedback(feedbackQuotaExceeded(lunaUsage.usage, 'documents'));
+        return;
+      }
 
       const isBranchContinuation = branchPoint != null && messages.length === branchPoint;
       const userMsgId = newMessageId('u');
@@ -497,10 +664,6 @@ export function useOrbitChat() {
       };
 
       let apiText = clean;
-      const imageAttachments = attachments.filter((a) => a.kind === 'image' && a.uri);
-      const fileAttachments = attachments.filter(
-        (a) => a.kind === 'file' && a.uri && isReadableDocumentAttachment(a),
-      );
       const needsEnrichment = imageAttachments.length > 0 || fileAttachments.length > 0;
       const firestoreText = clean || attachmentsPreviewLabel(attachments);
 
@@ -538,6 +701,14 @@ export function useOrbitChat() {
               ref ?? undefined,
               persistedAttachments,
             );
+
+            const milestonePatch: Parameters<typeof mergeUserMilestones>[1] = {};
+            if (imageAttachments.length > 0) milestonePatch.imageAttachment = true;
+            if (fileAttachments.length > 0) milestonePatch.fileAttachment = true;
+            if (ref?.kind === 'document') milestonePatch.documentReference = true;
+            if (Object.keys(milestonePatch).length > 0) {
+              void mergeUserMilestones(uid, milestonePatch);
+            }
           }
 
           if (attachments.length > 0) {
@@ -584,11 +755,14 @@ export function useOrbitChat() {
       clearDraft,
       clearMessageReference,
       cloudEnabled,
+      blockIfQuotaExceeded,
       deliverLunaError,
       ensureSessionId,
       loading,
+      lunaUsage,
       messageReference,
       messages.length,
+      setMessageFeedback,
       updateMessageById,
     ],
   );
@@ -601,6 +775,11 @@ export function useOrbitChat() {
   const submitVoice = useCallback(
     (clip: VoiceClip) => {
       if (loading) return;
+      if (!lunaUsage.canTranscribeVoice()) {
+        setMessageFeedback(feedbackQuotaExceeded(lunaUsage.usage, 'voice'));
+        return;
+      }
+      if (blockIfQuotaExceeded()) return;
       const ref = messageReference;
       const userMsgId = newMessageId('u');
       const dur = formatVoiceDuration(clip.durationMs);
@@ -631,6 +810,7 @@ export function useOrbitChat() {
               placeholder,
               ref ?? undefined,
             );
+            void mergeUserMilestones(uid, { voiceMessage: true });
           } catch {
             await writeUserVoiceMessage(
               auth.uid!,
@@ -642,6 +822,7 @@ export function useOrbitChat() {
             ).catch(() => {
               /* mensagem otimista já visível */
             });
+            void mergeUserMilestones(auth.uid!, { voiceMessage: true });
           }
         })();
       } else {
@@ -681,6 +862,7 @@ export function useOrbitChat() {
     [
       auth.getIdToken,
       auth.uid,
+      blockIfQuotaExceeded,
       callLuna,
       clearDraft,
       clearMessageReference,
@@ -688,6 +870,7 @@ export function useOrbitChat() {
       deliverLunaError,
       ensureSessionId,
       loading,
+      lunaUsage,
       messageReference,
       updateMessageById,
     ],
@@ -701,13 +884,23 @@ export function useOrbitChat() {
   }, []);
 
   const openSession = useCallback(
-    (id: string) => {
-      void flush();
-      hapticScreenPush();
+    (id: string, opts?: OpenSessionOptions) => {
+      const restoring = opts?.restore === true;
+      if (!restoring) {
+        void flush();
+        hapticScreenPush();
+      }
 
       if (id === activeSessionId && sessionIdRef.current === id) {
         setHydrating(false);
-        bumpThreadEnter(true);
+        if (restoring) {
+          if (opts?.scrollY != null && opts.scrollY > 0) {
+            setThreadScrollRestore(opts.scrollY);
+          }
+          setThreadEnter({ key: 0, mode: 'none' });
+        } else {
+          bumpThreadEnter(true);
+        }
         setScreen('thread');
         return;
       }
@@ -721,7 +914,8 @@ export function useOrbitChat() {
       setLocalAudioByMessageId({});
 
       const warm = getWarmSnapshot(id);
-      const recentTitle = recentsList.find((s) => s.id === id)?.title;
+      const recentTitle =
+        opts?.cachedTitle ?? recentsList.find((s) => s.id === id)?.title;
       const warmMessages = warm?.messages ?? [];
 
       if (cloudEnabled && auth.uid) {
@@ -742,7 +936,14 @@ export function useOrbitChat() {
       }
 
       setLoading(false);
-      bumpThreadEnter(false);
+      if (restoring) {
+        if (opts?.scrollY != null && opts.scrollY > 0) {
+          setThreadScrollRestore(opts.scrollY);
+        }
+        setThreadEnter({ key: 0, mode: 'none' });
+      } else {
+        bumpThreadEnter(false);
+      }
       setScreen('thread');
     },
     [activeSessionId, auth.uid, bumpThreadEnter, clearMessageReference, cloudEnabled, flush, recentsList, resetBranchState, restoreBranchForSession],
@@ -775,6 +976,8 @@ export function useOrbitChat() {
 
   const backToHome = useCallback(() => {
     hapticScreenPop();
+    threadScrollYRef.current = 0;
+    setThreadScrollRestore(undefined);
     setScreen('home');
     void flush();
 
@@ -800,17 +1003,19 @@ export function useOrbitChat() {
   const sendFromHome = useCallback(async () => {
     const text = draft.trim();
     if (!text) return;
+    if (blockIfQuotaExceeded()) return;
     await clearDraft();
     startNewChat();
     submit(text);
-  }, [draft, clearDraft, startNewChat, submit]);
+  }, [draft, clearDraft, startNewChat, submit, blockIfQuotaExceeded]);
 
   const sendSuggestion = useCallback(
     (text: string) => {
+      if (blockIfQuotaExceeded()) return;
       startNewChat();
       setTimeout(() => submit(text), 30);
     },
-    [startNewChat, submit],
+    [startNewChat, submit, blockIfQuotaExceeded],
   );
 
   const sendVoiceMessage = useCallback(
@@ -1176,8 +1381,39 @@ export function useOrbitChat() {
     [auth.uid, cloudEnabled],
   );
 
+  useEffect(() => {
+    if (auth.configured && auth.loading) return;
+    if (navRestoredRef.current) return;
+    navRestoredRef.current = true;
+
+    void (async () => {
+      try {
+        const meta = await loadChatDraftMeta();
+        if (meta?.mainTab) {
+          mainTabRef.current = meta.mainTab;
+          setMainTabState(meta.mainTab);
+        }
+        if (meta?.screen === 'thread' && meta.sessionId) {
+          openSession(meta.sessionId, {
+            restore: true,
+            scrollY: meta.threadScrollY,
+            cachedTitle: meta.title,
+          });
+        }
+      } finally {
+        setNavReady(true);
+      }
+    })();
+  }, [auth.configured, auth.loading, openSession]);
+
   return {
     screen,
+    navReady,
+    mainTab,
+    setMainTab,
+    threadScrollRestore,
+    onThreadScrollOffset,
+    clearThreadScrollRestore,
     activeSessionId,
     threadEnterKey: threadEnter.key,
     threadEnterMode: threadEnter.mode,

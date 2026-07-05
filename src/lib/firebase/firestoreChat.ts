@@ -12,6 +12,7 @@ import {
 import type { ChatMessage, SessionItem, VoiceClip } from '../../data/fixtures';
 import type { ThreadReference } from '../messageReference';
 import { getLunaFirestore } from './client';
+import { bumpConversationMessageCount } from './firestoreUserProfile';
 import { formatRelativeTime } from './formatRelativeTime';
 import { userConversationDoc, userConversationMessagesCol, userDoc } from './paths';
 import type {
@@ -146,6 +147,8 @@ function mapConversationToSession(id: string, data: FirestoreConversationDoc): S
     title: data.title?.trim() || 'Conversa',
     preview: previewFromConversation(data),
     updatedAt: formatRelativeTime(updated),
+    pinned: data.pinned === true,
+    messageCount: typeof data.messageCount === 'number' ? data.messageCount : undefined,
   };
 }
 
@@ -275,6 +278,8 @@ export async function writeLunaTextMessage(
     text: text.trim(),
     createdAt: serverTimestamp(),
   });
+
+  await bumpConversationMessageCount(uid, conversationId, 1);
 }
 
 export async function writeUserTextMessage(
@@ -342,6 +347,8 @@ export async function writeUserTextMessage(
       : {}),
     createdAt: serverTimestamp(),
   });
+
+  await bumpConversationMessageCount(uid, conversationId, 1);
 }
 
 export async function writeUserVoiceMessage(
@@ -397,6 +404,8 @@ export async function writeUserVoiceMessage(
       : {}),
     createdAt: serverTimestamp(),
   });
+
+  await bumpConversationMessageCount(uid, conversationId, 1);
 }
 
 /** Atualiza transcrição de uma mensagem de voz (só no cliente). */
