@@ -4,7 +4,6 @@ import { visaoGemma } from "../agentico/especialistas/visaoGemma.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
-import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
 import type { ConfigLuna, ProvedorAgente } from "../providers/tipos.js";
 import type { ResultadoResposta } from "./responderLuna.js";
 import { FERRAMENTAS_CHAT } from "../ferramentas/registroFerramentasChat.js";
@@ -69,7 +68,6 @@ export async function responderComoLunaAgentico(
 
   const systemPrompt = [
     carregarInstrucaoSistema(),
-    gerarBlocoPersonalidade(),
     compilarGuiaFerramentasPrompt(),
     contextoCompilado.briefing,
     "Se houver dúvida visual, use a ferramenta ver_imagem antes de responder.",

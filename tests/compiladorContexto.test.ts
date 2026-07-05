@@ -28,4 +28,18 @@ describe("compiladorContexto", () => {
     );
     expect(r.tokens_estimados).toBeLessThanOrEqual(320);
   });
+
+  it("inclui identidade protegida no briefing", () => {
+    const r = compilarContexto(
+      {
+        politica: "ok",
+        identidade: "Quem é Luna: presença conversacional.",
+        sense: "x".repeat(5000),
+      },
+      100,
+    );
+    expect(r.briefing).toContain("Identidade");
+    expect(r.briefing).toContain("Quem é Luna");
+    expect(r.cortes).not.toContain("identidade");
+  });
 });

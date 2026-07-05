@@ -1,7 +1,6 @@
 import type { PoliticaDecisao, AnaliseContexto } from "../analyzers/esquema.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
-import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { MensagemChat, ProvedorLlm } from "../providers/tipos.js";
 import {
@@ -31,7 +30,7 @@ export type OpcoesMensagensRespondedor = {
   intencao?: AnaliseContexto["intencao"];
 };
 
-/** Monta mensagens OpenAI — M3: instrução + personalidade + briefing compilado. */
+/** Monta mensagens OpenAI — M3: instrução constitucional + briefing compilado (identidade incluída). */
 export function montarMensagensRespondedor(opcoes: OpcoesMensagensRespondedor): MensagemChat[] {
   const {
     mensagemUsuario,
@@ -40,18 +39,11 @@ export function montarMensagensRespondedor(opcoes: OpcoesMensagensRespondedor): 
     raciocinioAtivo = true,
     modelo,
     baseUrl = "",
-    interlocutor,
-    intencao,
   } = opcoes;
 
   const instrucaoBase = carregarInstrucaoSistema();
-  const blocoPersonalidade = gerarBlocoPersonalidade({
-    interlocutor,
-    intencao,
-    mensagemUsuario,
-  });
 
-  const partesSystem = [instrucaoBase, blocoPersonalidade, contextoCompilado.briefing];
+  const partesSystem = [instrucaoBase, contextoCompilado.briefing];
   if (precisaRaciocinioPorPrompt(modelo, baseUrl, raciocinioAtivo)) {
     partesSystem.push(blocoPromptRaciocinioInline());
   }

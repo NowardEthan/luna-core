@@ -1,5 +1,5 @@
 /**
- * M3 — Compilador de contexto (Mundo Interior).
+ * M3 — Compilador de contexto (Mundo Interior + identidade).
  * Único portão do briefing situacional para a voz — com orçamento explícito.
  */
 
@@ -36,7 +36,7 @@ type SecaoDef = {
 };
 
 const SECOES: SecaoDef[] = [
-  { chave: "identidade", titulo: "Identidade", prioridade: 1, orcamento: 180 },
+  { chave: "identidade", titulo: "Identidade", prioridade: 1, orcamento: 320 },
   { chave: "agentico", titulo: "Ferramentas", prioridade: 2, orcamento: 60 },
   { chave: "formato", titulo: "Formato", prioridade: 2, orcamento: 80 },
   { chave: "kernel", titulo: "Continuidade", prioridade: 2, orcamento: 400 },
@@ -55,6 +55,7 @@ const SECOES: SecaoDef[] = [
 
 /** Secções do Mundo Interior — nunca cortadas por orçamento. */
 const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
+  "identidade",
   "humor",
   "vida",
   "habitat",

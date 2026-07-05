@@ -19,6 +19,7 @@ import {
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { AnaliseContexto } from "../analyzers/esquema.js";
 import { montarSliceFormato } from "./montarSliceFormato.js";
+import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
 
 export type OpcoesMontarEntradas = {
   politica: PoliticaDecisao;
@@ -60,8 +61,15 @@ export function montarEntradasCompilador(opcoes: OpcoesMontarEntradas): Entradas
       .join("\n");
   }
 
+  const identidade = gerarBlocoPersonalidade({
+    interlocutor,
+    intencao,
+    mensagemUsuario,
+  });
+
   return {
     politica: montarBlocoPoliticaSituacional(politica),
+    identidade: identidade.trim() || undefined,
     formato: montarSliceFormato(politica),
     ecossistema: ecossistema?.trim() || undefined,
     kernel: kernelFinal,

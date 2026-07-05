@@ -39,5 +39,6 @@ describe("pkg-m — habitat", () => {
       habitat,
     });
     expect(entradas.habitat).toContain("Habitat atual");
+    expect(entradas.identidade).toBeTruthy();
   });
 });

@@ -441,6 +441,7 @@ export async function executarPipelineCompleto(
         entradas = {
           ...entradas,
           ...sempreAtivos,
+          identidade: entradas.identidade ?? sempreAtivos.identidade,
           humor: entradas.humor ?? sempreAtivos.humor,
           habitat: entradas.habitat ?? sempreAtivos.habitat,
           vida: entradas.vida ?? sempreAtivos.vida,
@@ -467,6 +468,7 @@ export async function executarPipelineCompleto(
         entradas = {
           ...entradas,
           ...coletado,
+          identidade: entradas.identidade ?? coletado.identidade,
           humor: entradas.humor ?? coletado.humor,
           habitat: entradas.habitat ?? coletado.habitat,
           vida: entradas.vida ?? coletado.vida,
