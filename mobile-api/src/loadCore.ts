@@ -184,6 +184,10 @@ function mapStatusHint(hint: string): "analysing" | "memory" | "writing" | null 
   return null;
 }
 
+function isCerebrasConfig(config: ConfigLuna): boolean {
+  return config.baseUrl.toLowerCase().includes("cerebras.ai");
+}
+
 async function prepararChatMobile(
   message: string,
   sessionId: string | undefined,
@@ -212,7 +216,7 @@ async function prepararChatMobile(
     );
   }
 
-  const isCerebras = selection.providerId === "cerebras";
+  const isCerebras = selection.providerId === "cerebras" || isCerebrasConfig(config);
   const mensagemLimit = isCerebras ? 12_000 : undefined;
 
   const corePath = resolveLunaCorePath();

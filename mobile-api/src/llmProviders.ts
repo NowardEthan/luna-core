@@ -104,6 +104,33 @@ function isGroqChatEnabled(): boolean {
   return !cerebrasApiKey();
 }
 
+/** Chat usa Cerebras (GLM) — Groq fica só para STT/visão. */
+export function isCerebrasChatPrimary(): boolean {
+  return Boolean(cerebrasApiKey()) && !isGroqChatEnabled();
+}
+
+const CEREBRAS_CHAT_SELECTION: LlmProviderSelection = {
+  providerId: "cerebras",
+  modelKey: "glm-47",
+};
+
+/** Premium + Cerebras configurado: nunca devolve groq/auto para o pipeline de texto. */
+function forcarCerebrasNoChat(
+  selection: LlmProviderSelection,
+  planId: PlanId,
+): LlmProviderSelection {
+  if (!isCerebrasChatPrimary()) return selection;
+  if (!isPremiumModelAllowed(planId)) return selection;
+  if (selection.providerId === "groq" || selection.providerId === "auto") {
+    return CEREBRAS_CHAT_SELECTION;
+  }
+  return selection;
+}
+
+function finalizeSelection(selection: LlmProviderSelection, planId: PlanId): LlmProviderSelection {
+  return clampProviderSelectionForPlan(planId, forcarCerebrasNoChat(selection, planId));
+}
+
 function resolveCerebrasModelId(): string {
   return process.env.CEREBRAS_MODEL?.trim() || CEREBRAS_GLM_47.modelId;
 }
@@ -146,6 +173,9 @@ export function normalizeLegacyProviderSelection(
   }
 
   if (providerId === "groq" || providerId === "auto") {
+    if (isCerebrasChatPrimary() && isPremiumModelAllowed(planId)) {
+      return CEREBRAS_CHAT_SELECTION;
+    }
     return {
       providerId: providerId as LlmProviderId,
       modelKey: (modelKey === "auto" ? "auto" : "default") as LlmModelKey,
@@ -271,10 +301,7 @@ export function resolveLlmProviderSelection(
 
   if (isAutoProviderMode(normalized)) {
     if (!message?.trim()) {
-      const selection = clampProviderSelectionForPlan(
-        planId,
-        preferDefaultProvider(available, planId),
-      );
+      const selection = finalizeSelection(preferDefaultProvider(available, planId), planId);
       return {
         selection,
         autoReason: "fallback",
@@ -284,7 +311,7 @@ export function resolveLlmProviderSelection(
       };
     }
     const routed = escolherProvedorAuto(message, available);
-    const selection = clampProviderSelectionForPlan(planId, routed.selection);
+    const selection = finalizeSelection(routed.selection, planId);
     const downgraded = !isPremiumModelAllowed(planId) && isGlm47Provider(routed.selection.providerId, routed.selection.modelKey);
     return {
       selection,
@@ -301,10 +328,10 @@ export function resolveLlmProviderSelection(
       (o) => o.providerId === requestedProvider && o.modelKey === requestedModel,
     );
     if (match) {
-      const selection = clampProviderSelectionForPlan(planId, {
-        providerId: match.providerId,
-        modelKey: match.modelKey,
-      });
+      const selection = finalizeSelection(
+        { providerId: match.providerId, modelKey: match.modelKey },
+        planId,
+      );
       return {
         selection,
         ...(requestedGlm && !isPremiumModelAllowed(planId)
@@ -317,10 +344,10 @@ export function resolveLlmProviderSelection(
   if (requestedProvider && requestedProvider !== "auto") {
     const match = available.find((o) => o.providerId === requestedProvider);
     if (match) {
-      const selection = clampProviderSelectionForPlan(planId, {
-        providerId: match.providerId,
-        modelKey: match.modelKey,
-      });
+      const selection = finalizeSelection(
+        { providerId: match.providerId, modelKey: match.modelKey },
+        planId,
+      );
       return {
         selection,
         ...(requestedGlm && !isPremiumModelAllowed(planId)
@@ -330,7 +357,7 @@ export function resolveLlmProviderSelection(
     }
   }
 
-  const selection = clampProviderSelectionForPlan(planId, preferDefaultProvider(available, planId));
+  const selection = finalizeSelection(preferDefaultProvider(available, planId), planId);
   return {
     selection,
     ...(requestedGlm && !isPremiumModelAllowed(planId)
@@ -374,8 +401,12 @@ function resolveCerebrasConfig(): ConfigLuna | null {
 }
 
 export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | null {
+  // Segurança extra: qualquer pedido groq/auto no chat cai no Cerebras quando é o cérebro principal.
+  if (isCerebrasChatPrimary() && selection.providerId !== "cerebras") {
+    return resolveCerebrasConfig();
+  }
+
   if (selection.providerId === "groq" || selection.providerId === "auto") {
-    // Chat Cerebras-only: seleções legadas (groq/auto) vão pro Cerebras quando disponível.
     if (!isGroqChatEnabled()) {
       const cerebras = resolveCerebrasConfig();
       if (cerebras) return cerebras;
