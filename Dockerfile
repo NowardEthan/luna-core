@@ -45,9 +45,11 @@ ENV SKIP_SQLITE_REBUILD=1
 ENV LUNA_CORE_PATH=/app/luna-core
 ENV LUNA_MOBILE_API_HOST=0.0.0.0
 
-# Core compilado + deps prod
+# Core compilado + deps prod + assets fora de src/dist
 COPY --from=core-builder /build/dist /app/luna-core/dist
 COPY --from=core-builder /build/src /app/luna-core/src
+COPY --from=core-builder /build/constitution /app/luna-core/constitution
+COPY --from=core-builder /build/responder /app/luna-core/responder
 COPY --from=core-builder /build/node_modules /app/luna-core/node_modules
 COPY --from=core-builder /build/package.json /app/luna-core/package.json
 

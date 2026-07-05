@@ -16,7 +16,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-dist-assets.mjs",
     "rebuild:native": "npm rebuild better-sqlite3",
     "postinstall": "node scripts/postinstall-native.mjs",
     "build:watch": "tsc --watch",
