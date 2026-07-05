@@ -84,6 +84,16 @@ sequenceDiagram
 | **Cerebras** | Modo «Completa» — GLM 4.7 | sim (≥ 8 KB) | `parsed` + faixa live | **primário** (`/v1/chat/stream`) |
 | **auto** | Escolhe conforme mensagem/plano | se Cerebras | se Cerebras | se Cerebras |
 
+### Nomes Luna (UI)
+
+| Interno | Nome | Papel |
+|---------|------|--------|
+| `auto` | **Luna Orbita** | Roteamento automático |
+| `groq` | **Luna Clarão** | Respostas ágeis |
+| `cerebras` | **Luna Profunda** | Raciocínio profundo + streaming |
+
+Fonte: `mobile-api/src/modelBrands.ts`
+
 Variáveis: ver [Railway](#deploy-railway) e [`.env.example`](.env.example).
 
 ---
