@@ -95,7 +95,14 @@ export function humorParaPerfilExpressao(
       leveza: gate.nivel_leveza === "alto" ? 0.9 : gate.nivel_leveza === "moderado" ? 0.6 : 0.2,
       interjeicoes: energiaFaixa === "alta" ? "frequentes" : energiaFaixa === "media" ? "naturais" : "raras",
       pergunta_final: gate.permitir_piada ? "se_natural" : "evitar",
-      comprimento: energiaFaixa === "baixa" ? "curto" : energiaFaixa === "media" ? "medio" : "pode_expandir",
+      comprimento:
+        ctx.intencao === "pergunta_identitaria"
+          ? "medio"
+          : energiaFaixa === "baixa"
+            ? "curto"
+            : energiaFaixa === "media"
+              ? "medio"
+              : "pode_expandir",
       emoji: gate.permitir_piada ? "raro" : "evitar",
     },
     disposicao: relacao.disposicao,

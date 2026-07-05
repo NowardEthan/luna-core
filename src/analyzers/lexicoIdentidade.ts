@@ -1,15 +1,12 @@
 import { AnaliseContextoSchema, type AnaliseContexto } from "./esquema.js";
+import { detectarPerguntaVidaInterior, normalizarTextoVida } from "../mundo/vida/detectarPerguntaVidaInterior.js";
 
 const MOTIVO_META =
   /\b(n[aã]o sou|sou um m[oó]dulo|m[oó]dulo interno|n[aã]o sou capaz|n[aã]o conversei|n[aã]o sou a luna|n[aã]o posso responder)\b/i;
 
 /** Remove acentos para matching robusto em português. */
 function normalizarTexto(mensagem: string): string {
-  return mensagem
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return normalizarTextoVida(mensagem);
 }
 
 /** Padrões sobre texto normalizado (sem acentos). */
@@ -31,7 +28,10 @@ const PADROES_IDENTIDADE: RegExp[] = [
 
 export function detectarPerguntaIdentitaria(mensagem: string): boolean {
   const texto = normalizarTexto(mensagem);
-  return PADROES_IDENTIDADE.some((re) => re.test(texto));
+  return (
+    detectarPerguntaVidaInterior(mensagem) ||
+    PADROES_IDENTIDADE.some((re) => re.test(texto))
+  );
 }
 
 /** Reforço determinístico — perguntas identitárias respondem direto, sem pedir clarificação. */

@@ -10,6 +10,10 @@ import { obterSliceHabitatAtual } from "./habitat/storeHabitat.js";
 import { formatarPerfilEscrita } from "../personalidade/vozParaPerfilEscrita.js";
 import { simularVidaInterior, montarResumoVidaInterior } from "./vida/simuladorVida.js";
 import { listarVontadesAtivas } from "./vontade/storeVontade.js";
+import {
+  detectarPerguntaVidaInterior,
+  formatarGuiaRespostaVidaInterior,
+} from "./vida/detectarPerguntaVidaInterior.js";
 
 export type NucleoMundoInterior = {
   humor: string;
@@ -36,12 +40,15 @@ function formatarVontadesAtivas(): string | null {
   return `Vontades ativas: ${vontades.map((v) => v.vontade).join(" | ")}`;
 }
 
-function montarBlocoVida(): string {
+function montarBlocoVida(mensagem?: string): string {
   const partes = [
     coletarNeuronioVida(),
     montarResumoVidaInterior(),
     refletirGostosLuna(3),
     formatarVontadesAtivas(),
+    mensagem && detectarPerguntaVidaInterior(mensagem)
+      ? formatarGuiaRespostaVidaInterior()
+      : null,
   ].filter((p): p is string => Boolean(p?.trim()));
 
   return partes.join("\n");
@@ -83,6 +90,6 @@ export function prepararNucleoMundoInterior(input: {
   return {
     humor: montarBlocoHumor(input.perfilExpressao),
     habitat: sliceHabitatParaAmbiente(input.ambiente),
-    vida: montarBlocoVida(),
+    vida: montarBlocoVida(input.mensagem),
   };
 }

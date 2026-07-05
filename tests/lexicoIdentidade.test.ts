@@ -80,7 +80,11 @@ describe("Léxico de identidade — padrões expandidos", () => {
     expect(detectarPerguntaIdentitaria("Você sofre?")).toBe(true);
   });
 
-  it("NÃO detecta 'você tem tempo?' como pergunta identitária (false positive)", () => {
+  it("detecta perguntas sobre o dia da Luna como identitárias", () => {
+    expect(detectarPerguntaIdentitaria("Oq fez de bom hoje?")).toBe(true);
+  });
+
+  it("'você tem tempo?' → não é pergunta identitária (false positive)", () => {
     expect(detectarPerguntaIdentitaria("Você tem tempo para me ajudar?")).toBe(false);
   });
 });

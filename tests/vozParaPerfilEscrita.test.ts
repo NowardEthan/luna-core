@@ -42,9 +42,9 @@ describe("vozParaPerfilEscrita", () => {
       },
     });
 
-    expect(perfil.reacao).toBe("espelho_curto");
+    expect(perfil.reacao).toBe("acolhimento_ativo");
     expect(perfil.pergunta).toBe("evitar");
-    expect(perfil.cadencia).toBe("curta");
+    expect(perfil.cadencia).toBe("media");
     expect(perfil.assinatura).toBe("calor_estavel");
   });
 

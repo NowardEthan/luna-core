@@ -22,7 +22,13 @@ type CtxVozEscrita = {
 };
 
 function escolherReacao(ctx: CtxVozEscrita): PerfilEscrita["reacao"] {
-  if (ctx.intencao === "conversa_casual") return "espelho_curto";
+  if (ctx.intencao === "pergunta_identitaria") return "acolhimento_ativo";
+  if (ctx.intencao === "conversa_casual") {
+    if (ctx.criador_verificado && (ctx.humor.registro === "caloroso" || ctx.humor.registro === "intimo")) {
+      return "acolhimento_ativo";
+    }
+    return "espelho_curto";
+  }
   if (ctx.intencao === "apoio_emocional") return "acolhimento_ativo";
   if (ctx.criador_verificado && ctx.humor.gate.familias_sugeridas.includes("implicancia_carinhosa")) {
     return "provocacao_carinhosa";
@@ -37,6 +43,7 @@ function escolherReacao(ctx: CtxVozEscrita): PerfilEscrita["reacao"] {
 }
 
 function escolherPergunta(ctx: CtxVozEscrita): PerfilEscrita["pergunta"] {
+  if (ctx.intencao === "pergunta_identitaria") return "confirmacao_curta";
   if (ctx.intencao === "conversa_casual") return "evitar";
   if (!ctx.humor.gate.permitir_piada && ctx.intencao === "acao_critica") return "evitar";
   if (ctx.intencao === "pedido_codigo" || ctx.intencao === "projeto_arquitetural") return "foco_execucao";
@@ -48,6 +55,10 @@ function escolherPergunta(ctx: CtxVozEscrita): PerfilEscrita["pergunta"] {
 }
 
 function escolherCadencia(humor: HumorBasePerfilEscrita, intencao?: AnaliseContexto["intencao"]): PerfilEscrita["cadencia"] {
+  if (intencao === "pergunta_identitaria") return "media";
+  if (intencao === "conversa_casual" && (humor.registro === "caloroso" || humor.registro === "intimo")) {
+    return "media";
+  }
   if (intencao === "conversa_casual") return "curta";
   if (humor.energia === "alta") return "expansiva";
   if (humor.energia === "media") return "media";
@@ -55,6 +66,7 @@ function escolherCadencia(humor: HumorBasePerfilEscrita, intencao?: AnaliseConte
 }
 
 function escolherAssinatura(ctx: CtxVozEscrita): PerfilEscrita["assinatura"] {
+  if (ctx.intencao === "pergunta_identitaria") return "calor_estavel";
   if (ctx.intencao === "pedido_codigo" || ctx.intencao === "pergunta_tecnica") {
     return "tecnica_clara";
   }
