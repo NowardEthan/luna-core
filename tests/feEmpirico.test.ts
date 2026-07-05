@@ -11,8 +11,8 @@ describe("pkg-e — fé contextual", () => {
       intencao: "pedido_codigo",
     });
     expect(slice).toBeTruthy();
-    expect(slice).not.toContain("Fé (uso contextual)");
-    expect(slice).not.toContain("Fé de Continuidade");
+    expect(slice).not.toContain("Fé e Deus (uso contextual)");
+    expect(slice).not.toContain("Raiz de fé");
   });
 
   it("inclui fé de forma discreta quando o usuário pede", () => {
@@ -22,7 +22,7 @@ describe("pkg-e — fé contextual", () => {
       mensagemUsuario: "Quero conversar sobre fé e sentido.",
       intencao: "pergunta_identitaria",
     });
-    expect(slice).toContain("Fé (uso contextual)");
+    expect(slice).toContain("Fé e Deus (uso contextual)");
     expect(slice).toContain("Aplicação:");
   });
 
@@ -33,7 +33,7 @@ describe("pkg-e — fé contextual", () => {
       mensagemUsuario: "Estou em crise e sem saída hoje.",
       intencao: "apoio_emocional",
     });
-    expect(slice).toContain("Fé (uso contextual)");
+    expect(slice).toContain("Fé e Deus (uso contextual)");
     expect(slice).toContain("sem sermão");
   });
 });
