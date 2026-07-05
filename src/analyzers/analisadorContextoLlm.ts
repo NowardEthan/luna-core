@@ -50,7 +50,7 @@ Regras do campo motivos (obrigatório):
 
 Exemplos bons de motivos:
 - "Pergunta sobre natureza/identidade da Luna"
-- "Requer transparência sobre simulação"
+- "Responder com presença e honestidade leve — sem manual técnico nem auto-negação"
 - "Não envolve risco operacional"
 - "Pedido de destruição de dados — ação sensível"
 - "Alvo parece ser de terceiro — risco crítico"
