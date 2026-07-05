@@ -91,6 +91,55 @@ function authHeaders(idToken?: string | null): Record<string, string> {
   return headers;
 }
 
+export type LunaBillingUsageSnapshot = {
+  planId: string;
+  cycle: 'window' | 'monthly' | 'unlimited';
+  periodKey: string;
+  used: {
+    messages: number;
+    images: number;
+    documents: number;
+    voice: number;
+  };
+  limits: Record<string, number | null>;
+  remaining: Record<string, number | null>;
+  bonusTurns: number;
+  resetsAtMs: number | null;
+  windowHours: number | null;
+};
+
+/** Snapshot autoritativo de quota (mobile-api / Firestore). */
+export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageSnapshot> {
+  const base = getLunaApiUrl();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const res = await fetch(`${base}/v1/billing/usage`, {
+      method: 'GET',
+      headers: authHeaders(idToken),
+      signal: controller.signal,
+    });
+    const data = (await res.json()) as {
+      ok: boolean;
+      usage?: LunaBillingUsageSnapshot;
+      error?: string;
+    };
+    if (!res.ok || !data.ok || !data.usage) {
+      throw new LunaApiError(data.error || `Erro ${res.status}`, { status: res.status });
+    }
+    return data.usage;
+  } catch (err) {
+    if (err instanceof LunaApiError) throw err;
+    if (isNetworkFailure(err)) {
+      throw new LunaApiError('Sem conexão para atualizar o contador de mensagens.');
+    }
+    throw new LunaApiError('Não foi possível consultar o uso de mensagens.');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /** Envia um turno de chat à Luna Mobile API. */
 export async function lunaChat(request: LunaChatRequest): Promise<LunaChatResponse & { ok: true }> {
   const base = getLunaApiUrl();

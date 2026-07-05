@@ -56,7 +56,9 @@ export function classificarProfundidade(
   // Simples — só sem alerta ativo (burst impede bypass do LLM)
   if (!alertaAtivo) {
     if (PADROES_SIMPLES.some((r) => r.test(texto))) return "simples";
-    if (texto.length <= 8) return "simples";
+    const PADROES_REFERENCIA_CONTEXTO =
+      /\b(lembra|memoria|memória|cad[êe]|aquilo|isso|bug|erro|ontem|antes|plano|quota)\b/i;
+    if (texto.length <= 8 && !PADROES_REFERENCIA_CONTEXTO.test(texto)) return "simples";
   }
 
   // Complexo — mensagens longas ou com termos técnicos densos

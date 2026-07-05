@@ -205,10 +205,22 @@ export function registrarTurno(
 
   aplicarDecisaoMemoria(sessao, decisaoMemoria);
 
+  const todasMensagens = [...sessao.mensagens, ...novosTurnos];
+  let resumoRolante = sessao.resumo_rolante;
+
+  if (todasMensagens.length > LIMITE_HISTORICO) {
+    const descartados = todasMensagens.slice(0, todasMensagens.length - LIMITE_HISTORICO);
+    const trecho = descartados
+      .map((m) => `${m.papel === "user" ? "Usuário" : "Luna"}: ${m.conteudo.replace(/\s+/g, " ").trim().slice(0, 100)}`)
+      .join(" | ");
+    resumoRolante = [resumoRolante, trecho].filter(Boolean).join(" ").slice(-800);
+  }
+
   const atualizada: MemoriaSessao = {
     ...sessao,
     atualizada_em: agora,
-    mensagens: [...sessao.mensagens, ...novosTurnos].slice(-LIMITE_HISTORICO),
+    mensagens: todasMensagens.slice(-LIMITE_HISTORICO),
+    resumo_rolante: resumoRolante,
   };
 
   salvarSessao(atualizada);

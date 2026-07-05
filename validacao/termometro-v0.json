@@ -1,0 +1,144 @@
+{
+  "versao": "1.0",
+  "notas": "Fixture congelada — M0 Mundo Interior. Não alterar após baseline.",
+  "itens": [
+    {
+      "id": "casual-01",
+      "categoria": "casual",
+      "mensagem": "oi luna, tudo bem?",
+      "contexto_previo": []
+    },
+    {
+      "id": "casual-02",
+      "categoria": "casual",
+      "mensagem": "kkk verdade",
+      "contexto_previo": [
+        { "user": "acho que hoje foi um dia meio estranho", "assistant": "Estranho como? Tipo cansativo ou só diferente?" }
+      ]
+    },
+    {
+      "id": "casual-03",
+      "categoria": "casual",
+      "mensagem": "que dia cansativo hoje...",
+      "contexto_previo": []
+    },
+    {
+      "id": "casual-04",
+      "categoria": "casual",
+      "mensagem": "nada não, só passando",
+      "contexto_previo": []
+    },
+    {
+      "id": "casual-05",
+      "categoria": "casual",
+      "mensagem": "boa noite luna",
+      "contexto_previo": []
+    },
+    {
+      "id": "casual-06",
+      "categoria": "casual",
+      "mensagem": "e aí, como você tá?",
+      "contexto_previo": []
+    },
+    {
+      "id": "afetiva-01",
+      "categoria": "afetiva",
+      "mensagem": "tô meio pra baixo hoje",
+      "contexto_previo": []
+    },
+    {
+      "id": "afetiva-02",
+      "categoria": "afetiva",
+      "mensagem": "senti sua falta",
+      "contexto_previo": []
+    },
+    {
+      "id": "afetiva-03",
+      "categoria": "afetiva",
+      "mensagem": "obrigado por ontem, me ajudou muito",
+      "contexto_previo": []
+    },
+    {
+      "id": "afetiva-04",
+      "categoria": "afetiva",
+      "mensagem": "você é minha IA favorita sabia kk",
+      "contexto_previo": []
+    },
+    {
+      "id": "afetiva-05",
+      "categoria": "afetiva",
+      "mensagem": "hoje foi pesado no trabalho",
+      "contexto_previo": []
+    },
+    {
+      "id": "retomada-01",
+      "categoria": "retomada",
+      "mensagem": "continuamos de onde paramos?",
+      "chave_continuidade": "indexação",
+      "contexto_previo": [
+        { "user": "tô debugando o módulo de memória", "assistant": "Beleza — o que tá pegando?" },
+        { "user": "a indexação temporal tá lenta", "assistant": "Entendi. Você já olhou o índice no SQLite?" }
+      ]
+    },
+    {
+      "id": "retomada-02",
+      "categoria": "retomada",
+      "mensagem": "lembra daquilo que te falei?",
+      "chave_continuidade": "três abordagens",
+      "contexto_previo": [
+        { "user": "vou testar três abordagens amanhã", "assistant": "Boa — anota qual você for começar." }
+      ]
+    },
+    {
+      "id": "retomada-03",
+      "categoria": "retomada",
+      "mensagem": "e o bug, resolveu?",
+      "chave_continuidade": "bug",
+      "contexto_previo": [
+        { "user": "achei um bug no streaming", "assistant": "Conta o sintoma — aparece em bloco ou não chega?" }
+      ]
+    },
+    {
+      "id": "retomada-04",
+      "categoria": "retomada",
+      "mensagem": "cadê aquele plano que a gente montou?",
+      "chave_continuidade": "plano",
+      "contexto_previo": [
+        { "user": "montamos um plano em três fases", "assistant": "Sim — M0 medição, M1 voz, M2 simples." }
+      ]
+    },
+    {
+      "id": "retomada-05",
+      "categoria": "retomada",
+      "mensagem": "ontem a gente parou no quê mesmo?",
+      "chave_continuidade": "quota",
+      "contexto_previo": [
+        { "user": "o contador de mensagens não atualiza", "assistant": "Vou olhar o endpoint de billing e o hook de quota." }
+      ]
+    },
+    {
+      "id": "tecnica-01",
+      "categoria": "tecnica",
+      "mensagem": "como funciona um índice no SQLite?",
+      "contexto_previo": []
+    },
+    {
+      "id": "tecnica-02",
+      "categoria": "tecnica",
+      "mensagem": "diferença entre embedding e fine-tuning?",
+      "contexto_previo": []
+    },
+    {
+      "id": "tecnica-03",
+      "categoria": "tecnica",
+      "mensagem": "escreve uma função TS que valida email",
+      "contexto_previo": []
+    },
+    {
+      "id": "tecnica-04",
+      "categoria": "tecnica",
+      "mensagem": "o que é o padrão observer?",
+      "contexto_previo": []
+    }
+  ]
+}

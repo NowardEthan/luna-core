@@ -13,6 +13,8 @@ import {
   registrarTurno,
 } from "../src/memoria/gerenciadorSessao.js";
 import { responderComoLuna } from "../src/responder/responderLuna.js";
+import { compilarContexto } from "../src/contexto/compiladorContexto.js";
+import { montarEntradasCompilador } from "../src/contexto/montarEntradasCompilador.js";
 import type { ConfigLuna } from "../src/providers/tipos.js";
 import type { PoliticaDecisao } from "../src/analyzers/esquema.js";
 import type { DecisaoMemoria } from "../src/memoria/esquemaMemoria.js";
@@ -203,20 +205,24 @@ describe("V1.1 — memória curta de sessão", () => {
     arquivosTemp.push(caminhoSessao(sessao.id));
 
     const contexto = prepararContextoRespondedor(carregarSessao(sessao.id)!);
+    const compilado = compilarContexto(
+      montarEntradasCompilador({ politica: POLITICA_CASUAL, contextoSessao: contexto }),
+    );
     await responderComoLuna(
       "O que você sabe sobre mim?",
       POLITICA_CASUAL,
       provedor,
       "modelo-maior-teste",
       0.7,
-      contexto,
+      compilado,
+      contexto.historico,
     );
 
     const system = capturas[0]?.mensagens[0]?.conteudo ?? "";
     expect(system).toContain("Sou arquiteto de software");
   });
 
-  it("inclui instrução de sessão ativa quando há histórico sem fatos", async () => {
+  it("inclui histórico nas mensagens de chat quando há turnos anteriores", async () => {
     const capturas: RequisicaoCompletacao[] = [];
     const provedor = criarProvedorEspiao({ "modelo-maior-teste": "ok" }, capturas);
 
@@ -225,18 +231,21 @@ describe("V1.1 — memória curta de sessão", () => {
     arquivosTemp.push(caminhoSessao(sessao.id));
 
     const contexto = prepararContextoRespondedor(carregarSessao(sessao.id)!);
+    const compilado = compilarContexto(
+      montarEntradasCompilador({ politica: POLITICA_CASUAL, contextoSessao: contexto }),
+    );
     await responderComoLuna(
       "Lembra do que te contei?",
       POLITICA_CASUAL,
       provedor,
       "modelo-maior-teste",
       0.7,
-      contexto,
+      compilado,
+      contexto.historico,
     );
 
     const system = capturas[0]?.mensagens[0]?.conteudo ?? "";
-    expect(system).toContain("SESSÃO ATIVA");
-    expect(system).toContain("histórico de sessão");
+    expect(system).toContain("Luna");
     expect(capturas[0]?.mensagens).toHaveLength(4);
   });
 

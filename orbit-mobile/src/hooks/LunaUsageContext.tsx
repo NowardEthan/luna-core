@@ -8,7 +8,11 @@ import {
   quotaApplies,
   remainingTurns,
 } from '../features/billing/quotaUtils';
-import { useLunaUsage, type LunaUsageSnapshot } from '../features/billing/useLunaUsage';
+import {
+  useLunaUsage,
+  type LunaUsageSnapshot,
+  type QuotaKind,
+} from '../features/billing/useLunaUsage';
 import type { LunaPlanId } from '../features/billing/types';
 import { useLunaAuth } from './useLunaAuth';
 import { useLunaBilling, type UseLunaBillingResult } from './useLunaBilling';
@@ -25,6 +29,8 @@ export type LunaUsageContextValue = UseLunaBillingResult & {
   canTranscribeVoice: () => boolean;
   isExceeded: boolean;
   remaining: number | null;
+  bumpUsage: (kind: QuotaKind, amount?: number) => void;
+  refreshUsage: () => Promise<void>;
 };
 
 const LunaUsageContext = createContext<LunaUsageContextValue | null>(null);
@@ -33,10 +39,11 @@ export function LunaUsageProvider({ children }: { children: ReactNode }) {
   const auth = useLunaAuth();
   const isAnonymous = auth.user?.isAnonymous ?? true;
   const billing = useLunaBilling(auth.uid, auth.getIdToken, isAnonymous);
-  const usage = useLunaUsage(billing.plan, auth.uid);
+  const usageState = useLunaUsage(billing.plan, auth.uid, auth.getIdToken);
   const cloudEnabled = auth.configured && auth.uid != null;
 
   const value = useMemo((): LunaUsageContextValue => {
+    const { bumpUsage, refreshFromApi, ...usage } = usageState;
     const applies = quotaApplies(cloudEnabled, isAnonymous, usage);
     const canSend = canSendCloudTurn(cloudEnabled, isAnonymous, usage);
     return {
@@ -51,8 +58,13 @@ export function LunaUsageProvider({ children }: { children: ReactNode }) {
       canTranscribeVoice: () => canTranscribeVoice(cloudEnabled, isAnonymous, usage),
       isExceeded: applies && !canSend,
       remaining: remainingTurns(usage),
+      bumpUsage,
+      refreshUsage: async () => {
+        const token = await auth.getIdToken();
+        if (token) await refreshFromApi(token);
+      },
     };
-  }, [billing, cloudEnabled, isAnonymous, usage]);
+  }, [auth, billing, cloudEnabled, isAnonymous, usageState]);
 
   return <LunaUsageContext.Provider value={value}>{children}</LunaUsageContext.Provider>;
 }

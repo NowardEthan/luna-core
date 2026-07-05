@@ -581,6 +581,11 @@ export function useOrbitChat() {
             () => {},
           );
         }
+
+        if (cloudEnabled && auth.uid && !auth.user?.isAnonymous) {
+          lunaUsage.bumpUsage('messages', 1);
+          void lunaUsage.refreshUsage();
+        }
       } catch (err) {
         setLoading(false);
         if (err instanceof LunaApiError && err.code === 'quota_exceeded') {
@@ -595,7 +600,7 @@ export function useOrbitChat() {
         deliverLunaError(err);
       }
     },
-    [auth, cloudEnabled, ensureSessionId, deliverLunaError, deliverLunaReply, lunaProvider, legacyApi, setLastRouting, profile.displayName, lunaUsage.usage, blockIfQuotaExceeded, reduceMotion, setMessageFeedback],
+    [auth, cloudEnabled, ensureSessionId, deliverLunaError, deliverLunaReply, lunaProvider, legacyApi, setLastRouting, profile.displayName, lunaUsage, blockIfQuotaExceeded, reduceMotion, setMessageFeedback],
   );
 
   const submitPayload = useCallback(

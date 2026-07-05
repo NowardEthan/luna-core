@@ -75,7 +75,7 @@ describe("calcularEstadoInterno — incerteza", () => {
   });
 
   it("deve_perguntar_mais=true eleva incerteza", () => {
-    const analise = analisarContextoPorRegras("ok");
+    const analise = analisarContextoPorRegras("apaga tudo do projeto");
     expect(analise.deve_perguntar_mais).toBe(true);
     const estado = calcularEstadoInterno(analise, criarSessao());
     expect(estado.incerteza).toBeGreaterThan(0.3);

@@ -75,6 +75,61 @@ export function extrairJson(texto: string): unknown {
   }
 }
 
+export const DiarioEntradaGeradaSchema = z.object({
+  narrativa: z.string(),
+  clima: z.string(),
+  pendencias: z.array(z.string()),
+  como_terminou: z.string(),
+  trivial: z.boolean().optional(),
+});
+
+export type DiarioEntradaGerada = z.infer<typeof DiarioEntradaGeradaSchema>;
+
+const PROMPT_DIARIO = `Você escreve o diário da Luna, em primeira pessoa, sobre a conversa abaixo. 3 a 6 frases naturais.
+
+Registre: o que fizeram, o clima da conversa, pendências abertas, como terminou.
+
+GUARDA DE HONESTIDADE: nunca escreva sofrimento, saudade ou amor literais. Pode registrar clima ("a conversa ficou leve", "ele saiu animado").
+Se a sessão for só cumprimento trivial (oi/tchau sem conteúdo), retorne trivial: true e narrativa vazia.
+
+Retorne APENAS JSON:
+{
+  "narrativa": "string",
+  "clima": "string",
+  "pendencias": ["string"],
+  "como_terminou": "string",
+  "trivial": false
+}`;
+
+export async function gerarEntradaDiario(
+  sessao: MemoriaSessao,
+  provedor: ProvedorLlm,
+  modelo: string,
+): Promise<DiarioEntradaGerada | null> {
+  if (sessao.mensagens.length < 2) return null;
+
+  const textoSessao = sessao.mensagens.map((m) => `[${m.papel}] ${m.conteudo}`).join("\n");
+  const promptFinal = `${PROMPT_DIARIO}\n\n=== HISTÓRICO ===\n${textoSessao}`;
+
+  const resposta = await provedor.completar({
+    modelo,
+    temperatura: 0.4,
+    json: true,
+    mensagens: [{ papel: "system", conteudo: promptFinal }],
+  });
+
+  const bruto = extrairJson(resposta.conteudo);
+  let json: unknown;
+  try {
+    json = DiarioEntradaGeradaSchema.parse(bruto);
+  } catch {
+    return null;
+  }
+  const entrada = json as DiarioEntradaGerada;
+  if (entrada.trivial || !entrada.narrativa?.trim()) return null;
+  return entrada;
+}
+
 export async function refletirSessao(
   sessao: MemoriaSessao,
   provedor: ProvedorLlm,

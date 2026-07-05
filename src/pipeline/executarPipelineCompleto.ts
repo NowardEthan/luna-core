@@ -26,6 +26,18 @@ import { carregarPerfil, salvarPerfil } from "../perfil/storePerfil.js";
 import { ativarHabitos, adicionarOuIncrementarHabito } from "../perfil/gerenciadorPerfil.js";
 import type { HabitoComportamental } from "../perfil/esquemaPerfil.js";
 import { montarNarrativaRaciocinio } from "./montarNarrativaRaciocinio.js";
+import { compilarContexto } from "../contexto/compiladorContexto.js";
+import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
+import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
+import { despertar } from "../mundo/despertar.js";
+import { atualizarHumor } from "../mundo/humor/atualizadorHumor.js";
+import { humorParaFrase } from "../mundo/humor/humorParaFrase.js";
+import { lerHumor } from "../mundo/humor/storeHumor.js";
+import { inicializarNeuroniosPadrao } from "../neuronios/inicializarNeuronios.js";
+import { coletarNeuroniosAtivos } from "../neuronios/roteador.js";
+import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
+
+inicializarNeuroniosPadrao();
 
 export type ResultadoCompleto = {
   pipeline: ResultadoPipeline;
@@ -114,7 +126,7 @@ export async function executarPipelineCompleto(
   const neuronioLlm = opcoes.usarNeuronioMemoriaLlm ?? true;
   const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
 
-  opcoes.onStatusHint?.("A analisar intenção…");
+  opcoes.onStatusHint?.("Analisando intenção…");
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -129,6 +141,11 @@ export async function executarPipelineCompleto(
   const sessao = usarMemoria ? obterOuCriarSessao(opcoes.sessaoId) : undefined;
   const contextoSessao = sessao ? prepararContextoRespondedor(sessao) : undefined;
 
+  let kernelDespertar: string | null = null;
+  if (sessao && sessao.mensagens.length === 0 && provedorMenor && config?.modeloMenor) {
+    kernelDespertar = await despertar(sessao.id, provedorMenor, config.modeloMenor);
+  }
+
   if (contextoSessao && opcoes.contexto_ide?.trim()) {
     contextoSessao.contexto_ambiente = opcoes.contexto_ide.trim();
   }
@@ -141,7 +158,7 @@ export async function executarPipelineCompleto(
   if (contextoSessao && estadoPresenca) {
     contextoSessao.ambiente_atual = estadoPresenca.ambiente;
     const sessaoAnterior = transicaoPresenca?.sessao_anterior_id;
-    if (sessaoAnterior && sessaoAnterior !== opcoes.sessaoId) {
+    if (!kernelDespertar && sessaoAnterior && sessaoAnterior !== opcoes.sessaoId) {
       const recap = montarRecapSessao(sessaoAnterior);
       if (recap) transicaoPresenca = { ...transicaoPresenca!, recap };
     }
@@ -200,6 +217,14 @@ export async function executarPipelineCompleto(
   if (sessao) atualizarEstadoInterno(sessao, analise.analise);
   const estadoInterno = sessao?.estado_interno;
 
+  try {
+    atualizarHumor(analise.analise, sessao?.mensagens.length ?? 0);
+  } catch (e) {
+    console.error("Aviso: falha ao atualizar humor", e);
+  }
+
+  const profundidade = analise.profundidade ?? "moderado";
+
   // V3.1 — prior preditivo: padrão de intenções recentes → dica para o respondedor
   const prior = gerarPriorIntencao(sessao, analise.analise);
 
@@ -218,7 +243,7 @@ export async function executarPipelineCompleto(
     politicaModo: pipeline.politica.modo,
   });
 
-  opcoes.onStatusHint?.("A consultar memória…");
+  opcoes.onStatusHint?.("Consultando memória…");
 
   const memoria = await avaliarMemoria(
     mensagem,
@@ -262,9 +287,78 @@ export async function executarPipelineCompleto(
   }
 
   let resposta: ResultadoResposta | undefined;
+  let contextoCompilado: ContextoCompilado | undefined;
+  let neuroniosAtivos: string[] = [];
 
   if (gerarResposta && provedor && config) {
-    opcoes.onStatusHint?.("A redigir resposta…");
+    opcoes.onStatusHint?.("Redigindo resposta…");
+
+    const presencaBruta = contextoSessao?.contexto_presenca?.trim();
+    let ctxRespondedor = contextoSessao;
+    if (profundidade === "simples" && contextoSessao) {
+      ctxRespondedor = enxugarContextoParaSimples(contextoSessao);
+    }
+
+    let humorLinha: string | null = null;
+    try {
+      humorLinha = humorParaFrase(lerHumor());
+    } catch {
+      // humor opcional
+    }
+
+    let entradas = montarEntradasCompilador({
+      politica: politicaComMemoria,
+      kernel: kernelDespertar,
+      humor: humorLinha,
+      sugestaoMemoria: memoria.decisao.sugestao_resposta,
+      resumoRolante: sessao?.resumo_rolante,
+    });
+
+    if (profundidade === "simples" && presencaBruta) {
+      entradas.presenca = presencaBruta;
+    }
+
+    if (profundidade !== "simples" && ctxRespondedor) {
+      try {
+        const { dados: coletado, ativos, scores } = await coletarNeuroniosAtivos({
+          mensagem,
+          intencao: analise.analise.intencao,
+          contextoSessao: ctxRespondedor,
+          prior: prior ?? undefined,
+          habitos: habitosAtivos,
+        });
+        neuroniosAtivos = ativos;
+        entradas = { ...entradas, ...coletado };
+        void scores;
+      } catch (e) {
+        console.error("Aviso: falha no roteador — fallback para coleta completa", e);
+        entradas = montarEntradasCompilador({
+          politica: politicaComMemoria,
+          contextoSessao: ctxRespondedor,
+          kernel: kernelDespertar,
+          humor: humorLinha,
+          prior: prior ?? undefined,
+          habitos: habitosAtivos,
+          sugestaoMemoria: memoria.decisao.sugestao_resposta,
+          resumoRolante: sessao?.resumo_rolante,
+        });
+      }
+    }
+
+    const orcamento = profundidade === "simples" ? 700 : 1200;
+    if (profundidade === "simples" && entradas.presenca) {
+      const presenca = entradas.presenca;
+      const { presenca: _p, ...semPresenca } = entradas;
+      contextoCompilado = compilarContexto(semPresenca, orcamento);
+      contextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n── Presença ──\n${presenca}`,
+        tokens_estimados: contextoCompilado.tokens_estimados + Math.ceil(presenca.length / 4),
+      };
+    } else {
+      contextoCompilado = compilarContexto(entradas, orcamento);
+    }
+    const historico = ctxRespondedor?.historico ?? [];
 
     const usarStream =
       opcoes.stream === true && providerSupportsStream(config.baseUrl);
@@ -277,10 +371,8 @@ export async function executarPipelineCompleto(
         config.baseUrl,
         config.modeloMaior,
         config.temperaturaMaior,
-        contextoSessao,
-        memoria.decisao.sugestao_resposta,
-        prior ?? undefined,
-        habitosAtivos,
+        contextoCompilado,
+        historico,
         raciocinioAtivo,
         {
           onChunk: (chunk: ChunkStreamLlm) => {
@@ -300,10 +392,8 @@ export async function executarPipelineCompleto(
         provedor,
         config.modeloMaior,
         config.temperaturaMaior,
-        contextoSessao,
-        memoria.decisao.sugestao_resposta,
-        prior ?? undefined,
-        habitosAtivos,
+        contextoCompilado,
+        historico,
         raciocinioAtivo,
         config.baseUrl,
       );
@@ -364,6 +454,10 @@ export async function executarPipelineCompleto(
     sessao_id: sessaoAtualizada?.id,
     decisao_memoria: memoria.decisao,
     estado_interno: estadoInterno,
+    tokens_briefing: contextoCompilado?.tokens_estimados,
+    cortes_briefing: contextoCompilado?.cortes,
+    profundidade,
+    neuronios_ativos: neuroniosAtivos.length > 0 ? neuroniosAtivos : undefined,
   });
 
   return {

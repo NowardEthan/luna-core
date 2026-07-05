@@ -29,7 +29,7 @@ import {
   normalizeLegacyProviderSelection,
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
-import { consumeQuota, getUserPlanId, QuotaExceededError } from "./billing/quotaService.js";
+import { consumeQuota, getQuotaSnapshot, getUserPlanId, QuotaExceededError } from "./billing/quotaService.js";
 import type { PlanId } from "./billing/planMapping.js";
 import {
   ChatRequestSchema,
@@ -142,6 +142,23 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     readAuthHeader,
   );
   if (billingHandled) return;
+
+  if (method === "GET" && url.pathname === "/v1/billing/usage") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
+      }
+      if (!auth || auth.isAnonymous) {
+        return sendJson(res, 401, { ok: false, error: "Conta Google necessária para consultar uso." });
+      }
+      const usage = await getQuotaSnapshot(auth.uid);
+      return sendJson(res, 200, { ok: true, usage });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return sendJson(res, 500, { ok: false, error: message });
+    }
+  }
 
   if (method === "GET" && url.pathname === "/health") {
     const corePath = resolveLunaCorePath();

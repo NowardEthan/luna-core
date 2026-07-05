@@ -21,7 +21,7 @@ describe("montarBlocoPresenca — localização atual", () => {
 
   it("usa o rótulo correto para o chat normal", () => {
     const bloco = montarBlocoPresenca(estado("desktop"));
-    expect(bloco).toContain("chat normal do Orbit");
+    expect(bloco).toContain("Luna Chat");
   });
 
   it("reforça que ocupa um ambiente por vez", () => {
@@ -43,7 +43,7 @@ describe("montarBlocoPresenca — localização atual", () => {
 describe("montarBlocoPresenca — transição entre superfícies", () => {
   it("menciona a origem ao transitar do chat para o Forge", () => {
     const bloco = montarBlocoPresenca(estado("forge"), { de: "desktop" });
-    expect(bloco).toContain("chat normal do Orbit");
+    expect(bloco).toContain("Luna Chat");
     expect(bloco).toContain("transitar");
   });
 

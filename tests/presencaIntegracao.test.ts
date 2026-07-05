@@ -74,8 +74,8 @@ describe("Presença ponta-a-ponta no pipeline (V2.3)", () => {
     });
     logs.push(r.log_path);
 
-    expect(systemPrompts[0]).toContain("PRESENÇA");
-    expect(systemPrompts[0]).toContain("chat normal do Orbit");
+    expect(systemPrompts[0]).toContain("Luna Chat");
+    expect(systemPrompts[0]).toMatch(/Presença|PRESENÇA/);
   });
 
   it("ao ir do chat para o Forge, reconhece a transição e traz o recap", async () => {

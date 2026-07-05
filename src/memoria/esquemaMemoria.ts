@@ -71,6 +71,8 @@ export const MemoriaSessaoSchema = z.object({
   contexto_acumulado: ContextoAcumuladoSchema.optional(),
   /** V2.1 — Vetor de estado interno: engajamento, incerteza, atenção, alerta_risco. */
   estado_interno: EstadoInternoSchema.optional(),
+  /** M4 — resumo dos turnos descartados pelo LIMITE_HISTORICO. */
+  resumo_rolante: z.string().optional(),
 });
 
 export type TurnoMensagem = z.infer<typeof TurnoMensagemSchema>;

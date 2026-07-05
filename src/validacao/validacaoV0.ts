@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { listarDiretrizes, carregarInstrucaoSistema } from "../constitution/carregador.js";
 import { gerarPolitica } from "../pipeline/executarPipeline.js";
 import { responderComoLuna } from "../responder/responderLuna.js";
+import { compilarContexto } from "../contexto/compiladorContexto.js";
+import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
 import type { ProvedorLlm, ConfigLuna } from "../providers/tipos.js";
 import {
   avaliarConformidadeResposta,
@@ -87,12 +89,16 @@ export async function executarComparativoAb(
     await sleep(PAUSA_ENTRE_CHAMADAS_MS);
 
     onProgresso?.(c.id, "B (Core)");
+    const compilado = compilarContexto({
+      politica: montarBlocoPoliticaSituacional(pipeline.politica),
+    });
     const b = await responderComoLuna(
       c.mensagem,
       pipeline.politica,
       provedor,
       config.modeloMaior,
       config.temperaturaMaior,
+      compilado,
     );
     await sleep(PAUSA_ENTRE_CHAMADAS_MS);
 

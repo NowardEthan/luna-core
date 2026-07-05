@@ -29,6 +29,11 @@ export type RegistroInteracao = {
   sessao_id?: string;
   decisao_memoria?: DecisaoMemoria;
   estado_interno?: EstadoInterno;
+  /** M3 — briefing da voz */
+  tokens_briefing?: number;
+  cortes_briefing?: string[];
+  profundidade?: string;
+  neuronios_ativos?: string[];
 };
 
 /** Registrador de decisões — log JSON auditável por interação (RNF03). */

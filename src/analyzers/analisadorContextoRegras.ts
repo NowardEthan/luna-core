@@ -188,7 +188,6 @@ export function analisarContextoPorRegras(
     intencao === "pergunta_identitaria"
       ? false
       : devePerguntarBurst ||
-        mensagem.trim().length < 8 ||
         sinais.acao_destrutiva ||
         (intencao === "acao_critica" && nivel_risco !== "nenhum");
 
