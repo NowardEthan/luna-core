@@ -1,13 +1,17 @@
 import { lerClimaGlobal, resetarClimaGlobal, salvarClimaGlobal } from "./climaHumor.js";
+import { lerRelacaoHumor } from "./relacaoHumor.js";
 import { HUMOR_BASELINE, type EstadoHumor } from "./esquemaHumor.js";
 
-/** Shim de compatibilidade legado: agora delega para clima global. */
-export function lerHumor(): EstadoHumor {
+/** Shim de compatibilidade legado: clima global + proximidade da relação por interlocutor. */
+export function lerHumor(interlocutorId?: string | null): EstadoHumor {
   const clima = lerClimaGlobal();
+  const proximidade = interlocutorId
+    ? lerRelacaoHumor(interlocutorId).proximidade
+    : HUMOR_BASELINE.proximidade;
   return {
     valencia: clima.valencia,
     energia: clima.energia,
-    proximidade: HUMOR_BASELINE.proximidade,
+    proximidade,
     atualizado_em: clima.atualizado_em,
   };
 }

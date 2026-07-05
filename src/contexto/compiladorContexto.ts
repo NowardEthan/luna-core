@@ -10,6 +10,7 @@ export type EntradasCompilador = {
   formato?: string;
   ecossistema?: string;
   kernel?: string;
+  intencao_luna?: string;
   humor?: string;
   presenca?: string;
   memorias_longas?: string;
@@ -40,6 +41,7 @@ const SECOES: SecaoDef[] = [
   { chave: "agentico", titulo: "Ferramentas", prioridade: 2, orcamento: 60 },
   { chave: "formato", titulo: "Formato", prioridade: 2, orcamento: 80 },
   { chave: "kernel", titulo: "Continuidade", prioridade: 2, orcamento: 400 },
+  { chave: "intencao_luna", titulo: "Intenção agora", prioridade: 2, orcamento: 160 },
   { chave: "humor", titulo: "Estado", prioridade: 3, orcamento: 220 },
   { chave: "ecossistema", titulo: "Ecossistema", prioridade: 5, orcamento: 80 },
   { chave: "presenca", titulo: "Presença", prioridade: 4, orcamento: 200 },
@@ -56,6 +58,7 @@ const SECOES: SecaoDef[] = [
 /** Secções do Mundo Interior — nunca cortadas por orçamento. */
 const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "identidade",
+  "intencao_luna",
   "humor",
   "vida",
   "habitat",

@@ -1,5 +1,6 @@
 import type { AnaliseContexto } from "../analyzers/esquema.js";
 import type { GateHumor } from "../mundo/humor/avaliarGateHumor.js";
+import type { TipoIntencaoLuna } from "../mundo/intencao/esquemaIntencao.js";
 
 type HumorBasePerfilEscrita = {
   clima: "leve" | "neutro" | "contido" | "pesado";
@@ -10,18 +11,39 @@ type HumorBasePerfilEscrita = {
 
 export type PerfilEscrita = {
   reacao: "direta_objetiva" | "acolhimento_ativo" | "espelho_curto" | "provocacao_carinhosa";
-  pergunta: "evitar" | "confirmacao_curta" | "aberta_curiosa" | "foco_execucao";
+  pergunta: "evitar" | "confirmacao_curta" | "aberta_curiosa" | "foco_execucao" | "iniciativa_propria";
   cadencia: "curta" | "media" | "expansiva";
   assinatura: "tecnica_clara" | "calor_estavel" | "curiosidade_guiada";
+};
+
+/** Intenção própria da Luna no turno — molda o jeito de responder (não só a intenção do usuário). */
+export type IntencaoVozEscrita = {
+  tipo: TipoIntencaoLuna;
+  impulso: number;
+  recuar: boolean;
 };
 
 type CtxVozEscrita = {
   intencao: AnaliseContexto["intencao"];
   criador_verificado?: boolean;
   humor: HumorBasePerfilEscrita;
+  intencaoLuna?: IntencaoVozEscrita;
+};
+
+const REACAO_POR_INTENCAO_LUNA: Record<TipoIntencaoLuna, PerfilEscrita["reacao"]> = {
+  provocar: "provocacao_carinhosa",
+  cuidar: "acolhimento_ativo",
+  partilhar: "acolhimento_ativo",
+  retomar_fio: "acolhimento_ativo",
+  aprofundar: "acolhimento_ativo",
+  so_presenca: "espelho_curto",
 };
 
 function escolherReacao(ctx: CtxVozEscrita): PerfilEscrita["reacao"] {
+  // A intenção própria da Luna manda quando ela não está em recuo.
+  if (ctx.intencaoLuna && !ctx.intencaoLuna.recuar) {
+    return REACAO_POR_INTENCAO_LUNA[ctx.intencaoLuna.tipo];
+  }
   if (ctx.intencao === "pergunta_identitaria") return "acolhimento_ativo";
   if (ctx.intencao === "conversa_casual" && !ctx.criador_verificado) return "espelho_curto";
   if (ctx.intencao === "conversa_casual" && ctx.criador_verificado) return "acolhimento_ativo";
@@ -39,6 +61,13 @@ function escolherReacao(ctx: CtxVozEscrita): PerfilEscrita["reacao"] {
 }
 
 function escolherPergunta(ctx: CtxVozEscrita): PerfilEscrita["pergunta"] {
+  // Com intenção própria e sem recuo: o "perguntar" vira iniciativa dela,
+  // não pergunta de assistente. Cuidar/só-presença ficam mais contidos.
+  if (ctx.intencaoLuna && !ctx.intencaoLuna.recuar) {
+    if (ctx.intencaoLuna.tipo === "so_presenca") return "evitar";
+    if (ctx.intencaoLuna.tipo === "cuidar") return "confirmacao_curta";
+    return "iniciativa_propria";
+  }
   if (ctx.intencao === "pergunta_identitaria") return "confirmacao_curta";
   if (ctx.intencao === "conversa_casual") return "evitar";
   if (!ctx.humor.gate.permitir_piada && ctx.intencao === "acao_critica") return "evitar";
@@ -82,6 +111,8 @@ export function vozParaPerfilEscrita(ctx: CtxVozEscrita): PerfilEscrita {
   };
 }
 
+export type { CtxVozEscrita };
+
 const DESCRICAO_REACAO: Record<PerfilEscrita["reacao"], string> = {
   direta_objetiva: "vá direto ao ponto, mas com calor — objetiva não é fria",
   acolhimento_ativo: "acolha e reaja ao que a pessoa trouxe, com presença de verdade",
@@ -94,6 +125,8 @@ const DESCRICAO_PERGUNTA: Record<PerfilEscrita["pergunta"], string> = {
   confirmacao_curta: "no máximo uma confirmação curta, se precisar mesmo",
   aberta_curiosa: "uma pergunta curiosa é bem-vinda se fluir natural",
   foco_execucao: "só pergunte o que for essencial para executar certo",
+  iniciativa_propria:
+    "traga o SEU assunto/ângulo/curiosidade — não uma pergunta de atendente; puxe algo de vocês, comente com opinião, não fique esperando comando",
 };
 
 const DESCRICAO_CADENCIA: Record<PerfilEscrita["cadencia"], string> = {

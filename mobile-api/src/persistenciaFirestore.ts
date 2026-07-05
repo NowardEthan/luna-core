@@ -16,11 +16,29 @@ import {
   type CacheMundoPersistencia,
 } from "../../dist/persistencia/contextoMundo.js";
 import type { EstadoVida, EventoVidaPersistido } from "../../dist/mundo/vida/storeVida.js";
+import type { EventoAfetivo } from "../../dist/mundo/humor/eventoAfectivo.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
+import { ehCriadorVerificado } from "./criadorVerificado.js";
 
 const LIMITE_GOSTOS = 40;
+const PROXIMIDADE_CRIADOR = 0.88;
+
+/** Proximidade inicial por interlocutor — alinhado ao SQLite (criador = 0.88). */
+export function proximidadeBaselineRelacao(uid: string): number {
+  return ehCriadorVerificado(uid)
+    ? Math.max(HUMOR_BASELINE.proximidade, PROXIMIDADE_CRIADOR)
+    : HUMOR_BASELINE.proximidade;
+}
+
+function aplicarPisoProximidadeCriador(uid: string, proximidade: number): number {
+  if (ehCriadorVerificado(uid)) {
+    return Math.max(proximidade, PROXIMIDADE_CRIADOR);
+  }
+  return proximidade;
+}
 const LIMITE_VONTADES = 30;
 const LIMITE_VIDA_EVENTOS = 40;
+const LIMITE_HUMOR_EVENTOS = 10;
 const LIMITE_MEMORIA_FATOS = 200;
 
 function baselineClima(): ClimaHumor {
@@ -34,7 +52,7 @@ function baselineClima(): ClimaHumor {
 function baselineRelacao(uid: string): RelacaoHumor {
   return {
     interlocutor_id: uid,
-    proximidade: HUMOR_BASELINE.proximidade,
+    proximidade: proximidadeBaselineRelacao(uid),
     disposicao: "aberta",
     ultimo_impacto: null,
     intensidade: 0,
@@ -85,7 +103,7 @@ export async function hidratarCacheMundoFirestore(
 ): Promise<CacheMundoPersistencia> {
   const cache = criarCacheMundoVazio(uid);
 
-  const [climaSnap, habitatSnap, relacaoSnap, gostosSnap, vontadesSnap, vidaEstadoSnap, vidaEventosSnap, memoriaSnap] =
+  const [climaSnap, habitatSnap, relacaoSnap, gostosSnap, vontadesSnap, vidaEstadoSnap, vidaEventosSnap, humorEventosSnap, memoriaSnap] =
     await Promise.all([
       db.doc(docMundoGlobal("clima")).get(),
       db.doc(docMundoGlobal("habitat")).get(),
@@ -94,6 +112,7 @@ export async function hidratarCacheMundoFirestore(
       db.collection(colMundoGlobal("vontades")).where("status", "==", "ativa").limit(LIMITE_VONTADES).get(),
       db.doc(docMundoGlobal("vida_estado")).get(),
       db.collection(colMundoGlobal("vida_eventos")).orderBy("criado_em", "desc").limit(LIMITE_VIDA_EVENTOS).get(),
+      db.collection(colMundoGlobal("humor_eventos")).orderBy("criado_em", "desc").limit(LIMITE_HUMOR_EVENTOS).get(),
       db.collection(colMemoriaFatos(uid)).where("ativo", "==", 1).limit(LIMITE_MEMORIA_FATOS).get(),
     ]);
 
@@ -115,7 +134,10 @@ export async function hidratarCacheMundoFirestore(
   cache.relacao = relacaoSnap.exists
     ? {
         interlocutor_id: uid,
-        proximidade: Number(relacaoSnap.data()?.proximidade ?? HUMOR_BASELINE.proximidade),
+        proximidade: aplicarPisoProximidadeCriador(
+          uid,
+          Number(relacaoSnap.data()?.proximidade ?? proximidadeBaselineRelacao(uid)),
+        ),
         disposicao: (relacaoSnap.data()?.disposicao as RelacaoHumor["disposicao"]) ?? "aberta",
         ultimo_impacto: (relacaoSnap.data()?.ultimo_impacto as string | null) ?? null,
         intensidade: Number(relacaoSnap.data()?.intensidade ?? 0),
@@ -169,6 +191,26 @@ export async function hidratarCacheMundoFirestore(
       criado_em: String(d.criado_em ?? new Date().toISOString()),
     });
   }
+
+  const agoraIso = new Date().toISOString();
+  cache.eventosAfetivosRecentes = humorEventosSnap.docs
+    .map((doc): EventoAfetivo => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        tipo: d.tipo as EventoAfetivo["tipo"],
+        interlocutor_id: (d.interlocutor_id as string | null) ?? null,
+        narrativa_interna: String(d.narrativa_interna ?? ""),
+        intensidade: Number(d.intensidade ?? 0),
+        criado_em: String(d.criado_em ?? new Date().toISOString()),
+        expira_em: String(d.expira_em ?? new Date().toISOString()),
+      };
+    })
+    .filter(
+      (ev) =>
+        ev.expira_em > agoraIso &&
+        (ev.interlocutor_id === uid || ev.interlocutor_id === null),
+    );
 
   for (const doc of memoriaSnap.docs) {
     cache.memoriaFatos.set(doc.id, fatoFromFirestore(doc.data() as Record<string, unknown>, doc.id));

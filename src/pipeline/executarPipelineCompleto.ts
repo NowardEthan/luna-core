@@ -40,6 +40,9 @@ import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/tal
 import { prepararNucleoMundoInterior } from "../mundo/montarNucleoMundoInterior.js";
 import { coletarNeuroniosSempreAtivos } from "../neuronios/coletarSempreAtivos.js";
 import { criarVontadeNarrativa } from "../mundo/vontade/storeVontade.js";
+import { formarIntencaoLuna } from "../mundo/intencao/motorIntencao.js";
+import { formatarBlocoIntencao } from "../mundo/intencao/formatarIntencao.js";
+import type { IntencaoLuna } from "../mundo/intencao/esquemaIntencao.js";
 import { inicializarNeuroniosPadrao } from "../neuronios/inicializarNeuronios.js";
 import { coletarNeuroniosAtivos } from "../neuronios/roteador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
@@ -289,6 +292,7 @@ export async function executarPipelineCompleto(
   let perfilExpressaoAtual:
     | ReturnType<typeof humorParaPerfilExpressao>
     | undefined;
+  let intencaoLuna: IntencaoLuna | undefined;
 
   try {
     atualizarHumor(
@@ -301,6 +305,32 @@ export async function executarPipelineCompleto(
     console.error("Aviso: falha ao atualizar humor", e);
   }
 
+  // Intenção própria da Luna: o que ELA quer nesta troca (não só reagir).
+  // Turnos simples usam regras (sem custo de LLM); demais usam o modelo menor (Cerebras).
+  try {
+    const clima = lerClimaGlobal();
+    const relacao = lerRelacaoHumor(opcoes.interlocutor?.uid);
+    const ultimoAssistant = [...(contextoSessao?.historico ?? [])]
+      .reverse()
+      .find((m) => m.papel === "assistant")?.conteudo;
+    const usarLlmIntencao = analise.profundidade !== "simples";
+    intencaoLuna = await formarIntencaoLuna(
+      {
+        mensagem,
+        intencao_usuario: analise.analise.intencao,
+        nivel_risco: analise.analise.nivel_risco,
+        criador_verificado: opcoes.interlocutor?.criador_verificado,
+        clima: { valencia: clima.valencia, energia: clima.energia },
+        relacao: { proximidade: relacao.proximidade, disposicao: relacao.disposicao },
+        ultimoFio: ultimoAssistant,
+      },
+      usarLlmIntencao ? provedorMenor : undefined,
+      usarLlmIntencao ? config?.modeloMenor : undefined,
+    );
+  } catch (e) {
+    console.error("Aviso: falha ao formar intenção da Luna", e);
+  }
+
   try {
     const clima = lerClimaGlobal();
     const relacao = lerRelacaoHumor(opcoes.interlocutor?.uid);
@@ -308,6 +338,9 @@ export async function executarPipelineCompleto(
       intencao: analise.analise.intencao,
       nivel_risco: analise.analise.nivel_risco,
       criador_verificado: opcoes.interlocutor?.criador_verificado,
+      intencaoLuna: intencaoLuna
+        ? { tipo: intencaoLuna.tipo, impulso: intencaoLuna.impulso, recuar: intencaoLuna.recuar }
+        : undefined,
     });
     perfilExpressaoAtual = perfil;
     humorAtualBadge = humorParaBadge(perfil);
@@ -404,6 +437,7 @@ export async function executarPipelineCompleto(
       perfilExpressao: perfilExpressaoAtual,
       ambiente: opcoes.ambiente,
       criador_verificado: opcoes.interlocutor?.criador_verificado,
+      interlocutorId: opcoes.interlocutor?.uid,
     });
     humorLinha = nucleo.humor;
 
@@ -493,6 +527,10 @@ export async function executarPipelineCompleto(
         });
         entradas = { ...entradas, vida: nucleo.vida };
       }
+    }
+
+    if (intencaoLuna) {
+      entradas.intencao_luna = formatarBlocoIntencao(intencaoLuna);
     }
 
     const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));

@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { FatoConfirmadoDb } from "../memoria/longa/esquemaSqlite.js";
 import type { ClimaHumor } from "../mundo/humor/climaHumor.js";
 import type { RelacaoHumor } from "../mundo/humor/relacaoHumor.js";
-import type { TipoEventoAfetivo } from "../mundo/humor/eventoAfectivo.js";
+import type { EventoAfetivo, TipoEventoAfetivo } from "../mundo/humor/eventoAfectivo.js";
 import type { GostoLuna } from "../mundo/gostos/storeGostos.js";
 import type { VontadeNarrativa } from "../mundo/vontade/storeVontade.js";
 import type { EstadoVida, EventoVidaPersistido } from "../mundo/vida/storeVida.js";
@@ -39,6 +39,8 @@ export type CacheMundoPersistencia = {
   vontades: Map<string, VontadeNarrativa>;
   vidaEstado?: EstadoVida;
   vidaEventos: Map<string, EventoVidaPersistido>;
+  /** Eventos afetivos lidos do Firestore (TTL 24h) — leitura no turno. */
+  eventosAfetivosRecentes: EventoAfetivo[];
   eventosAfetivosPendentes: EventoAfetivoPendente[];
   memoriaFatos: Map<string, FatoConfirmadoDb>;
   dirty: MundoDirty;
@@ -52,6 +54,7 @@ export function criarCacheMundoVazio(uid: string): CacheMundoPersistencia {
     gostos: new Map(),
     vontades: new Map(),
     vidaEventos: new Map(),
+    eventosAfetivosRecentes: [],
     eventosAfetivosPendentes: [],
     memoriaFatos: new Map(),
     dirty: {

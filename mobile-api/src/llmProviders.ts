@@ -93,8 +93,24 @@ function isProviderConfigured(providerId: CatalogProviderId): boolean {
   return Boolean(cerebrasApiKey());
 }
 
+/**
+ * Groq deixou de ser o cérebro: por padrão só o Cerebras responde ao chat
+ * (o Ethan paga o Cerebras e tem mais limites). A key do Groq continua viva
+ * só para STT (voz) e visão (imagem), que o Cerebras não oferece.
+ * Reativa Groq no chat só via LUNA_GROQ_CHAT=1 ou se o Cerebras não existir (fallback de emergência).
+ */
+function isGroqChatEnabled(): boolean {
+  if (process.env.LUNA_GROQ_CHAT === "1") return true;
+  return !cerebrasApiKey();
+}
+
 function resolveCerebrasModelId(): string {
   return process.env.CEREBRAS_MODEL?.trim() || CEREBRAS_GLM_47.modelId;
+}
+
+/** Modelo Cerebras para os neurônios/análise (menor). Cai no principal se não configurado. */
+function resolveCerebrasMenorModelId(): string {
+  return process.env.CEREBRAS_MODEL_MENOR?.trim() || resolveCerebrasModelId();
 }
 
 function groqMenorModelId(): string {
@@ -155,7 +171,7 @@ export function listConfiguredProviderOptions(): LlmProviderOption[] {
     });
   }
 
-  if (isProviderConfigured("groq") && MODELS.groq.default) {
+  if (isGroqChatEnabled() && isProviderConfigured("groq") && MODELS.groq.default) {
     options.push({
       providerId: "groq",
       modelKey: "default",
@@ -333,8 +349,36 @@ function attachGroqAuxiliar(config: ConfigLuna): ConfigLuna {
   };
 }
 
+function resolveCerebrasConfig(): ConfigLuna | null {
+  const apiKey = cerebrasApiKey();
+  if (!apiKey) return null;
+
+  const baseUrl = process.env.CEREBRAS_API_BASE?.trim() || CEREBRAS_BASE;
+  const model = resolveCerebrasModelId();
+  const modeloMenor = resolveCerebrasMenorModelId();
+
+  const config: ConfigLuna = {
+    apiKey,
+    baseUrl,
+    modeloMenor,
+    modeloMaior: model,
+    temperaturaMenor: 0,
+    temperaturaMaior: Number(process.env.CEREBRAS_TEMPERATURA ?? process.env.LUNA_TEMPERATURA_MAIOR ?? 1),
+  };
+
+  // Só cai no Groq para o modelo auxiliar (neurônios) se o chat Groq estiver ativo.
+  // Cerebras-only por padrão: os neurônios também rodam no Cerebras.
+  return isGroqChatEnabled() ? attachGroqAuxiliar(config) : config;
+}
+
 export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | null {
   if (selection.providerId === "groq" || selection.providerId === "auto") {
+    // Chat Cerebras-only: seleções legadas (groq/auto) vão pro Cerebras quando disponível.
+    if (!isGroqChatEnabled()) {
+      const cerebras = resolveCerebrasConfig();
+      if (cerebras) return cerebras;
+    }
+
     const apiKey = groqApiKey();
     if (!apiKey) return null;
 
@@ -349,20 +393,7 @@ export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | 
   }
 
   if (selection.providerId === "cerebras") {
-    const apiKey = cerebrasApiKey();
-    if (!apiKey) return null;
-
-    const baseUrl = process.env.CEREBRAS_API_BASE?.trim() || CEREBRAS_BASE;
-    const model = resolveCerebrasModelId();
-
-    return attachGroqAuxiliar({
-      apiKey,
-      baseUrl,
-      modeloMenor: model,
-      modeloMaior: model,
-      temperaturaMenor: 0,
-      temperaturaMaior: Number(process.env.CEREBRAS_TEMPERATURA ?? process.env.LUNA_TEMPERATURA_MAIOR ?? 1),
-    });
+    return resolveCerebrasConfig();
   }
 
   return null;

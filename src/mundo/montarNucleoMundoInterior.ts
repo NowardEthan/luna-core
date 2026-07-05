@@ -18,6 +18,7 @@ import {
   formatarLeiPresencaViva,
   formatarPresencaInteriorContinua,
 } from "./formatarLeiPresencaViva.js";
+import { formatarEcoAfetivo } from "./humor/formatarEcoAfetivo.js";
 
 export type NucleoMundoInterior = {
   humor: string;
@@ -62,10 +63,11 @@ function montarBlocoVida(mensagem?: string): string {
 function montarBlocoHumor(
   perfilExpressao?: PerfilExpressaoHumor,
   criadorVerificado?: boolean,
+  interlocutorId?: string | null,
 ): string {
   const linhas: string[] = [];
   try {
-    linhas.push(humorParaFrase(lerHumor()));
+    linhas.push(humorParaFrase(lerHumor(interlocutorId)));
   } catch {
     linhas.push("Estado da Luna: clima neutro, energia média, registro próximo.");
   }
@@ -75,6 +77,9 @@ function montarBlocoHumor(
     linhas.push(formatarPerfilEscrita(perfilExpressao.perfil_escrita));
     linhas.push(formatarModuladoresExpressao(perfilExpressao));
   }
+
+  const ecoAfetivo = formatarEcoAfetivo(interlocutorId);
+  if (ecoAfetivo) linhas.push(ecoAfetivo);
 
   linhas.push(formatarLeiPresencaViva({ criador_verificado: criadorVerificado }));
 
@@ -91,6 +96,7 @@ export function prepararNucleoMundoInterior(input: {
   perfilExpressao?: PerfilExpressaoHumor;
   ambiente?: Ambiente;
   criador_verificado?: boolean;
+  interlocutorId?: string | null;
 }): NucleoMundoInterior {
   try {
     simularVidaInterior(input.mensagem, input.analise);
@@ -99,7 +105,7 @@ export function prepararNucleoMundoInterior(input: {
   }
 
   return {
-    humor: montarBlocoHumor(input.perfilExpressao, input.criador_verificado),
+    humor: montarBlocoHumor(input.perfilExpressao, input.criador_verificado, input.interlocutorId),
     habitat: sliceHabitatParaAmbiente(input.ambiente),
     vida: montarBlocoVida(input.mensagem),
   };

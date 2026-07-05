@@ -3,7 +3,11 @@ import { avaliarGateHumor, type FamiliaHumor, type GateHumor } from "./avaliarGa
 import type { ClimaHumor } from "./climaHumor.js";
 import type { ImpactoAfetivo } from "./analisadorImpactoAfetivo.js";
 import type { RelacaoHumor } from "./relacaoHumor.js";
-import { vozParaPerfilEscrita, type PerfilEscrita } from "../../personalidade/vozParaPerfilEscrita.js";
+import {
+  vozParaPerfilEscrita,
+  type PerfilEscrita,
+  type IntencaoVozEscrita,
+} from "../../personalidade/vozParaPerfilEscrita.js";
 
 export type PerfilExpressaoHumor = {
   clima: "leve" | "neutro" | "contido" | "pesado";
@@ -33,6 +37,7 @@ type CtxPerfil = {
   nivel_risco: "nenhum" | "baixo" | "medio" | "alto" | "critico";
   criador_verificado?: boolean;
   impacto?: ImpactoAfetivo;
+  intencaoLuna?: IntencaoVozEscrita;
 };
 
 function faixaEnergia(v: number): PerfilExpressaoHumor["energia"] {
@@ -86,6 +91,7 @@ export function humorParaPerfilExpressao(
       registro,
       gate,
     },
+    intencaoLuna: ctx.intencaoLuna,
   });
 
   return {
