@@ -2,6 +2,7 @@
 #
 # Layout runtime = monorepo local (mobile-api dentro de luna-core) para imports ../../src.
 # OOM exit 137: npm ci --ignore-scripts evita recompilar better-sqlite3 no build.
+# sharp (@xenova/transformers): postinstall baixa prebuild linux-x64 — rebuild explícito abaixo.
 
 FROM node:22-bookworm-slim AS core-builder
 
@@ -10,7 +11,8 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 COPY scripts/postinstall-native.mjs scripts/
 
-RUN npm ci --ignore-scripts --no-audit --no-fund
+RUN npm ci --ignore-scripts --no-audit --no-fund \
+  && npm rebuild sharp --foreground-scripts
 
 COPY . .
 RUN npm run build \

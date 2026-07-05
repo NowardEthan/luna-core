@@ -1,15 +1,19 @@
 #!/usr/bin/env node
-/** Rebuild better-sqlite3 só em dev local — Docker/Railway usam prebuild (--ignore-scripts). */
+/**
+ * Dev local: rebuild better-sqlite3 (compila nativo).
+ * Docker/Railway: npm ci --ignore-scripts + `npm rebuild sharp` no Dockerfile.
+ */
 import { execSync } from "node:child_process";
 
-const skip =
+const skipSqlite =
   process.env.SKIP_SQLITE_REBUILD === "1" ||
   process.env.CI === "true" ||
   process.env.RAILWAY === "true" ||
   process.env.RAILWAY_ENVIRONMENT != null;
 
-if (skip) {
-  process.exit(0);
+if (!skipSqlite) {
+  execSync("npm rebuild better-sqlite3", { stdio: "inherit" });
 }
 
-execSync("npm rebuild better-sqlite3", { stdio: "inherit" });
+// sharp precisa do binário da plataforma actual (@xenova/transformers)
+execSync("npm rebuild sharp --foreground-scripts", { stdio: "inherit" });
