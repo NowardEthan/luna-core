@@ -89,8 +89,8 @@ sequenceDiagram
 | Interno | Nome | Papel |
 |---------|------|--------|
 | `auto` | **Luna Orbita** | Roteamento automático |
-| `groq` | **Luna Clarão** | Respostas ágeis |
-| `cerebras` | **Luna Profunda** | Raciocínio profundo + streaming |
+| `groq` | **Luna Pulse** | Respostas ágeis (GPT-OSS) |
+| `cerebras` | **Luna Core** | Raciocínio profundo + streaming (GLM 4.7) |
 
 Fonte: `mobile-api/src/modelBrands.ts`
 

@@ -25,7 +25,7 @@ interface Props {
   compact?: boolean;
   /** Mostra todas as opções do servidor (modo avançado). */
   showAllOptions?: boolean;
-  /** Plano actual — oculta Profunda no Grátis. */
+  /** Plano actual — oculta Core no Grátis. */
   planId?: LunaPlanId;
 }
 

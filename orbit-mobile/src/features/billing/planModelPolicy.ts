@@ -1,6 +1,6 @@
 import type { LunaPlanId } from './types';
 
-/** GLM 4.7 / Luna Profunda — bloqueado no plano Grátis. */
+/** GLM 4.7 / Luna Core — bloqueado no plano Grátis. */
 export function isPremiumModelAllowed(planId: LunaPlanId): boolean {
   return planId !== 'free';
 }
@@ -23,4 +23,4 @@ export const FREE_PLAN_DEFAULT_PROVIDER = {
 };
 
 export const FREE_PLAN_AUTO_DESCRIPTION =
-  'Clarão por padrão no Grátis. Luna Profunda disponível no Plus.';
+  'Pulse por padrão no Grátis. Luna Core disponível no Plus.';

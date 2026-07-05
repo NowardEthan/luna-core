@@ -2,7 +2,7 @@ import type { PlanId } from "./planMapping.js";
 
 import { FREE_PLAN_BRAND_NOTICE } from "../modelBrands.js";
 
-/** GLM 4.7 / Luna Profunda — planos pagos e trial. */
+/** GLM 4.7 / Luna Core — planos pagos e trial. */
 export function isPremiumModelAllowed(planId: PlanId): boolean {
   return planId !== "free";
 }

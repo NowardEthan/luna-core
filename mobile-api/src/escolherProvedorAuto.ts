@@ -18,7 +18,7 @@ export const AUTO_REASON_LABELS: Record<AutoRoutingReason, string> = {
   contexto_longo: AUTO_ROUTING_BRAND_LABELS.contexto_longo,
   documento: AUTO_ROUTING_BRAND_LABELS.documento,
   chat_rapido: AUTO_ROUTING_BRAND_LABELS.chat_rapido,
-  fallback: AUTO_ROUTING_BRAND_LABELS.fallback_profunda,
+  fallback: AUTO_ROUTING_BRAND_LABELS.fallback_core,
 };
 
 export { FREE_PLAN_BRAND_NOTICE as FREE_PLAN_MODEL_NOTICE };

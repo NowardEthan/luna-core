@@ -1,9 +1,9 @@
 /**
  * Nomes de produto dos modos de resposta da Luna (UI).
- * Mantém sincronizado com ../../modelBrands.ts na raiz do monorepo.
+ * Mantém sincronizado com mobile-api/src/modelBrands.ts
  */
 
-export type LunaBrandMode = "orbita" | "clarao" | "profunda";
+export type LunaBrandMode = "orbita" | "pulse" | "core";
 
 export type LunaBrandProviderId = "groq" | "cerebras" | "auto";
 export type LunaBrandModelKey = "default" | "glm-47" | "auto";
@@ -20,37 +20,37 @@ export const LUNA_BRAND_ORBITA: LunaModelBrand = {
   mode: "orbita",
   name: "Orbita",
   fullName: "Luna Orbita",
-  description: "A Luna escolhe Clarão ou Profunda conforme cada mensagem.",
+  description: "A Luna escolhe Pulse ou Core conforme cada mensagem.",
   tagline: "Recomendado para a maioria das conversas.",
 };
 
-export const LUNA_BRAND_CLARAO: LunaModelBrand = {
-  mode: "clarao",
-  name: "Clarão",
-  fullName: "Luna Clarão",
+export const LUNA_BRAND_PULSE: LunaModelBrand = {
+  mode: "pulse",
+  name: "Pulse",
+  fullName: "Luna Pulse",
   description: "Respostas ágeis — ideal para o dia a dia, follow-ups e perguntas curtas.",
   tagline: "Rápida e directa.",
 };
 
-export const LUNA_BRAND_PROFUNDA: LunaModelBrand = {
-  mode: "profunda",
-  name: "Profunda",
-  fullName: "Luna Profunda",
-  description: "Raciocínio aprofundado — código, documentos, anexos e temas densos.",
+export const LUNA_BRAND_CORE: LunaModelBrand = {
+  mode: "core",
+  name: "Core",
+  fullName: "Luna Core",
+  description: "Raciocínio profundo — código, documentos, anexos e temas densos.",
   tagline: "Pensa antes de responder.",
 };
 
 const BRAND_BY_KEY: Record<string, LunaModelBrand> = {
   "auto-auto": LUNA_BRAND_ORBITA,
-  "groq-default": LUNA_BRAND_CLARAO,
-  "cerebras-glm-47": LUNA_BRAND_PROFUNDA,
+  "groq-default": LUNA_BRAND_PULSE,
+  "cerebras-glm-47": LUNA_BRAND_CORE,
 };
 
 export function lunaModelBrand(
   providerId: LunaBrandProviderId | string,
   modelKey: LunaBrandModelKey | string,
 ): LunaModelBrand {
-  return BRAND_BY_KEY[`${providerId}-${modelKey}`] ?? LUNA_BRAND_CLARAO;
+  return BRAND_BY_KEY[`${providerId}-${modelKey}`] ?? LUNA_BRAND_PULSE;
 }
 
 export function lunaModelLabel(
@@ -62,7 +62,7 @@ export function lunaModelLabel(
   return opts?.full ? brand.fullName : brand.name;
 }
 
-export const FREE_PLAN_BRAND_NOTICE = "Plano Grátis — Luna Clarão (Profunda no Plus)";
+export const FREE_PLAN_BRAND_NOTICE = "Plano Grátis — Luna Pulse (Core no Plus)";
 
 export const AUTO_BRAND_DESCRIPTION_FREE =
-  "Clarão por padrão no Grátis. Luna Profunda no Plus.";
+  "Pulse por padrão no Grátis. Luna Core no Plus.";

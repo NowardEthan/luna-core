@@ -7,9 +7,9 @@ import {
 } from '../features/billing/planModelPolicy';
 import type { LunaPlanId } from '../features/billing/types';
 import {
-  LUNA_BRAND_CLARAO,
+  LUNA_BRAND_PULSE,
   LUNA_BRAND_ORBITA,
-  LUNA_BRAND_PROFUNDA,
+  LUNA_BRAND_CORE,
   lunaModelBrand,
   lunaModelLabel,
 } from './modelBrands';
@@ -164,16 +164,16 @@ export function providerOptionLabel(
 export const LEGACY_GROQ_OPTION: LunaProviderOption = {
   providerId: 'groq',
   modelKey: 'default',
-  label: LUNA_BRAND_CLARAO.fullName,
-  description: LUNA_BRAND_CLARAO.description,
+  label: LUNA_BRAND_PULSE.fullName,
+  description: LUNA_BRAND_PULSE.description,
   modelId: 'openai/gpt-oss-120b',
 };
 
 const CEREBRAS_GLM_OPTION: LunaProviderOption = {
   providerId: 'cerebras',
   modelKey: 'glm-47',
-  label: LUNA_BRAND_PROFUNDA.fullName,
-  description: LUNA_BRAND_PROFUNDA.description,
+  label: LUNA_BRAND_CORE.fullName,
+  description: LUNA_BRAND_CORE.description,
   modelId: 'zai-glm-4.7',
 };
 
@@ -236,7 +236,7 @@ function normalizeHealthOption(opt: {
   }
 
   if (opt.providerId === 'groq' && opt.modelKey === 'default') {
-    const brand = LUNA_BRAND_CLARAO;
+    const brand = LUNA_BRAND_PULSE;
     return {
       providerId: 'groq',
       modelKey: 'default',
@@ -247,7 +247,7 @@ function normalizeHealthOption(opt: {
   }
 
   if (opt.providerId === 'cerebras' && opt.modelKey === 'glm-47') {
-    const brand = LUNA_BRAND_PROFUNDA;
+    const brand = LUNA_BRAND_CORE;
     return {
       providerId: 'cerebras',
       modelKey: 'glm-47',

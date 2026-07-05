@@ -15,9 +15,9 @@ import {
   AUTO_BRAND_DESCRIPTION_FREE,
   AUTO_BRAND_DESCRIPTION_PREMIUM,
   FREE_PLAN_BRAND_NOTICE,
-  LUNA_BRAND_CLARAO,
+  LUNA_BRAND_PULSE,
   LUNA_BRAND_ORBITA,
-  LUNA_BRAND_PROFUNDA,
+  LUNA_BRAND_CORE,
 } from "./modelBrands.js";
 
 type ConfigLuna = {
@@ -54,14 +54,14 @@ export type LlmProviderOption = {
 const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
 
 const GROQ_DEFAULT = {
-  label: LUNA_BRAND_CLARAO.fullName,
-  description: LUNA_BRAND_CLARAO.description,
+  label: LUNA_BRAND_PULSE.fullName,
+  description: LUNA_BRAND_PULSE.description,
   modelId: "openai/gpt-oss-120b",
 };
 
 const CEREBRAS_GLM_47 = {
-  label: LUNA_BRAND_PROFUNDA.fullName,
-  description: LUNA_BRAND_PROFUNDA.description,
+  label: LUNA_BRAND_CORE.fullName,
+  description: LUNA_BRAND_CORE.description,
   modelId: "zai-glm-4.7",
 };
 
@@ -211,7 +211,7 @@ export function listProviderOptionsForUi(planId: PlanId = "free"): LlmProviderOp
 
 /**
  * Lista completa para GET /health — **sem** filtro de plano.
- * O mobile filtra localmente (Grátis oculta Profunda); o chat filtra por uid no POST.
+ * O mobile filtra localmente (Grátis oculta Core); o chat filtra por uid no POST.
  */
 export function listProviderOptionsForHealth(): LlmProviderOption[] {
   const configured = listConfiguredProviderOptions();
