@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { ChatMessage, demoThread, sessions, VoiceClip, type SessionItem } from './fixtures';
 import { LunaApiError, lunaChat } from './lunaClient';
+import type { LunaHumorBadge } from '../lib/lunaHumor';
 import { feedbackQuotaExceeded } from '../features/billing/quotaUtils';
 import type { QuotaKind } from '../features/billing/planQuotas';
 import { describeImageAttachmentsSafe } from './describeImageAttachments';
@@ -180,6 +181,7 @@ export function useOrbitChat() {
   const [forkSource, setForkSource] = useState<ForkSource | null>(null);
   const [forkLinks, setForkLinks] = useState<ForkLink[]>([]);
   const [messageReference, setMessageReference] = useState<ThreadReference | null>(null);
+  const [lunaHumorAtual, setLunaHumorAtual] = useState<LunaHumorBadge | null>(null);
 
   const branchPointRef = useRef<number | null>(null);
   const activeTimelineRef = useRef<ActiveTimeline>('continuation');
@@ -200,6 +202,14 @@ export function useOrbitChat() {
     setBranchPoint(null);
     setActiveTimeline('continuation');
     setForkSource(null);
+  }, []);
+
+  const aplicarHumorResposta = useCallback((humor: LunaHumorBadge | undefined, lunaMessageId: string) => {
+    if (!humor) return;
+    setLunaHumorAtual(humor);
+    setLocalMessages((current) =>
+      current.map((msg) => (msg.id === lunaMessageId ? { ...msg, humor } : msg)),
+    );
   }, []);
 
   const childForks = useMemo(() => {
@@ -574,7 +584,9 @@ export function useOrbitChat() {
           text: result.text,
           streaming: false,
           format,
+          humor: result.humor_atual,
         });
+        aplicarHumorResposta(result.humor_atual, lunaMessageId);
 
         if (cloudEnabled && auth.uid) {
           void writeLunaTextMessage(auth.uid, result.sessionId, lunaMessageId, result.text).catch(
@@ -600,7 +612,7 @@ export function useOrbitChat() {
         deliverLunaError(err);
       }
     },
-    [auth, cloudEnabled, ensureSessionId, deliverLunaError, deliverLunaReply, lunaProvider, legacyApi, setLastRouting, profile.displayName, lunaUsage, blockIfQuotaExceeded, reduceMotion, setMessageFeedback],
+    [auth, cloudEnabled, ensureSessionId, deliverLunaError, deliverLunaReply, lunaProvider, legacyApi, setLastRouting, profile.displayName, lunaUsage, blockIfQuotaExceeded, reduceMotion, setMessageFeedback, aplicarHumorResposta],
   );
 
   const submitPayload = useCallback(
@@ -879,6 +891,7 @@ export function useOrbitChat() {
 
       resetBranchState();
       clearMessageReference();
+      setLunaHumorAtual(null);
 
       sessionIdRef.current = id;
       setActiveSessionId(id);
@@ -941,6 +954,7 @@ export function useOrbitChat() {
     sessionIdRef.current = sid;
     setActiveSessionId(sid);
     setLocalAudioByMessageId({});
+    setLunaHumorAtual(null);
     setLoading(false);
     bumpThreadEnter(false);
     setScreen('thread');
@@ -1427,6 +1441,7 @@ export function useOrbitChat() {
     messageReference,
     setMessageReference,
     clearMessageReference,
+    lunaHumorAtual,
     setMessageFeedback,
     deleteConversation,
     restoreConversation,

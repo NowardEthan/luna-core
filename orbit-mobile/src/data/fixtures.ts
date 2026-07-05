@@ -1,3 +1,5 @@
+import type { LunaHumorBadge } from '../lib/lunaHumor';
+
 export type Role = 'user' | 'luna';
 
 export interface VoiceClip {
@@ -22,9 +24,11 @@ export interface ChatMessage {
   attachments?: import('../lib/composerAttachmentModel').ComposerAttachment[];
   /** Resposta em streaming SSE (Cerebras). */
   streaming?: boolean;
-  /** Texto de raciocínio do modelo (faixa live acima da bolha). */
+  /** Raciocínio do modelo (faixa live acima da bolha). */
   reasoning?: string;
   reasoningStreaming?: boolean;
+  /** Humor dual-layer após este turno (badge SSE). */
+  humor?: LunaHumorBadge;
 }
 
 export interface SessionItem {

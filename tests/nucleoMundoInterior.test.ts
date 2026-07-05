@@ -1,0 +1,17 @@
+import { describe, expect, it } from "vitest";
+
+import { prepararNucleoMundoInterior } from "../src/mundo/montarNucleoMundoInterior.js";
+
+describe("prepararNucleoMundoInterior", () => {
+  it("sempre devolve humor, habitat e vida", () => {
+    const nucleo = prepararNucleoMundoInterior({
+      mensagem: "Oi lua, boa tarde",
+      analise: { intencao: "conversa_casual", nivel_risco: "nenhum" },
+      ambiente: "orbit_mobile",
+    });
+
+    expect(nucleo.humor).toMatch(/Estado da Luna|Como agir neste turno/);
+    expect(nucleo.habitat).toMatch(/Orbit Mobile/);
+    expect(nucleo.vida).toMatch(/Fase:|Vida interior|Vontade narrativa/);
+  });
+});

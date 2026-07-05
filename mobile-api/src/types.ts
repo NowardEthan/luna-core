@@ -40,6 +40,13 @@ export type ChatResponseOk = {
   modelKey?: string;
   providerReason?: string;
   autoMode?: boolean;
+  humor_atual?: {
+    emoji: string;
+    label: string;
+    tema: string;
+    narrativa?: string;
+    accessibilityLabel: string;
+  };
 };
 
 export type ChatResponseErr = {
@@ -84,4 +91,6 @@ export type HealthResponse = {
   }>;
   /** true quando Cerebras está configurado e streaming SSE está activo. */
   streamSupported?: boolean;
+  /** Modo de persistência do Mundo Interior (firestore | sqlite). */
+  lunaStore?: string;
 };

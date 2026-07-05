@@ -1,4 +1,5 @@
 import { getLunaApiUrl } from '../config/lunaApi';
+import { parseHumorBadge, type LunaHumorBadge } from '../lib/lunaHumor';
 import { postSse } from '../lib/lunaSseClient';
 
 export type LunaChatRequest = {
@@ -28,6 +29,7 @@ export type LunaChatResponse =
       modelKey?: string;
       providerReason?: string;
       autoMode?: boolean;
+      humor_atual?: LunaHumorBadge;
     }
   | {
       ok: false;
@@ -57,6 +59,7 @@ export type LunaHealthResponse = {
   documentExtractAvailable?: boolean;
   firebaseConfigured?: boolean;
   streamSupported?: boolean;
+  lunaStore?: string;
   llmProviders?: Array<{
     providerId: 'groq' | 'cerebras' | 'auto';
     modelKey: 'default' | 'glm-47' | 'auto';
@@ -196,7 +199,10 @@ export async function lunaChat(request: LunaChatRequest): Promise<LunaChatRespon
       throw new LunaApiError(data.error || `Erro ${res.status}`, { status: res.status });
     }
 
-    return data;
+    return {
+      ...data,
+      humor_atual: parseHumorBadge(data.humor_atual),
+    };
   } catch (err) {
     if (err instanceof LunaApiError) throw err;
     if (isNetworkFailure(err)) {
@@ -224,6 +230,7 @@ export type LunaStreamDone = {
   modelKey?: string;
   providerReason?: string;
   autoMode?: boolean;
+  humor_atual?: LunaHumorBadge;
 };
 
 export type LunaStreamHandlers = {
@@ -305,6 +312,7 @@ function parseSseBlock(
         modelKey: typeof data.modelKey === 'string' ? data.modelKey : undefined,
         providerReason: typeof data.providerReason === 'string' ? data.providerReason : undefined,
         autoMode: data.autoMode === true,
+        humor_atual: parseHumorBadge(data.humor_atual),
       };
   }
   return null;

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AnaliseContexto } from "../analyzers/esquema.js";
+import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import { montarSliceIdentidade } from "../identidade/montarSliceIdentidade.js";
 
 type ModosPresenca = {
@@ -39,8 +41,18 @@ function carregarNucleo(): NucleoPersonalidade {
   return JSON.parse(readFileSync(caminho, "utf-8")) as NucleoPersonalidade;
 }
 
-export function gerarBlocoPersonalidade(): string {
-  const sliceCompilado = montarSliceIdentidade();
+export type OpcoesBlocoPersonalidade = {
+  interlocutor?: InterlocutorPipeline;
+  intencao?: AnaliseContexto["intencao"];
+  mensagemUsuario?: string;
+};
+
+export function gerarBlocoPersonalidade(opcoes: OpcoesBlocoPersonalidade = {}): string {
+  const sliceCompilado = montarSliceIdentidade({
+    interlocutor: opcoes.interlocutor,
+    intencao: opcoes.intencao,
+    mensagemUsuario: opcoes.mensagemUsuario,
+  });
   if (sliceCompilado?.trim()) {
     return sliceCompilado;
   }

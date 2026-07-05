@@ -194,6 +194,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       billingConfigured: isBillingConfigured(),
       llmProviders,
       streamSupported: isStreamSupported(),
+      lunaStore: process.env.LUNA_STORE ?? "sqlite",
     };
     return sendJson(res, payload.coreReady && payload.llmConfigured ? 200 : 503, payload);
   }
@@ -269,6 +270,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         modelKey: result.provider.modelKey,
         providerReason: result.providerReason,
         autoMode: result.autoMode,
+        humor_atual: result.humor_atual,
       };
       return sendJson(res, 200, payload);
     } catch (err) {

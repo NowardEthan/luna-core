@@ -23,6 +23,7 @@ import { ForkSourceBanner } from '../components/ForkSourceBanner';
 import { MessageArchivedBranch } from '../components/MessageArchivedBranch';
 import { ComposerDock } from '../components/ComposerDock';
 import { LunaAvatar } from '../components/LunaAvatar';
+import { LunaHumorBadge } from '../components/LunaHumorBadge';
 import { LunaThinking } from '../components/LunaThinking';
 import { MessageActionSheet } from '../components/MessageActionSheet';
 import { MessageActionToast } from '../components/MessageActionToast';
@@ -58,6 +59,7 @@ import {
 import { redoUserNeedsChoice, type MessageSheetAction } from '../lib/messageActions';
 import type { MessageActionFeedback } from '../lib/messageActions';
 import type { RedoUserChoice } from '../lib/messageActions';
+import type { LunaHumorBadge as LunaHumorBadgeType } from '../lib/lunaHumor';
 import { tokens } from '../theme/tokens';
 import { layout } from '../theme/layout';
 import { type } from '../theme/typography';
@@ -112,6 +114,8 @@ interface Props {
   onScrollOffsetChange?: (y: number) => void;
   onScrollRestoreApplied?: () => void;
   onOpenPlans?: () => void;
+  /** Humor dual-layer do último turno (header). */
+  lunaHumorAtual?: LunaHumorBadgeType | null;
 }
 
 interface Row {
@@ -346,6 +350,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   onScrollOffsetChange,
   onScrollRestoreApplied,
   onOpenPlans,
+  lunaHumorAtual,
 }: Props) {
   const listRef = useRef<FlatList<ThreadListItem>>(null);
   const composerRef = useRef<ComposerHandle>(null);
@@ -796,6 +801,12 @@ export const ThreadScreen = memo(function ThreadScreen({
             <Text style={type.headerStatus} numberOfLines={1}>
               {liveLoading ? 'pensando…' : 'online'}
             </Text>
+            {lunaHumorAtual && !liveLoading ? (
+              <>
+                <Text style={styles.statusSep}>·</Text>
+                <LunaHumorBadge humor={lunaHumorAtual} compact />
+              </>
+            ) : null}
           </View>
         </View>
         <View style={styles.headerTrailing}>
@@ -983,7 +994,8 @@ const styles = StyleSheet.create({
     gap: 2,
     flexShrink: 0,
   },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2, flexWrap: 'wrap' },
+  statusSep: { fontSize: 11, color: tokens.textLow },
   onlineDot: {
     width: 6,
     height: 6,

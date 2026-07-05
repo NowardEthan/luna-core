@@ -1,7 +1,8 @@
-import type { PoliticaDecisao } from "../analyzers/esquema.js";
+import type { PoliticaDecisao, AnaliseContexto } from "../analyzers/esquema.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
+import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { MensagemChat, ProvedorLlm } from "../providers/tipos.js";
 import {
   blocoPromptRaciocinioInline,
@@ -26,6 +27,8 @@ export type OpcoesMensagensRespondedor = {
   raciocinioAtivo?: boolean;
   modelo: string;
   baseUrl?: string;
+  interlocutor?: InterlocutorPipeline;
+  intencao?: AnaliseContexto["intencao"];
 };
 
 /** Monta mensagens OpenAI — M3: instrução + personalidade + briefing compilado. */
@@ -37,10 +40,16 @@ export function montarMensagensRespondedor(opcoes: OpcoesMensagensRespondedor): 
     raciocinioAtivo = true,
     modelo,
     baseUrl = "",
+    interlocutor,
+    intencao,
   } = opcoes;
 
   const instrucaoBase = carregarInstrucaoSistema();
-  const blocoPersonalidade = gerarBlocoPersonalidade();
+  const blocoPersonalidade = gerarBlocoPersonalidade({
+    interlocutor,
+    intencao,
+    mensagemUsuario,
+  });
 
   const partesSystem = [instrucaoBase, blocoPersonalidade, contextoCompilado.briefing];
   if (precisaRaciocinioPorPrompt(modelo, baseUrl, raciocinioAtivo)) {
@@ -70,6 +79,8 @@ export async function responderComoLuna(
   historico?: Array<{ papel: "user" | "assistant"; conteudo: string }>,
   raciocinioAtivo = true,
   baseUrl = "",
+  interlocutor?: InterlocutorPipeline,
+  intencao?: AnaliseContexto["intencao"],
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
@@ -78,6 +89,8 @@ export async function responderComoLuna(
     raciocinioAtivo,
     modelo,
     baseUrl,
+    interlocutor,
+    intencao,
   });
 
   const resposta = await provedor.completar({
@@ -110,6 +123,8 @@ export async function responderComoLunaStream(
   historico?: Array<{ papel: "user" | "assistant"; conteudo: string }>,
   raciocinioAtivo = true,
   callbacks: CallbacksStreamRespondedor = {},
+  interlocutor?: InterlocutorPipeline,
+  intencao?: AnaliseContexto["intencao"],
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
@@ -118,6 +133,8 @@ export async function responderComoLunaStream(
     raciocinioAtivo,
     modelo,
     baseUrl,
+    interlocutor,
+    intencao,
   });
 
   const resposta = await completarStreamOpenAi(

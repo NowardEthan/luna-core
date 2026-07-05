@@ -32,23 +32,22 @@ import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
 import { despertar } from "../mundo/despertar.js";
 import { atualizarHumor } from "../mundo/humor/atualizadorHumor.js";
-import { humorParaFrase } from "../mundo/humor/humorParaFrase.js";
-import { lerHumor } from "../mundo/humor/storeHumor.js";
 import { lerClimaGlobal } from "../mundo/humor/climaHumor.js";
 import { lerRelacaoHumor } from "../mundo/humor/relacaoHumor.js";
 import { humorParaPerfilExpressao } from "../mundo/humor/humorParaPerfilExpressao.js";
 import { humorParaBadge, type HumorBadgePayload } from "../mundo/humor/humorParaBadge.js";
 import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/talamoPipeline.js";
+import { prepararNucleoMundoInterior } from "../mundo/montarNucleoMundoInterior.js";
+import { coletarNeuroniosSempreAtivos } from "../neuronios/coletarSempreAtivos.js";
+import { criarVontadeNarrativa } from "../mundo/vontade/storeVontade.js";
 import { inicializarNeuroniosPadrao } from "../neuronios/inicializarNeuronios.js";
 import { coletarNeuroniosAtivos } from "../neuronios/roteador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { AnexoImagemChat } from "../agentico/especialistas/visaoGemma.js";
-import { obterSliceHabitatAtual } from "../mundo/habitat/storeHabitat.js";
 import { simularVidaInterior } from "../mundo/vida/simuladorVida.js";
 import { registrarGostoLuna } from "../mundo/gostos/storeGostos.js";
 import { inferirEFormatarConhecimento } from "../conhecimento/formatarConhecimento.js";
-import { formatarPerfilEscrita } from "../personalidade/vozParaPerfilEscrita.js";
 
 inicializarNeuroniosPadrao();
 
@@ -200,6 +199,18 @@ export async function executarPipelineCompleto(
   const sessao = usarMemoria ? obterOuCriarSessao(opcoes.sessaoId) : undefined;
   if (sessao && opcoes.interlocutor?.uid && !sessao.owner_uid) {
     sessao.owner_uid = opcoes.interlocutor.uid;
+  }
+  if (sessao && sessao.mensagens.length === 0) {
+    try {
+      criarVontadeNarrativa({
+        sessao_id: sessao.id,
+        vontade: "Chegar presente e manter continuidade humana nesta conversa.",
+        gatilho: "inicio_sessao",
+        prioridade: 3,
+      });
+    } catch {
+      /* vontade opcional */
+    }
   }
   const contextoSessao = sessao ? prepararContextoRespondedor(sessao) : undefined;
 
@@ -380,14 +391,14 @@ export async function executarPipelineCompleto(
     }
 
     let humorLinha: string | null = null;
-    try {
-      humorLinha = humorParaFrase(lerHumor());
-      if (perfilExpressaoAtual) {
-        humorLinha = `${humorLinha}\n${formatarPerfilEscrita(perfilExpressaoAtual.perfil_escrita)}`;
-      }
-    } catch {
-      // humor opcional
-    }
+    const nucleo = prepararNucleoMundoInterior({
+      mensagem,
+      analise: analise.analise,
+      perfilExpressao: perfilExpressaoAtual,
+      ambiente: opcoes.ambiente,
+    });
+    humorLinha = nucleo.humor;
+
     const ecossistemaBase = intencaoPedeEcossistema(analise.analise.intencao)
       ? await inferirEFormatarConhecimento(mensagem, 3, {
         intencao: analise.analise.intencao,
@@ -395,18 +406,11 @@ export async function executarPipelineCompleto(
       })
       : null;
 
-    let habitatAtual: string | undefined;
-    try {
-      habitatAtual = obterSliceHabitatAtual();
-    } catch {
-      habitatAtual = undefined;
-    }
-
     let entradas = montarEntradasCompilador({
       politica: politicaComMemoria,
       kernel: kernelDespertar,
       humor: humorLinha,
-      habitat: habitatAtual,
+      habitat: nucleo.habitat,
       mensagemUsuario: mensagem,
       ecossistema: ecossistemaBase ?? undefined,
       sugestaoMemoria: memoria.decisao.sugestao_resposta,
@@ -414,33 +418,62 @@ export async function executarPipelineCompleto(
       interlocutor: opcoes.interlocutor,
       intencao: analise.analise.intencao,
     });
+    entradas = { ...entradas, vida: nucleo.vida };
 
-    if (profundidade === "simples" && presencaBruta) {
+    const ctxColeta = ctxRespondedor ?? contextoSessao;
+    if (ctxColeta) {
+      try {
+        const sempreAtivos = await coletarNeuroniosSempreAtivos({
+          mensagem,
+          intencao: analise.analise.intencao,
+          contextoSessao: ctxColeta,
+          prior: prior ?? undefined,
+          habitos: habitosAtivos,
+        });
+        entradas = {
+          ...entradas,
+          ...sempreAtivos,
+          humor: entradas.humor ?? sempreAtivos.humor,
+          habitat: entradas.habitat ?? sempreAtivos.habitat,
+          vida: entradas.vida ?? sempreAtivos.vida,
+        };
+      } catch (e) {
+        console.error("Aviso: falha ao coletar neurônios sempre ativos", e);
+      }
+    }
+
+    if (profundidade === "simples" && presencaBruta && !entradas.presenca) {
       entradas.presenca = presencaBruta;
     }
 
-    if (profundidade !== "simples" && ctxRespondedor) {
+    if (profundidade !== "simples" && ctxColeta) {
       try {
         const { dados: coletado, ativos, scores } = await coletarNeuroniosAtivos({
           mensagem,
           intencao: analise.analise.intencao,
-          contextoSessao: ctxRespondedor,
+          contextoSessao: ctxColeta,
           prior: prior ?? undefined,
           habitos: habitosAtivos,
         });
         neuroniosAtivos = ativos;
-        entradas = { ...entradas, ...coletado };
+        entradas = {
+          ...entradas,
+          ...coletado,
+          humor: entradas.humor ?? coletado.humor,
+          habitat: entradas.habitat ?? coletado.habitat,
+          vida: entradas.vida ?? coletado.vida,
+        };
         void scores;
       } catch (e) {
         console.error("Aviso: falha no roteador — fallback para coleta completa", e);
         entradas = montarEntradasCompilador({
           politica: politicaComMemoria,
-          contextoSessao: ctxRespondedor,
+          contextoSessao: ctxColeta,
           kernel: kernelDespertar,
           humor: humorLinha,
+          habitat: nucleo.habitat,
           prior: prior ?? undefined,
           habitos: habitosAtivos,
-          habitat: habitatAtual,
           mensagemUsuario: mensagem,
           ecossistema: ecossistemaBase ?? undefined,
           sugestaoMemoria: memoria.decisao.sugestao_resposta,
@@ -448,6 +481,7 @@ export async function executarPipelineCompleto(
           interlocutor: opcoes.interlocutor,
           intencao: analise.analise.intencao,
         });
+        entradas = { ...entradas, vida: nucleo.vida };
       }
     }
 
@@ -496,6 +530,8 @@ export async function executarPipelineCompleto(
         historico,
         raciocinioAtivo,
         config.baseUrl,
+        opcoes.interlocutor,
+        analise.analise.intencao,
       );
     } else if (usarStream) {
       resposta = await responderComoLunaStream(
@@ -517,6 +553,8 @@ export async function executarPipelineCompleto(
             }
           },
         },
+        opcoes.interlocutor,
+        analise.analise.intencao,
       );
       opcoes.onStreamDone?.(resposta);
     } else {
@@ -530,6 +568,8 @@ export async function executarPipelineCompleto(
         historico,
         raciocinioAtivo,
         config.baseUrl,
+        opcoes.interlocutor,
+        analise.analise.intencao,
       );
     }
 

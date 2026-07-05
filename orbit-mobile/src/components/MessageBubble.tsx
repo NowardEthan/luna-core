@@ -7,6 +7,7 @@ import { VoiceMessageBubble } from './VoiceMessageBubble';
 import { MessageMarkdown } from './chat/MessageMarkdown';
 import { StreamWordReveal } from './chat/StreamWordReveal';
 import { ReasoningLiveStrip } from './chat/ReasoningLiveStrip';
+import { LunaHumorBadge } from './LunaHumorBadge';
 import { ExcerptHighlightText } from './chat/excerptHighlight';
 import { shouldRenderMarkdown } from './chat/detectMarkdown';
 import { ThreadReferenceQuote } from './ThreadReferenceQuote';
@@ -54,7 +55,9 @@ function messageEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.audio?.durationMs === b.audio?.durationMs &&
     a.streaming === b.streaming &&
     a.reasoning === b.reasoning &&
-    a.reasoningStreaming === b.reasoningStreaming
+    a.reasoningStreaming === b.reasoningStreaming &&
+    a.humor?.emoji === b.humor?.emoji &&
+    a.humor?.label === b.humor?.label
   );
 }
 
@@ -269,6 +272,11 @@ function MessageBubbleInner({
               { opacity: glow },
             ]}
           />
+          {!isUser && message.humor && !isStreaming ? (
+            <View style={styles.humorRow}>
+              <LunaHumorBadge humor={message.humor} compact />
+            </View>
+          ) : null}
           {bubble}
         </View>
       </Animated.View>
@@ -378,5 +386,10 @@ const styles = StyleSheet.create({
   },
   userTextWithAttachments: {
     paddingTop: 6,
+  },
+  humorRow: {
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+    marginLeft: 2,
   },
 });

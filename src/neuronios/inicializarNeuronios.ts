@@ -104,7 +104,7 @@ export function inicializarNeuroniosPadrao(): void {
     nome: "vida",
     descricao: "estado narrativo interno e eventos recentes da Luna",
     exemplos_ativacao: ["como você está por dentro?", "o que mudou em você hoje?"],
-    sempre_ativo: false,
+    sempre_ativo: true,
     prioridade_compilador: "vida",
     coletar: () => coletarNeuronioVida(),
   });

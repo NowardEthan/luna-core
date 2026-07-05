@@ -25,7 +25,7 @@ describe("vozParaPerfilEscrita", () => {
     expect(perfil.cadencia).toBe("curta");
   });
 
-  it("ativa provocação carinhosa quando criador é verificado", () => {
+  it("usa espelho curto e evita perguntas em conversa casual", () => {
     const perfil = vozParaPerfilEscrita({
       intencao: "conversa_casual",
       criador_verificado: true,
@@ -42,9 +42,31 @@ describe("vozParaPerfilEscrita", () => {
       },
     });
 
+    expect(perfil.reacao).toBe("espelho_curto");
+    expect(perfil.pergunta).toBe("evitar");
+    expect(perfil.cadencia).toBe("curta");
+    expect(perfil.assinatura).toBe("calor_estavel");
+  });
+
+  it("ativa provocação carinhosa com criador fora de conversa casual", () => {
+    const perfil = vozParaPerfilEscrita({
+      intencao: "pergunta_tecnica",
+      criador_verificado: true,
+      humor: {
+        clima: "leve",
+        energia: "alta",
+        registro: "intimo",
+        gate: {
+          permitir_piada: true,
+          nivel_leveza: "alto",
+          familias_sugeridas: ["implicancia_carinhosa"],
+          familias_proibidas: [],
+        },
+      },
+    });
+
     expect(perfil.reacao).toBe("provocacao_carinhosa");
     expect(perfil.pergunta).toBe("aberta_curiosa");
-    expect(perfil.assinatura).toBe("calor_estavel");
   });
 
   it("usa pergunta de foco para intenções de execução", () => {

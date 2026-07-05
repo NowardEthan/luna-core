@@ -40,24 +40,31 @@ const SECOES: SecaoDef[] = [
   { chave: "agentico", titulo: "Ferramentas", prioridade: 2, orcamento: 60 },
   { chave: "formato", titulo: "Formato", prioridade: 2, orcamento: 80 },
   { chave: "kernel", titulo: "Continuidade", prioridade: 2, orcamento: 400 },
-  { chave: "humor", titulo: "Estado", prioridade: 3, orcamento: 120 },
+  { chave: "humor", titulo: "Estado", prioridade: 3, orcamento: 220 },
   { chave: "ecossistema", titulo: "Ecossistema", prioridade: 5, orcamento: 80 },
   { chave: "presenca", titulo: "Presença", prioridade: 4, orcamento: 200 },
   { chave: "memorias_longas", titulo: "Memórias", prioridade: 5, orcamento: 300 },
   { chave: "sense", titulo: "Sense", prioridade: 6, orcamento: 200 },
   { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 200 },
-  { chave: "habitat", titulo: "Habitat", prioridade: 8, orcamento: 100 },
-  { chave: "vida", titulo: "Vida interior", prioridade: 8, orcamento: 100 },
+  { chave: "habitat", titulo: "Habitat", prioridade: 3, orcamento: 140 },
+  { chave: "vida", titulo: "Vida interior", prioridade: 3, orcamento: 180 },
   { chave: "preditivo", titulo: "Padrão recente", prioridade: 9, orcamento: 60 },
   { chave: "habitos", titulo: "Hábitos", prioridade: 9, orcamento: 80 },
   { chave: "sugestao_memoria", titulo: "Sugestão", prioridade: 10, orcamento: 60 },
 ];
 
+/** Secções do Mundo Interior — nunca cortadas por orçamento. */
+const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
+  "humor",
+  "vida",
+  "habitat",
+]);
+
 /** Orçamento vinculante por profundidade do tálamo (pkg-comp). */
 export function orcamentoPorProfundidade(profundidade: "simples" | "normal" | "profunda"): number {
   switch (profundidade) {
     case "simples":
-      return 900;
+      return 1100;
     case "profunda":
       return 1650;
     default:
@@ -105,21 +112,23 @@ export function compilarContexto(
     if (!bruto) continue;
 
     const limiteSecao = Math.min(secao.orcamento * 4, orcamentoRestante() * 4);
-    if (limiteSecao <= 0) {
+    const protegida = CHAVES_PROTEGIDAS.has(secao.chave);
+    if (limiteSecao <= 0 && !protegida) {
       cortes.push(secao.chave);
       continue;
     }
 
     let corpo = bruto;
-    if (corpo.length > limiteSecao) {
-      corpo = truncar(corpo, limiteSecao);
-      cortes.push(`${secao.chave}:truncado`);
+    const teto = protegida ? secao.orcamento * 4 : limiteSecao;
+    if (corpo.length > teto) {
+      corpo = truncar(corpo, teto);
+      if (!protegida) cortes.push(`${secao.chave}:truncado`);
     }
 
     const bloco = formatarSecao(secao.titulo, corpo);
     const tokensBloco = estimarTokens(bloco);
 
-    if (tokensBloco > orcamentoRestante()) {
+    if (!protegida && tokensBloco > orcamentoRestante()) {
       cortes.push(secao.chave);
       continue;
     }

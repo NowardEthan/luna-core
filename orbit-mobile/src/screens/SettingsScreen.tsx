@@ -53,7 +53,9 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
   const apiOnline = lunaProvider.apiReachable && lunaProvider.health?.ok === true;
   const onlineLabel = apiOnline ? 'Luna disponível' : 'Sem conexão com o servidor';
   const onlineDetail = apiOnline
-    ? 'Pode conversar normalmente'
+    ? lunaProvider.health?.lunaStore === 'firestore'
+      ? 'Pode conversar · Mundo Interior na nuvem'
+      : 'Pode conversar normalmente'
     : 'Verifique a internet e tente de novo';
 
   const accountLabel = isAnonymous ? 'Visitante' : 'Conta Google';

@@ -18,7 +18,6 @@ import {
 } from "../responder/extrairSecoesContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { AnaliseContexto } from "../analyzers/esquema.js";
-import { montarSliceIdentidade } from "../identidade/montarSliceIdentidade.js";
 import { montarSliceFormato } from "./montarSliceFormato.js";
 
 export type OpcoesMontarEntradas = {
@@ -63,9 +62,6 @@ export function montarEntradasCompilador(opcoes: OpcoesMontarEntradas): Entradas
 
   return {
     politica: montarBlocoPoliticaSituacional(politica),
-    identidade: interlocutor
-      ? montarSliceIdentidade({ interlocutor, intencao, mensagemUsuario })
-      : undefined,
     formato: montarSliceFormato(politica),
     ecossistema: ecossistema?.trim() || undefined,
     kernel: kernelFinal,
