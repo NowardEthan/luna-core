@@ -37,7 +37,6 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
 
   const [resetting, setResetting] = useState(false);
   const [plansOpen, setPlansOpen] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useAndroidBackHandler(
     useCallback(() => {
@@ -61,7 +60,6 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
   const accountDetail = isAnonymous
     ? 'Conversas só neste dispositivo'
     : 'Conversas salvas na nuvem';
-
 
   return (
     <>
@@ -99,6 +97,8 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
             label="Conexão"
             detail={onlineDetail}
             value={onlineLabel}
+            showChevron
+            onPress={() => void lunaProvider.refreshFromServer()}
             last
           />
         </SettingsSection>
@@ -111,32 +111,8 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
               : 'Preferência manual — vale para as próximas mensagens.'
           }
         >
-          {showAdvanced ? (
-            <View style={styles.advancedBox}>
-              {statusLoading ? (
-                <ActivityIndicator color={tokens.accent} style={styles.loader} />
-              ) : (
-                <View style={styles.embeddedPicker}>
-                  <LunaProviderPicker
-                    options={lunaProvider.options}
-                    selection={lunaProvider.selection}
-                    onSelect={(next) => void lunaProvider.setProvider(next)}
-                    disabled={statusLoading}
-                    apiReachable={lunaProvider.apiReachable}
-                    showAllOptions
-                    planId={billing.plan}
-                  />
-                </View>
-              )}
-              <SettingsRow
-                icon="refresh-outline"
-                label="Verificar conexão"
-                detail="Atualiza o estado da Luna"
-                showChevron
-                last
-                onPress={() => void lunaProvider.refreshFromServer()}
-              />
-            </View>
+          {statusLoading ? (
+            <ActivityIndicator color={tokens.accent} style={styles.loader} />
           ) : (
             <View style={styles.embeddedPicker}>
               <LunaProviderPicker
@@ -150,14 +126,6 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
               />
             </View>
           )}
-          <SettingsRow
-            icon="options-outline"
-            label={showAdvanced ? 'Ocultar opções avançadas' : 'Opções avançadas'}
-            detail="Modos de resposta detalhados"
-            showChevron
-            last
-            onPress={() => setShowAdvanced((v) => !v)}
-          />
         </SettingsSection>
 
         <SettingsSection title="Sessão">
@@ -200,9 +168,8 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   container: { paddingHorizontal: 20, paddingBottom: 36 },
-  embeddedPicker: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  embeddedPicker: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 },
   usageWrap: { paddingHorizontal: 14, paddingBottom: 12 },
-  advancedBox: { paddingBottom: 4 },
   loader: { paddingVertical: 16 },
   about: { marginTop: 28, alignItems: 'center' },
   aboutText: { color: tokens.textLow, fontSize: 12, fontWeight: '500' },

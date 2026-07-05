@@ -19,11 +19,11 @@ import type { ForkLink } from '../lib/branchStorage';
 import { ThreadScrollToBottomFab } from '../components/ThreadScrollToBottomFab';
 import { ThreadBranchPill } from '../components/ThreadBranchPill';
 import { Composer, type ComposerHandle } from '../components/Composer';
-import { UsageLimitChip } from '../components/billing/UsageLimitChip';
 import { ForkSourceBanner } from '../components/ForkSourceBanner';
 import { MessageArchivedBranch } from '../components/MessageArchivedBranch';
 import { ComposerDock } from '../components/ComposerDock';
 import { LunaAvatar } from '../components/LunaAvatar';
+import { LunaHumorBadge } from '../components/LunaHumorBadge';
 import { LunaThinking } from '../components/LunaThinking';
 import { MessageActionSheet } from '../components/MessageActionSheet';
 import { MessageActionToast } from '../components/MessageActionToast';
@@ -39,6 +39,7 @@ import {
 } from '../hooks/useProgressiveThreadWindow';
 import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
 import { useLunaUsageContext } from '../hooks/LunaUsageContext';
+import { UsageQuotaPill } from '../components/billing/UsageQuotaPill';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 import { hapticLongPress, hapticListTap } from '../lib/haptics';
@@ -58,6 +59,7 @@ import {
 import { redoUserNeedsChoice, type MessageSheetAction } from '../lib/messageActions';
 import type { MessageActionFeedback } from '../lib/messageActions';
 import type { RedoUserChoice } from '../lib/messageActions';
+import type { LunaHumorBadge as LunaHumorBadgeType } from '../lib/lunaHumor';
 import { tokens } from '../theme/tokens';
 import { layout } from '../theme/layout';
 import { type } from '../theme/typography';
@@ -112,6 +114,8 @@ interface Props {
   onScrollOffsetChange?: (y: number) => void;
   onScrollRestoreApplied?: () => void;
   onOpenPlans?: () => void;
+  /** Humor dual-layer do último turno (header). */
+  lunaHumorAtual?: LunaHumorBadgeType | null;
 }
 
 interface Row {
@@ -346,6 +350,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   onScrollOffsetChange,
   onScrollRestoreApplied,
   onOpenPlans,
+  lunaHumorAtual,
 }: Props) {
   const listRef = useRef<FlatList<ThreadListItem>>(null);
   const composerRef = useRef<ComposerHandle>(null);
@@ -356,6 +361,8 @@ export const ThreadScreen = memo(function ThreadScreen({
   const keyboardWasOpenRef = useRef(false);
   const { reduceMotion } = useMotionProfile();
   const headerTopPad = useHeaderTopPadding(6);
+
+  const showQuotaPill = lunaUsage.quotaApplies && !lunaUsage.usage.loading;
 
   const [sheetMessage, setSheetMessage] = useState<ChatMessage | null>(null);
   const [redoChoice, setRedoChoice] = useState<RedoUserChoice | null>(null);
@@ -791,12 +798,29 @@ export const ThreadScreen = memo(function ThreadScreen({
           </Text>
           <View style={styles.statusRow}>
             <View style={styles.onlineDot} />
-            <Text style={type.headerStatus}>{liveLoading ? 'pensando…' : 'online'}</Text>
+            <Text style={type.headerStatus} numberOfLines={1}>
+              {liveLoading ? 'pensando…' : 'online'}
+            </Text>
           </View>
         </View>
-        <Pressable onPress={onNewChat} hitSlop={12} style={styles.iconBtn}>
-          <Ionicons name="add" size={22} color={tokens.textMid} />
-        </Pressable>
+        <View style={styles.headerTrailing}>
+          {lunaHumorAtual ? <LunaHumorBadge humor={lunaHumorAtual} compact /> : null}
+          {showQuotaPill ? (
+            <UsageQuotaPill
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              exceeded={lunaUsage.isExceeded}
+              onPress={
+                lunaUsage.isExceeded || (lunaUsage.remaining ?? 0) <= 50
+                  ? onOpenPlans
+                  : undefined
+              }
+            />
+          ) : null}
+          <Pressable onPress={onNewChat} hitSlop={12} style={styles.iconBtn}>
+            <Ionicons name="add" size={22} color={tokens.textMid} />
+          </Pressable>
+        </View>
       </View>
 
       {forkSource ? (
@@ -903,17 +927,6 @@ export const ThreadScreen = memo(function ThreadScreen({
             onClearReference={() => onSetMessageReference(null)}
           />
         </ComposerDock>
-        {lunaUsage.quotaApplies ? (
-          <View style={styles.quotaFloat} pointerEvents="box-none">
-            <UsageLimitChip
-              floating
-              usage={lunaUsage.usage}
-              remaining={lunaUsage.remaining}
-              exceeded={lunaUsage.isExceeded}
-              onPress={lunaUsage.isExceeded ? onOpenPlans : undefined}
-            />
-          </View>
-        ) : null}
       </View>
 
       <AttachmentPreviewModal
@@ -969,7 +982,14 @@ const styles = StyleSheet.create({
     borderBottomColor: tokens.glassBorder,
   },
   iconBtn: { padding: 8 },
-  headerText: { flex: 1, marginLeft: 10 },
+  headerText: { flex: 1, marginLeft: 10, minWidth: 0 },
+  headerTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+    maxWidth: '42%',
+  },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   onlineDot: {
     width: 6,
@@ -1002,14 +1022,5 @@ const styles = StyleSheet.create({
   },
   composerZone: {
     position: 'relative',
-  },
-  quotaFloat: {
-    position: 'absolute',
-    left: layout.composerPaddingX,
-    right: layout.composerPaddingX,
-    bottom: '100%',
-    marginBottom: 2,
-    alignItems: 'center',
-    zIndex: 4,
   },
 });

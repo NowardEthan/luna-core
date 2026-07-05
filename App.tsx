@@ -223,6 +223,7 @@ function OrbitApp() {
                 chat.backToHome();
                 chat.setMainTab('definicoes');
               }}
+              lunaHumorAtual={chat.lunaHumorAtual}
             />
           ) : null
         }

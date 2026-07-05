@@ -1,115 +1,150 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, StyleSheet, Text, type TextStyle } from 'react-native';
-import { splitStableActiveWord } from '../../lib/streamWordBuffer';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+  type TextStyle,
+} from 'react-native';
+import {
+  STREAM_FADE_LIFT_PX,
+  STREAM_FADE_MS,
+  segmentStaggerMs,
+  tokenizeStreamSegments,
+} from '../../lib/streamWordBuffer';
 import { useMotionProfile } from '../../hooks/useMotionProfile';
 
 type Props = {
   text: string;
-  /** Quando false, todo o texto fica estável (fim do stream). */
+  /** Quando true, revela progressivamente; false = texto estático. */
   streaming?: boolean;
   style?: TextStyle | TextStyle[];
   muted?: boolean;
 };
 
-const REVEAL_MS = 220;
-
-function ActiveWord({
-  word,
-  animate,
+function FadeWord({
+  text,
   style,
   muted,
 }: {
-  word: string;
-  animate: boolean;
+  text: string;
   style?: TextStyle | TextStyle[];
   muted?: boolean;
 }) {
-  const opacity = useRef(new Animated.Value(animate ? 0 : 1)).current;
-  const translateY = useRef(new Animated.Value(animate ? 4 : 0)).current;
-  const blurOpacity = useRef(new Animated.Value(animate ? 0.35 : 0)).current;
+  const progress = useRef(new Animated.Value(0)).current;
+  const targetOpacity = muted ? 0.55 : 1;
+  const isWhitespace = /^\s+$/.test(text);
+  const fadeMs = isWhitespace ? 180 : STREAM_FADE_MS;
+  const liftPx = isWhitespace ? 0 : STREAM_FADE_LIFT_PX;
 
   useEffect(() => {
-    if (!animate) {
-      opacity.setValue(1);
-      translateY.setValue(0);
-      blurOpacity.setValue(0);
-      return;
-    }
+    const anim = Animated.timing(progress, {
+      toValue: 1,
+      duration: fadeMs,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [fadeMs, progress]);
 
-    opacity.setValue(0);
-    translateY.setValue(4);
-    blurOpacity.setValue(0.35);
+  const opacity = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, targetOpacity],
+  });
 
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: REVEAL_MS, useNativeDriver: true }),
-      Animated.timing(translateY, { toValue: 0, duration: REVEAL_MS, useNativeDriver: true }),
-      Animated.timing(blurOpacity, { toValue: 0, duration: REVEAL_MS, useNativeDriver: true }),
-    ]).start();
-  }, [animate, blurOpacity, opacity, translateY, word]);
-
-  if (!word) return null;
-
-  const baseStyle = [styles.word, style, muted ? styles.muted : undefined];
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [liftPx, 0],
+  });
 
   return (
-    <Animated.Text style={[...baseStyle, { opacity, transform: [{ translateY }] }]}>
-      {Platform.OS === 'ios' ? (
-        <>
-          <Animated.Text
-            style={[
-              StyleSheet.absoluteFillObject,
-              ...baseStyle,
-              styles.blurGhost,
-              { opacity: blurOpacity },
-            ]}
-          >
-            {word}
-          </Animated.Text>
-          {word}
-        </>
-      ) : (
-        <>
-          <Animated.Text style={[...baseStyle, styles.blurGhost, { opacity: blurOpacity }]}>
-            {word}
-          </Animated.Text>
-          {word}
-        </>
-      )}
-    </Animated.Text>
+    <Animated.View style={[styles.wordWrap, { opacity, transform: [{ translateY }] }]}>
+      <Text style={style}>{text}</Text>
+    </Animated.View>
   );
 }
 
+/**
+ * Revela palavra a palavra. Só monta segmentos já revelados (o texto completo
+ * nunca entra no DOM de uma vez). Opacidade em View — fiável no Android;
+ * Animated.Text aninhado ignora opacity e mostrava tudo de imediato.
+ */
 export function StreamWordReveal({ text, streaming = false, style, muted = false }: Props) {
   const { reduceMotion } = useMotionProfile();
-  const { stable, active } = splitStableActiveWord(text);
-  const showActive = streaming && active.length > 0;
-  const instant = reduceMotion || !streaming;
+  const segments = useMemo(() => tokenizeStreamSegments(text), [text]);
+  const total = segments.length;
+  const stagger = useMemo(() => segmentStaggerMs(total), [total]);
+
+  const shouldAnimate = streaming && !reduceMotion && total > 0;
+
+  const [visibleCount, setVisibleCount] = useState(shouldAnimate ? 0 : total);
+
+  useEffect(() => {
+    if (!shouldAnimate) {
+      setVisibleCount(total);
+      return;
+    }
+
+    setVisibleCount(0);
+    if (total <= 0) return;
+
+    let count = 0;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
+    const bootId = requestAnimationFrame(() => {
+      count = 1;
+      setVisibleCount(1);
+
+      if (total <= 1) return;
+
+      intervalId = setInterval(() => {
+        count += 1;
+        setVisibleCount(count);
+        if (count >= total && intervalId) clearInterval(intervalId);
+      }, stagger);
+    });
+
+    return () => {
+      cancelAnimationFrame(bootId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [shouldAnimate, total, stagger, text]);
+
+  if (!shouldAnimate) {
+    return (
+      <Text style={[styles.container, style, muted ? styles.mutedText : undefined]}>{text}</Text>
+    );
+  }
+
+  const shown = segments.slice(0, visibleCount);
 
   return (
-    <Text style={[styles.container, style, muted ? styles.muted : undefined]}>
-      {stable ? <Text style={style}>{stable}</Text> : null}
-      {showActive ? (
-        <ActiveWord word={active} animate={!instant} style={style} muted={muted} />
-      ) : !streaming && active ? (
-        <Text style={style}>{active}</Text>
-      ) : null}
-    </Text>
+    <View style={styles.container}>
+      <View style={styles.flow}>
+        {shown.map((segment, idx) => (
+          <FadeWord key={`w-${idx}`} text={segment} style={style} muted={muted} />
+        ))}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flexShrink: 1,
+    alignSelf: 'stretch',
   },
-  word: {
-    flexShrink: 1,
+  flow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
   },
-  muted: {
+  wordWrap: {
+    flexShrink: 0,
+  },
+  mutedText: {
     opacity: 0.55,
-  },
-  blurGhost: {
-    position: 'relative',
-    top: 1,
-    left: 1,
   },
 });

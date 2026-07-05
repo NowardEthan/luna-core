@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { doc, onSnapshot, type Timestamp } from 'firebase/firestore';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
+import { doc, getDocFromServer, onSnapshot, type Timestamp } from 'firebase/firestore';
 
+import { lunaFetchUsage } from '../../data/lunaClient';
 import { getLunaFirestore } from '../../lib/firebase/client';
 import { userUsageDoc } from '../../lib/firebase/paths';
 import {
@@ -37,6 +39,13 @@ export type LunaUsageSnapshot = {
   loading: boolean;
 };
 
+export type UseLunaUsageResult = LunaUsageSnapshot & {
+  /** Actualiza o contador logo após consumo na API (antes do Firestore). */
+  bumpUsage: (kind: QuotaKind, amount?: number) => void;
+  /** Força leitura autoritativa no servidor. */
+  refreshFromApi: (idToken: string) => Promise<void>;
+};
+
 function emptyUsed(): Record<QuotaKind, number> {
   return { messages: 0, images: 0, documents: 0, voice: 0 };
 }
@@ -57,15 +66,15 @@ function parseUsageDoc(
   planId: LunaPlanId,
   data: Record<string, unknown> | undefined,
   bonusTurns: number,
+  nowMs: number,
 ): Pick<LunaUsageSnapshot, 'used' | 'resetsAtMs' | 'resetHours' | 'resetDays'> {
-  const now = Date.now();
   const limits = limitsForPlan(planId);
 
   if (usesRollingWindow(planId)) {
-    const storedStart = coerceWindowStart(data?.windowStart, now);
+    const storedStart = coerceWindowStart(data?.windowStart, nowMs);
     let windowStart = storedStart;
     let used = emptyUsed();
-    if (now - storedStart < FREE_QUOTA_WINDOW_MS && data) {
+    if (nowMs - storedStart < FREE_QUOTA_WINDOW_MS && data) {
       used = {
         messages: typeof data.messages === 'number' ? data.messages : 0,
         images: typeof data.images === 'number' ? data.images : 0,
@@ -73,13 +82,13 @@ function parseUsageDoc(
         voice: typeof data.voice === 'number' ? data.voice : 0,
       };
     } else {
-      windowStart = now;
+      windowStart = nowMs;
     }
-    const resetsAtMs = computeWindowResetsAt(windowStart);
+    const resetsAtMs = computeWindowResetsAt(windowStart, nowMs);
     return {
       used,
       resetsAtMs,
-      resetHours: hoursUntilReset(resetsAtMs, now),
+      resetHours: hoursUntilReset(resetsAtMs, nowMs),
       resetDays: null,
     };
   }
@@ -88,7 +97,7 @@ function parseUsageDoc(
   used.messages = typeof data?.turns === 'number' ? data.turns : 0;
   const msgLimit = limits.messages;
   const effective = msgLimit !== null ? msgLimit + bonusTurns : null;
-  const nextMonth = new Date();
+  const nextMonth = new Date(nowMs);
   nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
   nextMonth.setHours(0, 0, 0, 0);
 
@@ -100,25 +109,133 @@ function parseUsageDoc(
   };
 }
 
+function applyPendingUsed(
+  used: Record<QuotaKind, number>,
+  pending: Record<QuotaKind, number>,
+  limits: Record<QuotaKind, number | null>,
+): Record<QuotaKind, number> {
+  const next = { ...used };
+  for (const kind of Object.keys(pending) as QuotaKind[]) {
+    const bump = pending[kind];
+    if (bump <= 0) continue;
+    const limit = limits[kind];
+    next[kind] = limit === null ? used[kind] + bump : Math.min(limit, used[kind] + bump);
+  }
+  return next;
+}
+
+function docDataFromApiUsage(
+  planId: LunaPlanId,
+  usage: Awaited<ReturnType<typeof lunaFetchUsage>>,
+): Record<string, unknown> {
+  if (usesRollingWindow(planId)) {
+    const windowStart =
+      usage.resetsAtMs != null ? usage.resetsAtMs - FREE_QUOTA_WINDOW_MS : Date.now();
+    return {
+      messages: usage.used.messages,
+      images: usage.used.images,
+      documents: usage.used.documents,
+      voice: usage.used.voice,
+      windowStart,
+    };
+  }
+  return {
+    turns: usage.used.messages,
+    bonusTurns: usage.bonusTurns,
+  };
+}
+
+const CLOCK_TICK_MS = 30_000;
+
 /** Lê uso na nuvem (janela rolante no Grátis · mensal nos pagos). */
-export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageSnapshot {
-  const [rawUsed, setRawUsed] = useState<Record<QuotaKind, number>>(emptyUsed());
+export function useLunaUsage(
+  planId: LunaPlanId,
+  uid: string | null,
+  getIdToken?: () => Promise<string | null>,
+): UseLunaUsageResult {
+  const [docData, setDocData] = useState<Record<string, unknown> | undefined>(undefined);
   const [bonusTurns, setBonusTurns] = useState(0);
-  const [resetsAtMs, setResetsAtMs] = useState<number | null>(null);
-  const [resetHours, setResetHours] = useState<number | null>(null);
-  const [resetDays, setResetDays] = useState<number | null>(null);
+  const [pendingUsed, setPendingUsed] = useState<Record<QuotaKind, number>>(emptyUsed());
+  const [clockTick, setClockTick] = useState(0);
   const [loading, setLoading] = useState(true);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const periodKey = usesRollingWindow(planId) ? FREE_USAGE_DOC_ID : currentMonthKey();
-  const baseLimits = limitsForPlan(planId);
+
+  const parsed = useMemo(
+    () => parseUsageDoc(planId, docData, bonusTurns, Date.now()),
+    [planId, docData, bonusTurns, clockTick],
+  );
+
+  const limits = useMemo((): Record<QuotaKind, number | null> => {
+    const baseLimits = limitsForPlan(planId);
+    const next = { ...baseLimits };
+    if (!usesRollingWindow(planId) && next.messages !== null) {
+      next.messages = next.messages + bonusTurns;
+    }
+    return next;
+  }, [bonusTurns, planId]);
+
+  const used = useMemo(
+    () => applyPendingUsed(parsed.used, pendingUsed, limits),
+    [parsed.used, pendingUsed, limits],
+  );
+
+  const { resetsAtMs, resetHours, resetDays } = parsed;
+
+  useEffect(() => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+    if (!uid || resetsAtMs == null) return;
+
+    const delay = Math.max(0, resetsAtMs - Date.now()) + 80;
+    resetTimerRef.current = setTimeout(() => {
+      setClockTick((t) => t + 1);
+      setPendingUsed(emptyUsed());
+    }, delay);
+
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, [uid, resetsAtMs]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const id = setInterval(() => setClockTick((t) => t + 1), CLOCK_TICK_MS);
+    return () => clearInterval(id);
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const onState = (state: AppStateStatus) => {
+      if (state === 'active') setClockTick((t) => t + 1);
+    };
+    const sub = AppState.addEventListener('change', onState);
+    return () => sub.remove();
+  }, [uid]);
+
+  const refreshFromApi = useCallback(
+    async (idToken: string) => {
+      try {
+        const usage = await lunaFetchUsage(idToken);
+        setDocData(docDataFromApiUsage(planId, usage));
+        setBonusTurns(usage.bonusTurns);
+        setPendingUsed(emptyUsed());
+        setClockTick((t) => t + 1);
+      } catch {
+        /* rede / auth — mantém último snapshot */
+      }
+    },
+    [planId],
+  );
 
   useEffect(() => {
     if (!uid) {
-      setRawUsed(emptyUsed());
+      setDocData(undefined);
       setBonusTurns(0);
-      setResetsAtMs(null);
-      setResetHours(null);
-      setResetDays(null);
+      setPendingUsed(emptyUsed());
       setLoading(false);
       return;
     }
@@ -131,6 +248,19 @@ export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageS
 
     setLoading(true);
     const ref = doc(db, userUsageDoc(uid, periodKey));
+
+    void getDocFromServer(ref)
+      .then((snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as Record<string, unknown>;
+        setDocData(data);
+        if (!usesRollingWindow(planId) && typeof data.bonusTurns === 'number') {
+          setBonusTurns(data.bonusTurns);
+        }
+        setPendingUsed(emptyUsed());
+      })
+      .catch(() => {});
+
     const unsub = onSnapshot(
       ref,
       (snap) => {
@@ -141,12 +271,10 @@ export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageS
             ? data.bonusTurns
             : 0;
         setBonusTurns(bonus);
-        const parsed = parseUsageDoc(planId, data, bonus);
-        setRawUsed(parsed.used);
-        setResetsAtMs(parsed.resetsAtMs);
-        setResetHours(parsed.resetHours);
-        setResetDays(parsed.resetDays);
+        setDocData(data);
+        setPendingUsed(emptyUsed());
         setLoading(false);
+        if (!snap.metadata.fromCache) setClockTick((t) => t + 1);
       },
       () => setLoading(false),
     );
@@ -154,12 +282,26 @@ export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageS
     return unsub;
   }, [uid, periodKey, planId]);
 
-  return useMemo((): LunaUsageSnapshot => {
-    const limits: Record<QuotaKind, number | null> = { ...baseLimits };
-    if (!usesRollingWindow(planId) && limits.messages !== null) {
-      limits.messages = limits.messages + bonusTurns;
-    }
+  useEffect(() => {
+    if (!uid || !getIdToken) return;
+    let cancelled = false;
+    void (async () => {
+      const token = await getIdToken();
+      if (!token || cancelled) return;
+      await refreshFromApi(token);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, periodKey, planId, getIdToken, refreshFromApi]);
 
+  const bumpUsage = useCallback((kind: QuotaKind, amount = 1) => {
+    if (amount < 1) return;
+    setPendingUsed((prev) => ({ ...prev, [kind]: prev[kind] + amount }));
+    setClockTick((t) => t + 1);
+  }, []);
+
+  return useMemo((): UseLunaUsageResult => {
     const remaining: Record<QuotaKind, number | null> = {
       messages: null,
       images: null,
@@ -169,11 +311,11 @@ export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageS
     for (const kind of Object.keys(limits) as QuotaKind[]) {
       const limit = limits[kind];
       if (limit === null) continue;
-      remaining[kind] = Math.max(0, limit - rawUsed[kind]);
+      remaining[kind] = Math.max(0, limit - used[kind]);
     }
 
     const effectiveLimit = limits.messages;
-    const usedMessages = rawUsed.messages;
+    const usedMessages = used.messages;
     const pct =
       effectiveLimit !== null && effectiveLimit > 0
         ? Math.min(100, Math.floor((usedMessages / effectiveLimit) * 100))
@@ -187,7 +329,7 @@ export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageS
       cycle: usesRollingWindow(planId) ? 'window' : unlimited ? 'unlimited' : 'monthly',
       windowHours: usesRollingWindow(planId) ? FREE_QUOTA_WINDOW_MS / 3_600_000 : null,
       periodKey,
-      used: rawUsed,
+      used,
       limits,
       remaining,
       bonusTurns,
@@ -198,6 +340,20 @@ export function useLunaUsage(planId: LunaPlanId, uid: string | null): LunaUsageS
       effectiveLimit,
       pct,
       loading,
+      bumpUsage,
+      refreshFromApi,
     };
-  }, [baseLimits, bonusTurns, periodKey, planId, rawUsed, resetDays, resetHours, resetsAtMs, loading]);
+  }, [
+    planId,
+    periodKey,
+    used,
+    limits,
+    bonusTurns,
+    resetsAtMs,
+    resetHours,
+    resetDays,
+    loading,
+    bumpUsage,
+    refreshFromApi,
+  ]);
 }

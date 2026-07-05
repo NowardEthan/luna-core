@@ -6,6 +6,13 @@ import {
   isPremiumModelAllowed,
 } from '../features/billing/planModelPolicy';
 import type { LunaPlanId } from '../features/billing/types';
+import {
+  LUNA_BRAND_PULSE,
+  LUNA_BRAND_ORBITA,
+  LUNA_BRAND_CORE,
+  lunaModelBrand,
+  lunaModelLabel,
+} from './modelBrands';
 
 export { FREE_PLAN_DEFAULT_PROVIDER };
 
@@ -143,23 +150,62 @@ export function providerOptionLabel(
   selection: LunaProviderSelection,
   options: LunaProviderOption[] | undefined,
 ): string {
-  if (isAutoProviderSelection(selection)) return 'Automático';
+  if (isAutoProviderSelection(selection)) {
+    return lunaModelBrand('auto', 'auto').fullName;
+  }
   const match = options?.find(
     (o) => o.providerId === selection.providerId && o.modelKey === selection.modelKey,
   );
-  if (match) return match.label;
-  if (selection.providerId === 'cerebras') return 'GLM 4.7';
-  return 'Groq';
+  if (match) return lunaModelBrand(match.providerId, match.modelKey).fullName;
+  return lunaModelLabel(selection.providerId, selection.modelKey, { full: true });
 }
 
-/** Opção Groq quando a API ainda não expõe `llmProviders` (deploy antigo). */
+/** Opção legacy quando a API ainda não expõe `llmProviders`. */
 export const LEGACY_GROQ_OPTION: LunaProviderOption = {
   providerId: 'groq',
   modelKey: 'default',
-  label: 'Groq · servidor',
-  description: 'Modelo configurado no Railway.',
+  label: LUNA_BRAND_PULSE.fullName,
+  description: LUNA_BRAND_PULSE.description,
   modelId: 'openai/gpt-oss-120b',
 };
+
+const CEREBRAS_GLM_OPTION: LunaProviderOption = {
+  providerId: 'cerebras',
+  modelKey: 'glm-47',
+  label: LUNA_BRAND_CORE.fullName,
+  description: LUNA_BRAND_CORE.description,
+  modelId: 'zai-glm-4.7',
+};
+
+const AUTO_PROVIDER_OPTION: LunaProviderOption = {
+  providerId: 'auto',
+  modelKey: 'auto',
+  label: LUNA_BRAND_ORBITA.fullName,
+  description: LUNA_BRAND_ORBITA.description,
+  modelId: 'auto',
+};
+
+/** Repõe Cerebras/Auto se /health veio filtrado (bug deploy antigo ou plano free no servidor). */
+function ensureFullProviderCatalog(
+  options: LunaProviderOption[],
+  health: { streamSupported?: boolean },
+): LunaProviderOption[] {
+  const list = [...options];
+  const hasGroq = list.some((o) => o.providerId === 'groq' && o.modelKey === 'default');
+  const hasCerebras = list.some((o) => o.providerId === 'cerebras' && o.modelKey === 'glm-47');
+
+  if (health.streamSupported && hasGroq && !hasCerebras) {
+    list.push(CEREBRAS_GLM_OPTION);
+  }
+
+  const modes = list.filter((o) => o.modelKey !== 'auto');
+  const hasAuto = list.some((o) => o.modelKey === 'auto');
+  if (modes.length > 1 && !hasAuto) {
+    list.unshift(AUTO_PROVIDER_OPTION);
+  }
+
+  return list;
+}
 
 export type ProviderOptionsFromHealth = {
   options: LunaProviderOption[];
@@ -175,11 +221,12 @@ function normalizeHealthOption(opt: {
   modelId: string;
 }): LunaProviderOption | null {
   if (opt.providerId === 'auto' && opt.modelKey === 'auto') {
+    const brand = LUNA_BRAND_ORBITA;
     return {
       providerId: 'auto',
       modelKey: 'auto',
-      label: opt.label,
-      description: opt.description,
+      label: brand.fullName,
+      description: brand.description,
       modelId: opt.modelId,
     };
   }
@@ -189,21 +236,23 @@ function normalizeHealthOption(opt: {
   }
 
   if (opt.providerId === 'groq' && opt.modelKey === 'default') {
+    const brand = LUNA_BRAND_PULSE;
     return {
       providerId: 'groq',
       modelKey: 'default',
-      label: opt.label,
-      description: opt.description,
+      label: brand.fullName,
+      description: brand.description,
       modelId: opt.modelId,
     };
   }
 
   if (opt.providerId === 'cerebras' && opt.modelKey === 'glm-47') {
+    const brand = LUNA_BRAND_CORE;
     return {
       providerId: 'cerebras',
       modelKey: 'glm-47',
-      label: opt.label,
-      description: opt.description,
+      label: brand.fullName,
+      description: brand.description,
       modelId: opt.modelId,
     };
   }
@@ -216,6 +265,7 @@ export function buildProviderOptionsFromHealth(
   health: {
     ok?: boolean;
     llmConfigured?: boolean;
+    streamSupported?: boolean;
     llmProviders?: Array<{
       providerId: string;
       modelKey: string;
@@ -230,9 +280,10 @@ export function buildProviderOptionsFromHealth(
   }
 
   if (health.llmProviders && health.llmProviders.length > 0) {
-    const options = health.llmProviders
-      .map(normalizeHealthOption)
-      .filter((o): o is LunaProviderOption => o !== null);
+    const options = ensureFullProviderCatalog(
+      health.llmProviders.map(normalizeHealthOption).filter((o): o is LunaProviderOption => o !== null),
+      health,
+    );
     if (options.length > 0) {
       return { options, apiReachable: true, legacyApi: false };
     }

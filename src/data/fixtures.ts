@@ -1,3 +1,5 @@
+import type { LunaHumorBadge } from '../lib/lunaHumor';
+
 export type Role = 'user' | 'luna';
 
 export interface VoiceClip {
@@ -25,6 +27,8 @@ export interface ChatMessage {
   /** Texto de raciocínio do modelo (faixa live acima da bolha). */
   reasoning?: string;
   reasoningStreaming?: boolean;
+  /** Humor dual-layer no turno (badge no header). */
+  humor?: LunaHumorBadge;
 }
 
 export interface SessionItem {

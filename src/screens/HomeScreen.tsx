@@ -7,7 +7,6 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { UsageLimitChip } from '../components/billing/UsageLimitChip';
 import { Composer } from '../components/Composer';
 import { ComposerDock } from '../components/ComposerDock';
 import { ConversationRow } from '../components/ConversationRow';
@@ -19,6 +18,7 @@ import { SessionItem, UserProfile, VoiceClip } from '../data/fixtures';
 import { useConversationSelection } from '../hooks/useConversationSelection';
 import { useHeaderTopPadding } from '../hooks/useLayoutInsets';
 import { useLunaUsageContext } from '../hooks/LunaUsageContext';
+import { UsageQuotaPill } from '../components/billing/UsageQuotaPill';
 import { tokens } from '../theme/tokens';
 import { layout } from '../theme/layout';
 import { type } from '../theme/typography';
@@ -64,6 +64,8 @@ export const HomeScreen = memo(function HomeScreen({
   const lunaUsage = useLunaUsageContext();
   const headerTopPad = useHeaderTopPadding(8);
   const selection = useConversationSelection();
+
+  const showQuotaPill = lunaUsage.quotaApplies && !lunaUsage.usage.loading;
 
   const handleConfirmDelete = useCallback(() => {
     for (const id of selection.selectedIds) {
@@ -178,6 +180,20 @@ export const HomeScreen = memo(function HomeScreen({
 
       <View style={styles.composerZone}>
         <ComposerDock>
+          {showQuotaPill ? (
+            <View style={styles.quotaPillRow}>
+              <UsageQuotaPill
+                usage={lunaUsage.usage}
+                remaining={lunaUsage.remaining}
+                exceeded={lunaUsage.isExceeded}
+                onPress={
+                  lunaUsage.isExceeded || (lunaUsage.remaining ?? 0) <= 50
+                    ? onOpenPlans
+                    : undefined
+                }
+              />
+            </View>
+          ) : null}
           <Composer
             value={draft}
             onChange={onChange}
@@ -187,17 +203,6 @@ export const HomeScreen = memo(function HomeScreen({
             editable={!lunaUsage.isExceeded}
           />
         </ComposerDock>
-        {lunaUsage.quotaApplies ? (
-          <View style={styles.quotaFloat} pointerEvents="box-none">
-            <UsageLimitChip
-              floating
-              usage={lunaUsage.usage}
-              remaining={lunaUsage.remaining}
-              exceeded={lunaUsage.isExceeded}
-              onPress={lunaUsage.isExceeded ? onOpenPlans : undefined}
-            />
-          </View>
-        ) : null}
       </View>
     </View>
   );
@@ -257,6 +262,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     maxWidth: 280,
   },
+  quotaPillRow: {
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
   section: {
     marginBottom: 20,
   },
@@ -277,14 +286,5 @@ const styles = StyleSheet.create({
   recents: { gap: 8 },
   composerZone: {
     position: 'relative',
-  },
-  quotaFloat: {
-    position: 'absolute',
-    left: layout.composerPaddingX,
-    right: layout.composerPaddingX,
-    bottom: '100%',
-    marginBottom: 2,
-    alignItems: 'center',
-    zIndex: 4,
   },
 });
