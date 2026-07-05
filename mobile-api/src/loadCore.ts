@@ -93,13 +93,12 @@ export async function executarChatMobile(
 
   if (!selection || !config) {
     throw new Error(
-      "Nenhum provedor LLM configurado. Define LUNA_API_KEY (Groq) ou OPENROUTER_API_KEY no servidor.",
+      "Nenhum provedor LLM configurado. Define LUNA_API_KEY (Groq) e/ou CEREBRAS_API_KEY no servidor.",
     );
   }
 
-  const isOpenRouter = selection.providerId === "openrouter";
-  const useOpenRouterLongContext = isOpenRouter && selection.modelKey === "qwen-next";
-  const mensagemLimit = useOpenRouterLongContext ? 14_000 : undefined;
+  const isCerebras = selection.providerId === "cerebras";
+  const mensagemLimit = isCerebras ? 12_000 : undefined;
 
   const corePath = resolveLunaCorePath();
   const core = await loadLunaCoreModule();
@@ -110,7 +109,7 @@ export async function executarChatMobile(
 
     const mensagem = truncateMobileChatMessage(message, { maxChars: mensagemLimit });
 
-    if (sessionId && selection.providerId === "groq") {
+    if (sessionId) {
       try {
         await compactarSessaoPersistida(sessionId);
       } catch {
@@ -129,9 +128,8 @@ export async function executarChatMobile(
       maxSessoes: 3,
     });
 
-    const pipelineUsaGroqAuxiliar = config.baseUrlMenor?.includes("groq.com") ?? false;
     const usarNeuronioMemoriaLlm =
-      mensagem.length < 4_000 && (!isOpenRouter || pipelineUsaGroqAuxiliar);
+      selection.providerId === "groq" && mensagem.length < 4_000;
 
     const resultado = await core.executarPipelineCompleto(mensagem, {
       sessaoId: sidPipeline,

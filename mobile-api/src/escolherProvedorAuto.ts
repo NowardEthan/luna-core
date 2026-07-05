@@ -1,11 +1,16 @@
 import type { LlmProviderOption, LlmProviderSelection } from "./llmProviders.js";
 
-export type AutoRoutingReason = "codigo" | "contexto_longo" | "documento" | "chat_rapido" | "fallback";
+export type AutoRoutingReason =
+  | "codigo"
+  | "contexto_longo"
+  | "documento"
+  | "chat_rapido"
+  | "fallback";
 
 export const AUTO_REASON_LABELS: Record<AutoRoutingReason, string> = {
-  codigo: "Pedido com código — Qwen Coder",
-  contexto_longo: "Mensagem longa — Mistral",
-  documento: "Documento ou anexo — Mistral",
+  codigo: "Pedido com código — GLM 4.7",
+  contexto_longo: "Mensagem longa — GLM 4.7",
+  documento: "Documento ou anexo — GLM 4.7",
   chat_rapido: "Conversa curta — Groq",
   fallback: "Melhor opção disponível",
 };
@@ -58,7 +63,7 @@ function isLongContext(message: string): boolean {
   return message.length > 3_500;
 }
 
-/** Escolhe o melhor provedor/modelo para um turno de chat. */
+/** Escolhe Groq (rápido) ou Cerebras GLM 4.7 (complexo). */
 export function escolherProvedorAuto(
   message: string,
   available: LlmProviderOption[],
@@ -80,20 +85,18 @@ export function escolherProvedorAuto(
     };
   }
 
-  const codeScore = scoreCode(message);
-  if (codeScore >= 3) {
-    const coder = pick(backends, "openrouter", "qwen-coder");
-    if (coder) return { selection: coder, reason: "codigo" };
+  const glm = pick(backends, "cerebras", "glm-47");
+
+  if (scoreCode(message) >= 3 && glm) {
+    return { selection: glm, reason: "codigo" };
   }
 
-  if (hasAttachments(message)) {
-    const next = pick(backends, "openrouter", "qwen-next");
-    if (next) return { selection: next, reason: "documento" };
+  if (hasAttachments(message) && glm) {
+    return { selection: glm, reason: "documento" };
   }
 
-  if (isLongContext(message)) {
-    const next = pick(backends, "openrouter", "qwen-next");
-    if (next) return { selection: next, reason: "contexto_longo" };
+  if (isLongContext(message) && glm) {
+    return { selection: glm, reason: "contexto_longo" };
   }
 
   const groq = pick(backends, "groq", "default");

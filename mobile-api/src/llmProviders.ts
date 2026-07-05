@@ -18,9 +18,9 @@ type ConfigLuna = {
 
 export type { ConfigLuna };
 
-export type LlmProviderId = "groq" | "openrouter" | "auto";
+export type LlmProviderId = "groq" | "cerebras" | "auto";
 
-export type LlmModelKey = "default" | "qwen-next" | "qwen-coder" | "auto";
+export type LlmModelKey = "default" | "glm-47" | "auto";
 
 export type LlmProviderSelection = {
   providerId: LlmProviderId;
@@ -36,26 +36,19 @@ export type LlmProviderOption = {
   configured: boolean;
 };
 
-const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
+const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
 
-/** OpenRouter exige base própria — não reutilizar LUNA_API_BASE_MENOR se apontar para Groq. */
-function openRouterBaseUrl(): string {
-  const explicit = process.env.OPENROUTER_API_BASE?.trim();
-  if (explicit) return explicit;
-  const menor = process.env.LUNA_API_BASE_MENOR?.trim();
-  if (menor && /openrouter\.ai/i.test(menor)) return menor;
-  return OPENROUTER_BASE;
-}
+const GROQ_DEFAULT = {
+  label: "Groq · GPT-OSS 120B",
+  description: "Rápido; ideal para conversas do dia a dia.",
+  modelId: "openai/gpt-oss-120b",
+};
 
-function resolveOpenRouterModelId(
-  modelKey: "qwen-next" | "qwen-coder",
-  fallback: string,
-): string {
-  if (modelKey === "qwen-next") {
-    return process.env.OPENROUTER_MODEL_CHAT?.trim() || fallback;
-  }
-  return process.env.OPENROUTER_MODEL_CODE?.trim() || fallback;
-}
+const CEREBRAS_GLM_47 = {
+  label: "Cerebras · Z.ai GLM 4.7",
+  description: "355B — raciocínio forte, ~1000 tok/s no tier free.",
+  modelId: "zai-glm-4.7",
+};
 
 type CatalogProviderId = Exclude<LlmProviderId, "auto">;
 type CatalogModelKey = Exclude<LlmModelKey, "auto">;
@@ -65,25 +58,10 @@ const MODELS: Record<
   Partial<Record<CatalogModelKey, { label: string; description: string; modelId: string }>>
 > = {
   groq: {
-    default: {
-      label: "Groq · GPT-OSS 120B",
-      description: "Rápido; limite ~8k tokens por pedido no tier free.",
-      modelId: "openai/gpt-oss-120b",
-    },
+    default: GROQ_DEFAULT,
   },
-  openrouter: {
-    /** Chat geral — Mistral 24B free, tool calling, 128k (substitui Qwen 80B lento). */
-    "qwen-next": {
-      label: "OpenRouter · Mistral Small 3.1 (free)",
-      description: "Chat rápido, tool calling e contexto longo — grátis no OpenRouter.",
-      modelId: "mistralai/mistral-small-3.1-24b-instruct:free",
-    },
-    /** Código — Qwen Coder free, tool calling para agentes. */
-    "qwen-coder": {
-      label: "OpenRouter · Qwen3 Coder (free)",
-      description: "Código e raciocínio técnico com tool calling — grátis no OpenRouter.",
-      modelId: "qwen/qwen3-coder:free",
-    },
+  cerebras: {
+    "glm-47": CEREBRAS_GLM_47,
   },
 };
 
@@ -91,55 +69,88 @@ function groqApiKey(): string | undefined {
   return process.env.LUNA_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim() || undefined;
 }
 
-function openRouterApiKey(): string | undefined {
-  return (
-    process.env.OPENROUTER_API_KEY?.trim() ||
-    process.env.LUNA_API_KEY_MENOR?.trim() ||
-    undefined
-  );
+function cerebrasApiKey(): string | undefined {
+  return process.env.CEREBRAS_API_KEY?.trim() || undefined;
 }
 
-function isProviderConfigured(providerId: LlmProviderId): boolean {
+function isProviderConfigured(providerId: CatalogProviderId): boolean {
   if (providerId === "groq") return Boolean(groqApiKey());
-  return Boolean(openRouterApiKey());
+  return Boolean(cerebrasApiKey());
 }
 
-/** Opções expostas ao mobile (só as que têm chave no servidor). */
+function resolveCerebrasModelId(): string {
+  return process.env.CEREBRAS_MODEL?.trim() || CEREBRAS_GLM_47.modelId;
+}
+
+function groqMenorModelId(): string {
+  return process.env.LUNA_MODELO_MENOR?.trim() || "llama-3.1-8b-instant";
+}
+
+function groqMaiorModelId(): string {
+  return process.env.LUNA_MODELO_MAIOR?.trim() || GROQ_DEFAULT.modelId;
+}
+
+/** Normaliza pedidos legados (OpenRouter / qwen) para Cerebras GLM ou Groq. */
+export function normalizeLegacyProviderSelection(
+  input?: Partial<{ providerId?: string; modelKey?: string }>,
+): Partial<LlmProviderSelection> | undefined {
+  if (!input) return input;
+
+  const providerId = input.providerId;
+  const modelKey = input.modelKey;
+
+  if (providerId === "openrouter" || modelKey === "qwen-next" || modelKey === "qwen-coder") {
+    if (isProviderConfigured("cerebras")) {
+      return { providerId: "cerebras", modelKey: "glm-47" };
+    }
+    return { providerId: "groq", modelKey: "default" };
+  }
+
+  if (providerId === "cerebras" && (modelKey === "glm-47" || modelKey === "default" || !modelKey)) {
+    return { providerId: "cerebras", modelKey: "glm-47" };
+  }
+
+  if (providerId === "groq" || providerId === "auto") {
+    return {
+      providerId: providerId as LlmProviderId,
+      modelKey: (modelKey === "auto" ? "auto" : "default") as LlmModelKey,
+    };
+  }
+
+  return input as Partial<LlmProviderSelection>;
+}
+
+/** Opções expostas ao mobile. */
 export function listConfiguredProviderOptions(): LlmProviderOption[] {
   const options: LlmProviderOption[] = [];
 
   if (isProviderConfigured("groq") && MODELS.groq.default) {
-    const m = MODELS.groq.default;
-    const modelId = process.env.LUNA_MODELO_MAIOR?.trim() || m.modelId;
     options.push({
       providerId: "groq",
       modelKey: "default",
-      label: m.label,
-      description: m.description,
-      modelId,
+      label: GROQ_DEFAULT.label,
+      description: GROQ_DEFAULT.description,
+      modelId: groqMaiorModelId(),
       configured: true,
     });
   }
 
-  if (isProviderConfigured("openrouter")) {
-    for (const key of ["qwen-next", "qwen-coder"] as const) {
-      const m = MODELS.openrouter[key];
-      if (!m) continue;
-      options.push({
-        providerId: "openrouter",
-        modelKey: key,
-        label: m.label,
-        description: m.description,
-        modelId: resolveOpenRouterModelId(key, m.modelId),
-        configured: true,
-      });
-    }
+  if (isProviderConfigured("cerebras") && MODELS.cerebras["glm-47"]) {
+    const m = MODELS.cerebras["glm-47"]!;
+    options.push({
+      providerId: "cerebras",
+      modelKey: "glm-47",
+      label: m.label,
+      description: m.description,
+      modelId: resolveCerebrasModelId(),
+      configured: true,
+    });
   }
 
   return options;
 }
 
-/** Opções para UI (inclui modo automático quando há variedade). */
+/** Opções para UI — inclui automático quando há Groq + Cerebras. */
 export function listProviderOptionsForUi(): LlmProviderOption[] {
   const configured = listConfiguredProviderOptions();
   if (configured.length <= 1) return configured;
@@ -149,8 +160,7 @@ export function listProviderOptionsForUi(): LlmProviderOption[] {
       providerId: "auto",
       modelKey: "auto",
       label: "Automático",
-      description:
-        "A Luna escolhe por mensagem: Groq para chat rápido, Mistral para documentos, Qwen Coder para código.",
+      description: "Groq para chat rápido; GLM 4.7 para código, documentos e contexto longo.",
       modelId: "auto",
       configured: true,
     },
@@ -169,13 +179,15 @@ export function isAnyLlmProviderConfigured(): boolean {
 }
 
 export function resolveLlmProviderSelection(
-  input?: Partial<LlmProviderSelection>,
+  input?: Partial<LlmProviderSelection> & Partial<{ providerId?: string; modelKey?: string }>,
   message?: string,
 ): ResolvedLlmProvider | null {
   const available = listConfiguredProviderOptions();
   if (available.length === 0) return null;
 
-  if (isAutoProviderMode(input)) {
+  const normalized = normalizeLegacyProviderSelection(input) ?? input;
+
+  if (isAutoProviderMode(normalized)) {
     if (!message?.trim()) {
       const groq = available.find((o) => o.providerId === "groq");
       const first = groq ?? available[0]!;
@@ -193,8 +205,8 @@ export function resolveLlmProviderSelection(
     };
   }
 
-  const requestedProvider = input?.providerId;
-  const requestedModel = input?.modelKey;
+  const requestedProvider = normalized?.providerId;
+  const requestedModel = normalized?.modelKey;
 
   if (requestedProvider && requestedModel) {
     const match = available.find(
@@ -219,55 +231,51 @@ export function resolveLlmProviderSelection(
   return { selection: { providerId: first.providerId, modelKey: first.modelKey } };
 }
 
-export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | null {
-  if (!isProviderConfigured(selection.providerId)) return null;
+function attachGroqAuxiliar(config: ConfigLuna): ConfigLuna {
+  const groqKey = groqApiKey();
+  if (!groqKey) return config;
 
-  if (selection.providerId === "groq") {
+  return {
+    ...config,
+    modeloMenor: groqMenorModelId(),
+    apiKeyMenor: groqKey,
+    baseUrlMenor: process.env.LUNA_API_BASE?.trim() || "https://api.groq.com/openai/v1",
+  };
+}
+
+export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | null {
+  if (selection.providerId === "groq" || selection.providerId === "auto") {
     const apiKey = groqApiKey();
     if (!apiKey) return null;
-    const model =
-      process.env.LUNA_MODELO_MAIOR?.trim() ||
-      MODELS.groq.default?.modelId ||
-      "openai/gpt-oss-120b";
-    const modelMenor = process.env.LUNA_MODELO_MENOR?.trim() || "llama-3.1-8b-instant";
+
     return {
       apiKey,
       baseUrl: process.env.LUNA_API_BASE?.trim() || "https://api.groq.com/openai/v1",
-      modeloMenor: modelMenor,
-      modeloMaior: model,
+      modeloMenor: groqMenorModelId(),
+      modeloMaior: groqMaiorModelId(),
       temperaturaMenor: 0,
       temperaturaMaior: Number(process.env.LUNA_TEMPERATURA_MAIOR ?? 0.85),
     };
   }
 
-  const apiKey = openRouterApiKey();
-  if (!apiKey) return null;
+  if (selection.providerId === "cerebras") {
+    const apiKey = cerebrasApiKey();
+    if (!apiKey) return null;
 
-  const modelDef = MODELS.openrouter[selection.modelKey as "qwen-next" | "qwen-coder"];
-  if (!modelDef) return null;
+    const baseUrl = process.env.CEREBRAS_API_BASE?.trim() || CEREBRAS_BASE;
+    const model = resolveCerebrasModelId();
 
-  const model = resolveOpenRouterModelId(
-    selection.modelKey as "qwen-next" | "qwen-coder",
-    modelDef.modelId,
-  );
-  const baseUrl = openRouterBaseUrl();
+    return attachGroqAuxiliar({
+      apiKey,
+      baseUrl,
+      modeloMenor: model,
+      modeloMaior: model,
+      temperaturaMenor: 0,
+      temperaturaMaior: Number(process.env.CEREBRAS_TEMPERATURA ?? process.env.LUNA_TEMPERATURA_MAIOR ?? 1),
+    });
+  }
 
-  /** Pipeline auxiliar (análise/memória) no Groq rápido quando disponível — evita 2–3×80B no OpenRouter. */
-  const groqKey = groqApiKey();
-  const groqBase = process.env.LUNA_API_BASE?.trim() || "https://api.groq.com/openai/v1";
-  const groqMenor = process.env.LUNA_MODELO_MENOR?.trim() || "llama-3.1-8b-instant";
-  const usarGroqMenor = Boolean(groqKey);
-
-  return {
-    apiKey,
-    baseUrl,
-    modeloMenor: usarGroqMenor ? groqMenor : model,
-    modeloMaior: model,
-    temperaturaMenor: 0,
-    temperaturaMaior: Number(process.env.LUNA_TEMPERATURA_MAIOR ?? 0.85),
-    apiKeyMenor: usarGroqMenor ? groqKey! : apiKey,
-    baseUrlMenor: usarGroqMenor ? groqBase : baseUrl,
-  };
+  return null;
 }
 
 export function providerLabel(selection: LlmProviderSelection): string {

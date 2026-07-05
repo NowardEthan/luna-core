@@ -24,6 +24,7 @@ import {
 import {
   isAnyLlmProviderConfigured,
   listProviderOptionsForUi,
+  normalizeLegacyProviderSelection,
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import {
@@ -149,13 +150,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = await readJson(req);
       const parsed = ChatRequestSchema.parse(body);
       const sessionId = parsed.sessionId ?? crypto.randomUUID();
+      const llmSelection = normalizeLegacyProviderSelection({
+        providerId: parsed.providerId,
+        modelKey: parsed.modelKey,
+      });
       const result = await executarChatMobile(
         parsed.message,
         sessionId,
-        {
-          providerId: parsed.providerId,
-          modelKey: parsed.modelKey,
-        },
+        llmSelection,
         parsed.userDisplayName,
         auth?.uid ?? null,
       );
