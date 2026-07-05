@@ -171,7 +171,9 @@ export function listConfiguredProviderOptions(): LlmProviderOption[] {
     });
   }
 
-  if (isGroqChatEnabled() && isProviderConfigured("groq") && MODELS.groq.default) {
+  // Groq permanece listado para plano free (Core/Cerebras é filtrado por plano).
+  // O cérebro premium usa Cerebras via preferDefaultProvider + resolveLlmConfig.
+  if (isProviderConfigured("groq") && MODELS.groq.default) {
     options.push({
       providerId: "groq",
       modelKey: "default",

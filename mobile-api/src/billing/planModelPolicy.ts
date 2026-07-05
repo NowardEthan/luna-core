@@ -1,10 +1,17 @@
 import type { PlanId } from "./planMapping.js";
 
 import { FREE_PLAN_BRAND_NOTICE } from "../modelBrands.js";
+import { ehCriadorVerificado } from "../criadorVerificado.js";
 
 /** GLM 4.7 / Luna Core — planos pagos e trial. */
 export function isPremiumModelAllowed(planId: PlanId): boolean {
   return planId !== "free";
+}
+
+/** Criador verificado usa Core (Cerebras) mesmo com plano free no Firestore. */
+export function planIdForLlmRouting(uid: string | null | undefined, planId: PlanId): PlanId {
+  if (uid && ehCriadorVerificado(uid) && planId === "free") return "pro";
+  return planId;
 }
 
 export function isGlm47Provider(

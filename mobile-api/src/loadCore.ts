@@ -198,8 +198,17 @@ async function prepararChatMobile(
   const config = selection ? resolveLlmConfig(selection) : null;
 
   if (!selection || !config) {
+    const temCerebras = Boolean(process.env.CEREBRAS_API_KEY?.trim());
+    const temGroq = Boolean(
+      process.env.LUNA_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim(),
+    );
+    if (!temCerebras && !temGroq) {
+      throw new Error(
+        "Nenhum provedor LLM configurado. Define CEREBRAS_API_KEY e/ou LUNA_API_KEY (Groq) no servidor.",
+      );
+    }
     throw new Error(
-      "Nenhum provedor LLM configurado. Define LUNA_API_KEY (Groq) e/ou CEREBRAS_API_KEY no servidor.",
+      "Não foi possível escolher um modelo para este plano. Verifica CEREBRAS_API_KEY (Core) ou LUNA_API_KEY (Pulse) no Railway.",
     );
   }
 

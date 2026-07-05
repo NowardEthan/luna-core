@@ -31,6 +31,7 @@ import {
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import { consumeQuota, getQuotaSnapshot, getUserPlanId, QuotaExceededError } from "./billing/quotaService.js";
+import { planIdForLlmRouting } from "./billing/planModelPolicy.js";
 import type { PlanId } from "./billing/planMapping.js";
 import {
   ChatRequestSchema,
@@ -216,7 +217,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       let planId: PlanId = "free";
       if (auth && !auth.isAnonymous) {
-        planId = await getUserPlanId(auth.uid);
+        planId = planIdForLlmRouting(auth.uid, await getUserPlanId(auth.uid));
       }
 
       const llmSelection = normalizeLegacyProviderSelection(
@@ -298,7 +299,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       let planId: PlanId = "free";
       if (auth && !auth.isAnonymous) {
-        planId = await getUserPlanId(auth.uid);
+        planId = planIdForLlmRouting(auth.uid, await getUserPlanId(auth.uid));
       }
 
       const llmSelection = normalizeLegacyProviderSelection(
