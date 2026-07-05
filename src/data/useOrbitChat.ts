@@ -132,6 +132,26 @@ function newMessageId(prefix: 'u' | 'l'): string {
   return `${prefix}${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+async function getIdTokenComTimeout(
+  getter: () => Promise<string | null>,
+  ms = 15_000,
+): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      getter(),
+      new Promise<null>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error('Sessão Firebase demorou demais. Reinicia o app.')),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function useOrbitChat() {
   const auth = useLunaAuth();
   const keyboardOpen = useKeyboardOpen();
@@ -547,7 +567,16 @@ export function useOrbitChat() {
       const lunaMessageId = `l-${sessionId}-${Date.now()}`;
       setLoading(true);
 
-      const idToken = cloudEnabled ? await auth.getIdToken() : null;
+      let idToken: string | null = null;
+      if (cloudEnabled) {
+        try {
+          idToken = await getIdTokenComTimeout(() => auth.getIdToken());
+        } catch (err) {
+          setLoading(false);
+          deliverLunaError(err);
+          return;
+        }
+      }
       const chatRequest = {
         message,
         sessionId,
