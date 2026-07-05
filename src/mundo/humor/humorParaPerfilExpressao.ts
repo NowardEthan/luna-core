@@ -63,16 +63,18 @@ export function humorParaPerfilExpressao(
   const climaFaixa = faixaClima(clima.valencia);
   const energiaFaixa = faixaEnergia(clima.energia);
   const registro: PerfilExpressaoHumor["registro"] = ctx.criador_verificado
-    ? relacao.proximidade > 0.8
+    ? relacao.proximidade > 0.85
       ? "intimo"
-      : relacao.proximidade > 0.6
-        ? "caloroso"
-        : "proximo"
+      : "caloroso"
     : relacao.proximidade > 0.7
       ? "caloroso"
       : relacao.proximidade > 0.45
         ? "proximo"
         : "reservado";
+
+  const calorBase = ctx.criador_verificado
+    ? Math.max(0.62, 0.35 + relacao.proximidade * 0.55)
+    : 0.3 + relacao.proximidade * 0.6;
 
   const narrativa = `Estado da Luna: clima ${climaFaixa}, energia ${energiaFaixa}, com este interlocutor ${relacao.disposicao}.`;
   const perfilEscrita = vozParaPerfilEscrita({
@@ -91,10 +93,21 @@ export function humorParaPerfilExpressao(
     energia: energiaFaixa,
     registro,
     moduladores: {
-      calor_textual: Number((0.3 + relacao.proximidade * 0.6).toFixed(2)),
-      leveza: gate.nivel_leveza === "alto" ? 0.9 : gate.nivel_leveza === "moderado" ? 0.6 : 0.2,
-      interjeicoes: energiaFaixa === "alta" ? "frequentes" : energiaFaixa === "media" ? "naturais" : "raras",
-      pergunta_final: gate.permitir_piada ? "se_natural" : "evitar",
+      calor_textual: Number(calorBase.toFixed(2)),
+      leveza: ctx.criador_verificado
+        ? Math.max(0.55, gate.nivel_leveza === "alto" ? 0.9 : gate.nivel_leveza === "moderado" ? 0.65 : 0.45)
+        : gate.nivel_leveza === "alto"
+          ? 0.9
+          : gate.nivel_leveza === "moderado"
+            ? 0.6
+            : 0.2,
+      interjeicoes:
+        ctx.criador_verificado || energiaFaixa === "alta"
+          ? "frequentes"
+          : energiaFaixa === "media"
+            ? "naturais"
+            : "raras",
+      pergunta_final: ctx.criador_verificado ? "evitar" : gate.permitir_piada ? "se_natural" : "evitar",
       comprimento:
         ctx.intencao === "pergunta_identitaria"
           ? "medio"

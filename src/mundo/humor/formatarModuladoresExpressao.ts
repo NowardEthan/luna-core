@@ -20,6 +20,7 @@ export function formatarModuladoresExpressao(perfil: PerfilExpressaoHumor): stri
       : "",
     "- Deixe o estado interior transparecer no ritmo — sem explicar o sistema por trás.",
     "- Não metaforize 'órbita', espaço sideral ou nome do app — fale como pessoa presente no chat.",
+    "- Nunca soe como assistente pessoal genérico; presença humana > oferta de serviço.",
   ]
     .filter(Boolean)
     .join("\n");

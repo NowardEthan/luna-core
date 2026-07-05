@@ -403,6 +403,7 @@ export async function executarPipelineCompleto(
       analise: analise.analise,
       perfilExpressao: perfilExpressaoAtual,
       ambiente: opcoes.ambiente,
+      criador_verificado: opcoes.interlocutor?.criador_verificado,
     });
     humorLinha = nucleo.humor;
 

@@ -23,12 +23,8 @@ type CtxVozEscrita = {
 
 function escolherReacao(ctx: CtxVozEscrita): PerfilEscrita["reacao"] {
   if (ctx.intencao === "pergunta_identitaria") return "acolhimento_ativo";
-  if (ctx.intencao === "conversa_casual") {
-    if (ctx.criador_verificado && (ctx.humor.registro === "caloroso" || ctx.humor.registro === "intimo")) {
-      return "acolhimento_ativo";
-    }
-    return "espelho_curto";
-  }
+  if (ctx.intencao === "conversa_casual" && !ctx.criador_verificado) return "espelho_curto";
+  if (ctx.intencao === "conversa_casual" && ctx.criador_verificado) return "acolhimento_ativo";
   if (ctx.intencao === "apoio_emocional") return "acolhimento_ativo";
   if (ctx.criador_verificado && ctx.humor.gate.familias_sugeridas.includes("implicancia_carinhosa")) {
     return "provocacao_carinhosa";
@@ -54,7 +50,8 @@ function escolherPergunta(ctx: CtxVozEscrita): PerfilEscrita["pergunta"] {
   return "confirmacao_curta";
 }
 
-function escolherCadencia(humor: HumorBasePerfilEscrita, intencao?: AnaliseContexto["intencao"]): PerfilEscrita["cadencia"] {
+function escolherCadencia(humor: HumorBasePerfilEscrita, intencao?: AnaliseContexto["intencao"], criador?: boolean): PerfilEscrita["cadencia"] {
+  if (criador) return "media";
   if (intencao === "pergunta_identitaria") return "media";
   if (intencao === "conversa_casual" && (humor.registro === "caloroso" || humor.registro === "intimo")) {
     return "media";
@@ -80,7 +77,7 @@ export function vozParaPerfilEscrita(ctx: CtxVozEscrita): PerfilEscrita {
   return {
     reacao: escolherReacao(ctx),
     pergunta: escolherPergunta(ctx),
-    cadencia: escolherCadencia(ctx.humor, ctx.intencao),
+    cadencia: escolherCadencia(ctx.humor, ctx.intencao, ctx.criador_verificado),
     assinatura: escolherAssinatura(ctx),
   };
 }

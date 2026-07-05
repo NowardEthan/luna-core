@@ -3,6 +3,7 @@ import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 import { HUMOR_BASELINE } from "./esquemaHumor.js";
+import { ehCriadorVerificado } from "../../interlocutor/ehCriadorVerificado.js";
 
 export type DisposicaoRelacao = "aberta" | "reticente" | "fechada";
 
@@ -42,9 +43,12 @@ function inferirDisposicao(proximidade: number, ultimoImpacto: string | null): D
 }
 
 function baselineRelacao(interlocutorId: string): RelacaoHumor {
+  const proximidade = ehCriadorVerificado(interlocutorId)
+    ? Math.max(HUMOR_BASELINE.proximidade, 0.88)
+    : HUMOR_BASELINE.proximidade;
   return {
     interlocutor_id: interlocutorId,
-    proximidade: HUMOR_BASELINE.proximidade,
+    proximidade,
     disposicao: "aberta",
     ultimo_impacto: null,
     intensidade: 0,

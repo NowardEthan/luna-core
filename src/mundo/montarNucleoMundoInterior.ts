@@ -14,6 +14,10 @@ import {
   detectarPerguntaVidaInterior,
   formatarGuiaRespostaVidaInterior,
 } from "./vida/detectarPerguntaVidaInterior.js";
+import {
+  formatarLeiPresencaViva,
+  formatarPresencaInteriorContinua,
+} from "./formatarLeiPresencaViva.js";
 
 export type NucleoMundoInterior = {
   humor: string;
@@ -46,6 +50,7 @@ function montarBlocoVida(mensagem?: string): string {
     montarResumoVidaInterior(),
     refletirGostosLuna(3),
     formatarVontadesAtivas(),
+    formatarPresencaInteriorContinua(),
     mensagem && detectarPerguntaVidaInterior(mensagem)
       ? formatarGuiaRespostaVidaInterior()
       : null,
@@ -54,7 +59,10 @@ function montarBlocoVida(mensagem?: string): string {
   return partes.join("\n");
 }
 
-function montarBlocoHumor(perfilExpressao?: PerfilExpressaoHumor): string {
+function montarBlocoHumor(
+  perfilExpressao?: PerfilExpressaoHumor,
+  criadorVerificado?: boolean,
+): string {
   const linhas: string[] = [];
   try {
     linhas.push(humorParaFrase(lerHumor()));
@@ -68,6 +76,8 @@ function montarBlocoHumor(perfilExpressao?: PerfilExpressaoHumor): string {
     linhas.push(formatarModuladoresExpressao(perfilExpressao));
   }
 
+  linhas.push(formatarLeiPresencaViva({ criador_verificado: criadorVerificado }));
+
   return linhas.join("\n");
 }
 
@@ -80,6 +90,7 @@ export function prepararNucleoMundoInterior(input: {
   analise: Pick<AnaliseContexto, "intencao" | "nivel_risco">;
   perfilExpressao?: PerfilExpressaoHumor;
   ambiente?: Ambiente;
+  criador_verificado?: boolean;
 }): NucleoMundoInterior {
   try {
     simularVidaInterior(input.mensagem, input.analise);
@@ -88,7 +99,7 @@ export function prepararNucleoMundoInterior(input: {
   }
 
   return {
-    humor: montarBlocoHumor(input.perfilExpressao),
+    humor: montarBlocoHumor(input.perfilExpressao, input.criador_verificado),
     habitat: sliceHabitatParaAmbiente(input.ambiente),
     vida: montarBlocoVida(input.mensagem),
   };
