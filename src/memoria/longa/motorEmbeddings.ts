@@ -29,9 +29,15 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   }
 
   async gerarEmbedding(texto: string): Promise<number[]> {
+    const timeoutMs = Number.parseInt(process.env.LUNA_EMBEDDINGS_TIMEOUT_MS?.trim() ?? "8000", 10);
     const pipe = await this.getPipe();
-    const saida = await pipe(texto, { pooling: "mean", normalize: true });
-    // @xenova retorna um Tensor, a propriedade data contém os floats em Float32Array
+    const embed = pipe(texto, { pooling: "mean", normalize: true });
+    const saida = await Promise.race([
+      embed,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout ao gerar embedding")), timeoutMs),
+      ),
+    ]);
     return Array.from(saida.data);
   }
 }

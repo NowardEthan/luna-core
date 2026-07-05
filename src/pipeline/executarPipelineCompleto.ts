@@ -120,6 +120,17 @@ export type OpcoesPipelineCompleto = {
   onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
 };
 
+function pipelineMobileRapido(ambiente?: string): boolean {
+  if (ambiente === "orbit_mobile") return true;
+  const flag = process.env.LUNA_MOBILE_FAST?.trim().toLowerCase();
+  return flag === "1" || flag === "true";
+}
+
+function embeddingsDesactivados(): boolean {
+  const flag = process.env.LUNA_EMBEDDINGS?.trim().toLowerCase();
+  return flag === "0" || flag === "false" || flag === "off";
+}
+
 function featureFlagAgenticoVisionAtiva(): boolean {
   const raw = process.env.LUNA_AGENTIC_VISION?.trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "on";
@@ -218,8 +229,16 @@ export async function executarPipelineCompleto(
   const contextoSessao = sessao ? prepararContextoRespondedor(sessao) : undefined;
 
   let kernelDespertar: string | null = null;
+  const mobileRapido = pipelineMobileRapido(opcoes.ambiente);
   if (sessao && sessao.mensagens.length === 0 && provedorMenor && config?.modeloMenor) {
-    kernelDespertar = await despertar(sessao.id, provedorMenor, config.modeloMenor);
+    if (mobileRapido) {
+      // Despertar/sono em background — não bloqueia a 1ª resposta no app.
+      void despertar(sessao.id, provedorMenor, config.modeloMenor).catch((e) => {
+        console.error("Aviso: despertar em background falhou", e);
+      });
+    } else {
+      kernelDespertar = await despertar(sessao.id, provedorMenor, config.modeloMenor);
+    }
   }
 
   if (contextoSessao && opcoes.contexto_ide?.trim()) {
@@ -248,7 +267,10 @@ export async function executarPipelineCompleto(
   if (contextoSessao) {
     try {
       const perfis = buscarFatosDePerfil();
-      const palavras = await buscarFatosPorSimilaridade(mensagem);
+      const palavras =
+        mobileRapido || embeddingsDesactivados()
+          ? []
+          : await buscarFatosPorSimilaridade(mensagem);
       const longoPrazo = [...perfis, ...palavras].map(m => {
         let texto = `Fato: ${m.conteudo}`;
         if (m.uso_recomendado) texto += ` - Orientação: ${m.uso_recomendado}`;

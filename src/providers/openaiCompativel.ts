@@ -42,6 +42,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function llmFetchTimeoutMs(): number {
+  const raw = process.env.LUNA_LLM_TIMEOUT_MS?.trim();
+  const n = raw ? Number.parseInt(raw, 10) : 60_000;
+  return Number.isFinite(n) && n > 0 ? n : 60_000;
+}
+
+function signalComTimeout(init: RequestInit, timeoutMs: number): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  if (!init.signal) return timeoutSignal;
+  const merged = AbortSignal.any([init.signal, timeoutSignal]);
+  return merged;
+}
+
 function extrairEsperaSegundos(corpoErro: string): number | null {
   const match = corpoErro.match(/try again in ([\d.]+)s/i);
   if (!match) return null;
@@ -50,7 +63,8 @@ function extrairEsperaSegundos(corpoErro: string): number | null {
 
 function formatarErroLlm(status: number, erro: string, baseUrl?: string): string {
   const isOpenRouter = baseUrl?.includes("openrouter.ai") ?? false;
-  const provedor = isOpenRouter ? "OpenRouter" : "Groq";
+  const isCerebras = /cerebras\.ai/i.test(baseUrl ?? "");
+  const provedor = isOpenRouter ? "OpenRouter" : isCerebras ? "Cerebras" : "Groq";
   if (
     erro.includes("rate_limit_exceeded") ||
     erro.includes("Request too large") ||
@@ -93,7 +107,10 @@ async function fetchComRetry(
   const provedorBase = baseUrl ?? url.replace(/\/chat\/completions.*$/i, "");
 
   for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-    const resposta = await fetch(url, init);
+    const resposta = await fetch(url, {
+      ...init,
+      signal: signalComTimeout(init, llmFetchTimeoutMs()),
+    });
 
     if (resposta.ok) return resposta;
 

@@ -120,6 +120,34 @@ function quotaDeniedPayload(err: QuotaExceededError): { ok: false; error: string
   };
 }
 
+function chatTimeoutMs(): number {
+  const raw = process.env.LUNA_CHAT_TIMEOUT_MS?.trim();
+  const n = raw ? Number.parseInt(raw, 10) : 90_000;
+  return Number.isFinite(n) && n > 0 ? n : 90_000;
+}
+
+async function comTimeoutChat<T>(promise: Promise<T>, ms = chatTimeoutMs()): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                "A Luna demorou demais para responder. Tenta de novo — se persistir, verifica CEREBRAS_API_KEY no Railway.",
+              ),
+            ),
+          ms,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function enforceQuota(
   auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>,
   kind: Parameters<typeof consumeQuota>[1],
@@ -241,14 +269,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         }
       }
 
-      const result = await executarChatMobile(
-        parsed.message,
-        sessionId,
-        parsed.attachments,
-        llmSelection,
-        parsed.userDisplayName,
-        auth?.uid ?? null,
-        planId,
+      const result = await comTimeoutChat(
+        executarChatMobile(
+          parsed.message,
+          sessionId,
+          parsed.attachments,
+          llmSelection,
+          parsed.userDisplayName,
+          auth?.uid ?? null,
+          planId,
+        ),
       );
 
       if (auth) {

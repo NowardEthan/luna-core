@@ -11,7 +11,10 @@ Segredos (`csk_…`, `gsk_…`) cola os teus — não commits no git.
 | `CEREBRAS_API_BASE` | `https://api.cerebras.ai/v1` |
 | `CEREBRAS_MODEL` | `zai-glm-4.7` |
 | `CEREBRAS_TEMPERATURA` | `1` |
-| `CEREBRAS_REASONING_EFFORT` | `medium` |
+| `CEREBRAS_REASONING_EFFORT` | `low` (mobile) ou `medium` |
+| `LUNA_CHAT_TIMEOUT_MS` | `90000` |
+| `LUNA_LLM_TIMEOUT_MS` | `60000` |
+| `LUNA_EMBEDDINGS` | `0` (opcional — mobile já ignora embeddings) |
 | `CEREBRAS_GZIP_MIN_BYTES` | `8192` |
 | `LUNA_STREAM_ENABLED` | `1` |
 
