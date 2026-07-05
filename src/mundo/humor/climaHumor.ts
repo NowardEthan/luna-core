@@ -1,5 +1,6 @@
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 import { HUMOR_BASELINE } from "./esquemaHumor.js";
 
@@ -44,6 +45,14 @@ export function lerClimaGlobal(): ClimaHumor {
     return aplicarDecaimentoClima(cache.clima);
   }
 
+  if (!sqliteFallbackPermitido()) {
+    return {
+      valencia: HUMOR_BASELINE.valencia,
+      energia: HUMOR_BASELINE.energia,
+      atualizado_em: new Date().toISOString(),
+    };
+  }
+
   garantirTabelas();
   const row = obterDb()
     .prepare(
@@ -76,6 +85,8 @@ export function salvarClimaGlobal(clima: ClimaHumor): ClimaHumor {
     cache.dirty.clima = true;
     return atual;
   }
+
+  if (!sqliteFallbackPermitido()) return atual;
 
   garantirTabelas();
   obterDb()

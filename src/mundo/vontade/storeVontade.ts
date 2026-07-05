@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 
 export type VontadeNarrativa = {
@@ -44,6 +45,8 @@ export function criarVontadeNarrativa(
     return vontade;
   }
 
+  if (!sqliteFallbackPermitido()) return vontade;
+
   garantirTabelas();
   obterDb()
     .prepare(
@@ -73,6 +76,8 @@ export function listarVontadesAtivas(limite = 10): VontadeNarrativa[] {
       .slice(0, limite);
   }
 
+  if (!sqliteFallbackPermitido()) return [];
+
   garantirTabelas();
   return obterDb()
     .prepare(
@@ -99,6 +104,8 @@ export function atualizarStatusVontade(
     }
     return;
   }
+
+  if (!sqliteFallbackPermitido()) return;
 
   garantirTabelas();
   obterDb()

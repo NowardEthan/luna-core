@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 import type { EventoVida, TipoEventoVida } from "./eventosVida.js";
 
@@ -51,6 +52,8 @@ export function registrarEventoVida(evento: EventoVida): EventoVidaPersistido {
     return persistido;
   }
 
+  if (!sqliteFallbackPermitido()) return persistido;
+
   garantirTabelas();
   obterDb()
     .prepare(
@@ -76,6 +79,8 @@ export function listarEventosVida(limite = 10): EventoVidaPersistido[] {
       .slice(0, limite);
   }
 
+  if (!sqliteFallbackPermitido()) return [];
+
   garantirTabelas();
   return obterDb()
     .prepare(
@@ -95,6 +100,8 @@ export function listarEventosVidaAntigos(corteIso: string): EventoVidaPersistido
       .sort((a, b) => a.criado_em.localeCompare(b.criado_em));
   }
 
+  if (!sqliteFallbackPermitido()) return [];
+
   garantirTabelas();
   return obterDb()
     .prepare(
@@ -109,6 +116,15 @@ export function listarEventosVidaAntigos(corteIso: string): EventoVidaPersistido
 export function lerEstadoVida(): EstadoVida {
   const cache = getCacheMundo();
   if (cache?.vidaEstado) return cache.vidaEstado;
+
+  if (!sqliteFallbackPermitido()) {
+    return {
+      fase: "estavel",
+      energia_narrativa: 0.45,
+      foco: "continuidade",
+      atualizado_em: new Date().toISOString(),
+    };
+  }
 
   garantirTabelas();
   const row = obterDb()
@@ -144,6 +160,8 @@ export function atualizarEstadoVida(
     cache.dirty.vidaEstado = true;
     return proximo;
   }
+
+  if (!sqliteFallbackPermitido()) return proximo;
 
   garantirTabelas();
   obterDb()
@@ -234,6 +252,8 @@ export function removerEventosVida(ids: string[]): void {
     }
     return;
   }
+
+  if (!sqliteFallbackPermitido()) return;
 
   garantirTabelas();
   const stmt = obterDb().prepare(`DELETE FROM vida_eventos WHERE id = ?`);

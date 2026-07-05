@@ -1,8 +1,8 @@
 # Deploy Railway — repo github.com/NowardEthan/luna-core
 #
 # Layout runtime = monorepo local (mobile-api dentro de luna-core) para imports ../../src.
-# OOM exit 137: npm ci --ignore-scripts evita recompilar better-sqlite3 no build.
-# sharp (@xenova/transformers): postinstall baixa prebuild linux-x64 — rebuild explícito abaixo.
+# OOM exit 137: npm ci --ignore-scripts evita compilar nativos no build.
+# sharp + better-sqlite3: rebuild explícito com prebuilds linux-x64 abaixo.
 
 FROM node:22-bookworm-slim AS core-builder
 
@@ -12,7 +12,8 @@ COPY package.json package-lock.json ./
 COPY scripts/postinstall-native.mjs scripts/
 
 RUN npm ci --ignore-scripts --no-audit --no-fund \
-  && npm rebuild sharp --foreground-scripts
+  && npm rebuild sharp --foreground-scripts \
+  && npm rebuild better-sqlite3 --foreground-scripts
 
 COPY . .
 RUN npm run build \

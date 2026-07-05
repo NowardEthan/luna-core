@@ -11,3 +11,8 @@ export function obterModoPersistencia(): ModoPersistencia {
 export function usarPersistenciaFirestore(): boolean {
   return obterModoPersistencia() === "firestore";
 }
+
+/** SQLite local só em dev/CLI — Railway usa Firestore. */
+export function sqliteFallbackPermitido(): boolean {
+  return !usarPersistenciaFirestore();
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Dev local: rebuild better-sqlite3 (compila nativo).
- * Docker/Railway: npm ci --ignore-scripts + `npm rebuild sharp` no Dockerfile.
+ * Docker/Railway: npm ci --ignore-scripts + rebuild sharp e better-sqlite3 no Dockerfile.
  */
 import { execSync } from "node:child_process";
 

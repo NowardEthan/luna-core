@@ -1,5 +1,6 @@
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 
 export type TipoEventoAfetivo = "magoa" | "carinho" | "irritacao" | "desculpas";
@@ -31,6 +32,7 @@ function isoAposHoras(base: Date, horas: number): string {
 }
 
 export function limparEventosAfetivosExpirados(agora = new Date()): void {
+  if (!sqliteFallbackPermitido()) return;
   garantirTabelas();
   obterDb()
     .prepare(`DELETE FROM humor_evento_recente WHERE expira_em <= ?`)
@@ -44,6 +46,8 @@ export function registrarEventoAfetivo(evento: NovoEventoAfetivo): void {
     cache.dirty.eventosAfetivos = true;
     return;
   }
+
+  if (!sqliteFallbackPermitido()) return;
 
   garantirTabelas();
   limparEventosAfetivosExpirados();
@@ -67,6 +71,7 @@ export function registrarEventoAfetivo(evento: NovoEventoAfetivo): void {
 }
 
 export function listarEventosAfetivosRecentes(limit = 10): EventoAfetivo[] {
+  if (!sqliteFallbackPermitido()) return [];
   garantirTabelas();
   limparEventosAfetivosExpirados();
   return obterDb()

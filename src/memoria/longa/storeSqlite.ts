@@ -1,13 +1,17 @@
-import Database from "better-sqlite3";
+import { createRequire } from "node:module";
+import type DatabaseType from "better-sqlite3";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 
+const require = createRequire(import.meta.url);
+
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 import { SQL_CRIAR_TABELAS, type FatoConfirmadoDb } from "./esquemaSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { obterMotorEmbeddings } from "./motorEmbeddings.js";
 import { calcularCosineSimilarity } from "./cosineSimilarity.js";
 import { calcularSaliencia, calcularScoreRetrieval, type InputSaliencia } from "./calculadorSaliencia.js";
@@ -15,14 +19,23 @@ import { inferirCategoria, CATEGORIAS_RELACIONADAS, type CategoriaMemoria } from
 
 const CAMINHO_DB = join(RAIZ_PACOTE, "logs", "memoria.db");
 
-let dbInstancia: Database.Database | null = null;
+let dbInstancia: DatabaseType.Database | null = null;
 
-export function obterDb(): Database.Database {
+function carregarSqlite(): typeof DatabaseType {
+  return require("better-sqlite3") as typeof DatabaseType;
+}
+
+export function obterDb(): DatabaseType.Database {
+  if (!sqliteFallbackPermitido()) {
+    throw new Error(
+      "SQLite indisponível com LUNA_STORE=firestore — use cache Firestore (executarComPersistenciaFirestore).",
+    );
+  }
   if (!dbInstancia) {
     const dirLogs = join(RAIZ_PACOTE, "logs");
     if (!existsSync(dirLogs)) mkdirSync(dirLogs, { recursive: true });
 
-    dbInstancia = new Database(CAMINHO_DB);
+    dbInstancia = new (carregarSqlite())(CAMINHO_DB);
     dbInstancia.pragma("journal_mode = WAL");
     dbInstancia.exec(SQL_CRIAR_TABELAS);
 
@@ -138,6 +151,8 @@ export function inserirFatoLongo(
     return novo;
   }
 
+  if (!sqliteFallbackPermitido()) return novo;
+
   const db = obterDb();
   const stmt = db.prepare(`
     INSERT INTO fatos_confirmados (
@@ -169,6 +184,8 @@ export function buscarFatosDePerfil(): FatoConfirmadoDb[] {
       .sort((a, b) => b.saliencia_score - a.saliencia_score || b.atualizado_em.localeCompare(a.atualizado_em));
   }
 
+  if (!sqliteFallbackPermitido()) return [];
+
   const db = obterDb();
   const stmt = db.prepare(`
     SELECT * FROM fatos_confirmados
@@ -191,7 +208,7 @@ export async function buscarFatosPorSimilaridade(mensagem: string, threshold = 0
   if (!mensagem.trim()) return [];
 
   const cache = getCacheMundo();
-  const db = cache ? null : obterDb();
+  const db = cache ? null : sqliteFallbackPermitido() ? obterDb() : null;
 
   const motor = obterMotorEmbeddings();
   const msgVector = await motor.gerarEmbedding(mensagem);
@@ -221,6 +238,7 @@ export async function buscarFatosPorSimilaridade(mensagem: string, threshold = 0
         (f) => f.ativo === 1 && f.status === "ativo" && f.embedding_json,
       );
     }
+    if (!db) return [];
     const stmt = db!.prepare(`
       SELECT * FROM fatos_confirmados
       WHERE ativo = 1 AND status = 'ativo' AND embedding_json IS NOT NULL

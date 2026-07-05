@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 
 export type GostoLuna = {
@@ -55,6 +56,16 @@ export function registrarGostoLuna(
     return novo;
   }
 
+  if (!sqliteFallbackPermitido()) {
+    return {
+      id: randomUUID(),
+      topico: limpo,
+      afinidade: valorAfinidade,
+      evidencia,
+      atualizado_em: agora,
+    };
+  }
+
   garantirTabelas();
   const existente = obterDb()
     .prepare(
@@ -104,6 +115,8 @@ export function listarGostosLuna(limite = 5): GostoLuna[] {
       .sort((a, b) => b.afinidade - a.afinidade || b.atualizado_em.localeCompare(a.atualizado_em))
       .slice(0, limite);
   }
+
+  if (!sqliteFallbackPermitido()) return [];
 
   garantirTabelas();
   return obterDb()

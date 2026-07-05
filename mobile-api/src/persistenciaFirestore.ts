@@ -276,7 +276,9 @@ export async function executarComPersistenciaFirestore<T>(
 ): Promise<T> {
   const db = getAdminFirestore();
   if (!db) {
-    return fn();
+    console.warn("[persistencia] LUNA_STORE=firestore mas Firebase Admin indisponível — cache em memória.");
+    const cache = criarCacheMundoVazio(uid);
+    return executarComCacheMundo(cache, fn);
   }
 
   const cache = await hidratarCacheMundoFirestore(db, uid);

@@ -1,5 +1,6 @@
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
 import { HUMOR_BASELINE } from "./esquemaHumor.js";
 
@@ -60,6 +61,8 @@ export function lerRelacaoHumor(interlocutorId: string | null | undefined): Rela
     return clampRelacao(cache.relacao);
   }
 
+  if (!sqliteFallbackPermitido()) return baselineRelacao(interlocutorId);
+
   garantirTabelas();
 
   const row = obterDb()
@@ -87,6 +90,8 @@ export function salvarRelacaoHumor(relacao: RelacaoHumor): RelacaoHumor {
     cache.dirty.relacao = true;
     return atual;
   }
+
+  if (!sqliteFallbackPermitido()) return atual;
 
   garantirTabelas();
   obterDb()
