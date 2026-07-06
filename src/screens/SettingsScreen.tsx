@@ -146,6 +146,9 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
 
         <View style={styles.about}>
           <Text style={styles.aboutText}>Orbit · Luna no bolso</Text>
+          <View style={styles.betaBadge}>
+            <Text style={styles.betaText}>v2.0 Beta</Text>
+          </View>
         </View>
       </ScrollView>
 
@@ -173,4 +176,19 @@ const styles = StyleSheet.create({
   loader: { paddingVertical: 16 },
   about: { marginTop: 28, alignItems: 'center' },
   aboutText: { color: tokens.textLow, fontSize: 12, fontWeight: '500' },
+  betaBadge: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(136, 193, 242, 0.16)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(136, 193, 242, 0.35)',
+  },
+  betaText: {
+    color: '#88C1F2',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
 });
