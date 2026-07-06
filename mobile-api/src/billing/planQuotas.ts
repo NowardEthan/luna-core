@@ -66,6 +66,16 @@ export function hoursUntilReset(resetsAtMs: number, nowMs = Date.now()): number 
   return Math.max(0, Math.ceil((resetsAtMs - nowMs) / 3_600_000));
 }
 
+export function formatResetPrecise(msUntilReset: number): string {
+  if (msUntilReset <= 0) return "em breve";
+  const totalMinutes = Math.ceil(msUntilReset / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return minutes === 1 ? "em 1 minuto" : `em ${minutes} minutos`;
+  if (minutes === 0) return hours === 1 ? "em 1 hora" : `em ${hours} horas`;
+  return `em ${hours}h ${minutes}min`;
+}
+
 export function computeWindowResetsAt(windowStartMs: number): number {
   return windowStartMs + FREE_QUOTA_WINDOW_MS;
 }

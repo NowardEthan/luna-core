@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import {
   computeWindowResetsAt,
   currentMonthKey,
+  formatResetPrecise,
   FREE_QUOTA_WINDOW_MS,
   FREE_USAGE_DOC_ID,
   hoursUntilReset,
@@ -23,16 +24,14 @@ export class QuotaExceededError extends Error {
   readonly resetsAtMs: number;
 
   constructor(kind: QuotaKind, used: number, limit: number, resetsAtMs: number, planId: PlanId) {
-    const hours = hoursUntilReset(resetsAtMs);
+    const nowMs = Date.now();
+    const msUntilReset = Math.max(0, resetsAtMs - nowMs);
     const cycle = usesRollingWindow(planId)
       ? `a cada ${FREE_QUOTA_WINDOW_MS / 3_600_000} h`
       : "este mês";
-    const resetHint =
-      usesRollingWindow(planId) && hours > 0
-        ? ` Renova ${hours === 1 ? "em 1 hora" : `em ${hours} horas`}.`
-        : usesRollingWindow(planId)
-          ? " Renova em breve."
-          : " Renova no próximo mês ou faça upgrade.";
+    const resetHint = usesRollingWindow(planId)
+      ? ` Renova ${formatResetPrecise(msUntilReset)}.`
+      : " Renova no próximo mês ou faça upgrade.";
     super(
       `Limite de ${QUOTA_KIND_LABELS[kind].toLowerCase()} (${used}/${limit} ${cycle}).${resetHint}`,
     );
