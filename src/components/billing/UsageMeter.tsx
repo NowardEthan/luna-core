@@ -3,11 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import {
   FREE_QUOTA_WINDOW_HOURS,
+  formatResetPrecise,
   QUOTA_KIND_LABELS,
   type QuotaKind,
 } from '../../features/billing/planQuotas';
 import type { LunaUsageSnapshot } from '../../features/billing/useLunaUsage';
-import { formatResetInHours } from '../../features/billing/planQuotas';
 import { tokens } from '../../theme/tokens';
 
 interface Props {
@@ -21,8 +21,8 @@ function barColor(pct: number): string {
 }
 
 function resetLabel(usage: LunaUsageSnapshot): string {
-  if (usage.cycle === 'window' && usage.resetHours != null) {
-    return `Renova ${formatResetInHours(usage.resetHours)}`;
+  if (usage.cycle === 'window' && usage.resetsAtMs != null) {
+    return `Renova ${formatResetPrecise(usage.resetsAtMs - Date.now())}`;
   }
   if (usage.resetDays != null) {
     return `Renova em ${usage.resetDays} dias`;

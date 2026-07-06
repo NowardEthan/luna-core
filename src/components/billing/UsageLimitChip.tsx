@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatResetInHours } from '../../features/billing/planQuotas';
+import { formatResetPrecise } from '../../features/billing/planQuotas';
 import type { LunaUsageSnapshot } from '../../features/billing/useLunaUsage';
 import { tokens } from '../../theme/tokens';
 
@@ -35,8 +35,8 @@ export const UsageLimitChip = memo(function UsageLimitChip({
 
   const tone = chipTone(Boolean(exceeded), remaining, limit);
   const resetHint =
-    usage.cycle === 'window' && usage.resetHours != null
-      ? formatResetInHours(usage.resetHours)
+    usage.cycle === 'window' && usage.resetsAtMs != null
+      ? formatResetPrecise(usage.resetsAtMs - Date.now())
       : usage.resetDays != null
         ? `em ${usage.resetDays} d`
         : null;

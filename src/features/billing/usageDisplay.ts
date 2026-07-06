@@ -1,4 +1,4 @@
-import { formatResetInHours } from './planQuotas';
+import { formatResetPrecise } from './planQuotas';
 import type { LunaUsageSnapshot } from './useLunaUsage';
 
 export type UsageStatusTone = 'normal' | 'warn' | 'danger';
@@ -47,8 +47,8 @@ export function usageCompactBadge(
   const count = formatCompactCount(remaining);
   let label: string;
 
-  if (usage.cycle === 'window' && usage.resetHours != null) {
-    label = `${count} · ${formatResetInHours(usage.resetHours)}`;
+  if (usage.cycle === 'window' && usage.resetsAtMs != null) {
+    label = `${count} · ${formatResetPrecise(usage.resetsAtMs - Date.now())}`;
   } else if (usage.resetDays != null) {
     label = `${count} msgs`;
   } else {
@@ -56,8 +56,8 @@ export function usageCompactBadge(
   }
 
   const resetDetail =
-    usage.cycle === 'window' && usage.resetHours != null
-      ? formatResetInHours(usage.resetHours)
+    usage.cycle === 'window' && usage.resetsAtMs != null
+      ? formatResetPrecise(usage.resetsAtMs - Date.now())
       : usage.resetDays != null
         ? `renova em ${usage.resetDays} dias`
         : null;

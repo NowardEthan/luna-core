@@ -1,6 +1,6 @@
 import type { MessageActionFeedback } from '../../lib/messageActions';
 import {
-  formatResetInHours,
+  formatResetPrecise,
   QUOTA_KIND_LABELS,
   type QuotaKind,
 } from './planQuotas';
@@ -77,8 +77,8 @@ export function canTranscribeVoice(
 }
 
 function resetDetail(usage: LunaUsageSnapshot): string {
-  if (usage.cycle === 'window' && usage.resetHours != null) {
-    return formatResetInHours(usage.resetHours);
+  if (usage.cycle === 'window' && usage.resetsAtMs != null) {
+    return formatResetPrecise(usage.resetsAtMs - Date.now());
   }
   if (usage.resetDays != null) {
     return `em ${usage.resetDays} dias`;
