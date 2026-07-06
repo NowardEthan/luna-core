@@ -460,6 +460,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (method === "POST" && url.pathname === "/v1/vision") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      console.log(`[server] /v1/vision auth uid=${auth?.uid ?? "none"} isAnonymous=${auth?.isAnonymous ?? "n/a"}`);
       if (isFirebaseAuthRequired() && !auth) {
         const payload: VisionResponse = {
           ok: false,
@@ -470,17 +471,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       const body = await readJson(req);
       const parsed = VisionRequestSchema.parse(body);
+      console.log(`[server] /v1/vision images=${parsed.images.length}`);
 
       const denied = await enforceQuota(auth, "images", parsed.images.length);
       if (denied) {
+        console.log(`[server] /v1/vision quota denied`);
         return sendJson(res, 429, quotaDeniedPayload(denied) satisfies VisionResponse);
       }
 
       const descriptions = await describeImages(parsed);
+      console.log(`[server] /v1/vision ok descriptions=${descriptions.length}`);
       const payload: VisionResponse = { ok: true, descriptions };
       return sendJson(res, 200, payload);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      console.log(`[server] /v1/vision error`, message);
       const payload: VisionResponse = { ok: false, error: message };
       return sendJson(res, 400, payload);
     }
@@ -489,6 +494,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (method === "POST" && url.pathname === "/v1/extract-documents") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      console.log(`[server] /v1/extract-documents auth uid=${auth?.uid ?? "none"} isAnonymous=${auth?.isAnonymous ?? "n/a"}`);
       if (isFirebaseAuthRequired() && !auth) {
         const payload: ExtractDocumentsResponse = {
           ok: false,
@@ -498,18 +504,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       }
 
       const body = await readJson(req);
+      console.log(`[server] /v1/extract-documents body`, { files: (body as { files?: unknown[] })?.files?.length ?? 0 });
       const parsed = ExtractDocumentsRequestSchema.parse(body);
 
       const denied = await enforceQuota(auth, "documents", parsed.files.length);
       if (denied) {
+        console.log(`[server] /v1/extract-documents quota denied`);
         return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ExtractDocumentsResponse);
       }
 
       const documents = await extractDocuments(parsed);
+      console.log(`[server] /v1/extract-documents ok documents=${documents.length}`);
       const payload: ExtractDocumentsResponse = { ok: true, documents };
       return sendJson(res, 200, payload);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      console.log(`[server] /v1/extract-documents error`, message);
       const payload: ExtractDocumentsResponse = { ok: false, error: message };
       return sendJson(res, 400, payload);
     }
