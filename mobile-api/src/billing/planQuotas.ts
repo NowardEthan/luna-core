@@ -8,34 +8,46 @@ export const FREE_QUOTA_WINDOW_MS = FREE_QUOTA_WINDOW_HOURS * 60 * 60 * 1000;
 
 export const FREE_USAGE_DOC_ID = "_free_window";
 
-export const FREE_WINDOW_LIMITS: Record<QuotaKind, number> = {
-  messages: 15,
-  images: 5,
-  documents: 3,
-  voice: 10,
-};
-
-export const PAID_MONTHLY_MESSAGE_LIMITS: Partial<Record<PlanId, number>> = {
-  plus: 1500,
-  pro: 5000,
+export const WINDOW_LIMITS: Record<PlanId, Record<QuotaKind, number>> = {
+  free: {
+    messages: 15,
+    images: 5,
+    documents: 3,
+    voice: 10,
+  },
+  plus: {
+    messages: 60,
+    images: 15,
+    documents: 10,
+    voice: 25,
+  },
+  pro: {
+    messages: 150,
+    images: 40,
+    documents: 25,
+    voice: 60,
+  },
+  byok: {
+    messages: 0,
+    images: 0,
+    documents: 0,
+    voice: 0,
+  },
+  team: {
+    messages: 0,
+    images: 0,
+    documents: 0,
+    voice: 0,
+  },
 };
 
 export function usesRollingWindow(planId: PlanId): boolean {
-  return planId === "free";
+  return planId === "free" || planId === "plus" || planId === "pro";
 }
 
 export function limitsForPlan(planId: PlanId): Record<QuotaKind, number | null> {
-  if (planId === "free") {
-    return { ...FREE_WINDOW_LIMITS };
-  }
-  if (planId === "plus" || planId === "pro") {
-    const msg = PAID_MONTHLY_MESSAGE_LIMITS[planId] ?? null;
-    return {
-      messages: msg,
-      images: null,
-      documents: null,
-      voice: null,
-    };
+  if (usesRollingWindow(planId)) {
+    return { ...WINDOW_LIMITS[planId] };
   }
   return {
     messages: null,
