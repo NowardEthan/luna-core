@@ -117,10 +117,11 @@ export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageS
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    console.log('[lunaClient] lunaFetchUsage request', { url: `${base}/v1/billing/usage` });
+    const headers = authHeaders(idToken);
+    console.log('[lunaClient] lunaFetchUsage request', { url: `${base}/v1/billing/usage`, hasAuth: Boolean(headers.Authorization), authPreview: headers.Authorization ? `${headers.Authorization.slice(0, 30)}...` : null });
     const res = await fetch(`${base}/v1/billing/usage`, {
       method: 'GET',
-      headers: authHeaders(idToken),
+      headers,
       signal: controller.signal,
     });
     const data = (await res.json()) as {

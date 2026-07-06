@@ -61,6 +61,7 @@ export function LunaUsageProvider({ children }: { children: ReactNode }) {
       bumpUsage,
       refreshUsage: async () => {
         const token = await auth.getIdToken();
+        console.log('[LunaUsageContext] refreshUsage token', { hasToken: Boolean(token), tokenPreview: token ? `${token.slice(0, 20)}...` : null });
         if (token) await refreshFromApi(token);
       },
     };
