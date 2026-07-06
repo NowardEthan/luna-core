@@ -24,5 +24,5 @@ export function docHumorRelacao(uid: string): string {
 }
 
 export function colMemoriaFatos(uid: string): string {
-  return `${FS.users}/${uid}/${FS.memoria}/${FS.fatos}`;
+  return `${FS.users}/${uid}/${FS.memoria}`;
 }
