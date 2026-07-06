@@ -716,6 +716,35 @@ export function useOrbitChat() {
 
       void (async () => {
         try {
+          // 1. Enriquecer anexos antes de qualquer upload — no Android a URI do cache pode expirar rapidamente.
+          if (attachments.length > 0 && needsEnrichment) {
+            setLoading(true);
+            const tokenGetter = cloudEnabled ? () => auth.getIdToken() : undefined;
+            const [visionByUri, textByUri] = await Promise.all([
+              imageAttachments.length > 0
+                ? describeImageAttachmentsSafe(imageAttachments, {
+                    userPrompt: clean || undefined,
+                    getIdToken: tokenGetter,
+                  })
+                : Promise.resolve({} as Record<string, string>),
+              fileAttachments.length > 0
+                ? extractDocumentAttachmentsSafe(fileAttachments, { getIdToken: tokenGetter })
+                : Promise.resolve({} as Record<string, string>),
+            ]);
+            apiText = formatAttachmentsForLunaApi(
+              attachments,
+              { visionByUri, textByUri },
+              clean,
+            );
+          } else if (attachments.length > 0) {
+            const attBlock = formatAttachmentsForApi(attachments);
+            apiText = apiText ? `${apiText}\n\n${attBlock}` : attBlock;
+          }
+          if (!apiText.trim()) {
+            apiText = attachmentsPreviewLabel(attachments);
+          }
+          if (ref) apiText = formatMessageWithReference(apiText, ref);
+
           if (cloudEnabled && auth.uid) {
             const uid = auth.uid;
             const sessionId = ensureSessionId();
@@ -750,35 +779,6 @@ export function useOrbitChat() {
             }
           }
 
-          if (attachments.length > 0) {
-            if (needsEnrichment) {
-              setLoading(true);
-              const tokenGetter = cloudEnabled ? () => auth.getIdToken() : undefined;
-              const [visionByUri, textByUri] = await Promise.all([
-                imageAttachments.length > 0
-                  ? describeImageAttachmentsSafe(imageAttachments, {
-                      userPrompt: clean || undefined,
-                      getIdToken: tokenGetter,
-                    })
-                  : Promise.resolve({} as Record<string, string>),
-                fileAttachments.length > 0
-                  ? extractDocumentAttachmentsSafe(fileAttachments, { getIdToken: tokenGetter })
-                  : Promise.resolve({} as Record<string, string>),
-              ]);
-              apiText = formatAttachmentsForLunaApi(
-                attachments,
-                { visionByUri, textByUri },
-                clean,
-              );
-            } else {
-              const attBlock = formatAttachmentsForApi(attachments);
-              apiText = apiText ? `${apiText}\n\n${attBlock}` : attBlock;
-            }
-          }
-          if (!apiText.trim()) {
-            apiText = attachmentsPreviewLabel(attachments);
-          }
-          if (ref) apiText = formatMessageWithReference(apiText, ref);
           await callLuna(apiText, userMsgId);
         } catch (err) {
           setLoading(false);
