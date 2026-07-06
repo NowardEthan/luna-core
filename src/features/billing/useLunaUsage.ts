@@ -69,6 +69,7 @@ function parseUsageDoc(
   nowMs: number,
 ): Pick<LunaUsageSnapshot, 'used' | 'resetsAtMs' | 'resetHours' | 'resetDays'> {
   const limits = limitsForPlan(planId);
+  console.log('[LunaUsage] parseUsageDoc', { planId, keys: data ? Object.keys(data) : null, bonusTurns });
 
   if (usesRollingWindow(planId)) {
     const storedStart = coerceWindowStart(data?.windowStart, nowMs);
@@ -220,11 +221,18 @@ export function useLunaUsage(
     async (idToken: string) => {
       try {
         const usage = await lunaFetchUsage(idToken);
+        console.log('[LunaUsage] refreshFromApi usage', {
+          planId: usage.planId,
+          periodKey: usage.periodKey,
+          usedMessages: usage.used.messages,
+          limitsMessages: usage.limits.messages,
+        });
         setDocData(docDataFromApiUsage(planId, usage));
         setBonusTurns(usage.bonusTurns);
         setPendingUsed(emptyUsed());
         setClockTick((t) => t + 1);
-      } catch {
+      } catch (err) {
+        console.log('[LunaUsage] refreshFromApi error', err);
         /* rede / auth — mantém último snapshot */
       }
     },
@@ -248,9 +256,11 @@ export function useLunaUsage(
 
     setLoading(true);
     const ref = doc(db, userUsageDoc(uid, periodKey));
+    console.log('[LunaUsage] Firestore subscribe', { uid, periodKey, planId });
 
     void getDocFromServer(ref)
       .then((snap) => {
+        console.log('[LunaUsage] getDocFromServer', { exists: snap.exists(), fromCache: snap.metadata.fromCache, data: snap.data() });
         if (!snap.exists()) return;
         const data = snap.data() as Record<string, unknown>;
         setDocData(data);
@@ -265,6 +275,7 @@ export function useLunaUsage(
       ref,
       (snap) => {
         const data = snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
+        console.log('[LunaUsage] onSnapshot', { exists: snap.exists(), fromCache: snap.metadata.fromCache, data });
         const bonus = usesRollingWindow(planId)
           ? 0
           : typeof data?.bonusTurns === 'number'
@@ -297,6 +308,7 @@ export function useLunaUsage(
 
   const bumpUsage = useCallback((kind: QuotaKind, amount = 1) => {
     if (amount < 1) return;
+    console.log('[LunaUsage] bumpUsage', { kind, amount });
     setPendingUsed((prev) => ({ ...prev, [kind]: prev[kind] + amount }));
     setClockTick((t) => t + 1);
   }, []);
@@ -320,6 +332,8 @@ export function useLunaUsage(
       effectiveLimit !== null && effectiveLimit > 0
         ? Math.min(100, Math.floor((usedMessages / effectiveLimit) * 100))
         : 0;
+
+    console.log('[LunaUsage] computed', { planId, periodKey, usedMessages, effectiveLimit, pct, loading });
 
     const unlimited =
       Object.values(limits).every((v) => v === null) && !usesRollingWindow(planId);

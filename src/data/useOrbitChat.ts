@@ -639,8 +639,19 @@ export function useOrbitChat() {
         }
 
         if (cloudEnabled && auth.uid && !auth.user?.isAnonymous) {
+          console.log('[OrbitChat] incrementing usage', {
+            uid: auth.uid,
+            isAnonymous: auth.user?.isAnonymous,
+            turnCount: result.turnCount,
+          });
           lunaUsage.bumpUsage('messages', 1);
           void lunaUsage.refreshUsage();
+        } else {
+          console.log('[OrbitChat] skipping usage increment', {
+            cloudEnabled,
+            uid: auth.uid,
+            isAnonymous: auth.user?.isAnonymous,
+          });
         }
       } catch (err) {
         setLoading(false);

@@ -117,6 +117,7 @@ export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageS
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
   try {
+    console.log('[lunaClient] lunaFetchUsage request', { url: `${base}/v1/billing/usage` });
     const res = await fetch(`${base}/v1/billing/usage`, {
       method: 'GET',
       headers: authHeaders(idToken),
@@ -127,6 +128,7 @@ export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageS
       usage?: LunaBillingUsageSnapshot;
       error?: string;
     };
+    console.log('[lunaClient] lunaFetchUsage response', { status: res.status, ok: data.ok, error: data.error, usage: data.usage });
     if (!res.ok || !data.ok || !data.usage) {
       throw new LunaApiError(data.error || `Erro ${res.status}`, { status: res.status });
     }
