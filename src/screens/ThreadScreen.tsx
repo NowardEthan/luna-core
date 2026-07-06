@@ -467,6 +467,12 @@ export const ThreadScreen = memo(function ThreadScreen({
   const hasBranchNav =
     (branchPoint != null && archivedBranch != null) || forkSource != null || childForks.length > 0;
 
+  const lastMessageIsStreamingLuna =
+    liveMessages.length > 0 &&
+    liveMessages[liveMessages.length - 1]?.role === 'luna' &&
+    liveMessages[liveMessages.length - 1]?.streaming === true;
+  const showThinking = liveLoading && !lastMessageIsStreamingLuna;
+
   const scrollToListItem = useCallback(
     (kind: 'branch-marker' | 'archived-branch') => {
       const index = listItems.findIndex((item) => item.kind === kind);
@@ -855,7 +861,7 @@ export const ThreadScreen = memo(function ThreadScreen({
             key={sessionKey ?? 'local'}
             keyExtractor={keyExtractor}
             renderItem={renderItem}
-            ListHeaderComponent={liveLoading ? <LunaThinking /> : null}
+            ListHeaderComponent={showThinking ? <LunaThinking /> : null}
             contentContainerStyle={styles.listContent}
             style={styles.list}
             showsVerticalScrollIndicator={false}
