@@ -185,6 +185,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (method === "GET" && url.pathname === "/v1/billing/usage") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      console.log(`[server] GET /v1/billing/usage uid=${auth?.uid ?? "none"} isAnonymous=${auth?.isAnonymous ?? "n/a"}`);
       if (isFirebaseAuthRequired() && !auth) {
         return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
       }
@@ -192,6 +193,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return sendJson(res, 401, { ok: false, error: "Conta Google necessária para consultar uso." });
       }
       const usage = await getQuotaSnapshot(auth.uid);
+      console.log(`[server] GET /v1/billing/usage response uid=${auth.uid} usedMessages=${usage.used.messages} limit=${usage.limits.messages} planId=${usage.planId}`);
       return sendJson(res, 200, { ok: true, usage });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -257,10 +259,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       );
 
       if (auth && !auth.isAnonymous) {
+        console.log(`[server] chat enforcing quota uid=${auth.uid}`);
         const denied = await enforceQuota(auth, "messages", 1);
         if (denied) {
+          console.log(`[server] chat quota denied uid=${auth.uid} kind=${denied.kind} used=${denied.used} limit=${denied.limit}`);
           return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
         }
+        console.log(`[server] chat quota consumed uid=${auth.uid}`);
         if (parsed.attachments?.length) {
           const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
           if (deniedImages) {
@@ -341,10 +346,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       );
 
       if (auth && !auth.isAnonymous) {
+        console.log(`[server] chat enforcing quota uid=${auth.uid}`);
         const denied = await enforceQuota(auth, "messages", 1);
         if (denied) {
+          console.log(`[server] chat quota denied uid=${auth.uid} kind=${denied.kind} used=${denied.used} limit=${denied.limit}`);
           return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
         }
+        console.log(`[server] chat quota consumed uid=${auth.uid}`);
         if (parsed.attachments?.length) {
           const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
           if (deniedImages) {

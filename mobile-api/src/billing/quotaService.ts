@@ -126,6 +126,7 @@ export async function getQuotaSnapshot(uid: string): Promise<QuotaUsageSnapshot>
   const db = requireFirestore();
   const userSnap = await db.doc(`users/${uid}`).get();
   const planId = parsePlanId(userSnap.data()?.plan);
+  console.log(`[quotaService] getQuotaSnapshot uid=${uid} planId=${planId}`);
   const now = Date.now();
 
   if (usesRollingWindow(planId)) {
@@ -157,6 +158,7 @@ export async function getQuotaSnapshot(uid: string): Promise<QuotaUsageSnapshot>
   const data = usageSnap.data();
   const turns = typeof data?.turns === "number" ? data.turns : 0;
   const bonusTurns = typeof data?.bonusTurns === "number" ? data.bonusTurns : 0;
+  console.log(`[quotaService] getQuotaSnapshot monthly uid=${uid} monthKey=${monthKey} turns=${turns} bonusTurns=${bonusTurns}`);
   const used = emptyUsed();
   used.messages = turns;
 
@@ -199,6 +201,7 @@ export async function consumeQuota(
       const used = typeof data?.turns === "number" ? data.turns : 0;
       const bonusTurns = typeof data?.bonusTurns === "number" ? data.bonusTurns : 0;
       const limit = planLimits.messages;
+      console.log(`[quotaService] consumeQuota monthly uid=${uid} monthKey=${monthKey} planId=${planId} before=${used} amount=${amount} limit=${limit} bonusTurns=${bonusTurns}`);
       if (limit === null) {
         return buildSnapshot(planId, { ...emptyUsed(), messages: used }, bonusTurns, monthKey, null);
       }
@@ -215,6 +218,7 @@ export async function consumeQuota(
         { turns: used + amount, updatedAt: FieldValue.serverTimestamp() },
         { merge: true },
       );
+      console.log(`[quotaService] consumeQuota monthly uid=${uid} monthKey=${monthKey} after=${used + amount}`);
 
       const usedMap = emptyUsed();
       usedMap.messages = used + amount;
