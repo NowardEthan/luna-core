@@ -63,6 +63,7 @@ export type VerifiedAuth = {
 export async function verifyFirebaseBearer(
   authorization: string | undefined,
 ): Promise<VerifiedAuth | null> {
+  console.log(`[firebaseAdmin] verifyFirebaseBearer header=${authorization ? `${authorization.slice(0, 30)}...` : "none"}`);
   if (!authorization?.toLowerCase().startsWith("bearer ")) return null;
 
   const token = authorization.slice(7).trim();
@@ -79,9 +80,11 @@ export async function verifyFirebaseBearer(
     const provider = (decoded.firebase as { sign_in_provider?: string } | undefined)
       ?.sign_in_provider;
     const isAnonymous = provider === "anonymous";
+    console.log(`[firebaseAdmin] verifyFirebaseBearer ok uid=${uid} isAnonymous=${isAnonymous}`);
 
     return { uid, isAnonymous };
-  } catch {
+  } catch (err) {
+    console.log(`[firebaseAdmin] verifyFirebaseBearer error`, err instanceof Error ? err.message : String(err));
     return null;
   }
 }
