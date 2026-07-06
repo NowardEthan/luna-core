@@ -98,7 +98,7 @@ import {
   type ForkLink,
 } from '../lib/branchStorage';
 import { formatMessageWithReference, normalizeMessagesForDisplay, type ThreadReference } from '../lib/messageReference';
-import { estimateFadeDrainMs } from '../lib/streamWordBuffer';
+import { estimateFadeDrainMs, tokenizeStreamSegments } from '../lib/streamWordBuffer';
 import { flushStreamRender } from '../lib/lunaSseClient';
 import { looksLikeMarkdown } from '../components/chat/detectMarkdown';
 import { useMotionProfile } from '../hooks/useMotionProfile';
@@ -808,32 +808,49 @@ export function useOrbitChat() {
       const sessionId = ensureSessionId();
       const userMsgId = userText ? newMessageId('u') : undefined;
       const lunaMsgId = newMessageId('l');
-      const nextMessages: ChatMessage[] = [];
 
       if (userText && userMsgId) {
-        const userMsg: ChatMessage = {
-          id: userMsgId,
-          role: 'user',
-          text: userText.trim(),
-        };
-        nextMessages.push(userMsg);
+        const userMsg: ChatMessage = { id: userMsgId, role: 'user', text: userText.trim() };
+        setLocalMessages((m) => [...m, userMsg]);
+        if (cloudEnabled && auth.uid) {
+          await writeUserTextMessage(auth.uid, sessionId, userMsgId, userText.trim());
+        }
       }
 
-      const lunaMsg: ChatMessage = {
-        id: lunaMsgId,
-        role: 'luna',
-        text: lunaText.trim(),
+      const fullText = lunaText.trim();
+      const segments = tokenizeStreamSegments(fullText);
+      const upsertRosaryMessage = (patch: Partial<ChatMessage>) => {
+        setLocalMessages((m) => {
+          const existing = m.find((msg) => msg.id === lunaMsgId);
+          const base: ChatMessage = existing ?? {
+            id: lunaMsgId,
+            role: 'luna',
+            text: '',
+            streaming: true,
+          };
+          const next: ChatMessage = { ...base, ...patch };
+          if (existing) return m.map((msg) => (msg.id === lunaMsgId ? next : msg));
+          return [...m, next];
+        });
       };
-      nextMessages.push(lunaMsg);
 
-      setLocalMessages((m) => [...m, ...nextMessages]);
+      upsertRosaryMessage({ text: '', streaming: true });
+
+      // Revelação palavra por palavra para imitar streaming da Luna.
+      const staggerMs = 30;
+      let currentText = '';
+      for (let i = 0; i < segments.length; i += 1) {
+        currentText += segments[i];
+        upsertRosaryMessage({ text: currentText, streaming: true });
+        await new Promise<void>((resolve) => setTimeout(resolve, staggerMs));
+      }
+
+      await flushStreamRender();
+      await new Promise<void>((resolve) => setTimeout(resolve, estimateFadeDrainMs(fullText)));
+      upsertRosaryMessage({ text: fullText, streaming: false });
 
       if (cloudEnabled && auth.uid) {
-        const uid = auth.uid;
-        if (userMsgId && userText) {
-          await writeUserTextMessage(uid, sessionId, userMsgId, userText.trim());
-        }
-        await writeLunaTextMessage(uid, sessionId, lunaMsgId, lunaText.trim());
+        await writeLunaTextMessage(auth.uid, sessionId, lunaMsgId, fullText);
       }
     },
     [auth.uid, cloudEnabled, ensureSessionId],

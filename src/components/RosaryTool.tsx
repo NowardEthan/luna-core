@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Glass } from './Glass';
 import { tokens } from '../theme/tokens';
@@ -56,7 +56,12 @@ export const RosaryTool = memo(function RosaryTool({
           <Text style={[type.caption, styles.progress]}>{formatRosaryProgress(state)}</Text>
         </View>
 
-        <View style={styles.setRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.setRow}
+          style={styles.setScroll}
+        >
           {SETS.map((s) => (
             <Pressable
               key={s.key}
@@ -70,7 +75,7 @@ export const RosaryTool = memo(function RosaryTool({
               <Text style={[type.caption, styles.setLabel]}>{s.label}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
 
         <View style={styles.actions}>
           <Pressable onPress={onStop} style={styles.actionBtn}>
@@ -121,9 +126,14 @@ const styles = StyleSheet.create({
     color: tokens.textMid,
     marginLeft: 'auto',
   },
+  setScroll: {
+    flexGrow: 0,
+  },
   setRow: {
     flexDirection: 'row',
     gap: 8,
+    paddingVertical: 2,
+    paddingRight: 12,
   },
   setChip: {
     flexDirection: 'row',
