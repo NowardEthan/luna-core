@@ -83,6 +83,12 @@ interface Props {
   messageFeedback: MessageActionFeedback | null;
   onChange: (t: string) => void;
   onSend: (payload: ComposerSendPayload) => void;
+  onRosaryToggle?: () => void;
+  onRosaryAdvance?: () => void;
+  onRosaryStop?: () => void;
+  onRosarySelectSet?: (set: import('../hooks/useRosary').RosaryMysterySet) => void;
+  onRosaryReflection?: () => void;
+  rosaryState?: import('../hooks/useRosary').RosaryState;
   onBack: () => void;
   onNewChat: () => void;
   onVoiceSend: (clip: VoiceClip) => void;
@@ -327,6 +333,12 @@ export const ThreadScreen = memo(function ThreadScreen({
   messageFeedback,
   onChange,
   onSend,
+  onRosaryToggle,
+  onRosaryAdvance,
+  onRosaryStop,
+  onRosarySelectSet,
+  onRosaryReflection,
+  rosaryState,
   onBack,
   onNewChat,
   onVoiceSend,
@@ -814,20 +826,22 @@ export const ThreadScreen = memo(function ThreadScreen({
           </View>
         </View>
         <View style={styles.headerTrailing}>
-          {lunaHumorAtual ? <LunaHumorBadge humor={lunaHumorAtual} compact /> : null}
-          {showQuotaPill ? (
-            <UsageQuotaPill
-              usage={lunaUsage.usage}
-              remaining={lunaUsage.remaining}
-              exceeded={lunaUsage.isExceeded}
-              onPress={
-                lunaUsage.isExceeded || (lunaUsage.remaining ?? 0) <= 50
-                  ? onOpenPlans
-                  : undefined
-              }
-            />
-          ) : null}
-          <Pressable onPress={onNewChat} hitSlop={12} style={styles.iconBtn}>
+          <View style={styles.headerTrailingMeta}>
+            {lunaHumorAtual ? <LunaHumorBadge humor={lunaHumorAtual} compact /> : null}
+            {showQuotaPill ? (
+              <UsageQuotaPill
+                usage={lunaUsage.usage}
+                remaining={lunaUsage.remaining}
+                exceeded={lunaUsage.isExceeded}
+                onPress={
+                  lunaUsage.isExceeded || (lunaUsage.remaining ?? 0) <= 50
+                    ? onOpenPlans
+                    : undefined
+                }
+              />
+            ) : null}
+          </View>
+          <Pressable onPress={onNewChat} hitSlop={12} style={[styles.iconBtn, styles.headerAddBtn]}>
             <Ionicons name="add" size={22} color={tokens.textMid} />
           </Pressable>
         </View>
@@ -923,6 +937,12 @@ export const ThreadScreen = memo(function ThreadScreen({
             onChange={onChange}
             onSend={onSend}
             onVoiceResult={onVoiceSend}
+            rosaryState={rosaryState}
+            onRosaryToggle={onRosaryToggle}
+            onRosaryAdvance={onRosaryAdvance}
+            onRosaryStop={onRosaryStop}
+            onRosarySelectSet={onRosarySelectSet}
+            onRosaryReflection={onRosaryReflection}
             placeholder={
               quotePickActive
                 ? 'Selecione o trecho na bolha…'
@@ -996,9 +1016,22 @@ const styles = StyleSheet.create({
   headerTrailing: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     flexShrink: 1,
-    maxWidth: '55%',
+    maxWidth: '52%',
+    minWidth: 40,
+  },
+  headerTrailingMeta: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    minWidth: 0,
+    overflow: 'hidden',
+  },
+  headerAddBtn: {
+    flexShrink: 0,
+    marginLeft: 2,
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   onlineDot: {

@@ -43,4 +43,10 @@ export const type = {
     fontWeight: '500' as const,
     color: tokens.online,
   },
+  caption: {
+    fontSize: 12,
+    fontWeight: '400' as const,
+    color: tokens.textMid,
+    lineHeight: 16,
+  },
 };

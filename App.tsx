@@ -11,6 +11,7 @@ import { ThreadScreen } from './src/screens/ThreadScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { useOrbitChat } from './src/data/useOrbitChat';
 import { demoUser } from './src/data/fixtures';
+import { useRosary, getStepText, type RosaryMysterySet } from './src/hooks/useRosary';
 import { ComposerSessionProvider } from './src/hooks/ComposerSessionContext';
 import { LunaAuthProvider, useLunaAuth } from './src/hooks/useLunaAuth';
 import { LunaUsageProvider } from './src/hooks/LunaUsageContext';
@@ -66,6 +67,7 @@ function DepthBackground({ isThread }: { isThread: boolean }) {
 function OrbitApp() {
   const auth = useLunaAuth();
   const chat = useOrbitChat();
+  const rosary = useRosary();
   const lunaProvider = useLunaProvider();
   const network = useNetworkStatus();
   const profile = useUserProfile(auth.user, demoUser.name);
@@ -85,6 +87,41 @@ function OrbitApp() {
   }, [chat.screen, chat.mainTab, chat.backToHome, chat.setMainTab]);
 
   useAndroidBackHandler(handleRootBack, Boolean(auth.user) && chat.navReady);
+
+  const handleRosaryToggle = useCallback(() => {
+    if (rosary.state.active) {
+      rosary.dispatch({ type: 'stop' });
+    } else {
+      rosary.dispatch({ type: 'start', mysterySet: rosary.state.mysterySet });
+    }
+  }, [rosary]);
+
+  const handleRosaryAdvance = useCallback(() => {
+    if (!rosary.state.active) return;
+    const lunaText = getStepText(rosary.state);
+    rosary.dispatch({ type: 'advance' });
+    void chat.sendRosaryMessage(undefined, lunaText || 'Amém.');
+  }, [rosary, chat]);
+
+  const handleRosaryStop = useCallback(() => {
+    rosary.dispatch({ type: 'stop' });
+  }, [rosary]);
+
+  const handleRosarySelectSet = useCallback(
+    (set: RosaryMysterySet) => {
+      rosary.dispatch({ type: 'start', mysterySet: set });
+    },
+    [rosary],
+  );
+
+  const handleRosaryReflection = useCallback(() => {
+    if (!rosary.state.active) return;
+    const mystery = rosary.currentMystery;
+    const prompt = mystery
+      ? `Faça uma reflexão breve sobre ${mystery.name} do terço. Fale com carinho e simplicidade, como se estivesse rezando comigo.`
+      : 'Faça uma reflexão breve sobre este momento de oração.';
+    void chat.sendRosaryMessage(undefined, prompt);
+  }, [rosary, chat]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -191,6 +228,12 @@ function OrbitApp() {
               draft={chat.draft}
               onChange={chat.setDraft}
               onSend={chat.sendFromThread}
+              rosaryState={rosary.state}
+              onRosaryToggle={handleRosaryToggle}
+              onRosaryAdvance={handleRosaryAdvance}
+              onRosaryStop={handleRosaryStop}
+              onRosarySelectSet={handleRosarySelectSet}
+              onRosaryReflection={handleRosaryReflection}
               onBack={chat.backToHome}
               onNewChat={chat.startNewChat}
               onVoiceSend={chat.sendVoiceMessage}

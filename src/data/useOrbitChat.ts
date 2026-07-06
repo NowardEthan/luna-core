@@ -12,6 +12,7 @@ import { formatVoiceDuration } from '../hooks/useVoiceRecording';
 import { useLunaAuth } from '../hooks/useLunaAuth';
 import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
 import { useDeferredMessageFeedback } from '../hooks/useDeferredMessageFeedback';
+import { usePersistedDraft } from '../hooks/usePersistedDraft';
 import { useLunaUsageContext } from '../hooks/LunaUsageContext';
 import { useLunaProvider } from '../hooks/LunaProviderContext';
 import { useUserProfile } from '../hooks/useUserProfile';
@@ -637,10 +638,10 @@ export function useOrbitChat() {
           }
         }
 
-        if (cloudEnabled && auth.uid && !auth.user?.isAnonymous && !result.idempotent) {
+        if (cloudEnabled && auth.uid && !result.idempotent) {
           lunaUsage.bumpUsage('messages', 1);
           void lunaUsage.refreshUsage();
-        } else if (cloudEnabled && auth.uid && !auth.user?.isAnonymous && result.idempotent) {
+        } else if (cloudEnabled && auth.uid && result.idempotent) {
           void lunaUsage.refreshUsage();
         }
       } catch (err) {
@@ -800,6 +801,42 @@ export function useOrbitChat() {
   const submit = useCallback(
     (text: string) => submitPayload({ text, attachments: [] }),
     [submitPayload],
+  );
+
+  const sendRosaryMessage = useCallback(
+    async (userText: string | undefined, lunaText: string) => {
+      const sessionId = ensureSessionId();
+      const userMsgId = userText ? newMessageId('u') : undefined;
+      const lunaMsgId = newMessageId('l');
+      const nextMessages: ChatMessage[] = [];
+
+      if (userText && userMsgId) {
+        const userMsg: ChatMessage = {
+          id: userMsgId,
+          role: 'user',
+          text: userText.trim(),
+        };
+        nextMessages.push(userMsg);
+      }
+
+      const lunaMsg: ChatMessage = {
+        id: lunaMsgId,
+        role: 'luna',
+        text: lunaText.trim(),
+      };
+      nextMessages.push(lunaMsg);
+
+      setLocalMessages((m) => [...m, ...nextMessages]);
+
+      if (cloudEnabled && auth.uid) {
+        const uid = auth.uid;
+        if (userMsgId && userText) {
+          await writeUserTextMessage(uid, sessionId, userMsgId, userText.trim());
+        }
+        await writeLunaTextMessage(uid, sessionId, lunaMsgId, lunaText.trim());
+      }
+    },
+    [auth.uid, cloudEnabled, ensureSessionId],
   );
 
   const submitVoice = useCallback(
@@ -1467,6 +1504,7 @@ export function useOrbitChat() {
     sendFromThread,
     sendFromHome,
     sendSuggestion,
+    sendRosaryMessage,
     sendVoiceMessage,
     requestTranscript,
     runMessageAction,

@@ -25,6 +25,8 @@ import { Glass } from './Glass';
 import { VoiceMicRecorder } from './VoiceMicRecorder';
 import { VoiceRecordingOverlay } from './VoiceRecordingOverlay';
 import { IDLE_VOICE_UI, type VoiceHoldUi } from './voiceUi';
+import { RosaryTool } from './RosaryTool';
+import type { RosaryMysterySet, RosaryState } from '../hooks/useRosary';
 
 const MIN_INPUT_HEIGHT = 40;
 /** ~7 linhas visíveis antes do scroll interno. */
@@ -82,6 +84,12 @@ interface Props {
   editable?: boolean;
   messageReference?: ThreadReference | null;
   onClearReference?: () => void;
+  rosaryState?: RosaryState;
+  onRosaryToggle?: () => void;
+  onRosaryAdvance?: () => void;
+  onRosaryStop?: () => void;
+  onRosarySelectSet?: (set: RosaryMysterySet) => void;
+  onRosaryReflection?: () => void;
 }
 
 export interface ComposerHandle {
@@ -98,6 +106,12 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
     editable = true,
     messageReference = null,
     onClearReference,
+    rosaryState,
+    onRosaryToggle,
+    onRosaryAdvance,
+    onRosaryStop,
+    onRosarySelectSet,
+    onRosaryReflection,
   },
   ref,
 ) {
@@ -260,6 +274,17 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
         <ComposerAttachmentStrip attachments={attachments} onRemove={removeAttachment} />
       ) : null}
 
+      {rosaryState && onRosaryToggle && onRosaryAdvance && onRosaryStop && onRosarySelectSet ? (
+        <RosaryTool
+          state={rosaryState}
+          onToggle={onRosaryToggle}
+          onAdvance={onRosaryAdvance}
+          onStop={onRosaryStop}
+          onSelectSet={onRosarySelectSet}
+          onRequestReflection={onRosaryReflection}
+        />
+      ) : null}
+
       <View style={styles.row}>
         <Glass
           radius={22}
@@ -317,6 +342,22 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
                   />
                 ) : null}
               </View>
+
+              {rosaryState && onRosaryToggle ? (
+                <Pressable
+                  onPress={onRosaryToggle}
+                  disabled={!editable || recording}
+                  hitSlop={8}
+                  accessibilityLabel="Rezar terço"
+                  style={({ pressed }) => [styles.rosaryBtn, pressed && styles.attachBtnPressed]}
+                >
+                  <Ionicons
+                    name="flower-outline"
+                    size={22}
+                    color={rosaryState.active ? tokens.accentSoft : tokens.textMid}
+                  />
+                </Pressable>
+              ) : null}
 
               <Pressable
                 onPress={() => setAttachSheetOpen(true)}
@@ -481,6 +522,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 2,
     marginRight: 2,
+  },
+  rosaryBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
   attachBtnPressed: {
     opacity: 0.65,
