@@ -47,6 +47,8 @@ export type ChatResponseOk = {
     narrativa?: string;
     accessibilityLabel: string;
   };
+  /** true quando o turno já existia (retry de rede) — não recontar quota no cliente. */
+  idempotent?: boolean;
 };
 
 export type ChatResponseErr = {

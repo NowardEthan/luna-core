@@ -15,17 +15,36 @@ export type PersistChatTurnInput = {
   lunaReply: string;
   userMessageId?: string;
   lunaMessageId?: string;
+  humor_atual?: {
+    emoji: string;
+    label: string;
+    tema: string;
+    narrativa?: string;
+    accessibilityLabel: string;
+  };
 };
 
-/** Grava turno de chat no Firestore (Admin SDK — ignora regras). */
-export async function persistChatTurn(input: PersistChatTurnInput): Promise<void> {
+/** Grava turno de chat no Firestore (Admin SDK — ignora regras). Idempotente pelo lunaMessageId. */
+export async function persistChatTurn(input: PersistChatTurnInput): Promise<boolean> {
   const db = getAdminFirestore();
-  if (!db) return;
+  if (!db) return false;
 
   const { uid, sessionId, userMessage, lunaReply } = input;
   const convRef = db.doc(`users/${uid}/conversations/${sessionId}`);
   const title = deriveTitle(userMessage);
   const preview = lunaReply.trim().slice(0, 120) || userMessage.trim().slice(0, 120);
+
+  const userMsgId = input.userMessageId ?? `u-${Date.now()}`;
+  const lunaMsgId = input.lunaMessageId ?? `l-${Date.now()}`;
+
+  const userRef = convRef.collection("messages").doc(userMsgId);
+  const lunaRef = convRef.collection("messages").doc(lunaMsgId);
+
+  const lunaSnap = await lunaRef.get();
+  if (lunaSnap.exists) {
+    const existente = String(lunaSnap.data()?.text ?? "").trim();
+    if (existente) return false;
+  }
 
   const batch = db.batch();
 
@@ -41,12 +60,6 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<void
     { merge: true },
   );
 
-  const userMsgId = input.userMessageId ?? `u-${Date.now()}`;
-  const lunaMsgId = input.lunaMessageId ?? `l-${Date.now()}`;
-
-  const userRef = convRef.collection("messages").doc(userMsgId);
-  const lunaRef = convRef.collection("messages").doc(lunaMsgId);
-
   batch.set(
     userRef,
     {
@@ -57,11 +70,17 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<void
     { merge: true },
   );
 
-  batch.set(lunaRef, {
-    role: "luna",
-    text: lunaReply.trim(),
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  batch.set(
+    lunaRef,
+    {
+      role: "luna",
+      text: lunaReply.trim(),
+      ...(input.humor_atual ? { humor_atual: input.humor_atual } : {}),
+      createdAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
 
   await batch.commit();
+  return true;
 }

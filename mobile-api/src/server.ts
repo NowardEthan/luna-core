@@ -9,7 +9,8 @@ import {
 } from "./firebaseAdmin.js";
 import { deveUsarPersistenciaFirestore } from "./persistenciaFirestore.js";
 import { persistChatTurn } from "./firestoreChat.js";
-import { executarChatMobile, executarChatMobileStream } from "./loadCore.js";
+import { buscarTurnoCacheado } from "./idempotenciaChat.js";
+import { executarChatMobile, executarChatMobileStream, type ChatMobileResult } from "./loadCore.js";
 import { isCoreBuilt, resolveLunaCorePath } from "./resolveCorePath.js";
 import { isSttConfigured, transcribeAudio, TranscribeRequestSchema } from "./transcribeStt.js";
 import {
@@ -28,6 +29,7 @@ import {
   listProviderOptionsForHealth,
   listProviderOptionsForUi,
   normalizeLegacyProviderSelection,
+  type LlmProviderSelection,
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import { consumeQuota, getQuotaSnapshot, getUserPlanId, QuotaExceededError } from "./billing/quotaService.js";
@@ -35,6 +37,7 @@ import { planIdForLlmRouting } from "./billing/planModelPolicy.js";
 import type { PlanId } from "./billing/planMapping.js";
 import {
   ChatRequestSchema,
+  type ChatRequest,
   type ChatResponse,
   type ExtractDocumentsResponse,
   type HealthResponse,
@@ -163,6 +166,69 @@ async function enforceQuota(
   }
 }
 
+type TurnoResolvido = { result: ChatMobileResult; idempotent: boolean };
+
+async function resolverTurnoChat(params: {
+  auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>;
+  sessionId: string;
+  parsed: ChatRequest;
+  llmSelection: LlmProviderSelection;
+  planId: PlanId;
+}): Promise<TurnoResolvido> {
+  const { auth, sessionId, parsed, llmSelection, planId } = params;
+
+  if (auth && parsed.lunaMessageId) {
+    const cached = await buscarTurnoCacheado(auth.uid, sessionId, parsed.lunaMessageId);
+    if (cached) {
+      return {
+        idempotent: true,
+        result: {
+          text: cached.text,
+          sessionId,
+          turnCount: 0,
+          provider: llmSelection,
+          humor_atual: cached.humor_atual,
+        },
+      };
+    }
+  }
+
+  if (auth && !auth.isAnonymous) {
+    const denied = await enforceQuota(auth, "messages", 1);
+    if (denied) throw denied;
+    if (parsed.attachments?.length) {
+      const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
+      if (deniedImages) throw deniedImages;
+    }
+  }
+
+  const result = await comTimeoutChat(
+    executarChatMobile(
+      parsed.message,
+      sessionId,
+      parsed.attachments,
+      llmSelection,
+      parsed.userDisplayName,
+      auth?.uid ?? null,
+      planId,
+    ),
+  );
+
+  if (auth) {
+    await persistChatTurn({
+      uid: auth.uid,
+      sessionId: result.sessionId,
+      userMessage: parsed.message,
+      lunaReply: result.text,
+      userMessageId: parsed.userMessageId,
+      lunaMessageId: parsed.lunaMessageId,
+      humor_atual: result.humor_atual,
+    });
+  }
+
+  return { idempotent: false, result };
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${HOST}:${PORT}`);
   const method = req.method ?? "GET";
@@ -258,44 +324,23 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         planId,
       );
 
-      if (auth && !auth.isAnonymous) {
-        console.log(`[server] chat enforcing quota uid=${auth.uid}`);
-        const denied = await enforceQuota(auth, "messages", 1);
-        if (denied) {
-          console.log(`[server] chat quota denied uid=${auth.uid} kind=${denied.kind} used=${denied.used} limit=${denied.limit}`);
-          return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
-        }
-        console.log(`[server] chat quota consumed uid=${auth.uid}`);
-        if (parsed.attachments?.length) {
-          const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
-          if (deniedImages) {
-            return sendJson(res, 429, quotaDeniedPayload(deniedImages) satisfies ChatResponse);
-          }
-        }
-      }
-
-      const result = await comTimeoutChat(
-        executarChatMobile(
-          parsed.message,
+      let turno: TurnoResolvido;
+      try {
+        turno = await resolverTurnoChat({
+          auth,
           sessionId,
-          parsed.attachments,
+          parsed,
           llmSelection,
-          parsed.userDisplayName,
-          auth?.uid ?? null,
           planId,
-        ),
-      );
-
-      if (auth) {
-        await persistChatTurn({
-          uid: auth.uid,
-          sessionId: result.sessionId,
-          userMessage: parsed.message,
-          lunaReply: result.text,
-          userMessageId: parsed.userMessageId,
-          lunaMessageId: parsed.lunaMessageId,
         });
+      } catch (err) {
+        if (err instanceof QuotaExceededError) {
+          return sendJson(res, 429, quotaDeniedPayload(err) satisfies ChatResponse);
+        }
+        throw err;
       }
+
+      const { result, idempotent } = turno;
 
       const payload: ChatResponse = {
         ok: true,
@@ -307,6 +352,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         providerReason: result.providerReason,
         autoMode: result.autoMode,
         humor_atual: result.humor_atual,
+        idempotent,
       };
       return sendJson(res, 200, payload);
     } catch (err) {
@@ -345,14 +391,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         planId,
       );
 
+      if (auth && parsed.lunaMessageId) {
+        const cached = await buscarTurnoCacheado(auth.uid, sessionId, parsed.lunaMessageId);
+        if (cached) {
+          res.writeHead(200, {
+            "content-type": "text/event-stream; charset=utf-8",
+            "cache-control": "no-cache",
+            connection: "keep-alive",
+            ...corsHeaders(),
+          });
+          sendSseEvent(res, "content", { delta: cached.text });
+          sendSseEvent(res, "done", {
+            text: cached.text,
+            sessionId,
+            providerId: llmSelection.providerId,
+            modelKey: llmSelection.modelKey,
+            turnCount: 0,
+            humor_atual: cached.humor_atual,
+          });
+          res.end();
+          return;
+        }
+      }
+
       if (auth && !auth.isAnonymous) {
-        console.log(`[server] chat enforcing quota uid=${auth.uid}`);
         const denied = await enforceQuota(auth, "messages", 1);
         if (denied) {
-          console.log(`[server] chat quota denied uid=${auth.uid} kind=${denied.kind} used=${denied.used} limit=${denied.limit}`);
           return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
         }
-        console.log(`[server] chat quota consumed uid=${auth.uid}`);
         if (parsed.attachments?.length) {
           const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
           if (deniedImages) {
@@ -400,6 +466,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           lunaReply: result.text,
           userMessageId: parsed.userMessageId,
           lunaMessageId: parsed.lunaMessageId,
+          humor_atual: result.humor_atual,
         });
       }
 
