@@ -18,7 +18,7 @@ export { FREE_PLAN_DEFAULT_PROVIDER };
 
 export type LunaProviderId = 'groq' | 'cerebras' | 'auto';
 
-export type LunaModelKey = 'default' | 'glm-47' | 'auto';
+export type LunaModelKey = 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
 
 export type LunaProviderSelection = {
   providerId: LunaProviderId;
@@ -45,7 +45,7 @@ function isProviderId(v: unknown): v is LunaProviderId {
 }
 
 function isModelKey(v: unknown): v is LunaModelKey {
-  return v === 'default' || v === 'glm-47' || v === 'auto';
+  return v === 'default' || v === 'glm-47' || v === 'gpt-oss-120b' || v === 'auto';
 }
 
 /** Converte escolhas antigas (OpenRouter / qwen) e aplica política do plano. */
@@ -62,9 +62,9 @@ export function normalizeLegacyProviderSelection(
       : FREE_PLAN_DEFAULT_PROVIDER;
   }
 
-  if (providerId === 'cerebras' && (modelKey === 'glm-47' || modelKey === 'default' || !modelKey)) {
+  if (providerId === 'cerebras' && (modelKey === 'glm-47' || modelKey === 'gpt-oss-120b' || modelKey === 'default' || !modelKey)) {
     return isPremiumModelAllowed(planId)
-      ? { providerId: 'cerebras', modelKey: 'glm-47' }
+      ? { providerId: 'cerebras', modelKey: (modelKey === 'gpt-oss-120b' ? 'gpt-oss-120b' : 'glm-47') as LunaModelKey }
       : FREE_PLAN_DEFAULT_PROVIDER;
   }
 
@@ -254,11 +254,11 @@ function normalizeHealthOption(opt: {
     };
   }
 
-  if (opt.providerId === 'cerebras' && opt.modelKey === 'glm-47') {
-    const brand = LUNA_BRAND_CORE;
+  if (opt.providerId === 'cerebras' && (opt.modelKey === 'glm-47' || opt.modelKey === 'gpt-oss-120b')) {
+    const brand = lunaModelBrand(opt.providerId, opt.modelKey);
     return {
       providerId: 'cerebras',
-      modelKey: 'glm-47',
+      modelKey: opt.modelKey as LunaModelKey,
       label: brand.fullName,
       description: brand.description,
       modelId: opt.modelId,

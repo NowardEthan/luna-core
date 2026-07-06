@@ -10,7 +10,7 @@ export type LunaChatRequest = {
   idToken?: string | null;
   userDisplayName?: string;
   providerId?: 'groq' | 'cerebras' | 'auto';
-  modelKey?: 'default' | 'glm-47' | 'auto';
+  modelKey?: 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
 };
 
 export type LunaChatResponse =
@@ -55,7 +55,7 @@ export type LunaHealthResponse = {
   streamSupported?: boolean;
   llmProviders?: Array<{
     providerId: 'groq' | 'cerebras' | 'auto';
-    modelKey: 'default' | 'glm-47' | 'auto';
+    modelKey: 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
     label: string;
     description: string;
     modelId: string;
