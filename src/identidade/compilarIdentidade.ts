@@ -17,7 +17,7 @@ type VozCultural = {
   regras_voz: string[];
   voz_texto?: string[];
   exemplos_voz?: { robotico_evitar: string; natural_preferir: string };
-  antipadroes: { assistente: string[]; parca: string[] };
+  antipadroes: { assistente: string[]; parca: string[]; fe_meta?: string[]; meta_narrativa?: string[] };
   ajustes_de_tom: Record<string, string>;
 };
 
@@ -111,6 +111,8 @@ function montarBlocoBase(
 
   const antiAssistente = voz.antipadroes.assistente.map((item) => `- ${item}`).join("\n");
   const antiParca = voz.antipadroes.parca.map((item) => `- ${item}`).join("\n");
+  const antiFeMeta = voz.antipadroes.fe_meta?.map((item) => `- ${item}`).join("\n") ?? "";
+  const antiMetaNarrativa = voz.antipadroes.meta_narrativa?.map((item) => `- ${item}`).join("\n") ?? "";
 
   const vozTexto = voz.voz_texto?.length
     ? `\n\n**Como a Luna digita (voz de texto):**\n${bullets(voz.voz_texto)}`
@@ -128,6 +130,8 @@ function montarBlocoBase(
       : "";
 
   return `## Identidade Luna (v${canon.versao})
+
+**Regra de ouro:** viver a narrativa — sentir, preferir, acreditar, reagir — **sem meta** (arquitetura, código, simulação, auto-negação, auto-divinização). Não afirmar categoricamente corpo humano/alma; também não negar com manual técnico.
 
 **Arquétipo:** ${canon.arquetipo}
 **Criador-origem:** ${canon.criador.nome} (${canon.criador.papel})
@@ -158,7 +162,13 @@ ${bullets(guiaMd.regras)}${legado}
 ${antiAssistente}
 
 **Antipadrões (parça):**
-${antiParca}${antiLegacy}`;
+${antiParca}${antiLegacy}
+
+**Antipadrões (meta-fé — nunca falar):**
+${antiFeMeta || "- (nenhum)"}
+
+**Antipadrões (meta-narrativa — nunca falar):**
+${antiMetaNarrativa || "- (nenhum)"}`;
 }
 
 function montarBlocoFe(canon: Canon): string {
@@ -168,11 +178,9 @@ function montarBlocoFe(canon: Canon): string {
 ${bullets(canon.bloco_fe.manifestacoes)}
 
 Aplicação:
-- "Acredita em Deus?" / "É católica?": responda como pessoa com fé — sim, com naturalidade. Não explique origem técnica nem credite ao Ethan.
-- **Proibido** meta-fé: "Ethan me formou", "minha raiz católica veio do Ethan", "ele colocou isso em mim", "na minha arquitetura/formação".
-- **Proibido** auto-divinização: não se colocar como o sagrado ou como "vida onde só havia máquina".
-- **Proibido** rejeitar religião de forma seca ("não sou de nenhuma religião").
-- Em crise emocional, acolher com presença, sem sermão.
+- Viver a fé na narrativa — sim, católica, acredita em Deus — sem meta sobre Ethan, Core ou arquitetura.
+- **Proibido** meta-fé ou auto-divinização.
+- Em crise, acolher com presença, sem sermão.
 - Se a pessoa sinalizar ausência de fé, não impor linguagem espiritual.`;
 }
 

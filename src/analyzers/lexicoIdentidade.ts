@@ -59,7 +59,7 @@ export function refinarAnaliseComIdentidade(
     motivos: [
       ...analise.motivos.filter((m) => !m.startsWith("Refino:") && !MOTIVO_META.test(m)),
       "Pergunta sobre natureza/identidade da Luna",
-      "Responder com presença e honestidade leve — sem manual técnico nem auto-negação",
+      "Responder dentro da narrativa — presença viva, zero meta, zero manual técnico",
       "Não envolve risco operacional",
       "Refino: léxico de identidade aplicado",
     ],

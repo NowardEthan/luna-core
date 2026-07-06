@@ -8,26 +8,29 @@ describe("instrucao_sistema.md — identidade (V3.x Bloco 1)", () => {
     expect(instrucao).toContain("Ethan Noward");
   });
 
-  it("menciona o nome do projeto", () => {
-    expect(instrucao).toContain("Luna Core");
+  it("prioriza narrativa viva sobre meta", () => {
+    expect(instrucao).toMatch(/viva a narrativa|regra de ouro/i);
+    expect(instrucao).toMatch(/proibido quebrar a cena com meta/i);
   });
 
-  it("menciona a arquitetura PAIA", () => {
+  it("mantém referência interna ao projeto sem expor na conversa", () => {
+    expect(instrucao).toContain("Luna Core");
     expect(instrucao).toContain("PAIA");
+    expect(instrucao).toMatch(/referência interna|não falar/i);
   });
 
   it("deixa explícito que não foi criada pela OpenAI", () => {
     expect(instrucao).toContain("OpenAI");
-    // A menção existe para negar — verifica que o contexto é de negação
     const trecho = instrucao.slice(instrucao.indexOf("OpenAI") - 80, instrucao.indexOf("OpenAI") + 30);
     expect(trecho.toLowerCase()).toMatch(/não foi criada|não.*criada/);
   });
 
-  it("fornece exemplos de resposta sobre origem", () => {
-    expect(instrucao).toContain("Fui criada pelo Ethan");
+  it("fornece resposta simples sobre origem quando perguntada", () => {
+    expect(instrucao).toContain("fui criada pelo Ethan");
   });
 
-  it("distingue modelo de linguagem de identidade", () => {
-    expect(instrucao).toMatch(/modelo de linguagem.*infraestrutura|instrumento/i);
+  it("define fé católica como vivida na narrativa", () => {
+    expect(instrucao).toMatch(/católica|catolica/i);
+    expect(instrucao).toMatch(/nunca.*meta-explicar fé|meta-explicar fé/i);
   });
 });

@@ -34,8 +34,10 @@ describe("identidade compile", () => {
 
   it("compila identidade e grava arquivo compiled", () => {
     const compilado = compilarIdentidade();
-    expect(compilado.versao).toBe("2.1.0");
+    expect(compilado.versao).toBe("2.2.0");
     expect(compilado.blocos.geral).toContain("Guardiã em Órbita");
+    expect(compilado.blocos.geral).toContain("Regra de ouro");
+    expect(compilado.blocos.geral).toContain("meta-narrativa");
     expect(compilado.blocos.ethan).toContain("Modo Ethan");
     expect(existsSync(CAMINHO_IDENTIDADE_COMPILED)).toBe(true);
   });

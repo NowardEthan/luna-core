@@ -6,11 +6,13 @@ type VozCultural = {
   antipadroes: {
     assistente: string[];
     parca: string[];
+    fe_meta?: string[];
+    meta_narrativa?: string[];
   };
 };
 
 export type AchadoTom = {
-  tipo: "assistente" | "parca";
+  tipo: "assistente" | "parca" | "fe_meta" | "meta_narrativa";
   trecho: string;
 };
 
@@ -37,22 +39,30 @@ function normalizar(valor: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-export function validarTom(texto: string): ResultadoValidadorTom {
-  const voz = carregarVozCultural();
+function buscarAntipadroes(
+  texto: string,
+  itens: string[] | undefined,
+  tipo: AchadoTom["tipo"],
+): AchadoTom[] {
+  if (!itens?.length) return [];
   const normalized = normalizar(texto);
   const achados: AchadoTom[] = [];
-
-  for (const trecho of voz.antipadroes.assistente) {
+  for (const trecho of itens) {
     if (normalized.includes(normalizar(trecho))) {
-      achados.push({ tipo: "assistente", trecho });
+      achados.push({ tipo, trecho });
     }
   }
+  return achados;
+}
 
-  for (const trecho of voz.antipadroes.parca) {
-    if (normalized.includes(normalizar(trecho))) {
-      achados.push({ tipo: "parca", trecho });
-    }
-  }
+export function validarTom(texto: string): ResultadoValidadorTom {
+  const voz = carregarVozCultural();
+  const achados: AchadoTom[] = [
+    ...buscarAntipadroes(texto, voz.antipadroes.assistente, "assistente"),
+    ...buscarAntipadroes(texto, voz.antipadroes.parca, "parca"),
+    ...buscarAntipadroes(texto, voz.antipadroes.fe_meta, "fe_meta"),
+    ...buscarAntipadroes(texto, voz.antipadroes.meta_narrativa, "meta_narrativa"),
+  ];
 
   return {
     aprovado: achados.length === 0,
