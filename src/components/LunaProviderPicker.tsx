@@ -27,7 +27,7 @@ interface Props {
   planId?: LunaPlanId;
 }
 
-const COMPACT_KEYS = new Set(['auto-auto', 'groq-default', 'cerebras-glm-47']);
+const COMPACT_KEYS = new Set(['auto-auto']);
 
 function optionKey(opt: LunaProviderOption): string {
   return `${opt.providerId}-${opt.modelKey}`;
@@ -109,7 +109,12 @@ export function LunaProviderPicker({
             ]}
           >
             <View style={styles.rowMain}>
-              <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
+              <View style={styles.labelRow}>
+                <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
+                <View style={styles.betaBadge}>
+                  <Text style={styles.betaText}>Beta</Text>
+                </View>
+              </View>
               <Text style={styles.description}>{description}</Text>
             </View>
             {active ? (
@@ -156,8 +161,23 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.accentSoft,
   },
   rowMain: { flex: 1, gap: 3 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   label: { color: tokens.textHigh, fontSize: 15, fontWeight: '600' },
   labelActive: { color: tokens.accentBright },
+  betaBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(136, 193, 242, 0.16)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(136, 193, 242, 0.35)',
+  },
+  betaText: {
+    color: '#88C1F2',
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   description: { color: tokens.textMid, fontSize: 12, lineHeight: 17 },
   hint: { color: tokens.textLow, fontSize: 11, lineHeight: 16, marginTop: 4 },
   empty: {
