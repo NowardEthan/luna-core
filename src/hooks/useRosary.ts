@@ -228,6 +228,31 @@ export function currentMysteryName(state: RosaryState): string | null {
   return MYSTERIES[state.mysterySet][state.currentMysteryIndex] ?? null;
 }
 
+export function isPrayerMatch(text: string, step: RosaryStep): boolean {
+  const lower = text.toLowerCase();
+  switch (step) {
+    case 'cross':
+      return lower.includes('em nome do pai') || lower.includes('sinal da cruz');
+    case 'creed':
+      return lower.includes('creio em deus') || lower.includes('creio');
+    case 'our_father_opening':
+    case 'mystery_our_father':
+      return lower.includes('pai nosso') || lower.includes('pai nosso que estais');
+    case 'hail_mary_3':
+    case 'mystery_hail_mary':
+      return lower.includes('ave maria') || lower.includes('cheia de graça');
+    case 'glory_opening':
+    case 'mystery_glory':
+      return lower.includes('gloria ao pai') || lower.includes('glória ao pai');
+    case 'mystery_intro':
+      return lower.includes('meditamos') || lower.includes('contemplamos') || lower.includes('misterio');
+    case 'finished':
+      return lower.includes('salve rainha') || lower.includes('amém');
+    default:
+      return false;
+  }
+}
+
 export function getHailMaryOrdinal(n: number): string {
   const map: Record<number, string> = {
     1: 'primeira',

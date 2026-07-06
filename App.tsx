@@ -11,7 +11,8 @@ import { ThreadScreen } from './src/screens/ThreadScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { useOrbitChat } from './src/data/useOrbitChat';
 import { demoUser } from './src/data/fixtures';
-import { useRosary, getStepText, type RosaryMysterySet } from './src/hooks/useRosary';
+import { useRosary, getStepText, isPrayerMatch, type RosaryMysterySet } from './src/hooks/useRosary';
+import type { ComposerSendPayload } from './src/lib/composerAttachmentModel';
 import { ComposerSessionProvider } from './src/hooks/ComposerSessionContext';
 import { LunaAuthProvider, useLunaAuth } from './src/hooks/useLunaAuth';
 import { LunaUsageProvider } from './src/hooks/LunaUsageContext';
@@ -123,6 +124,25 @@ function OrbitApp() {
     void chat.sendRosaryMessage(undefined, prompt);
   }, [rosary, chat]);
 
+  const handleSendFromThread = useCallback(
+    (payload: ComposerSendPayload) => {
+      const text = payload.text.trim();
+      if (!rosary.state.active) {
+        chat.sendFromThread(payload);
+        return;
+      }
+      if (isPrayerMatch(text, rosary.state.step)) {
+        const lunaText = getStepText(rosary.state);
+        rosary.dispatch({ type: 'advance' });
+        void chat.sendRosaryMessage(text, lunaText || 'Amém.');
+        return;
+      }
+      // Fora do passo esperado: trata como intenção ou pergunta normal para a Luna.
+      chat.sendFromThread(payload);
+    },
+    [rosary, chat],
+  );
+
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     RNStatusBar.setTranslucent(false);
@@ -227,7 +247,7 @@ function OrbitApp() {
               loading={chat.loading}
               draft={chat.draft}
               onChange={chat.setDraft}
-              onSend={chat.sendFromThread}
+              onSend={handleSendFromThread}
               rosaryState={rosary.state}
               onRosaryToggle={handleRosaryToggle}
               onRosaryAdvance={handleRosaryAdvance}
