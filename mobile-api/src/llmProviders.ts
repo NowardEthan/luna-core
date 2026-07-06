@@ -35,7 +35,7 @@ export type { ConfigLuna };
 
 export type LlmProviderId = "groq" | "cerebras" | "auto";
 
-export type LlmModelKey = "default" | "glm-47" | "auto";
+export type LlmModelKey = "default" | "glm-47" | "gpt-oss-120b" | "auto";
 
 export type LlmProviderSelection = {
   providerId: LlmProviderId;
@@ -65,6 +65,12 @@ const CEREBRAS_GLM_47 = {
   modelId: "zai-glm-4.7",
 };
 
+const CEREBRAS_GPT_OSS_120B = {
+  label: "Luna Core OSS",
+  description: "GPT-OSS-120B no Cerebras — forte em código e raciocínio profundo.",
+  modelId: "gpt-oss-120b",
+};
+
 type CatalogProviderId = Exclude<LlmProviderId, "auto">;
 type CatalogModelKey = Exclude<LlmModelKey, "auto">;
 
@@ -77,6 +83,7 @@ const MODELS: Record<
   },
   cerebras: {
     "glm-47": CEREBRAS_GLM_47,
+    "gpt-oss-120b": CEREBRAS_GPT_OSS_120B,
   },
 };
 
@@ -189,16 +196,23 @@ export function normalizeLegacyProviderSelection(
 export function listConfiguredProviderOptions(): LlmProviderOption[] {
   const options: LlmProviderOption[] = [];
 
-  if (isProviderConfigured("cerebras") && MODELS.cerebras["glm-47"]) {
-    const m = MODELS.cerebras["glm-47"]!;
-    options.push({
-      providerId: "cerebras",
-      modelKey: "glm-47",
-      label: m.label,
-      description: m.description,
-      modelId: resolveCerebrasModelId(),
-      configured: true,
-    });
+  if (isProviderConfigured("cerebras")) {
+    const preferGptOss = process.env.CEREBRAS_PREFER_GPT_OSS === "1" || process.env.CEREBRAS_MODEL?.trim() === CEREBRAS_GPT_OSS_120B.modelId;
+    const primaryKey: CatalogModelKey = preferGptOss ? "gpt-oss-120b" : "glm-47";
+    const fallbackKey: CatalogModelKey = preferGptOss ? "glm-47" : "gpt-oss-120b";
+
+    for (const key of [primaryKey, fallbackKey]) {
+      const m = MODELS.cerebras[key];
+      if (!m) continue;
+      options.push({
+        providerId: "cerebras",
+        modelKey: key,
+        label: m.label,
+        description: m.description,
+        modelId: key === "glm-47" ? resolveCerebrasModelId() : m.modelId,
+        configured: true,
+      });
+    }
   }
 
   // Groq permanece listado para plano free (Core/Cerebras é filtrado por plano).
@@ -222,7 +236,7 @@ function preferDefaultProvider(
   planId: PlanId = "free",
 ): LlmProviderSelection {
   if (isPremiumModelAllowed(planId)) {
-    const cerebras = available.find((o) => o.providerId === "cerebras" && o.modelKey === "glm-47");
+    const cerebras = available.find((o) => o.providerId === "cerebras");
     if (cerebras) {
       return { providerId: cerebras.providerId, modelKey: cerebras.modelKey };
     }

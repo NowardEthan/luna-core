@@ -18,7 +18,7 @@ export function isGlm47Provider(
   providerId?: string,
   modelKey?: string,
 ): boolean {
-  return providerId === "cerebras" || modelKey === "glm-47";
+  return providerId === "cerebras" || modelKey === "glm-47" || modelKey === "gpt-oss-120b";
 }
 
 export function filterProviderOptionsForPlan<T extends { providerId: string; modelKey: string }>(
@@ -32,14 +32,14 @@ export function filterProviderOptionsForPlan<T extends { providerId: string; mod
 export function clampProviderSelectionForPlan(
   planId: PlanId,
   selection: { providerId: string; modelKey: string },
-): { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "auto" } {
+): { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto" } {
   if (isPremiumModelAllowed(planId)) {
-    return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "auto" };
+    return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto" };
   }
   if (isGlm47Provider(selection.providerId, selection.modelKey)) {
     return { providerId: "groq", modelKey: "default" };
   }
-  return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "auto" };
+  return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto" };
 }
 
 export const FREE_PLAN_MODEL_NOTICE = FREE_PLAN_BRAND_NOTICE;
