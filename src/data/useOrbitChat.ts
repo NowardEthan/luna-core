@@ -15,7 +15,7 @@ import { useDeferredMessageFeedback } from '../hooks/useDeferredMessageFeedback'
 import { useLunaUsageContext } from '../hooks/LunaUsageContext';
 import { useLunaProvider } from '../hooks/LunaProviderContext';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { usePersistedDraft } from '../hooks/usePersistedDraft';
+import { lunaMessageIdForUser } from '../lib/chatMessageIds';
 import {
   DRAFT_SCOPE_HOME,
   draftScopeForSession,
@@ -564,7 +564,7 @@ export function useOrbitChat() {
       if (blockIfQuotaExceeded()) return;
 
       const sessionId = ensureSessionId();
-      const lunaMessageId = `l-${sessionId}-${Date.now()}`;
+      const lunaMessageId = lunaMessageIdForUser(userMessageId);
       setLoading(true);
 
       let idToken: string | null = null;
@@ -633,25 +633,18 @@ export function useOrbitChat() {
         aplicarHumorResposta(result.humor_atual, lunaMessageId);
 
         if (cloudEnabled && auth.uid) {
-          void writeLunaTextMessage(auth.uid, result.sessionId, lunaMessageId, result.text).catch(
-            () => {},
-          );
+          if (!result.idempotent) {
+            void writeLunaTextMessage(auth.uid, result.sessionId, lunaMessageId, result.text).catch(
+              () => {},
+            );
+          }
         }
 
-        if (cloudEnabled && auth.uid && !auth.user?.isAnonymous) {
-          console.log('[OrbitChat] incrementing usage', {
-            uid: auth.uid,
-            isAnonymous: auth.user?.isAnonymous,
-            turnCount: result.turnCount,
-          });
+        if (cloudEnabled && auth.uid && !auth.user?.isAnonymous && !result.idempotent) {
           lunaUsage.bumpUsage('messages', 1);
           void lunaUsage.refreshUsage();
-        } else {
-          console.log('[OrbitChat] skipping usage increment', {
-            cloudEnabled,
-            uid: auth.uid,
-            isAnonymous: auth.user?.isAnonymous,
-          });
+        } else if (cloudEnabled && auth.uid && !auth.user?.isAnonymous && result.idempotent) {
+          void lunaUsage.refreshUsage();
         }
       } catch (err) {
         setLoading(false);

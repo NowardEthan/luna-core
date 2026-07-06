@@ -24,6 +24,7 @@ export type LunaChatResponse =
       providerReason?: string;
       autoMode?: boolean;
       humor_atual?: LunaHumorBadge;
+      idempotent?: boolean;
     }
   | {
       ok: false;

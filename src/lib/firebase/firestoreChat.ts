@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -264,6 +265,8 @@ export async function writeLunaTextMessage(
   const convRef = doc(db, userConversationDoc(uid, conversationId));
   const msgRef = doc(db, `${userConversationMessagesCol(uid, conversationId)}/${messageId}`);
 
+  const jaExiste = (await getDoc(msgRef)).exists();
+
   await setDoc(
     convRef,
     {
@@ -279,7 +282,9 @@ export async function writeLunaTextMessage(
     createdAt: serverTimestamp(),
   });
 
-  await bumpConversationMessageCount(uid, conversationId, 1);
+  if (!jaExiste) {
+    await bumpConversationMessageCount(uid, conversationId, 1);
+  }
 }
 
 export async function writeUserTextMessage(
@@ -298,6 +303,8 @@ export async function writeUserTextMessage(
   const previewSource = displayText.trim() || reference?.excerpt || '';
   const title = deriveTitle(previewSource);
   const preview = previewSource.slice(0, 120);
+
+  const jaExiste = (await getDoc(msgRef)).exists();
 
   await setDoc(
     convRef,
@@ -348,7 +355,9 @@ export async function writeUserTextMessage(
     createdAt: serverTimestamp(),
   });
 
-  await bumpConversationMessageCount(uid, conversationId, 1);
+  if (!jaExiste) {
+    await bumpConversationMessageCount(uid, conversationId, 1);
+  }
 }
 
 export async function writeUserVoiceMessage(
@@ -365,6 +374,8 @@ export async function writeUserVoiceMessage(
   const convRef = doc(db, userConversationDoc(uid, conversationId));
   const msgRef = doc(db, `${userConversationMessagesCol(uid, conversationId)}/${messageId}`);
   const title = deriveTitle(placeholderText);
+
+  const jaExiste = (await getDoc(msgRef)).exists();
 
   await setDoc(
     convRef,
@@ -405,7 +416,9 @@ export async function writeUserVoiceMessage(
     createdAt: serverTimestamp(),
   });
 
-  await bumpConversationMessageCount(uid, conversationId, 1);
+  if (!jaExiste) {
+    await bumpConversationMessageCount(uid, conversationId, 1);
+  }
 }
 
 /** Atualiza transcrição de uma mensagem de voz (só no cliente). */
