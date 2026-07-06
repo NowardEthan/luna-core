@@ -987,8 +987,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flexShrink: 0,
-    maxWidth: '42%',
+    flexShrink: 1,
+    maxWidth: '55%',
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   onlineDot: {
