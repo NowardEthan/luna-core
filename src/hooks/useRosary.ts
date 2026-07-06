@@ -2,6 +2,28 @@ import { useCallback, useMemo, useState } from 'react';
 
 export type RosaryMysterySet = 'joyful' | 'sorrowful' | 'glorious' | 'luminous';
 
+export function getMysterySetForToday(): RosaryMysterySet {
+  const day = new Date().getDay();
+  switch (day) {
+    case 0: // Domingo
+      return 'glorious';
+    case 1: // Segunda
+      return 'joyful';
+    case 2: // Terça
+      return 'sorrowful';
+    case 3: // Quarta
+      return 'glorious';
+    case 4: // Quinta
+      return 'luminous';
+    case 5: // Sexta
+      return 'sorrowful';
+    case 6: // Sábado
+      return 'joyful';
+    default:
+      return 'joyful';
+  }
+}
+
 export type RosaryMystery = {
   name: string;
   set: RosaryMysterySet;
@@ -61,14 +83,14 @@ export type RosaryState = {
 };
 
 export type RosaryAction =
-  | { type: 'start'; mysterySet: RosaryMysterySet; intention?: string }
+  | { type: 'start'; mysterySet?: RosaryMysterySet; intention?: string }
   | { type: 'advance' }
   | { type: 'stop' };
 
 export function useRosary() {
   const [state, setState] = useState<RosaryState>({
     active: false,
-    mysterySet: 'sorrowful',
+    mysterySet: getMysterySetForToday(),
     currentMysteryIndex: 0,
     step: 'cross',
     hailMaryCount: 0,
@@ -92,7 +114,7 @@ export function useRosary() {
       if (action.type === 'start') {
         return {
           active: true,
-          mysterySet: action.mysterySet,
+          mysterySet: action.mysterySet ?? getMysterySetForToday(),
           currentMysteryIndex: 0,
           step: 'cross',
           hailMaryCount: 0,

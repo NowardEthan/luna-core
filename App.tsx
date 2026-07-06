@@ -92,7 +92,7 @@ function OrbitApp() {
     if (rosary.state.active) {
       rosary.dispatch({ type: 'stop' });
     } else {
-      rosary.dispatch({ type: 'start', mysterySet: rosary.state.mysterySet });
+      rosary.dispatch({ type: 'start' });
     }
   }, [rosary]);
 
