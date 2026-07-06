@@ -241,10 +241,13 @@ const BUBBLE_ENTER_MS = 420;
 
 /** Esconde resposta da Luna que chegou cedo via Firestore enquanto o indicador “pensando” está ativo. */
 function threadMessagesWhileLoading(messages: ChatMessage[], loading: boolean): ChatMessage[] {
-  if (!loading || messages.length === 0) return messages;
-  const last = messages[messages.length - 1];
-  if (last.role === 'luna' && !last.streaming) return messages.slice(0, -1);
-  return messages;
+  const withoutEmptyStream = messages.filter(
+    (m) => !(m.role === 'luna' && m.streaming && !m.text?.trim()),
+  );
+  if (!loading || withoutEmptyStream.length === 0) return withoutEmptyStream;
+  const last = withoutEmptyStream[withoutEmptyStream.length - 1];
+  if (last.role === 'luna' && !last.streaming) return withoutEmptyStream.slice(0, -1);
+  return withoutEmptyStream;
 }
 
 function useAnimatedMessageIds(
@@ -470,7 +473,8 @@ export const ThreadScreen = memo(function ThreadScreen({
   const lastMessageIsStreamingLuna =
     liveMessages.length > 0 &&
     liveMessages[liveMessages.length - 1]?.role === 'luna' &&
-    liveMessages[liveMessages.length - 1]?.streaming === true;
+    liveMessages[liveMessages.length - 1]?.streaming === true &&
+    Boolean(liveMessages[liveMessages.length - 1]?.text?.trim());
   const showThinking = liveLoading && !lastMessageIsStreamingLuna;
 
   const scrollToListItem = useCallback(

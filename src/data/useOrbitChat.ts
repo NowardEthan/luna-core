@@ -16,6 +16,7 @@ import { useLunaUsageContext } from '../hooks/LunaUsageContext';
 import { useLunaProvider } from '../hooks/LunaProviderContext';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { lunaMessageIdForUser } from '../lib/chatMessageIds';
+import { mergeFirestoreAndLocalMessages } from '../lib/mergeChatMessages';
 import {
   DRAFT_SCOPE_HOME,
   draftScopeForSession,
@@ -425,14 +426,7 @@ export function useOrbitChat() {
       map.set(m.id, merged);
     }
 
-    const ordered: ChatMessage[] = firestoreMessages
-      .map((m) => map.get(m.id))
-      .filter((m): m is ChatMessage => m != null);
-
-    const firestoreIds = new Set(firestoreMessages.map((m) => m.id));
-    for (const m of localMessages) {
-      if (!firestoreIds.has(m.id)) ordered.push(map.get(m.id) ?? m);
-    }
+    const ordered = mergeFirestoreAndLocalMessages(firestoreMessages, localMessages, map);
 
     return normalizeMessagesForDisplay(ordered);
   }, [cloudEnabled, firestoreMessages, localAudioByMessageId, localMessages]);
@@ -607,6 +601,9 @@ export function useOrbitChat() {
         });
       };
 
+      // Reserva o slot da Luna logo após o envio — ordem correta mesmo antes da API responder.
+      upsertStreamMessage({ text: '', streaming: true });
+
       try {
         // Resposta completa via JSON — o efeito de streaming é simulado no cliente
         // (o pipeline do luna-core não foi desenhado para SSE token a token).
@@ -648,6 +645,7 @@ export function useOrbitChat() {
         }
       } catch (err) {
         setLoading(false);
+        setLocalMessages((m) => m.filter((msg) => msg.id !== lunaMessageId));
         if (err instanceof LunaApiError && err.code === 'quota_exceeded') {
           const kind: QuotaKind =
             err.quotaKind === 'images' ||
