@@ -7,6 +7,7 @@ import { getLunaFirestore } from '../../lib/firebase/client';
 import { userUsageDoc } from '../../lib/firebase/paths';
 import {
   computeWindowResetsAt,
+  computeWeeklyResetsAt,
   currentMonthKey,
   FREE_QUOTA_WINDOW_MS,
   FREE_USAGE_DOC_ID,
@@ -14,6 +15,9 @@ import {
   hoursUntilReset,
   limitsForPlan,
   usesRollingWindow,
+  WEEKLY_QUOTA_WINDOW_MS,
+  WEEKLY_USAGE_DOC_ID,
+  weeklyMessageLimitForPlan,
   type QuotaKind,
 } from './planQuotas';
 import type { LunaPlanId } from './types';
@@ -23,6 +27,7 @@ export type { QuotaKind };
 export type LunaUsageSnapshot = {
   planId: LunaPlanId;
   cycle: 'window' | 'monthly' | 'unlimited';
+  bindingCycle?: 'window' | 'weekly' | 'monthly';
   windowHours: number | null;
   periodKey: string;
   used: Record<QuotaKind, number>;
@@ -32,6 +37,12 @@ export type LunaUsageSnapshot = {
   resetsAtMs: number | null;
   resetHours: number | null;
   resetDays: number | null;
+  weeklyMessages?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    resetsAtMs: number;
+  } | null;
   /** Compat — barra principal (mensagens). */
   usedMessages: number;
   effectiveLimit: number | null;
@@ -60,6 +71,62 @@ function coerceWindowStart(raw: unknown, fallback: number): number {
     if (Number.isFinite(parsed)) return parsed;
   }
   return fallback;
+}
+
+function readWeeklyMessages(
+  data: Record<string, unknown> | undefined,
+  nowMs: number,
+): { used: number; weekStart: number } {
+  const storedStart = coerceWindowStart(data?.weekStart, nowMs);
+  if (nowMs - storedStart >= WEEKLY_QUOTA_WINDOW_MS) {
+    return { used: 0, weekStart: nowMs };
+  }
+  return {
+    used: typeof data?.messages === 'number' ? data.messages : 0,
+    weekStart: storedStart,
+  };
+}
+
+function mergeWeeklyMessageQuota(
+  planId: LunaPlanId,
+  windowRemaining: number | null,
+  windowResetsAt: number | null,
+  weeklyUsed: number,
+  weekStart: number,
+  pendingWeekly: number,
+): {
+  remaining: number | null;
+  resetsAtMs: number | null;
+  bindingCycle: 'window' | 'weekly';
+  weeklyMessages: LunaUsageSnapshot['weeklyMessages'];
+} {
+  const weeklyLimit = weeklyMessageLimitForPlan(planId);
+  if (weeklyLimit === null || !usesRollingWindow(planId)) {
+    return {
+      remaining: windowRemaining,
+      resetsAtMs: windowResetsAt,
+      bindingCycle: 'window',
+      weeklyMessages: null,
+    };
+  }
+
+  const effectiveWeeklyUsed = Math.min(weeklyLimit, weeklyUsed + pendingWeekly);
+  const weeklyResetsAt = computeWeeklyResetsAt(weekStart);
+  const weeklyRemaining = Math.max(0, weeklyLimit - effectiveWeeklyUsed);
+  const safeWindowRemaining = windowRemaining ?? weeklyRemaining;
+  const weeklyBinds = weeklyRemaining < safeWindowRemaining;
+
+  return {
+    remaining: Math.min(safeWindowRemaining, weeklyRemaining),
+    resetsAtMs: weeklyBinds ? weeklyResetsAt : windowResetsAt,
+    bindingCycle: weeklyBinds ? 'weekly' : 'window',
+    weeklyMessages: {
+      used: effectiveWeeklyUsed,
+      limit: weeklyLimit,
+      remaining: weeklyRemaining,
+      resetsAtMs: weeklyResetsAt,
+    },
+  };
 }
 
 function parseUsageDoc(
@@ -128,21 +195,36 @@ function applyPendingUsed(
 function docDataFromApiUsage(
   planId: LunaPlanId,
   usage: Awaited<ReturnType<typeof lunaFetchUsage>>,
-): Record<string, unknown> {
+): { window?: Record<string, unknown>; weekly?: Record<string, unknown> } {
   if (usesRollingWindow(planId)) {
     const windowStart =
-      usage.resetsAtMs != null ? usage.resetsAtMs - FREE_QUOTA_WINDOW_MS : Date.now();
+      usage.resetsAtMs != null && usage.bindingCycle !== 'weekly'
+        ? usage.resetsAtMs - FREE_QUOTA_WINDOW_MS
+        : Date.now();
+    const weekly = usage.weeklyMessages;
+    const weekStart =
+      weekly?.resetsAtMs != null ? weekly.resetsAtMs - WEEKLY_QUOTA_WINDOW_MS : Date.now();
     return {
-      messages: usage.used.messages,
-      images: usage.used.images,
-      documents: usage.used.documents,
-      voice: usage.used.voice,
-      windowStart,
+      window: {
+        messages: usage.used.messages,
+        images: usage.used.images,
+        documents: usage.used.documents,
+        voice: usage.used.voice,
+        windowStart,
+      },
+      weekly: weekly
+        ? {
+            messages: weekly.used,
+            weekStart,
+          }
+        : undefined,
     };
   }
   return {
-    turns: usage.used.messages,
-    bonusTurns: usage.bonusTurns,
+    window: {
+      turns: usage.used.messages,
+      bonusTurns: usage.bonusTurns,
+    },
   };
 }
 
@@ -155,8 +237,12 @@ export function useLunaUsage(
   getIdToken?: () => Promise<string | null>,
 ): UseLunaUsageResult {
   const [docData, setDocData] = useState<Record<string, unknown> | undefined>(undefined);
+  const [weeklyDocData, setWeeklyDocData] = useState<Record<string, unknown> | undefined>(
+    undefined,
+  );
   const [bonusTurns, setBonusTurns] = useState(0);
   const [pendingUsed, setPendingUsed] = useState<Record<QuotaKind, number>>(emptyUsed());
+  const [pendingWeeklyMessages, setPendingWeeklyMessages] = useState(0);
   const [clockTick, setClockTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -195,6 +281,7 @@ export function useLunaUsage(
     resetTimerRef.current = setTimeout(() => {
       setClockTick((t) => t + 1);
       setPendingUsed(emptyUsed());
+      setPendingWeeklyMessages(0);
     }, delay);
 
     return () => {
@@ -227,9 +314,12 @@ export function useLunaUsage(
           usedMessages: usage.used.messages,
           limitsMessages: usage.limits.messages,
         });
-        setDocData(docDataFromApiUsage(planId, usage));
+        const parsedApi = docDataFromApiUsage(planId, usage);
+        setDocData(parsedApi.window);
+        setWeeklyDocData(parsedApi.weekly);
         setBonusTurns(usage.bonusTurns);
         setPendingUsed(emptyUsed());
+        setPendingWeeklyMessages(0);
         setClockTick((t) => t + 1);
       } catch (err) {
         console.log('[LunaUsage] refreshFromApi error', err);
@@ -242,8 +332,10 @@ export function useLunaUsage(
   useEffect(() => {
     if (!uid) {
       setDocData(undefined);
+      setWeeklyDocData(undefined);
       setBonusTurns(0);
       setPendingUsed(emptyUsed());
+      setPendingWeeklyMessages(0);
       setLoading(false);
       return;
     }
@@ -294,6 +386,27 @@ export function useLunaUsage(
   }, [uid, periodKey, planId]);
 
   useEffect(() => {
+    if (!uid || !usesRollingWindow(planId)) {
+      setWeeklyDocData(undefined);
+      return;
+    }
+
+    const db = getLunaFirestore();
+    if (!db) return;
+
+    const weeklyRef = doc(db, userUsageDoc(uid, WEEKLY_USAGE_DOC_ID));
+    const unsub = onSnapshot(
+      weeklyRef,
+      (snap) => {
+        setWeeklyDocData(snap.exists() ? (snap.data() as Record<string, unknown>) : undefined);
+        setPendingWeeklyMessages(0);
+      },
+      () => {},
+    );
+    return unsub;
+  }, [uid, planId]);
+
+  useEffect(() => {
     if (!uid || !getIdToken) return;
     let cancelled = false;
     void (async () => {
@@ -310,8 +423,11 @@ export function useLunaUsage(
     if (amount < 1) return;
     console.log('[LunaUsage] bumpUsage', { kind, amount });
     setPendingUsed((prev) => ({ ...prev, [kind]: prev[kind] + amount }));
+    if (kind === 'messages' && usesRollingWindow(planId)) {
+      setPendingWeeklyMessages((prev) => prev + amount);
+    }
     setClockTick((t) => t + 1);
-  }, []);
+  }, [planId]);
 
   return useMemo((): UseLunaUsageResult => {
     const remaining: Record<QuotaKind, number | null> = {
@@ -326,8 +442,32 @@ export function useLunaUsage(
       remaining[kind] = Math.max(0, limit - used[kind]);
     }
 
-    const effectiveLimit = limits.messages;
-    const usedMessages = used.messages;
+    const weeklyParsed = readWeeklyMessages(weeklyDocData, Date.now());
+    const weeklyMerge =
+      usesRollingWindow(planId) && remaining.messages !== null
+        ? mergeWeeklyMessageQuota(
+            planId,
+            remaining.messages,
+            resetsAtMs,
+            weeklyParsed.used,
+            weeklyParsed.weekStart,
+            pendingWeeklyMessages,
+          )
+        : null;
+
+    if (weeklyMerge) {
+      remaining.messages = weeklyMerge.remaining;
+    }
+
+    const effectiveLimit =
+      weeklyMerge?.bindingCycle === 'weekly'
+        ? weeklyMerge.weeklyMessages?.limit ?? limits.messages
+        : limits.messages;
+    const usedMessages =
+      weeklyMerge?.bindingCycle === 'weekly'
+        ? weeklyMerge.weeklyMessages?.used ?? used.messages
+        : used.messages;
+    const displayResetsAtMs = weeklyMerge?.resetsAtMs ?? resetsAtMs;
     const pct =
       effectiveLimit !== null && effectiveLimit > 0
         ? Math.min(100, Math.floor((usedMessages / effectiveLimit) * 100))
@@ -347,9 +487,14 @@ export function useLunaUsage(
       limits,
       remaining,
       bonusTurns,
-      resetsAtMs,
-      resetHours,
+      resetsAtMs: displayResetsAtMs,
+      resetHours:
+        weeklyMerge?.bindingCycle === 'weekly' && weeklyMerge.weeklyMessages
+          ? hoursUntilReset(weeklyMerge.weeklyMessages.resetsAtMs, Date.now())
+          : resetHours,
       resetDays,
+      weeklyMessages: weeklyMerge?.weeklyMessages ?? null,
+      bindingCycle: weeklyMerge?.bindingCycle ?? (usesRollingWindow(planId) ? 'window' : 'monthly'),
       usedMessages,
       effectiveLimit,
       pct,
@@ -366,6 +511,8 @@ export function useLunaUsage(
     resetsAtMs,
     resetHours,
     resetDays,
+    weeklyDocData,
+    pendingWeeklyMessages,
     loading,
     bumpUsage,
     refreshFromApi,

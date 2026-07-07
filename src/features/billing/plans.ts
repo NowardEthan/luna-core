@@ -30,7 +30,7 @@ export const PLANS: PlanConfig[] = [
     priceAnnualMonthly: null,
     cloudTurns: null,
     features: [
-      { label: 'Mensagens na nuvem', available: 'limited', detail: '15 a cada 3 h' },
+      { label: 'Mensagens na nuvem', available: 'limited', detail: '15 a cada 3 h · 70/semana' },
       { label: 'Imagens analisadas', available: 'limited', detail: '5 a cada 3 h' },
       { label: 'Arquivos lidos', available: 'limited', detail: '3 a cada 3 h' },
       { label: 'Transcrições de voz', available: 'limited', detail: '10 a cada 3 h' },
@@ -49,7 +49,7 @@ export const PLANS: PlanConfig[] = [
     priceAnnualMonthly: 20.83,
     cloudTurns: null,
     features: [
-      { label: 'Mensagens na nuvem', available: 'limited', detail: '60 a cada 3 h' },
+      { label: 'Mensagens na nuvem', available: 'limited', detail: '60 a cada 3 h · 300/semana' },
       { label: 'Imagens analisadas', available: 'limited', detail: '15 a cada 3 h' },
       { label: 'Arquivos lidos', available: 'limited', detail: '10 a cada 3 h' },
       { label: 'Transcrições de voz', available: 'limited', detail: '25 a cada 3 h' },
@@ -70,7 +70,7 @@ export const PLANS: PlanConfig[] = [
     highlighted: true,
     badge: 'Recomendado',
     features: [
-      { label: 'Mensagens na nuvem', available: 'limited', detail: '150 a cada 3 h' },
+      { label: 'Mensagens na nuvem', available: 'limited', detail: '150 a cada 3 h · 800/semana' },
       { label: 'Imagens analisadas', available: 'limited', detail: '40 a cada 3 h' },
       { label: 'Arquivos lidos', available: 'limited', detail: '25 a cada 3 h' },
       { label: 'Transcrições de voz', available: 'limited', detail: '60 a cada 3 h' },

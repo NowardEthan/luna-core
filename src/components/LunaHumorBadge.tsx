@@ -50,9 +50,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
   },
   pillCompact: {
-    maxWidth: 96,
+    flexShrink: 1,
+    maxWidth: 88,
     paddingHorizontal: 7,
     paddingVertical: 3,
+    flexWrap: 'nowrap',
   },
   emoji: {
     fontSize: 13,
@@ -64,6 +66,7 @@ const styles = StyleSheet.create({
     textTransform: 'lowercase',
   },
   labelCompact: {
+    flexShrink: 1,
     fontSize: 11,
     lineHeight: 14,
   },

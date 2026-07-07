@@ -17,6 +17,27 @@ export const FREE_QUOTA_WINDOW_MS = FREE_QUOTA_WINDOW_HOURS * 60 * 60 * 1000;
 /** ID do documento Firestore `users/{uid}/usage/{docId}`. */
 export const FREE_USAGE_DOC_ID = '_free_window';
 
+/** Janela rolante semanal — teto de mensagens por 7 dias (free/plus/pro). */
+export const WEEKLY_USAGE_DOC_ID = '_weekly';
+export const WEEKLY_QUOTA_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const WEEKLY_MESSAGE_LIMITS: Record<LunaPlanId, number> = {
+  free: 70,
+  plus: 300,
+  pro: 800,
+  byok: 0,
+  team: 0,
+};
+
+export function weeklyMessageLimitForPlan(planId: LunaPlanId): number | null {
+  if (!usesRollingWindow(planId)) return null;
+  return WEEKLY_MESSAGE_LIMITS[planId];
+}
+
+export function computeWeeklyResetsAt(weekStartMs: number): number {
+  return weekStartMs + WEEKLY_QUOTA_WINDOW_MS;
+}
+
 /** Limites por janela rolante — espelham mobile-api/src/billing/planQuotas.ts */
 export const WINDOW_LIMITS: Record<LunaPlanId, Record<QuotaKind, number>> = {
   free: {

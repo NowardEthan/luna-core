@@ -2,7 +2,7 @@
   "expo": {
     "name": "Orbit",
     "slug": "orbit-mobile",
-    "version": "1.0.0-beta.1",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./icon/Icon.png",
     "userInterfaceStyle": "light",

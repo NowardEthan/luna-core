@@ -9,7 +9,7 @@ if (-not (Test-Path $adb)) {
   Write-Error "adb nao encontrado em $adb. Instala Android SDK Platform-Tools."
 }
 
-$apk = if ($args[0]) { $args[0] } else { Join-Path $root 'dist\orbit-mobile-1.0.0-beta.1.apk' }
+$apk = if ($args[0]) { $args[0] } else { Join-Path $root 'dist\orbit-mobile-2.0.1.apk' }
 if (-not (Test-Path $apk)) {
   Write-Error "APK nao encontrado: $apk`nCorre primeiro: npm run android:apk"
 }

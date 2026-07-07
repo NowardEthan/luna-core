@@ -18,13 +18,13 @@ export function hasLimitedQuotas(usage: LunaUsageSnapshot): boolean {
   return Object.values(usage.limits).some((v) => v !== null);
 }
 
-/** Conta com login na nuvem e algum limite activo. */
+/** Conta na nuvem (inclui visitante anónimo) com algum limite activo. */
 export function quotaApplies(
   cloudEnabled: boolean,
-  isAnonymous: boolean,
+  _isAnonymous: boolean,
   usage: LunaUsageSnapshot,
 ): boolean {
-  return cloudEnabled && !isAnonymous && hasLimitedQuotas(usage);
+  return cloudEnabled && hasLimitedQuotas(usage);
 }
 
 export function canConsume(
@@ -44,6 +44,9 @@ export function canSendCloudTurn(
   usage: LunaUsageSnapshot,
 ): boolean {
   if (!quotaApplies(cloudEnabled, isAnonymous, usage)) return true;
+  if (usage.loading) return true;
+  const remaining = remainingTurns(usage);
+  if (remaining !== null && remaining < 1) return false;
   return canConsume(usage, 'messages', 1);
 }
 
@@ -53,7 +56,7 @@ export function canAnalyzeImages(
   usage: LunaUsageSnapshot,
   count: number,
 ): boolean {
-  if (!cloudEnabled || isAnonymous) return true;
+  if (!quotaApplies(cloudEnabled, isAnonymous, usage)) return true;
   return canConsume(usage, 'images', count);
 }
 
@@ -63,7 +66,7 @@ export function canExtractDocuments(
   usage: LunaUsageSnapshot,
   count: number,
 ): boolean {
-  if (!cloudEnabled || isAnonymous) return true;
+  if (!quotaApplies(cloudEnabled, isAnonymous, usage)) return true;
   return canConsume(usage, 'documents', count);
 }
 
@@ -72,11 +75,14 @@ export function canTranscribeVoice(
   isAnonymous: boolean,
   usage: LunaUsageSnapshot,
 ): boolean {
-  if (!cloudEnabled || isAnonymous) return true;
+  if (!quotaApplies(cloudEnabled, isAnonymous, usage)) return true;
   return canConsume(usage, 'voice', 1);
 }
 
 function resetDetail(usage: LunaUsageSnapshot): string {
+  if (usage.bindingCycle === 'weekly' && usage.weeklyMessages?.resetsAtMs != null) {
+    return formatResetPrecise(usage.weeklyMessages.resetsAtMs - Date.now());
+  }
   if (usage.cycle === 'window' && usage.resetsAtMs != null) {
     return formatResetPrecise(usage.resetsAtMs - Date.now());
   }
@@ -90,11 +96,18 @@ export function feedbackQuotaExceeded(
   usage: LunaUsageSnapshot,
   kind: QuotaKind = 'messages',
 ): MessageActionFeedback {
-  const limit = usage.limits[kind];
-  const used = usage.used[kind];
+  const weekly = usage.weeklyMessages;
+  const weeklyExceeded =
+    kind === 'messages' &&
+    usage.bindingCycle === 'weekly' &&
+    weekly != null &&
+    weekly.remaining <= 0;
+  const limit = weeklyExceeded ? weekly.limit : usage.limits[kind];
+  const used = weeklyExceeded ? weekly.used : usage.used[kind];
   const label = QUOTA_KIND_LABELS[kind].toLowerCase();
-  const cycle =
-    usage.cycle === 'window' && usage.windowHours
+  const cycle = weeklyExceeded
+    ? 'esta semana'
+    : usage.cycle === 'window' && usage.windowHours
       ? `a cada ${usage.windowHours} h`
       : 'este mês';
 
@@ -102,9 +115,9 @@ export function feedbackQuotaExceeded(
     id: `quota-${kind}-${Date.now()}`,
     kind: 'quota',
     role: 'luna',
-    title: `Limite de ${label} atingido`,
+    title: weeklyExceeded ? `Limite semanal de ${label} atingido` : `Limite de ${label} atingido`,
     detail:
-      kind === 'messages' && usage.cycle !== 'window'
+      kind === 'messages' && usage.cycle !== 'window' && !weeklyExceeded
         ? `${used}/${limit ?? '—'} ${cycle}. Renova ${resetDetail(usage)} ou faça upgrade em Ajustes → Planos.`
         : `${used}/${limit ?? '—'} ${cycle}. Renova ${resetDetail(usage)}.`,
   };

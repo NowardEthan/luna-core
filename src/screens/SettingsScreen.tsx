@@ -86,7 +86,7 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
             showChevron
             onPress={() => setPlansOpen(true)}
           />
-          {!isAnonymous && usage.cycle !== 'unlimited' && !usage.loading ? (
+          {usage.cycle !== 'unlimited' && !usage.loading ? (
             <View style={styles.usageWrap}>
               <UsageMeter usage={usage} />
             </View>
@@ -147,7 +147,7 @@ export function SettingsScreen({ isAnonymous, onResetSession }: Props) {
         <View style={styles.about}>
           <Text style={styles.aboutText}>Orbit · Luna no bolso</Text>
           <View style={styles.betaBadge}>
-            <Text style={styles.betaText}>v2.0 Beta</Text>
+            <Text style={styles.betaText}>V2.0.1</Text>
           </View>
         </View>
       </ScrollView>

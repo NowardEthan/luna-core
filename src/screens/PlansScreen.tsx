@@ -182,9 +182,7 @@ export function PlansScreen({
             ) : null}
           </View>
 
-          {!isAnonymous && usage.cycle !== 'unlimited' ? (
-            <UsageMeter usage={usage} />
-          ) : null}
+          {usage.cycle !== 'unlimited' ? <UsageMeter usage={usage} /> : null}
 
           {isAnonymous ? (
             <View style={styles.guestHint}>

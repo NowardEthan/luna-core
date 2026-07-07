@@ -5,6 +5,7 @@ import {
   FREE_QUOTA_WINDOW_HOURS,
   formatResetPrecise,
   QUOTA_KIND_LABELS,
+  weeklyMessageLimitForPlan,
   type QuotaKind,
 } from '../../features/billing/planQuotas';
 import type { LunaUsageSnapshot } from '../../features/billing/useLunaUsage';
@@ -21,6 +22,9 @@ function barColor(pct: number): string {
 }
 
 function resetLabel(usage: LunaUsageSnapshot): string {
+  if (usage.bindingCycle === 'weekly' && usage.weeklyMessages?.resetsAtMs != null) {
+    return `Semana renova ${formatResetPrecise(usage.weeklyMessages.resetsAtMs - Date.now())}`;
+  }
   if (usage.cycle === 'window' && usage.resetsAtMs != null) {
     return `Renova ${formatResetPrecise(usage.resetsAtMs - Date.now())}`;
   }
@@ -72,18 +76,27 @@ export function UsageMeter({ usage }: Props) {
     const kinds = (Object.keys(usage.limits) as QuotaKind[]).filter(
       (k) => usage.limits[k] !== null,
     );
+    const weeklyLimit = weeklyMessageLimitForPlan(usage.planId);
     return (
       <View style={styles.wrap}>
         <View style={styles.header}>
-          <Text style={styles.title}>Limites do plano Grátis</Text>
+          <Text style={styles.title}>Limites do plano</Text>
           <Text style={styles.meta}>
             {usage.loading ? '…' : `Janela de ${FREE_QUOTA_WINDOW_HOURS} h · ${resetLabel(usage)}`}
           </Text>
         </View>
+        {weeklyLimit != null ? (
+          <QuotaRow
+            label="Mensagens na semana"
+            used={usage.weeklyMessages?.used ?? 0}
+            limit={weeklyLimit}
+            loading={usage.loading}
+          />
+        ) : null}
         {kinds.map((kind) => (
           <QuotaRow
             key={kind}
-            label={QUOTA_KIND_LABELS[kind]}
+            label={kind === 'messages' ? 'Mensagens na janela' : QUOTA_KIND_LABELS[kind]}
             used={usage.used[kind]}
             limit={usage.limits[kind] ?? 0}
             loading={usage.loading}

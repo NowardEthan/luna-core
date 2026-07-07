@@ -97,6 +97,7 @@ function authHeaders(idToken?: string | null): Record<string, string> {
 export type LunaBillingUsageSnapshot = {
   planId: string;
   cycle: 'window' | 'monthly' | 'unlimited';
+  bindingCycle?: 'window' | 'weekly' | 'monthly';
   periodKey: string;
   used: {
     messages: number;
@@ -109,6 +110,12 @@ export type LunaBillingUsageSnapshot = {
   bonusTurns: number;
   resetsAtMs: number | null;
   windowHours: number | null;
+  weeklyMessages?: {
+    used: number;
+    limit: number;
+    remaining: number;
+    resetsAtMs: number;
+  } | null;
 };
 
 /** Snapshot autoritativo de quota (mobile-api / Firestore). */
