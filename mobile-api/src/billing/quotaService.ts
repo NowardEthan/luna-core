@@ -2,44 +2,54 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
 import {
   computeWindowResetsAt,
+  computeWeeklyResetsAt,
   currentMonthKey,
   formatResetPrecise,
   FREE_QUOTA_WINDOW_MS,
   FREE_USAGE_DOC_ID,
-  hoursUntilReset,
-  limitsForPlan,
-  QUOTA_KIND_LABELS,
   usesRollingWindow,
-  type QuotaKind,
+  WEEKLY_QUOTA_WINDOW_MS,
+  WEEKLY_USAGE_DOC_ID,
+  weeklyTokenLimitForPlan,
+  windowTokenLimitForPlan,
 } from "./planQuotas.js";
 import { requireFirestore } from "./planUpdater.js";
 import type { PlanId } from "./planMapping.js";
 import { isValidPlanId } from "./planMapping.js";
+import { isCerebrasReducedFallbackEnabled } from "../llmProviders.js";
+import {
+  assertReducedTierAvailable,
+  getReducedModeSnapshot,
+  ReducedQuotaExceededError,
+  type ReducedModeSnapshot,
+} from "./reducedQuota.js";
+import { migrarContadoresLegados, CUSTO_MINIMO_CHAT } from "./tokenEstimate.js";
 
 export class QuotaExceededError extends Error {
   readonly code = "quota_exceeded" as const;
-  readonly kind: QuotaKind;
+  readonly kind = "tokens" as const;
   readonly used: number;
   readonly limit: number;
   readonly resetsAtMs: number;
+  readonly cycle: "window" | "weekly";
 
-  constructor(kind: QuotaKind, used: number, limit: number, resetsAtMs: number, planId: PlanId) {
-    const nowMs = Date.now();
-    const msUntilReset = Math.max(0, resetsAtMs - nowMs);
-    const cycle = usesRollingWindow(planId)
-      ? `a cada ${FREE_QUOTA_WINDOW_MS / 3_600_000} h`
-      : "este mês";
-    const resetHint = usesRollingWindow(planId)
-      ? ` Renova ${formatResetPrecise(msUntilReset)}.`
-      : " Renova no próximo mês ou faça upgrade.";
+  constructor(
+    used: number,
+    limit: number,
+    resetsAtMs: number,
+    planId: PlanId,
+    cycle: "window" | "weekly",
+  ) {
+    const msUntilReset = Math.max(0, resetsAtMs - Date.now());
+    const cycleLabel = cycle === "weekly" ? "esta semana" : `a cada ${FREE_QUOTA_WINDOW_MS / 3_600_000} h`;
     super(
-      `Limite de ${QUOTA_KIND_LABELS[kind].toLowerCase()} (${used}/${limit} ${cycle}).${resetHint}`,
+      `Limite de tokens (${used.toLocaleString("pt-BR")}/${limit.toLocaleString("pt-BR")} ${cycleLabel}). Renova ${formatResetPrecise(msUntilReset)}.`,
     );
     this.name = "QuotaExceededError";
-    this.kind = kind;
     this.used = used;
     this.limit = limit;
     this.resetsAtMs = resetsAtMs;
+    this.cycle = cycle;
   }
 }
 
@@ -64,60 +74,130 @@ function coerceTimestampMs(raw: unknown, fallback: number): number {
   return fallback;
 }
 
+export type WeeklyTokensSnapshot = {
+  used: number;
+  limit: number;
+  remaining: number;
+  resetsAtMs: number;
+};
+
 export type QuotaUsageSnapshot = {
   planId: PlanId;
   cycle: "window" | "monthly" | "unlimited";
+  bindingCycle?: "window" | "weekly" | "monthly";
   windowHours: number | null;
   periodKey: string;
-  used: Record<QuotaKind, number>;
-  limits: Record<QuotaKind, number | null>;
-  remaining: Record<QuotaKind, number | null>;
+  usedTokens: number;
+  windowTokenLimit: number | null;
+  remainingTokens: number | null;
   bonusTurns: number;
   resetsAtMs: number | null;
+  weeklyTokens?: WeeklyTokensSnapshot | null;
+  /** Fallback Cerebras free quando a quota do plano esgota. */
+  reducedMode?: ReducedModeSnapshot | null;
 };
 
-function emptyUsed(): Record<QuotaKind, number> {
-  return { messages: 0, images: 0, documents: 0, voice: 0 };
+export type QuotaRequestMode = "plan" | "reduced";
+
+function readWindowTokens(
+  data: Record<string, unknown> | undefined,
+  now: number,
+): { tokens: number; windowStart: number } {
+  const storedStart = coerceTimestampMs(data?.windowStart, now);
+  if (now - storedStart >= FREE_QUOTA_WINDOW_MS) {
+    return { tokens: 0, windowStart: now };
+  }
+  return {
+    tokens: migrarContadoresLegados(data),
+    windowStart: storedStart,
+  };
 }
 
-function buildSnapshot(
+function readWeeklyTokens(
+  data: Record<string, unknown> | undefined,
+  now: number,
+): { tokens: number; weekStart: number } {
+  const storedStart = coerceTimestampMs(data?.weekStart, now);
+  if (now - storedStart >= WEEKLY_QUOTA_WINDOW_MS) {
+    return { tokens: 0, weekStart: now };
+  }
+  if (typeof data?.tokens === "number") {
+    return { tokens: data.tokens, weekStart: storedStart };
+  }
+  const messages = typeof data?.messages === "number" ? data.messages : 0;
+  return { tokens: messages * 12_500, weekStart: storedStart };
+}
+
+function buildTokenSnapshot(
   planId: PlanId,
-  used: Record<QuotaKind, number>,
+  windowTokens: number,
+  windowStart: number,
+  weeklyTokens: number,
+  weekStart: number,
   bonusTurns: number,
   periodKey: string,
-  resetsAtMs: number | null,
 ): QuotaUsageSnapshot {
-  const baseLimits = limitsForPlan(planId);
-  const limits: Record<QuotaKind, number | null> = { ...baseLimits };
-  if (!usesRollingWindow(planId) && limits.messages !== null) {
-    limits.messages = limits.messages + bonusTurns;
+  if (!usesRollingWindow(planId)) {
+    return {
+      planId,
+      cycle: "unlimited",
+      windowHours: null,
+      periodKey,
+      usedTokens: 0,
+      windowTokenLimit: null,
+      remainingTokens: null,
+      bonusTurns,
+      resetsAtMs: null,
+      weeklyTokens: null,
+      bindingCycle: "monthly",
+    };
   }
 
-  const remaining: Record<QuotaKind, number | null> = {
-    messages: null,
-    images: null,
-    documents: null,
-    voice: null,
-  };
-  for (const kind of Object.keys(limits) as QuotaKind[]) {
-    const limit = limits[kind];
-    if (limit === null) continue;
-    remaining[kind] = Math.max(0, limit - used[kind]);
-  }
-
-  const unlimited =
-    Object.values(limits).every((v) => v === null) && !usesRollingWindow(planId);
+  const windowLimit = windowTokenLimitForPlan(planId)!;
+  const weeklyLimit = weeklyTokenLimitForPlan(planId)!;
+  const windowResetsAt = computeWindowResetsAt(windowStart);
+  const weeklyResetsAt = computeWeeklyResetsAt(weekStart);
+  const windowRemaining = Math.max(0, windowLimit - windowTokens);
+  const weeklyRemaining = Math.max(0, weeklyLimit - weeklyTokens);
+  const weeklyBinds = weeklyRemaining < windowRemaining;
 
   return {
     planId,
-    cycle: usesRollingWindow(planId) ? "window" : unlimited ? "unlimited" : "monthly",
-    windowHours: usesRollingWindow(planId) ? FREE_QUOTA_WINDOW_MS / 3_600_000 : null,
+    cycle: "window",
+    bindingCycle: weeklyBinds ? "weekly" : "window",
+    windowHours: FREE_QUOTA_WINDOW_MS / 3_600_000,
     periodKey,
-    used,
-    limits,
-    remaining,
-    bonusTurns,
-    resetsAtMs,
+    usedTokens: weeklyBinds ? weeklyTokens : windowTokens,
+    windowTokenLimit: windowLimit,
+    remainingTokens: Math.min(windowRemaining, weeklyRemaining),
+    bonusTurns: 0,
+    resetsAtMs: weeklyBinds ? weeklyResetsAt : windowResetsAt,
+    weeklyTokens: {
+      used: weeklyTokens,
+      limit: weeklyLimit,
+      remaining: weeklyRemaining,
+      resetsAtMs: weeklyResetsAt,
+    },
+  };
+}
+
+async function attachReducedMode(
+  uid: string,
+  snapshot: QuotaUsageSnapshot,
+): Promise<QuotaUsageSnapshot> {
+  if (!usesRollingWindow(snapshot.planId) || !isCerebrasReducedFallbackEnabled()) {
+    return snapshot;
+  }
+
+  const reduced = await getReducedModeSnapshot(uid);
+  const planDepleted = (snapshot.remainingTokens ?? 0) < CUSTO_MINIMO_CHAT;
+
+  return {
+    ...snapshot,
+    reducedMode: {
+      ...reduced,
+      available: planDepleted && reduced.dailyRemaining > 0,
+    },
   };
 }
 
@@ -125,54 +205,105 @@ export async function getQuotaSnapshot(uid: string): Promise<QuotaUsageSnapshot>
   const db = requireFirestore();
   const userSnap = await db.doc(`users/${uid}`).get();
   const planId = parsePlanId(userSnap.data()?.plan);
-  console.log(`[quotaService] getQuotaSnapshot uid=${uid} planId=${planId}`);
   const now = Date.now();
 
   if (usesRollingWindow(planId)) {
     const usageSnap = await db.doc(`users/${uid}/usage/${FREE_USAGE_DOC_ID}`).get();
-    const data = usageSnap.data();
-    const storedStart = coerceTimestampMs(data?.windowStart, now);
-    let windowStart = storedStart;
-    let used: Record<QuotaKind, number> = {
-      messages: typeof data?.messages === "number" ? data.messages : 0,
-      images: typeof data?.images === "number" ? data.images : 0,
-      documents: typeof data?.documents === "number" ? data.documents : 0,
-      voice: typeof data?.voice === "number" ? data.voice : 0,
-    };
-    if (now - storedStart >= FREE_QUOTA_WINDOW_MS) {
-      windowStart = now;
-      used = emptyUsed();
-    }
-    return buildSnapshot(
+    const window = readWindowTokens(usageSnap.data(), now);
+    const weeklySnap = await db.doc(`users/${uid}/usage/${WEEKLY_USAGE_DOC_ID}`).get();
+    const weekly = readWeeklyTokens(weeklySnap.data(), now);
+    const snapshot = buildTokenSnapshot(
       planId,
-      used,
+      window.tokens,
+      window.windowStart,
+      weekly.tokens,
+      weekly.weekStart,
       0,
       FREE_USAGE_DOC_ID,
-      computeWindowResetsAt(windowStart),
     );
+    return attachReducedMode(uid, snapshot);
   }
 
   const monthKey = currentMonthKey();
   const usageSnap = await db.doc(`users/${uid}/usage/${monthKey}`).get();
   const data = usageSnap.data();
-  const turns = typeof data?.turns === "number" ? data.turns : 0;
   const bonusTurns = typeof data?.bonusTurns === "number" ? data.bonusTurns : 0;
-  console.log(`[quotaService] getQuotaSnapshot monthly uid=${uid} monthKey=${monthKey} turns=${turns} bonusTurns=${bonusTurns}`);
-  const used = emptyUsed();
-  used.messages = turns;
 
-  const nextMonth = new Date();
-  nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
-  nextMonth.setHours(0, 0, 0, 0);
-
-  return buildSnapshot(planId, used, bonusTurns, monthKey, nextMonth.getTime());
+  return buildTokenSnapshot(planId, 0, now, 0, now, bonusTurns, monthKey);
 }
 
-export async function consumeQuota(
+/** Verifica se há tokens suficientes sem consumir. */
+export async function assertTokensAvailable(uid: string, amount: number): Promise<void> {
+  if (amount < 1) return;
+
+  const db = requireFirestore();
+  const userRef = db.doc(`users/${uid}`);
+
+  await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const planId = parsePlanId(userSnap.data()?.plan);
+    if (!usesRollingWindow(planId)) return;
+
+    const now = Date.now();
+    const windowLimit = windowTokenLimitForPlan(planId)!;
+    const weeklyLimit = weeklyTokenLimitForPlan(planId)!;
+
+    const usageSnap = await tx.get(db.doc(`users/${uid}/usage/${FREE_USAGE_DOC_ID}`));
+    const window = readWindowTokens(usageSnap.data(), now);
+
+    if (window.tokens + amount > windowLimit) {
+      throw new QuotaExceededError(
+        window.tokens,
+        windowLimit,
+        computeWindowResetsAt(window.windowStart),
+        planId,
+        "window",
+      );
+    }
+
+    const weeklySnap = await tx.get(db.doc(`users/${uid}/usage/${WEEKLY_USAGE_DOC_ID}`));
+    const weekly = readWeeklyTokens(weeklySnap.data(), now);
+
+    if (weekly.tokens + amount > weeklyLimit) {
+      throw new QuotaExceededError(
+        weekly.tokens,
+        weeklyLimit,
+        computeWeeklyResetsAt(weekly.weekStart),
+        planId,
+        "weekly",
+      );
+    }
+  });
+}
+
+/**
+ * Resolve se o pedido usa quota do plano ou modo reduzido Cerebras (free).
+ * Devolve erro só quando ambos estão indisponíveis.
+ */
+export async function resolveQuotaForRequest(
   uid: string,
-  kind: QuotaKind,
-  amount = 1,
-): Promise<QuotaUsageSnapshot> {
+  billingTokens: number,
+  estimatedInputTokens: number,
+): Promise<{ mode: QuotaRequestMode }> {
+  try {
+    await assertTokensAvailable(uid, billingTokens);
+    return { mode: "plan" };
+  } catch (planErr) {
+    if (!(planErr instanceof QuotaExceededError)) throw planErr;
+    if (!isCerebrasReducedFallbackEnabled()) throw planErr;
+
+    try {
+      await assertReducedTierAvailable(uid, estimatedInputTokens);
+      return { mode: "reduced" };
+    } catch (reducedErr) {
+      if (reducedErr instanceof ReducedQuotaExceededError) throw reducedErr;
+      throw planErr;
+    }
+  }
+}
+
+/** Consome tokens após operação bem-sucedida. */
+export async function consumeTokens(uid: string, amount: number): Promise<QuotaUsageSnapshot> {
   if (amount < 1) amount = 1;
 
   const db = requireFirestore();
@@ -181,114 +312,94 @@ export async function consumeQuota(
   return db.runTransaction(async (tx) => {
     const userSnap = await tx.get(userRef);
     const planId = parsePlanId(userSnap.data()?.plan);
-    const planLimits = limitsForPlan(planId);
     const now = Date.now();
 
-    if (Object.values(planLimits).every((v) => v === null) && !usesRollingWindow(planId)) {
-      return buildSnapshot(planId, emptyUsed(), 0, currentMonthKey(), null);
-    }
-
     if (!usesRollingWindow(planId)) {
-      if (kind !== "messages") {
-        return buildSnapshot(planId, emptyUsed(), 0, currentMonthKey(), null);
-      }
-
       const monthKey = currentMonthKey();
-      const usageRef = db.doc(`users/${uid}/usage/${monthKey}`);
-      const usageSnap = await tx.get(usageRef);
-      const data = usageSnap.data();
-      const used = typeof data?.turns === "number" ? data.turns : 0;
-      const bonusTurns = typeof data?.bonusTurns === "number" ? data.bonusTurns : 0;
-      const limit = planLimits.messages;
-      console.log(`[quotaService] consumeQuota monthly uid=${uid} monthKey=${monthKey} planId=${planId} before=${used} amount=${amount} limit=${limit} bonusTurns=${bonusTurns}`);
-      if (limit === null) {
-        return buildSnapshot(planId, { ...emptyUsed(), messages: used }, bonusTurns, monthKey, null);
-      }
-      const effectiveLimit = limit + bonusTurns;
-      if (used + amount > effectiveLimit) {
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
-        nextMonth.setHours(0, 0, 0, 0);
-        throw new QuotaExceededError(kind, used, effectiveLimit, nextMonth.getTime(), planId);
-      }
-
-      tx.set(
-        usageRef,
-        { turns: used + amount, updatedAt: FieldValue.serverTimestamp() },
-        { merge: true },
-      );
-      console.log(`[quotaService] consumeQuota monthly uid=${uid} monthKey=${monthKey} after=${used + amount}`);
-
-      const usedMap = emptyUsed();
-      usedMap.messages = used + amount;
-      const nextMonth = new Date();
-      nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
-      nextMonth.setHours(0, 0, 0, 0);
-      return buildSnapshot(planId, usedMap, bonusTurns, monthKey, nextMonth.getTime());
+      const monthSnap = await tx.get(db.doc(`users/${uid}/usage/${monthKey}`));
+      const bonusTurns =
+        typeof monthSnap.data()?.bonusTurns === "number" ? monthSnap.data()!.bonusTurns : 0;
+      return buildTokenSnapshot(planId, 0, now, 0, now, bonusTurns, monthKey);
     }
+
+    const windowLimit = windowTokenLimitForPlan(planId)!;
+    const weeklyLimit = weeklyTokenLimitForPlan(planId)!;
 
     const usageRef = db.doc(`users/${uid}/usage/${FREE_USAGE_DOC_ID}`);
     const usageSnap = await tx.get(usageRef);
-    const data = usageSnap.data() ?? {};
-    let windowStart = coerceTimestampMs(data.windowStart, now);
+    const window = readWindowTokens(usageSnap.data(), now);
 
-    let used: Record<QuotaKind, number> = {
-      messages: typeof data.messages === "number" ? data.messages : 0,
-      images: typeof data.images === "number" ? data.images : 0,
-      documents: typeof data.documents === "number" ? data.documents : 0,
-      voice: typeof data.voice === "number" ? data.voice : 0,
-    };
-
-    if (now - windowStart >= FREE_QUOTA_WINDOW_MS) {
-      windowStart = now;
-      used = emptyUsed();
-    }
-
-    const limit = planLimits[kind];
-    if (limit === null) {
-      return buildSnapshot(
-        planId,
-        used,
-        0,
-        FREE_USAGE_DOC_ID,
-        computeWindowResetsAt(windowStart),
-      );
-    }
-
-    if (used[kind] + amount > limit) {
+    if (window.tokens + amount > windowLimit) {
       throw new QuotaExceededError(
-        kind,
-        used[kind],
-        limit,
-        computeWindowResetsAt(windowStart),
+        window.tokens,
+        windowLimit,
+        computeWindowResetsAt(window.windowStart),
         planId,
+        "window",
       );
     }
 
-    used[kind] += amount;
+    const weeklyRef = db.doc(`users/${uid}/usage/${WEEKLY_USAGE_DOC_ID}`);
+    const weeklySnap = await tx.get(weeklyRef);
+    const weekly = readWeeklyTokens(weeklySnap.data(), now);
+
+    if (weekly.tokens + amount > weeklyLimit) {
+      throw new QuotaExceededError(
+        weekly.tokens,
+        weeklyLimit,
+        computeWeeklyResetsAt(weekly.weekStart),
+        planId,
+        "weekly",
+      );
+    }
+
+    const newWindowTokens = window.tokens + amount;
+    const newWeeklyTokens = weekly.tokens + amount;
 
     tx.set(
       usageRef,
       {
-        ...used,
-        windowStart: Timestamp.fromMillis(windowStart),
+        tokens: newWindowTokens,
+        windowStart: Timestamp.fromMillis(window.windowStart),
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
 
-    return buildSnapshot(
+    tx.set(
+      weeklyRef,
+      {
+        tokens: newWeeklyTokens,
+        weekStart: Timestamp.fromMillis(weekly.weekStart),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    return buildTokenSnapshot(
       planId,
-      used,
+      newWindowTokens,
+      window.windowStart,
+      newWeeklyTokens,
+      weekly.weekStart,
       0,
       FREE_USAGE_DOC_ID,
-      computeWindowResetsAt(windowStart),
     );
   });
 }
 
+/** @deprecated Usar consumeTokens — mantido para compat. */
+export async function consumeQuota(
+  uid: string,
+  _kind: string,
+  amount = 1,
+): Promise<QuotaUsageSnapshot> {
+  return consumeTokens(uid, amount);
+}
+
+/** @deprecated Usar consumeTokens. */
 export async function consumeCloudTurn(uid: string): Promise<QuotaUsageSnapshot> {
-  return consumeQuota(uid, "messages", 1);
+  return consumeTokens(uid, CUSTO_MINIMO_CHAT);
 }
 
 export type TurnQuotaSnapshot = QuotaUsageSnapshot;

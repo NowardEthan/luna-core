@@ -5,13 +5,25 @@ export const PLAN_CATALOG: Record<
   `${"plus" | "pro" | "byok"}-${BillingPeriod}`,
   { value: number; cycle: "MONTHLY" | "YEARLY"; label: string }
 > = {
-  "plus-monthly": { value: 25, cycle: "MONTHLY", label: "Luna Plus Mensal" },
-  "plus-annual": { value: 250, cycle: "YEARLY", label: "Luna Plus Anual" },
-  "pro-monthly": { value: 49, cycle: "MONTHLY", label: "Luna Pro Mensal" },
-  "pro-annual": { value: 490, cycle: "YEARLY", label: "Luna Pro Anual" },
+  "plus-monthly": { value: 39, cycle: "MONTHLY", label: "Luna Plus Mensal" },
+  "plus-annual": { value: 390, cycle: "YEARLY", label: "Luna Plus Anual" },
+  "pro-monthly": { value: 79, cycle: "MONTHLY", label: "Luna Pro Mensal" },
+  "pro-annual": { value: 790, cycle: "YEARLY", label: "Luna Pro Anual" },
   "byok-monthly": { value: 12, cycle: "MONTHLY", label: "Luna BYOK Mensal" },
   "byok-annual": { value: 120, cycle: "YEARLY", label: "Luna BYOK Anual" },
 };
+
+/** Valores históricos — webhooks de assinaturas já activas antes do reajuste de preços. */
+const LEGACY_PLAN_VALUES: Array<{ value: number; planId: "plus" | "pro"; period: BillingPeriod }> = [
+  { value: 25, planId: "plus", period: "monthly" },
+  { value: 250, planId: "plus", period: "annual" },
+  { value: 29, planId: "plus", period: "monthly" },
+  { value: 290, planId: "plus", period: "annual" },
+  { value: 49, planId: "pro", period: "monthly" },
+  { value: 490, planId: "pro", period: "annual" },
+  { value: 59, planId: "pro", period: "monthly" },
+  { value: 590, planId: "pro", period: "annual" },
+];
 
 const VALID_PLAN_IDS = new Set<PlanId>(["free", "plus", "pro", "byok", "team"]);
 
@@ -108,6 +120,11 @@ export function resolvePlanFromPayment(
       if (Math.abs(meta.value - value) < 0.02) {
         const [planId, period] = key.split("-") as [PlanId, BillingPeriod];
         return { planId, period };
+      }
+    }
+    for (const legacy of LEGACY_PLAN_VALUES) {
+      if (Math.abs(legacy.value - value) < 0.02) {
+        return { planId: legacy.planId, period: legacy.period };
       }
     }
   }

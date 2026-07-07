@@ -8,10 +8,25 @@ function lunaMessageIdForUser(userMessageId: string): string {
   return `l-${userMessageId}`;
 }
 
+function userMessageIdForLuna(lunaMessageId: string): string | null {
+  if (lunaMessageId.startsWith("l") && !lunaMessageId.startsWith("l-")) {
+    return `u${lunaMessageId.slice(1)}`;
+  }
+  if (lunaMessageId.startsWith("l-")) {
+    const rest = lunaMessageId.slice(2);
+    return rest.startsWith("u") ? rest : null;
+  }
+  return null;
+}
+
 describe("pares de id de mensagem (idempotência chat)", () => {
   it("deriva lunaMessageId estável a partir do userMessageId", () => {
     expect(lunaMessageIdForUser("u1738-abc")).toBe("l1738-abc");
     expect(lunaMessageIdForUser("u1738-abc")).toBe(lunaMessageIdForUser("u1738-abc"));
+  });
+
+  it("inverte par user/luna", () => {
+    expect(userMessageIdForLuna("l1738-abc")).toBe("u1738-abc");
   });
 
   it("fallback quando id não começa com u", () => {

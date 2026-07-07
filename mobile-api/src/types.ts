@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /** Aceita valores legados (openrouter, qwen-*) — normalizados no servidor. */
 export const LlmProviderIdSchema = z.enum(["groq", "cerebras", "openrouter", "auto"]);
-export const LlmModelKeySchema = z.enum(["default", "glm-47", "qwen-next", "qwen-coder", "auto"]);
+export const LlmModelKeySchema = z.enum(["default", "glm-47", "gpt-oss-120b", "qwen-next", "qwen-coder", "auto"]);
 
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).max(16_000),
@@ -49,6 +49,8 @@ export type ChatResponseOk = {
   };
   /** true quando o turno já existia (retry de rede) — não recontar quota no cliente. */
   idempotent?: boolean;
+  /** `reduced` quando a quota do plano esgotou e o pedido usou o tier free Cerebras. */
+  quotaMode?: "plan" | "reduced";
 };
 
 export type ChatResponseErr = {
@@ -70,6 +72,18 @@ export type VisionResponse =
 
 export type ExtractDocumentsResponse =
   | { ok: true; documents: Array<{ name?: string; text: string; truncated?: boolean }> }
+  | { ok: false; error: string };
+
+export const RosaryReflectionRequestSchema = z.object({
+  mysteryName: z.string().min(1).max(256),
+  mysterySetLabel: z.string().min(1).max(64),
+  intention: z.string().max(500).optional(),
+});
+
+export type RosaryReflectionRequest = z.infer<typeof RosaryReflectionRequestSchema>;
+
+export type RosaryReflectionResponse =
+  | { ok: true; text: string }
   | { ok: false; error: string };
 
 export type HealthResponse = {
@@ -95,4 +109,6 @@ export type HealthResponse = {
   streamSupported?: boolean;
   /** Modo de persistência do Mundo Interior (firestore | sqlite). */
   lunaStore?: string;
+  /** Pesquisa web Tavily configurada no servidor. */
+  webSearchConfigured?: boolean;
 };

@@ -87,7 +87,7 @@ const MODELS: Record<
   },
 };
 
-function groqApiKey(): string | undefined {
+export function groqApiKey(): string | undefined {
   return process.env.LUNA_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim() || undefined;
 }
 
@@ -110,6 +110,16 @@ function isGroqChatEnabled(): boolean {
   if (process.env.LUNA_GROQ_CHAT === "1") return true;
   return !cerebrasApiKey();
 }
+
+export function isCerebrasReducedFallbackEnabled(): boolean {
+  return Boolean(cerebrasApiKey());
+}
+
+/** Seleção forçada no modo reduzido (tier free Cerebras). */
+export const REDUCED_LLM_SELECTION: LlmProviderSelection = {
+  providerId: "cerebras",
+  modelKey: "gpt-oss-120b",
+};
 
 /** Chat usa Cerebras (GLM) — Groq fica só para STT/visão. */
 export function isCerebrasChatPrimary(): boolean {
@@ -142,12 +152,18 @@ function resolveCerebrasModelId(): string {
   return process.env.CEREBRAS_MODEL?.trim() || CEREBRAS_GLM_47.modelId;
 }
 
+function resolveCerebrasModelIdForSelection(selection: LlmProviderSelection): string {
+  if (selection.modelKey === "gpt-oss-120b") return CEREBRAS_GPT_OSS_120B.modelId;
+  if (selection.modelKey === "glm-47") return CEREBRAS_GLM_47.modelId;
+  return resolveCerebrasModelId();
+}
+
 /** Modelo Cerebras para os neurônios/análise (menor). Cai no principal se não configurado. */
 function resolveCerebrasMenorModelId(): string {
   return process.env.CEREBRAS_MODEL_MENOR?.trim() || resolveCerebrasModelId();
 }
 
-function groqMenorModelId(): string {
+export function groqMenorModelId(): string {
   return process.env.LUNA_MODELO_MENOR?.trim() || "llama-3.1-8b-instant";
 }
 
@@ -417,13 +433,17 @@ function resolveCerebrasConfig(): ConfigLuna | null {
 export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | null {
   // Segurança extra: qualquer pedido groq/auto no chat cai no Cerebras quando é o cérebro principal.
   if (isCerebrasChatPrimary() && selection.providerId !== "cerebras") {
-    return resolveCerebrasConfig();
+    const config = resolveCerebrasConfig();
+    if (!config) return null;
+    return { ...config, modeloMaior: resolveCerebrasModelIdForSelection(selection) };
   }
 
   if (selection.providerId === "groq" || selection.providerId === "auto") {
     if (!isGroqChatEnabled()) {
       const cerebras = resolveCerebrasConfig();
-      if (cerebras) return cerebras;
+      if (cerebras) {
+        return { ...cerebras, modeloMaior: resolveCerebrasModelIdForSelection(selection) };
+      }
     }
 
     const apiKey = groqApiKey();
@@ -440,7 +460,9 @@ export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | 
   }
 
   if (selection.providerId === "cerebras") {
-    return resolveCerebrasConfig();
+    const config = resolveCerebrasConfig();
+    if (!config) return null;
+    return { ...config, modeloMaior: resolveCerebrasModelIdForSelection(selection) };
   }
 
   return null;

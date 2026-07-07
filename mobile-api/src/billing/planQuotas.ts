@@ -1,60 +1,49 @@
 import type { PlanId } from "./planMapping.js";
 
-/** Tipos de quota — espelham Projects/Luna/orbit-mobile/src/features/billing/planQuotas.ts */
-export type QuotaKind = "messages" | "images" | "documents" | "voice";
-
-export const FREE_QUOTA_WINDOW_HOURS = 3;
+export const FREE_QUOTA_WINDOW_HOURS = 5;
 export const FREE_QUOTA_WINDOW_MS = FREE_QUOTA_WINDOW_HOURS * 60 * 60 * 1000;
 
 export const FREE_USAGE_DOC_ID = "_free_window";
 
-export const WINDOW_LIMITS: Record<PlanId, Record<QuotaKind, number>> = {
-  free: {
-    messages: 15,
-    images: 5,
-    documents: 3,
-    voice: 10,
-  },
-  plus: {
-    messages: 60,
-    images: 15,
-    documents: 10,
-    voice: 25,
-  },
-  pro: {
-    messages: 150,
-    images: 40,
-    documents: 25,
-    voice: 60,
-  },
-  byok: {
-    messages: 0,
-    images: 0,
-    documents: 0,
-    voice: 0,
-  },
-  team: {
-    messages: 0,
-    images: 0,
-    documents: 0,
-    voice: 0,
-  },
+export const WEEKLY_USAGE_DOC_ID = "_weekly";
+export const WEEKLY_QUOTA_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Limites calibrados com GLM-4.7 ($2,25/M input · $2,75/M output ≈ $2,48/M blended).
+ * Ver comentário em orbit-mobile planQuotas.ts para tabela de custos.
+ */
+export const WINDOW_TOKEN_LIMITS: Record<PlanId, number> = {
+  free: 35_000,
+  plus: 180_000,
+  pro: 450_000,
+  byok: 0,
+  team: 0,
 };
+
+export const WEEKLY_TOKEN_LIMITS: Record<PlanId, number> = {
+  free: 150_000,
+  plus: 750_000,
+  pro: 2_250_000,
+  byok: 0,
+  team: 0,
+};
+
+export function windowTokenLimitForPlan(planId: PlanId): number | null {
+  if (!usesRollingWindow(planId)) return null;
+  return WINDOW_TOKEN_LIMITS[planId];
+}
+
+export function weeklyTokenLimitForPlan(planId: PlanId): number | null {
+  if (!usesRollingWindow(planId)) return null;
+  return WEEKLY_TOKEN_LIMITS[planId];
+}
+
+export function computeWeeklyResetsAt(weekStartMs: number): number {
+  return weekStartMs + WEEKLY_QUOTA_WINDOW_MS;
+}
 
 export function usesRollingWindow(planId: PlanId): boolean {
   return planId === "free" || planId === "plus" || planId === "pro";
-}
-
-export function limitsForPlan(planId: PlanId): Record<QuotaKind, number | null> {
-  if (usesRollingWindow(planId)) {
-    return { ...WINDOW_LIMITS[planId] };
-  }
-  return {
-    messages: null,
-    images: null,
-    documents: null,
-    voice: null,
-  };
 }
 
 export function currentMonthKey(): string {
@@ -79,10 +68,3 @@ export function formatResetPrecise(msUntilReset: number): string {
 export function computeWindowResetsAt(windowStartMs: number): number {
   return windowStartMs + FREE_QUOTA_WINDOW_MS;
 }
-
-export const QUOTA_KIND_LABELS: Record<QuotaKind, string> = {
-  messages: "Mensagens",
-  images: "Imagens",
-  documents: "Arquivos",
-  voice: "Voz",
-};

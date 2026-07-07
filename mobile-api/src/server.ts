@@ -24,23 +24,50 @@ import {
   isDocumentExtractAvailable,
 } from "./extractDocuments.js";
 import {
+  assertTokensAvailable,
+  consumeTokens,
+  getQuotaSnapshot,
+  getUserPlanId,
+  QuotaExceededError,
+  resolveQuotaForRequest,
+  type QuotaRequestMode,
+} from "./billing/quotaService.js";
+import {
+  consumeReducedTokens,
+  ReducedQuotaExceededError,
+} from "./billing/reducedQuota.js";
+import {
+  estimarApiTokensChat,
+  estimarCustoMinimoChat,
+  estimarInputTokensChat,
+  estimarTokensChat,
+  estimarTokensDocumentos,
+  estimarTokensTranscricao,
+  estimarTokensVisao,
+} from "./billing/tokenEstimate.js";
+import {
+  REDUCED_LLM_SELECTION,
+  resolveLlmProviderSelection,
+  type LlmProviderSelection,
+} from "./llmProviders.js";
+import { planIdForLlmRouting } from "./billing/planModelPolicy.js";
+import type { PlanId } from "./billing/planMapping.js";
+import {
   isAnyLlmProviderConfigured,
   isStreamSupported,
   listProviderOptionsForHealth,
   listProviderOptionsForUi,
-  resolveLlmProviderSelection,
-  type LlmProviderSelection,
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
-import { consumeQuota, getQuotaSnapshot, getUserPlanId, QuotaExceededError } from "./billing/quotaService.js";
-import { planIdForLlmRouting } from "./billing/planModelPolicy.js";
-import type { PlanId } from "./billing/planMapping.js";
+import { generateRosaryReflection } from "./rosaryReflection.js";
 import {
   ChatRequestSchema,
   type ChatRequest,
   type ChatResponse,
   type ExtractDocumentsResponse,
   type HealthResponse,
+  RosaryReflectionRequestSchema,
+  type RosaryReflectionResponse,
   type TranscribeResponse,
   type VisionResponse,
 } from "./types.js";
@@ -52,7 +79,6 @@ import { mapearErroParaEventoSse } from "../../dist/ux/mapearErroUsuario.js";
  * quando um áudio é o primeiro pedido. No Railway as Variables já vêm no env.
  */
 function bootstrapEnvFromCore(): void {
-  if (process.env.LUNA_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim()) return;
   const loadEnvFile = (process as { loadEnvFile?: (path: string) => void }).loadEnvFile;
   if (typeof loadEnvFile !== "function") return;
   try {
@@ -114,12 +140,15 @@ function readAuthHeader(req: IncomingMessage): string | undefined {
   return typeof raw === "string" ? raw : undefined;
 }
 
-function quotaDeniedPayload(err: QuotaExceededError): { ok: false; error: string; code: "quota_exceeded"; quotaKind: string } {
+function quotaDeniedPayload(
+  err: QuotaExceededError | ReducedQuotaExceededError,
+): { ok: false; error: string; code: "quota_exceeded"; quotaKind: string } {
+  const kind = err instanceof ReducedQuotaExceededError ? "reduced" : err.kind;
   return {
     ok: false,
     error: err.message,
     code: "quota_exceeded",
-    quotaKind: err.kind,
+    quotaKind: kind,
   };
 }
 
@@ -151,14 +180,13 @@ async function comTimeoutChat<T>(promise: Promise<T>, ms = chatTimeoutMs()): Pro
   }
 }
 
-async function enforceQuota(
+async function denyIfInsufficientTokens(
   auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>,
-  kind: Parameters<typeof consumeQuota>[1],
-  amount: number,
+  tokens: number,
 ): Promise<QuotaExceededError | null> {
-  if (!auth) return null;
+  if (!auth || tokens < 1) return null;
   try {
-    await consumeQuota(auth.uid, kind, amount);
+    await assertTokensAvailable(auth.uid, tokens);
     return null;
   } catch (err) {
     if (err instanceof QuotaExceededError) return err;
@@ -166,7 +194,19 @@ async function enforceQuota(
   }
 }
 
-type TurnoResolvido = { result: ChatMobileResult; idempotent: boolean };
+async function chargeTokens(
+  auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>,
+  tokens: number,
+): Promise<void> {
+  if (!auth || tokens < 1) return;
+  await consumeTokens(auth.uid, tokens);
+}
+
+type TurnoResolvido = {
+  result: ChatMobileResult;
+  idempotent: boolean;
+  quotaMode?: QuotaRequestMode;
+};
 
 async function resolverTurnoChat(params: {
   auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>;
@@ -193,12 +233,19 @@ async function resolverTurnoChat(params: {
     }
   }
 
+  const attCount = parsed.attachments?.length ?? 0;
+  let quotaMode: QuotaRequestMode = "plan";
+  let effectiveSelection = llmSelection;
+
   if (auth) {
-    const denied = await enforceQuota(auth, "messages", 1);
-    if (denied) throw denied;
-    if (parsed.attachments?.length) {
-      const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
-      if (deniedImages) throw deniedImages;
+    const quota = await resolveQuotaForRequest(
+      auth.uid,
+      estimarCustoMinimoChat(parsed.message, attCount),
+      estimarInputTokensChat(parsed.message, attCount),
+    );
+    quotaMode = quota.mode;
+    if (quotaMode === "reduced") {
+      effectiveSelection = REDUCED_LLM_SELECTION;
     }
   }
 
@@ -207,7 +254,7 @@ async function resolverTurnoChat(params: {
       parsed.message,
       sessionId,
       parsed.attachments,
-      llmSelection,
+      effectiveSelection,
       parsed.userDisplayName,
       auth?.uid ?? null,
       planId,
@@ -224,9 +271,18 @@ async function resolverTurnoChat(params: {
       lunaMessageId: parsed.lunaMessageId,
       humor_atual: result.humor_atual,
     });
+    if (quotaMode === "plan") {
+      await chargeTokens(auth, estimarTokensChat(parsed.message, result.text, attCount));
+    } else {
+      await consumeReducedTokens(
+        auth.uid,
+        estimarApiTokensChat(parsed.message, result.text, attCount),
+        estimarInputTokensChat(parsed.message, attCount),
+      );
+    }
   }
 
-  return { idempotent: false, result };
+  return { idempotent: false, result, quotaMode };
 }
 
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -259,11 +315,27 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
       }
       const usage = await getQuotaSnapshot(auth.uid);
-      console.log(`[server] GET /v1/billing/usage response uid=${auth.uid} usedMessages=${usage.used.messages} limit=${usage.limits.messages} planId=${usage.planId}`);
+      console.log(`[server] GET /v1/billing/usage response uid=${auth.uid} usedTokens=${usage.usedTokens} remaining=${usage.remainingTokens} planId=${usage.planId}`);
       return sendJson(res, 200, { ok: true, usage });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return sendJson(res, 500, { ok: false, error: message });
+    }
+  }
+
+  if (method === "POST" && url.pathname === "/v1/rosary/reflection") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." } satisfies RosaryReflectionResponse);
+      }
+      const body = await readJson(req);
+      const parsed = RosaryReflectionRequestSchema.parse(body);
+      const text = await generateRosaryReflection(parsed);
+      return sendJson(res, 200, { ok: true, text } satisfies RosaryReflectionResponse);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return sendJson(res, 400, { ok: false, error: message } satisfies RosaryReflectionResponse);
     }
   }
 
@@ -292,6 +364,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       llmProviders,
       streamSupported: isStreamSupported(),
       lunaStore: process.env.LUNA_STORE ?? "sqlite",
+      webSearchConfigured: Boolean(
+        process.env.TAVILY_API_KEY?.trim() || process.env.WEB_SEARCH_API_KEY?.trim(),
+      ),
     };
     return sendJson(res, payload.coreReady && payload.llmConfigured ? 200 : 503, payload);
   }
@@ -343,13 +418,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           planId,
         });
       } catch (err) {
-        if (err instanceof QuotaExceededError) {
+        if (err instanceof QuotaExceededError || err instanceof ReducedQuotaExceededError) {
           return sendJson(res, 429, quotaDeniedPayload(err) satisfies ChatResponse);
         }
         throw err;
       }
 
-      const { result, idempotent } = turno;
+      const { result, idempotent, quotaMode } = turno;
 
       const payload: ChatResponse = {
         ok: true,
@@ -362,6 +437,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         autoMode: result.autoMode,
         humor_atual: result.humor_atual,
         idempotent,
+        quotaMode,
       };
       return sendJson(res, 200, payload);
     } catch (err) {
@@ -432,16 +508,19 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         }
       }
 
+      const streamAttCount = parsed.attachments?.length ?? 0;
+      let streamQuotaMode: QuotaRequestMode = "plan";
+      let streamSelection = llmSelection;
+
       if (auth) {
-        const denied = await enforceQuota(auth, "messages", 1);
-        if (denied) {
-          return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
-        }
-        if (parsed.attachments?.length) {
-          const deniedImages = await enforceQuota(auth, "images", parsed.attachments.length);
-          if (deniedImages) {
-            return sendJson(res, 429, quotaDeniedPayload(deniedImages) satisfies ChatResponse);
-          }
+        const quota = await resolveQuotaForRequest(
+          auth.uid,
+          estimarCustoMinimoChat(parsed.message, streamAttCount),
+          estimarInputTokensChat(parsed.message, streamAttCount),
+        );
+        streamQuotaMode = quota.mode;
+        if (streamQuotaMode === "reduced") {
+          streamSelection = REDUCED_LLM_SELECTION;
         }
       }
 
@@ -468,7 +547,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         },
         sessionId,
         parsed.attachments,
-        llmSelection,
+        streamSelection,
         parsed.userDisplayName,
         auth?.uid ?? null,
         planId,
@@ -486,6 +565,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           lunaMessageId: parsed.lunaMessageId,
           humor_atual: result.humor_atual,
         });
+        if (streamQuotaMode === "plan") {
+          await chargeTokens(
+            auth,
+            estimarTokensChat(parsed.message, result.text, streamAttCount),
+          );
+        } else {
+          await consumeReducedTokens(
+            auth.uid,
+            estimarApiTokensChat(parsed.message, result.text, streamAttCount),
+            estimarInputTokensChat(parsed.message, streamAttCount),
+          );
+        }
       }
 
       sendSseEvent(res, "done", {
@@ -498,12 +589,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         providerReason: result.providerReason,
         autoMode: result.autoMode,
         humor_atual: result.humor_atual,
+        quotaMode: streamQuotaMode,
       });
       res.end();
     } catch (err) {
       if (sseStarted) {
         sendMappedSseError(res, err);
         res.end();
+      } else if (err instanceof QuotaExceededError || err instanceof ReducedQuotaExceededError) {
+        return sendJson(res, 429, quotaDeniedPayload(err) satisfies ChatResponse);
       } else {
         const message = err instanceof Error ? err.message : String(err);
         const payload: ChatResponse = { ok: false, error: message };
@@ -527,12 +621,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const body = await readJson(req);
       const parsed = TranscribeRequestSchema.parse(body);
 
-      const denied = await enforceQuota(auth, "voice", 1);
+      const denied = await denyIfInsufficientTokens(auth, estimarTokensTranscricao(""));
       if (denied) {
         return sendJson(res, 429, quotaDeniedPayload(denied) satisfies TranscribeResponse);
       }
 
       const text = await transcribeAudio(parsed);
+      await chargeTokens(auth, estimarTokensTranscricao(text));
       const payload: TranscribeResponse = { ok: true, text };
       return sendJson(res, 200, payload);
     } catch (err) {
@@ -558,13 +653,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const parsed = VisionRequestSchema.parse(body);
       console.log(`[server] /v1/vision images=${parsed.images.length}`);
 
-      const denied = await enforceQuota(auth, "images", parsed.images.length);
+      const denied = await denyIfInsufficientTokens(
+        auth,
+        estimarTokensVisao(parsed.images.length),
+      );
       if (denied) {
         console.log(`[server] /v1/vision quota denied`);
         return sendJson(res, 429, quotaDeniedPayload(denied) satisfies VisionResponse);
       }
 
       const descriptions = await describeImages(parsed);
+      await chargeTokens(auth, estimarTokensVisao(parsed.images.length));
       console.log(`[server] /v1/vision ok descriptions=${descriptions.length}`);
       const payload: VisionResponse = { ok: true, descriptions };
       return sendJson(res, 200, payload);
@@ -592,13 +691,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       console.log(`[server] /v1/extract-documents body`, { files: (body as { files?: unknown[] })?.files?.length ?? 0 });
       const parsed = ExtractDocumentsRequestSchema.parse(body);
 
-      const denied = await enforceQuota(auth, "documents", parsed.files.length);
+      const denied = await denyIfInsufficientTokens(
+        auth,
+        estimarTokensDocumentos(parsed.files.length),
+      );
       if (denied) {
         console.log(`[server] /v1/extract-documents quota denied`);
         return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ExtractDocumentsResponse);
       }
 
       const documents = await extractDocuments(parsed);
+      await chargeTokens(auth, estimarTokensDocumentos(parsed.files.length));
       console.log(`[server] /v1/extract-documents ok documents=${documents.length}`);
       const payload: ExtractDocumentsResponse = { ok: true, documents };
       return sendJson(res, 200, payload);

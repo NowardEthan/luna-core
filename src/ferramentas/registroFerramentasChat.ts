@@ -1,10 +1,7 @@
 import type { DefinicaoFerramenta } from "../providers/tipos.js";
+import { webSearchDisponivel } from "./pesquisaWeb.js";
 
-/**
- * Ferramentas permitidas no chat mobile.
- * Não inclui ações destrutivas do agente IDE.
- */
-export const FERRAMENTAS_CHAT: DefinicaoFerramenta[] = [
+const FERRAMENTAS_BASE: DefinicaoFerramenta[] = [
   {
     nome: "consultar_atlas",
     descricao:
@@ -44,3 +41,32 @@ export const FERRAMENTAS_CHAT: DefinicaoFerramenta[] = [
     },
   },
 ];
+
+const FERRAMENTA_WEB_SEARCH: DefinicaoFerramenta = {
+  nome: "web_search",
+  descricao:
+    "Pesquisa na web informação actual (notícias, preços, eventos, factos recentes). Usa o ano actual na query quando pedirem «hoje» ou «recente».",
+  parametros: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description:
+          "Consulta em português; para notícias recentes inclui o ano actual (ex.: «notícias IA 2026»).",
+      },
+    },
+    required: ["query"],
+  },
+};
+
+/** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
+export function listarFerramentasChat(): DefinicaoFerramenta[] {
+  const ferramentas = [...FERRAMENTAS_BASE];
+  if (webSearchDisponivel()) {
+    ferramentas.push(FERRAMENTA_WEB_SEARCH);
+  }
+  return ferramentas;
+}
+
+/** @deprecated Preferir listarFerramentasChat() — lista estática sem web_search dinâmico. */
+export const FERRAMENTAS_CHAT: DefinicaoFerramenta[] = FERRAMENTAS_BASE;
