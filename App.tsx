@@ -11,7 +11,7 @@ import { ThreadScreen } from './src/screens/ThreadScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { useOrbitChat } from './src/data/useOrbitChat';
 import { demoUser } from './src/data/fixtures';
-import { useRosary, getStepText, isPrayerMatch, type RosaryMysterySet } from './src/hooks/useRosary';
+import { useRosary, getStepText, isPrayerMatch, isRosaryRequest, type RosaryMysterySet } from './src/hooks/useRosary';
 import type { ComposerSendPayload } from './src/lib/composerAttachmentModel';
 import { ComposerSessionProvider } from './src/hooks/ComposerSessionContext';
 import { LunaAuthProvider, useLunaAuth } from './src/hooks/useLunaAuth';
@@ -127,16 +127,29 @@ function OrbitApp() {
   const handleSendFromThread = useCallback(
     (payload: ComposerSendPayload) => {
       const text = payload.text.trim();
+
+      // Pedido para rezar o terço: ativa a tool e começa pelo Sinal da Cruz.
+      if (!rosary.state.active && isRosaryRequest(text)) {
+        rosary.dispatch({ type: 'start' });
+        const lunaText =
+          getStepText({ ...rosary.state, active: true, step: 'cross', currentMysteryIndex: 0, hailMaryCount: 0 }) ||
+          'Em nome do Pai, do Filho e do Espírito Santo. Amém.';
+        void chat.sendRosaryMessage(text, lunaText);
+        return;
+      }
+
       if (!rosary.state.active) {
         chat.sendFromThread(payload);
         return;
       }
+
       if (isPrayerMatch(text, rosary.state.step)) {
         const lunaText = getStepText(rosary.state);
         rosary.dispatch({ type: 'advance' });
         void chat.sendRosaryMessage(text, lunaText || 'Amém.');
         return;
       }
+
       // Fora do passo esperado: trata como intenção ou pergunta normal para a Luna.
       chat.sendFromThread(payload);
     },

@@ -228,6 +228,28 @@ export function currentMysteryName(state: RosaryState): string | null {
   return MYSTERIES[state.mysterySet][state.currentMysteryIndex] ?? null;
 }
 
+export function isRosaryRequest(text: string): boolean {
+  const lower = text.toLowerCase();
+  const triggers = [
+    'rezar terço',
+    'rezar o terço',
+    'rezar um terço',
+    'vamos rezar',
+    'quer rezar',
+    'quero rezar',
+    'vamos rezar o terço',
+    'vamos rezar um terço',
+    'iniciar terço',
+    'começar terço',
+    'modo terço',
+    'terço com luna',
+    'rezar comigo',
+    'rezar o rosario',
+    'rezar o rosário',
+  ];
+  return triggers.some((t) => lower.includes(t));
+}
+
 export function isPrayerMatch(text: string, step: RosaryStep): boolean {
   const lower = text.toLowerCase();
   switch (step) {
