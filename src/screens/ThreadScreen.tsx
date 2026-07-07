@@ -84,8 +84,6 @@ interface Props {
   onChange: (t: string) => void;
   onSend: (payload: ComposerSendPayload) => void;
   onRosaryToggle?: () => void;
-  onRosaryAdvance?: () => void;
-  onRosaryStop?: () => void;
   onRosarySelectSet?: (set: import('../hooks/useRosary').RosaryMysterySet) => void;
   onRosaryReflection?: () => void;
   rosaryState?: import('../hooks/useRosary').RosaryState;
@@ -334,8 +332,6 @@ export const ThreadScreen = memo(function ThreadScreen({
   onChange,
   onSend,
   onRosaryToggle,
-  onRosaryAdvance,
-  onRosaryStop,
   onRosarySelectSet,
   onRosaryReflection,
   rosaryState,
@@ -939,8 +935,6 @@ export const ThreadScreen = memo(function ThreadScreen({
             onVoiceResult={onVoiceSend}
             rosaryState={rosaryState}
             onRosaryToggle={onRosaryToggle}
-            onRosaryAdvance={onRosaryAdvance}
-            onRosaryStop={onRosaryStop}
             onRosarySelectSet={onRosarySelectSet}
             onRosaryReflection={onRosaryReflection}
             placeholder={

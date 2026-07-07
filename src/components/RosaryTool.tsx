@@ -13,8 +13,6 @@ import {
 type Props = {
   state: RosaryState;
   onToggle: () => void;
-  onAdvance: () => void;
-  onStop: () => void;
   onSelectSet: (set: RosaryMysterySet) => void;
   onRequestReflection?: () => void;
 };
@@ -29,8 +27,6 @@ const SETS: { key: RosaryMysterySet; label: string; color: string }[] = [
 export const RosaryTool = memo(function RosaryTool({
   state,
   onToggle,
-  onAdvance,
-  onStop,
   onSelectSet,
   onRequestReflection,
 }: Props) {
@@ -78,12 +74,6 @@ export const RosaryTool = memo(function RosaryTool({
         </ScrollView>
 
         <View style={styles.actions}>
-          <Pressable onPress={onStop} style={styles.actionBtn}>
-            <Text style={[type.caption, styles.actionLabel]}>Sair</Text>
-          </Pressable>
-          <Pressable onPress={onAdvance} style={styles.actionBtn}>
-            <Text style={[type.caption, styles.actionLabel]}>Avançar</Text>
-          </Pressable>
           {onRequestReflection ? (
             <Pressable onPress={onRequestReflection} style={styles.actionBtn}>
               <Text style={[type.caption, styles.actionLabel]}>Reflexão</Text>

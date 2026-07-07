@@ -10,8 +10,9 @@ import { MainShell } from './src/screens/MainShell';
 import { ThreadScreen } from './src/screens/ThreadScreen';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { useOrbitChat } from './src/data/useOrbitChat';
+import { lunaChat } from './src/data/lunaClient';
 import { demoUser } from './src/data/fixtures';
-import { useRosary, getStepText, isPrayerMatch, isRosaryRequest, type RosaryMysterySet } from './src/hooks/useRosary';
+import { useRosary, getStepText, isPrayerMatch, isRosaryRequest, isValidRosaryStep, type RosaryMysterySet, type RosaryStep } from './src/hooks/useRosary';
 import type { ComposerSendPayload } from './src/lib/composerAttachmentModel';
 import { ComposerSessionProvider } from './src/hooks/ComposerSessionContext';
 import { LunaAuthProvider, useLunaAuth } from './src/hooks/useLunaAuth';
@@ -97,17 +98,6 @@ function OrbitApp() {
     }
   }, [rosary]);
 
-  const handleRosaryAdvance = useCallback(() => {
-    if (!rosary.state.active) return;
-    const lunaText = getStepText(rosary.state);
-    rosary.dispatch({ type: 'advance' });
-    void chat.sendRosaryMessage(undefined, lunaText || 'Amém.');
-  }, [rosary, chat]);
-
-  const handleRosaryStop = useCallback(() => {
-    rosary.dispatch({ type: 'stop' });
-  }, [rosary]);
-
   const handleRosarySelectSet = useCallback(
     (set: RosaryMysterySet) => {
       rosary.dispatch({ type: 'start', mysterySet: set });
@@ -124,12 +114,72 @@ function OrbitApp() {
     void chat.sendRosaryMessage(undefined, prompt);
   }, [rosary, chat]);
 
+  const classifyRosaryIntent = useCallback(
+    async (text: string): Promise<
+      | { kind: 'start_rosary' }
+      | { kind: 'stop_rosary' }
+      | { kind: 'prayer'; step: RosaryStep }
+      | { kind: 'intention' }
+      | { kind: 'chat' }
+    > => {
+      // Atalho local para evitar LLM nos casos óbvios.
+      if (!rosary.state.active && isRosaryRequest(text)) return { kind: 'start_rosary' };
+      if (rosary.state.active && isPrayerMatch(text, rosary.state.step)) {
+        return { kind: 'prayer', step: rosary.state.step };
+      }
+
+      const prompt = `Você é um classificador de intenção para um modo de oração do terço em um app de chat.
+O usuário está em uma conversa com a Luna. Classifique a mensagem abaixo em JSON com o campo "kind".
+
+Regras:
+- "start_rosary": pedido para rezar/iniciar/começar o terço.
+- "stop_rosary": pedido para parar/sair/cancelar o terço.
+- "prayer": a mensagem é uma oração do terço. Use "step" com um destes valores: cross, creed, our_father_opening, hail_mary_3, glory_opening, mystery_intro, mystery_our_father, mystery_hail_mary, mystery_glory, finished.
+- "intention": mensagem de intenção/desejo dentro do terço (ex: "quero rezar pela família").
+- "chat": qualquer outra coisa.
+
+Responda APENAS com JSON: {"kind":"..."} ou {"kind":"prayer","step":"..."}. Sem explicação.
+
+Mensagem: "${text.replace(/"/g, '\\"')}"`;
+
+      try {
+        const result = await lunaChat({
+          message: prompt,
+          sessionId: 'rosary-classifier',
+          userMessageId: 'rosary-classifier-user',
+          lunaMessageId: 'rosary-classifier-luna',
+        });
+        const parsed = JSON.parse(result.text.trim());
+        if (parsed.kind === 'start_rosary') return { kind: 'start_rosary' };
+        if (parsed.kind === 'stop_rosary') return { kind: 'stop_rosary' };
+        if (parsed.kind === 'prayer' && isValidRosaryStep(parsed.step)) {
+          return { kind: 'prayer', step: parsed.step };
+        }
+        if (parsed.kind === 'intention') return { kind: 'intention' };
+      } catch {
+        // Fallback para classificação local se a LLM falhar.
+        if (!rosary.state.active && isRosaryRequest(text)) return { kind: 'start_rosary' };
+        if (rosary.state.active && isPrayerMatch(text, rosary.state.step)) {
+          return { kind: 'prayer', step: rosary.state.step };
+        }
+      }
+      return { kind: 'chat' };
+    },
+    [rosary.state],
+  );
+
   const handleSendFromThread = useCallback(
-    (payload: ComposerSendPayload) => {
+    async (payload: ComposerSendPayload) => {
       const text = payload.text.trim();
 
-      // Pedido para rezar o terço: ativa a tool e começa pelo Sinal da Cruz.
-      if (!rosary.state.active && isRosaryRequest(text)) {
+      if (!rosary.state.active && !isRosaryRequest(text)) {
+        chat.sendFromThread(payload);
+        return;
+      }
+
+      const intent = await classifyRosaryIntent(text);
+
+      if (intent.kind === 'start_rosary') {
         rosary.dispatch({ type: 'start' });
         const lunaText =
           getStepText({ ...rosary.state, active: true, step: 'cross', currentMysteryIndex: 0, hailMaryCount: 0 }) ||
@@ -138,22 +188,28 @@ function OrbitApp() {
         return;
       }
 
-      if (!rosary.state.active) {
-        chat.sendFromThread(payload);
+      if (intent.kind === 'stop_rosary') {
+        rosary.dispatch({ type: 'stop' });
+        void chat.sendRosaryMessage(text, 'O terço foi encerrado. Que a paz de Deus esteja contigo.');
         return;
       }
 
-      if (isPrayerMatch(text, rosary.state.step)) {
+      if (intent.kind === 'prayer' && rosary.state.active) {
         const lunaText = getStepText(rosary.state);
         rosary.dispatch({ type: 'advance' });
         void chat.sendRosaryMessage(text, lunaText || 'Amém.');
         return;
       }
 
-      // Fora do passo esperado: trata como intenção ou pergunta normal para a Luna.
+      if (intent.kind === 'intention' && rosary.state.active) {
+        void chat.sendRosaryMessage(text, `Guardamos esta intenção: "${text}". Rezemos com fé.`);
+        return;
+      }
+
+      // Conversa normal dentro do terço ou fora dele.
       chat.sendFromThread(payload);
     },
-    [rosary, chat],
+    [rosary, chat, classifyRosaryIntent],
   );
 
   useEffect(() => {
@@ -263,8 +319,6 @@ function OrbitApp() {
               onSend={handleSendFromThread}
               rosaryState={rosary.state}
               onRosaryToggle={handleRosaryToggle}
-              onRosaryAdvance={handleRosaryAdvance}
-              onRosaryStop={handleRosaryStop}
               onRosarySelectSet={handleRosarySelectSet}
               onRosaryReflection={handleRosaryReflection}
               onBack={chat.backToHome}

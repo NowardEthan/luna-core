@@ -86,8 +86,6 @@ interface Props {
   onClearReference?: () => void;
   rosaryState?: RosaryState;
   onRosaryToggle?: () => void;
-  onRosaryAdvance?: () => void;
-  onRosaryStop?: () => void;
   onRosarySelectSet?: (set: RosaryMysterySet) => void;
   onRosaryReflection?: () => void;
 }
@@ -108,8 +106,6 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
     onClearReference,
     rosaryState,
     onRosaryToggle,
-    onRosaryAdvance,
-    onRosaryStop,
     onRosarySelectSet,
     onRosaryReflection,
   },
@@ -274,12 +270,10 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
         <ComposerAttachmentStrip attachments={attachments} onRemove={removeAttachment} />
       ) : null}
 
-      {rosaryState && onRosaryToggle && onRosaryAdvance && onRosaryStop && onRosarySelectSet ? (
+      {rosaryState && onRosaryToggle && onRosarySelectSet ? (
         <RosaryTool
           state={rosaryState}
           onToggle={onRosaryToggle}
-          onAdvance={onRosaryAdvance}
-          onStop={onRosaryStop}
           onSelectSet={onRosarySelectSet}
           onRequestReflection={onRosaryReflection}
         />

@@ -228,6 +228,23 @@ export function currentMysteryName(state: RosaryState): string | null {
   return MYSTERIES[state.mysterySet][state.currentMysteryIndex] ?? null;
 }
 
+const ROSARY_STEPS: RosaryStep[] = [
+  'cross',
+  'creed',
+  'our_father_opening',
+  'hail_mary_3',
+  'glory_opening',
+  'mystery_intro',
+  'mystery_our_father',
+  'mystery_hail_mary',
+  'mystery_glory',
+  'finished',
+];
+
+export function isValidRosaryStep(value: unknown): value is RosaryStep {
+  return typeof value === 'string' && ROSARY_STEPS.includes(value as RosaryStep);
+}
+
 export function isRosaryRequest(text: string): boolean {
   const lower = text.toLowerCase();
   const triggers = [
