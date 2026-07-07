@@ -28,7 +28,7 @@ import {
   isStreamSupported,
   listProviderOptionsForHealth,
   listProviderOptionsForUi,
-  normalizeLegacyProviderSelection,
+  resolveLlmProviderSelection,
   type LlmProviderSelection,
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
@@ -156,7 +156,7 @@ async function enforceQuota(
   kind: Parameters<typeof consumeQuota>[1],
   amount: number,
 ): Promise<QuotaExceededError | null> {
-  if (!auth || auth.isAnonymous) return null;
+  if (!auth) return null;
   try {
     await consumeQuota(auth.uid, kind, amount);
     return null;
@@ -193,7 +193,7 @@ async function resolverTurnoChat(params: {
     }
   }
 
-  if (auth && !auth.isAnonymous) {
+  if (auth) {
     const denied = await enforceQuota(auth, "messages", 1);
     if (denied) throw denied;
     if (parsed.attachments?.length) {
@@ -255,8 +255,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (isFirebaseAuthRequired() && !auth) {
         return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
       }
-      if (!auth || auth.isAnonymous) {
-        return sendJson(res, 401, { ok: false, error: "Conta Google necessária para consultar uso." });
+      if (!auth) {
+        return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
       }
       const usage = await getQuotaSnapshot(auth.uid);
       console.log(`[server] GET /v1/billing/usage response uid=${auth.uid} usedMessages=${usage.used.messages} limit=${usage.limits.messages} planId=${usage.planId}`);
@@ -316,13 +316,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         planId = planIdForLlmRouting(auth.uid, await getUserPlanId(auth.uid));
       }
 
-      const llmSelection = normalizeLegacyProviderSelection(
+      const resolvedLlm = resolveLlmProviderSelection(
         {
           providerId: parsed.providerId,
           modelKey: parsed.modelKey,
-        },
+        } as Partial<LlmProviderSelection>,
+        parsed.message,
         planId,
       );
+      if (!resolvedLlm) {
+        const payload: ChatResponse = {
+          ok: false,
+          error: "Nenhum provedor de LLM configurado para este plano.",
+        };
+        return sendJson(res, 503, payload);
+      }
+      const llmSelection = resolvedLlm.selection;
 
       let turno: TurnoResolvido;
       try {
@@ -383,13 +392,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         planId = planIdForLlmRouting(auth.uid, await getUserPlanId(auth.uid));
       }
 
-      const llmSelection = normalizeLegacyProviderSelection(
+      const resolvedLlm = resolveLlmProviderSelection(
         {
           providerId: parsed.providerId,
           modelKey: parsed.modelKey,
-        },
+        } as Partial<LlmProviderSelection>,
+        parsed.message,
         planId,
       );
+      if (!resolvedLlm) {
+        const payload: ChatResponse = {
+          ok: false,
+          error: "Nenhum provedor de LLM configurado para este plano.",
+        };
+        return sendJson(res, 503, payload);
+      }
+      const llmSelection = resolvedLlm.selection;
 
       if (auth && parsed.lunaMessageId) {
         const cached = await buscarTurnoCacheado(auth.uid, sessionId, parsed.lunaMessageId);
@@ -414,7 +432,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         }
       }
 
-      if (auth && !auth.isAnonymous) {
+      if (auth) {
         const denied = await enforceQuota(auth, "messages", 1);
         if (denied) {
           return sendJson(res, 429, quotaDeniedPayload(denied) satisfies ChatResponse);
