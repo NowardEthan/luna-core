@@ -6,8 +6,9 @@ import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
 import type { ConfigLuna, ProvedorAgente } from "../providers/tipos.js";
 import type { ResultadoResposta } from "./responderLuna.js";
-import { FERRAMENTAS_CHAT } from "../ferramentas/registroFerramentasChat.js";
+import { listarFerramentasChat } from "../ferramentas/registroFerramentasChat.js";
 import { consultarAtlas } from "../atlas/consultarAtlas.js";
+import { pesquisaWeb, webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
 
 export type AcaoAgenticoChat = {
   tipo: "inicio_ferramenta" | "fim_ferramenta";
@@ -65,12 +66,18 @@ export async function responderComoLunaAgentico(
   const historico = opcoes.historico ?? [];
   const anexosImagem = opcoes.anexosImagem ?? [];
   const mapaImagens = new Map(anexosImagem.map((img) => [img.id, img]));
+  const ferramentas = listarFerramentasChat();
 
   const systemPrompt = [
     carregarInstrucaoSistema(),
     compilarGuiaFerramentasPrompt(),
     contextoCompilado.briefing,
     "Se houver dúvida visual, use a ferramenta ver_imagem antes de responder.",
+    webSearchDisponivel()
+      ? "Usa `web_search` quando precisares de informação actual da internet (notícias, preços, eventos). " +
+        "Não repitas a mesma pesquisa se os resultados já estão nas tool messages deste turno. " +
+        "Na resposta final, estrutura em Markdown com links [nome](url) para fontes reais."
+      : null,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -78,7 +85,7 @@ export async function responderComoLunaAgentico(
   const resultado = await executorAgentico({
     mensagemUsuario: montarMensagemUsuario(mensagemUsuario, historico, anexosImagem),
     systemPrompt,
-    ferramentas: FERRAMENTAS_CHAT,
+    ferramentas,
     provedor,
     config,
     raciocinioAtivo: opcoes.raciocinioAtivo !== false,
@@ -96,6 +103,15 @@ export async function responderComoLunaAgentico(
       });
     },
     toolExecutor: async (nome, args) => {
+      if (nome === "web_search") {
+        const query = typeof args.query === "string" ? args.query.trim() : "";
+        if (!query) {
+          return JSON.stringify({ ok: false, error: "Parâmetro query é obrigatório para web_search." });
+        }
+        const resultado = await pesquisaWeb(query);
+        return JSON.stringify(resultado);
+      }
+
       if (nome === "consultar_atlas") {
         const consulta = typeof args.consulta === "string" ? args.consulta.trim() : "";
         const limiteBruto = typeof args.limite === "number" ? args.limite : undefined;

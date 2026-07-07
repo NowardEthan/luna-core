@@ -19,6 +19,18 @@
         "Quando não há anexo de imagem disponível."
       ],
       "saida_esperada": "Resumo visual factual em pt-BR, com texto legível (OCR) quando houver."
+    },
+    {
+      "nome": "web_search",
+      "quando_usar": [
+        "Quando o usuário pede notícias, preços actuais, eventos recentes ou factos que mudam com o tempo.",
+        "Quando a resposta depende de informação pública na internet e não está no contexto."
+      ],
+      "quando_evitar": [
+        "Quando a pergunta é só conversa, opinião ou conhecimento estável sem necessidade de fonte actual.",
+        "Quando os resultados da mesma pesquisa já estão nas mensagens de ferramenta deste turno."
+      ],
+      "saida_esperada": "Resposta em Markdown com síntese e links [título](url) para fontes reais."
     }
   ]
 }

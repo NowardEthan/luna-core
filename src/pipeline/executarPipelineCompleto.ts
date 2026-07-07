@@ -13,6 +13,7 @@ import { mapDecisaoParaAcaoMemoria } from "../memoria/esquemaMemoria.js";
 import { gerarPolitica, type ResultadoPipeline } from "./executarPipeline.js";
 import { responderComoLuna, responderComoLunaStream, type ResultadoResposta } from "../responder/responderLuna.js";
 import { responderComoLunaAgentico, type AcaoAgenticoChat } from "../responder/responderComoLunaAgentico.js";
+import { webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
 import { carregarConfig, type ConfigLuna, type ProvedorAgente, type ProvedorLlm } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 import { providerSupportsStream, type ChunkStreamLlm } from "../providers/completarStream.js";
@@ -134,6 +135,26 @@ function embeddingsDesactivados(): boolean {
 function featureFlagAgenticoVisionAtiva(): boolean {
   const raw = process.env.LUNA_AGENTIC_VISION?.trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "on";
+}
+
+function featureFlagAgenticoWebAtiva(): boolean {
+  if (!webSearchDisponivel()) return false;
+  const raw = process.env.LUNA_AGENTIC_WEB_SEARCH?.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "off") return false;
+  return true;
+}
+
+function deveUsarModoAgentico(
+  provedor: ProvedorLlm,
+  mensagem: string,
+  anexosImagem: AnexoImagemChat[],
+): boolean {
+  if (!ehProvedorAgente(provedor)) return false;
+  const vision =
+    featureFlagAgenticoVisionAtiva() &&
+    (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
+  const web = featureFlagAgenticoWebAtiva();
+  return vision || web;
 }
 
 function mensagemPedeImagem(mensagem: string): boolean {
@@ -572,11 +593,9 @@ export async function executarPipelineCompleto(
 
     const usarStream = opcoes.stream === true && providerSupportsStream(config.baseUrl);
     const anexosImagem = opcoes.anexosImagem ?? [];
-    const usarAgenticoVision =
-      featureFlagAgenticoVisionAtiva() &&
-      (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
+    const usarModoAgentico = deveUsarModoAgentico(provedor, mensagem, anexosImagem);
 
-    if (usarAgenticoVision && ehProvedorAgente(provedor)) {
+    if (usarModoAgentico && ehProvedorAgente(provedor)) {
       resposta = await responderComoLunaAgentico(
         mensagem,
         provedor,
@@ -588,20 +607,6 @@ export async function executarPipelineCompleto(
           raciocinioAtivo,
           onAcao: opcoes.onAcaoAgentico,
         },
-      );
-    } else if (usarAgenticoVision) {
-      resposta = await responderComoLuna(
-        mensagem,
-        politicaComMemoria,
-        provedor,
-        config.modeloMaior,
-        config.temperaturaMaior,
-        contextoCompilado,
-        historico,
-        raciocinioAtivo,
-        config.baseUrl,
-        opcoes.interlocutor,
-        analise.analise.intencao,
       );
     } else if (usarStream) {
       resposta = await responderComoLunaStream(
