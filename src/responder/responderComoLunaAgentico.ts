@@ -11,7 +11,13 @@ import { consultarAtlas } from "../atlas/consultarAtlas.js";
 import { pesquisaWeb, webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
 import { lerUrl } from "../ferramentas/lerUrl.js";
 
-export type FonteAgentico = { title?: string; url: string };
+export type FonteAgentico = {
+  title?: string;
+  url: string;
+  snippet?: string;
+  publishedAt?: string;
+  status?: "found" | "reading" | "read" | "verified" | "rejected" | "cited";
+};
 
 const MAX_RODADAS_AGENTICO = 4;
 
@@ -38,17 +44,35 @@ function analisarResultadoFerramenta(ferramenta: string, resultadoJson: string):
       ok?: boolean;
       url?: string;
       title?: string;
-      results?: Array<{ title?: string; url?: string }>;
+      excerpt?: string;
+      publishedAt?: string;
+      results?: Array<{ title?: string; url?: string; snippet?: string; publishedAt?: string }>;
     };
     if (parsed.ok === false) return { ok: false };
     if (ferramenta === "web_search" && Array.isArray(parsed.results)) {
       const fontes = parsed.results
-        .filter((r): r is { title?: string; url: string } => typeof r.url === "string" && r.url.length > 0)
-        .map((r) => ({ title: r.title, url: r.url }));
+        .filter((r): r is { title?: string; url: string; snippet?: string; publishedAt?: string } =>
+          typeof r.url === "string" && r.url.length > 0)
+        .map((r) => ({
+          title: r.title,
+          url: r.url,
+          snippet: r.snippet,
+          publishedAt: r.publishedAt,
+          status: "read" as const,
+        }));
       return { ok: true, fontes: fontes.length > 0 ? fontes : undefined };
     }
     if (ferramenta === "ler_url" && typeof parsed.url === "string") {
-      return { ok: true, fontes: [{ title: parsed.title, url: parsed.url }] };
+      return {
+        ok: true,
+        fontes: [{
+          title: parsed.title,
+          url: parsed.url,
+          snippet: parsed.excerpt,
+          publishedAt: parsed.publishedAt,
+          status: "read" as const,
+        }],
+      };
     }
     return { ok: true };
   } catch {
