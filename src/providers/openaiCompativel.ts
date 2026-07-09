@@ -162,6 +162,7 @@ async function completarUmaVez(
     url,
     raciocinioAtivo,
     false,
+    requisicao.raciocinioEffort,
   );
 
   const { body, headers: bodyHeaders } = serializarCorpoLlm(corpo, url);
@@ -287,6 +288,7 @@ async function completarComFerramentasUmaVez(
     url,
     raciocinioAtivo,
     Boolean(requisicao.ferramentas?.length),
+    requisicao.raciocinioEffort,
   );
 
   const { body, headers: bodyHeaders } = serializarCorpoLlm(corpo, url);

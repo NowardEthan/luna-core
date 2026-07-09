@@ -120,7 +120,7 @@ export async function completarStreamOpenAi(
   };
 
   const raciocinioAtivo = requisicao.raciocinioAtivo !== false;
-  aplicarCorpoRaciocinio(corpo, requisicao.modelo, url, raciocinioAtivo, false);
+  aplicarCorpoRaciocinio(corpo, requisicao.modelo, url, raciocinioAtivo, false, requisicao.raciocinioEffort);
 
   const { body, headers: bodyHeaders } = serializarCorpoLlm(corpo, url);
   const headers = { ...buildLlmHeaders(opcoes.apiKey, url), ...bodyHeaders };
@@ -173,5 +173,5 @@ export function lunaStreamEnabled(): boolean {
 }
 
 export function providerSupportsStream(baseUrl: string): boolean {
-  return /cerebras\.ai/i.test(baseUrl) && lunaStreamEnabled();
+  return /cerebras\.ai|openrouter\.ai/i.test(baseUrl) && lunaStreamEnabled();
 }

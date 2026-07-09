@@ -33,7 +33,7 @@ type ConfigLuna = {
 
 export type { ConfigLuna };
 
-export type LlmProviderId = "groq" | "cerebras" | "auto";
+export type LlmProviderId = "groq" | "cerebras" | "openrouter" | "auto";
 
 export type LlmModelKey = "default" | "glm-47" | "gpt-oss-120b" | "auto";
 
@@ -52,6 +52,7 @@ export type LlmProviderOption = {
 };
 
 const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
+const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 
 const GROQ_DEFAULT = {
   label: LUNA_BRAND_PULSE.fullName,
@@ -63,6 +64,12 @@ const CEREBRAS_GLM_47 = {
   label: LUNA_BRAND_CORE.fullName,
   description: LUNA_BRAND_CORE.description,
   modelId: "zai-glm-4.7",
+};
+
+const OPENROUTER_DEEPSEEK = {
+  label: LUNA_BRAND_CORE.fullName,
+  description: LUNA_BRAND_CORE.description,
+  modelId: "deepseek/deepseek-v3.2",
 };
 
 const CEREBRAS_GPT_OSS_120B = {
@@ -85,6 +92,9 @@ const MODELS: Record<
     "glm-47": CEREBRAS_GLM_47,
     "gpt-oss-120b": CEREBRAS_GPT_OSS_120B,
   },
+  openrouter: {
+    default: OPENROUTER_DEEPSEEK,
+  },
 };
 
 export function groqApiKey(): string | undefined {
@@ -95,20 +105,26 @@ function cerebrasApiKey(): string | undefined {
   return process.env.CEREBRAS_API_KEY?.trim() || undefined;
 }
 
+function openrouterApiKey(): string | undefined {
+  return process.env.OPENROUTER_API_KEY?.trim() || undefined;
+}
+
 function isProviderConfigured(providerId: CatalogProviderId): boolean {
   if (providerId === "groq") return Boolean(groqApiKey());
+  if (providerId === "openrouter") return Boolean(openrouterApiKey());
   return Boolean(cerebrasApiKey());
 }
 
 /**
- * Groq deixou de ser o cérebro: por padrão só o Cerebras responde ao chat
- * (o Ethan paga o Cerebras e tem mais limites). A key do Groq continua viva
- * só para STT (voz) e visão (imagem), que o Cerebras não oferece.
- * Reativa Groq no chat só via LUNA_GROQ_CHAT=1 ou se o Cerebras não existir (fallback de emergência).
+ * Groq deixou de ser o cérebro: por padrão só OpenRouter (se houver key) ou
+ * Cerebras respondem ao chat. A key do Groq continua viva só para STT (voz)
+ * e visão (imagem), que os outros dois não oferecem.
+ * Reativa Groq no chat só via LUNA_GROQ_CHAT=1 ou se nenhum dos dois existir
+ * (fallback de emergência).
  */
 function isGroqChatEnabled(): boolean {
   if (process.env.LUNA_GROQ_CHAT === "1") return true;
-  return !cerebrasApiKey();
+  return !cerebrasApiKey() && !openrouterApiKey();
 }
 
 export function isCerebrasReducedFallbackEnabled(): boolean {
@@ -121,9 +137,14 @@ export const REDUCED_LLM_SELECTION: LlmProviderSelection = {
   modelKey: "gpt-oss-120b",
 };
 
-/** Chat usa Cerebras (GLM) — Groq fica só para STT/visão. */
+/** OpenRouter (DeepSeek) é o cérebro principal quando configurado — some com Cerebras/Groq no chat. */
+export function isOpenrouterChatPrimary(): boolean {
+  return Boolean(openrouterApiKey());
+}
+
+/** Chat usa Cerebras (GLM) só quando OpenRouter não está configurado — Groq fica só para STT/visão. */
 export function isCerebrasChatPrimary(): boolean {
-  return Boolean(cerebrasApiKey()) && !isGroqChatEnabled();
+  return Boolean(cerebrasApiKey()) && !isGroqChatEnabled() && !isOpenrouterChatPrimary();
 }
 
 const CEREBRAS_CHAT_SELECTION: LlmProviderSelection = {
@@ -131,21 +152,25 @@ const CEREBRAS_CHAT_SELECTION: LlmProviderSelection = {
   modelKey: "glm-47",
 };
 
-/** Premium + Cerebras configurado: nunca devolve groq/auto para o pipeline de texto. */
-function forcarCerebrasNoChat(
+const OPENROUTER_CHAT_SELECTION: LlmProviderSelection = {
+  providerId: "openrouter",
+  modelKey: "default",
+};
+
+/** Premium + provedor primário configurado: nunca devolve groq/auto para o pipeline de texto. */
+function forcarProvedorPrimario(
   selection: LlmProviderSelection,
   planId: PlanId,
 ): LlmProviderSelection {
-  if (!isCerebrasChatPrimary()) return selection;
   if (!isPremiumModelAllowed(planId)) return selection;
-  if (selection.providerId === "groq" || selection.providerId === "auto") {
-    return CEREBRAS_CHAT_SELECTION;
-  }
+  if (selection.providerId !== "groq" && selection.providerId !== "auto") return selection;
+  if (isOpenrouterChatPrimary()) return OPENROUTER_CHAT_SELECTION;
+  if (isCerebrasChatPrimary()) return CEREBRAS_CHAT_SELECTION;
   return selection;
 }
 
 function finalizeSelection(selection: LlmProviderSelection, planId: PlanId): LlmProviderSelection {
-  return clampProviderSelectionForPlan(planId, forcarCerebrasNoChat(selection, planId));
+  return clampProviderSelectionForPlan(planId, forcarProvedorPrimario(selection, planId));
 }
 
 function resolveCerebrasModelId(): string {
@@ -171,7 +196,11 @@ function groqMaiorModelId(): string {
   return process.env.LUNA_MODELO_MAIOR?.trim() || GROQ_DEFAULT.modelId;
 }
 
-/** Normaliza pedidos legados (OpenRouter / qwen) para Cerebras GLM ou Groq. */
+function resolveOpenrouterModelId(): string {
+  return process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_DEEPSEEK.modelId;
+}
+
+/** Normaliza pedidos legados (qwen-*) para o provedor primário atual. */
 export function normalizeLegacyProviderSelection(
   input?: Partial<{ providerId?: string; modelKey?: string }>,
   planId: PlanId = "free",
@@ -181,11 +210,15 @@ export function normalizeLegacyProviderSelection(
   const providerId = input.providerId;
   const modelKey = input.modelKey;
 
-  if (providerId === "openrouter" || modelKey === "qwen-next" || modelKey === "qwen-coder") {
-    if (isPremiumModelAllowed(planId) && isProviderConfigured("cerebras")) {
-      return { providerId: "cerebras", modelKey: "glm-47" };
+  if (modelKey === "qwen-next" || modelKey === "qwen-coder") {
+    return { providerId: "auto", modelKey: "auto" };
+  }
+
+  if (providerId === "openrouter" && (modelKey === "default" || !modelKey)) {
+    if (!isPremiumModelAllowed(planId)) {
+      return { providerId: "groq", modelKey: "default" };
     }
-    return { providerId: "groq", modelKey: "default" };
+    return OPENROUTER_CHAT_SELECTION;
   }
 
   if (providerId === "cerebras" && (modelKey === "glm-47" || modelKey === "default" || !modelKey)) {
@@ -196,8 +229,9 @@ export function normalizeLegacyProviderSelection(
   }
 
   if (providerId === "groq" || providerId === "auto") {
-    if (isCerebrasChatPrimary() && isPremiumModelAllowed(planId)) {
-      return CEREBRAS_CHAT_SELECTION;
+    if (isPremiumModelAllowed(planId)) {
+      if (isOpenrouterChatPrimary()) return OPENROUTER_CHAT_SELECTION;
+      if (isCerebrasChatPrimary()) return CEREBRAS_CHAT_SELECTION;
     }
     return {
       providerId: providerId as LlmProviderId,
@@ -208,9 +242,21 @@ export function normalizeLegacyProviderSelection(
   return input as Partial<LlmProviderSelection>;
 }
 
-/** Opções expostas ao mobile (Cerebras primeiro — default). */
+/** Opções expostas ao mobile (OpenRouter > Cerebras > Groq — a primeira é o default). */
 export function listConfiguredProviderOptions(): LlmProviderOption[] {
   const options: LlmProviderOption[] = [];
+
+  if (isProviderConfigured("openrouter")) {
+    const m = MODELS.openrouter.default!;
+    options.push({
+      providerId: "openrouter",
+      modelKey: "default",
+      label: m.label,
+      description: m.description,
+      modelId: resolveOpenrouterModelId(),
+      configured: true,
+    });
+  }
 
   if (isProviderConfigured("cerebras")) {
     const preferGptOss = process.env.CEREBRAS_PREFER_GPT_OSS === "1" || process.env.CEREBRAS_MODEL?.trim() === CEREBRAS_GPT_OSS_120B.modelId;
@@ -252,6 +298,10 @@ function preferDefaultProvider(
   planId: PlanId = "free",
 ): LlmProviderSelection {
   if (isPremiumModelAllowed(planId)) {
+    const openrouter = available.find((o) => o.providerId === "openrouter");
+    if (openrouter) {
+      return { providerId: openrouter.providerId, modelKey: openrouter.modelKey };
+    }
     const cerebras = available.find((o) => o.providerId === "cerebras");
     if (cerebras) {
       return { providerId: cerebras.providerId, modelKey: cerebras.modelKey };
@@ -430,12 +480,40 @@ function resolveCerebrasConfig(): ConfigLuna | null {
   return isGroqChatEnabled() ? attachGroqAuxiliar(config) : config;
 }
 
+function resolveOpenrouterConfig(): ConfigLuna | null {
+  const apiKey = openrouterApiKey();
+  if (!apiKey) return null;
+
+  const baseUrl = process.env.OPENROUTER_API_BASE?.trim() || OPENROUTER_BASE;
+  const model = resolveOpenrouterModelId();
+
+  const config: ConfigLuna = {
+    apiKey,
+    baseUrl,
+    modeloMenor: model,
+    modeloMaior: model,
+    temperaturaMenor: 0,
+    temperaturaMaior: Number(process.env.OPENROUTER_TEMPERATURA ?? process.env.LUNA_TEMPERATURA_MAIOR ?? 1),
+  };
+
+  // Mesma regra do Cerebras: só cai no Groq para o modelo auxiliar se o chat Groq estiver ativo.
+  return isGroqChatEnabled() ? attachGroqAuxiliar(config) : config;
+}
+
 export function resolveLlmConfig(selection: LlmProviderSelection): ConfigLuna | null {
-  // Segurança extra: qualquer pedido groq/auto no chat cai no Cerebras quando é o cérebro principal.
+  // Segurança extra: qualquer pedido groq/auto/cerebras no chat cai no provedor primário.
+  if (isOpenrouterChatPrimary() && selection.providerId !== "openrouter") {
+    const config = resolveOpenrouterConfig();
+    if (config) return config;
+  }
   if (isCerebrasChatPrimary() && selection.providerId !== "cerebras") {
     const config = resolveCerebrasConfig();
     if (!config) return null;
     return { ...config, modeloMaior: resolveCerebrasModelIdForSelection(selection) };
+  }
+
+  if (selection.providerId === "openrouter") {
+    return resolveOpenrouterConfig();
   }
 
   if (selection.providerId === "groq" || selection.providerId === "auto") {
@@ -475,8 +553,8 @@ export function providerLabel(selection: LlmProviderSelection): string {
   return opt?.label ?? `${selection.providerId}/${selection.modelKey}`;
 }
 
-/** Stream SSE disponível quando Cerebras está configurado e LUNA_STREAM_ENABLED ≠ 0. */
+/** Stream SSE disponível quando Cerebras ou OpenRouter está configurado e LUNA_STREAM_ENABLED ≠ 0. */
 export function isStreamSupported(): boolean {
   if (process.env.LUNA_STREAM_ENABLED === "0") return false;
-  return Boolean(cerebrasApiKey());
+  return Boolean(cerebrasApiKey()) || Boolean(openrouterApiKey());
 }

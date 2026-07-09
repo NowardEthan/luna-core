@@ -84,6 +84,7 @@ export type OpcoesResponderAgentico = {
   historico?: Array<{ papel: "user" | "assistant"; conteudo: string }>;
   anexosImagem?: EntradaVisaoGemma["imagens"];
   raciocinioAtivo?: boolean;
+  raciocinioEffort?: "low" | "medium" | "high";
   onAcao?: (acao: AcaoAgenticoChat) => void;
   /** Raciocínio do modelo por rodada (antes de decidir usar ferramentas ou responder). */
   onRaciocinio?: (rodada: number, texto: string, emProgresso: boolean) => void;
@@ -156,6 +157,7 @@ export async function responderComoLunaAgentico(
     provedor,
     config,
     raciocinioAtivo: opcoes.raciocinioAtivo !== false,
+    raciocinioEffort: opcoes.raciocinioEffort,
     maxRodadas: MAX_RODADAS_AGENTICO,
     onToolCallStart: (nome, argumentos, rodada) => {
       opcoes.onAcao?.({

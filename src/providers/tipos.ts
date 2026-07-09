@@ -10,6 +10,8 @@ export type RequisicaoCompletacao = {
   json?: boolean;
   /** Pedir raciocínio explícito quando o modelo suporta (default: true no respondedor). */
   raciocinioAtivo?: boolean;
+  /** low/medium/high — controla profundidade do raciocínio quando suportado. */
+  raciocinioEffort?: "low" | "medium" | "high";
 };
 
 export type RespostaCompletacao = {
@@ -73,6 +75,8 @@ export type RequisicaoAgente = {
   ferramentas?: DefinicaoFerramenta[];
   /** Pedir raciocínio explícito à API quando o modelo suporta (default: true no agente). */
   raciocinioAtivo?: boolean;
+  /** low/medium/high — controla profundidade do raciocínio quando suportado. */
+  raciocinioEffort?: "low" | "medium" | "high";
 };
 
 /** Resposta agêntica — texto final OU chamadas de ferramentas a executar. */

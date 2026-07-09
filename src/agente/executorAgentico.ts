@@ -35,6 +35,8 @@ export type OpcoeExecutor = {
   maxRodadas?: number;
   /** Default true — pede raciocínio explícito quando o modelo suporta. */
   raciocinioAtivo?: boolean;
+  /** low/medium/high — controla profundidade do raciocínio quando suportado. */
+  raciocinioEffort?: "low" | "medium" | "high";
   onToolCallStart?: (nome: string, args: Record<string, unknown>, rodada: number) => void;
   onToolCallComplete?: (passo: PassoExecucao) => void;
   onStatusHint?: (hint: string) => void;
@@ -118,6 +120,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       temperatura: config.temperaturaMaior,
       ferramentas,
       raciocinioAtivo,
+      raciocinioEffort: opcoes.raciocinioEffort,
     });
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";

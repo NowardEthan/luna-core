@@ -71,7 +71,7 @@ function isLongContext(message: string): boolean {
   return message.length > 3_500;
 }
 
-/** Escolhe GLM 4.7 por padrão; Groq só se Cerebras indisponível. */
+/** Escolhe o cérebro "profundo" (OpenRouter/DeepSeek, senão Cerebras/GLM) por padrão; Groq só se nenhum dos dois estiver disponível. */
 export function escolherProvedorAuto(
   message: string,
   available: LlmProviderOption[],
@@ -93,21 +93,21 @@ export function escolherProvedorAuto(
     };
   }
 
-  const glm = pick(backends, "cerebras", "glm-47");
+  const smart = pick(backends, "openrouter", "default") ?? pick(backends, "cerebras", "glm-47");
 
-  if (scoreCode(message) >= 3 && glm) {
-    return { selection: glm, reason: "codigo" };
+  if (scoreCode(message) >= 3 && smart) {
+    return { selection: smart, reason: "codigo" };
   }
 
-  if (hasAttachments(message) && glm) {
-    return { selection: glm, reason: "documento" };
+  if (hasAttachments(message) && smart) {
+    return { selection: smart, reason: "documento" };
   }
 
-  if (isLongContext(message) && glm) {
-    return { selection: glm, reason: "contexto_longo" };
+  if (isLongContext(message) && smart) {
+    return { selection: smart, reason: "contexto_longo" };
   }
 
-  if (glm) return { selection: glm, reason: "chat_rapido" };
+  if (smart) return { selection: smart, reason: "chat_rapido" };
 
   const groq = pick(backends, "groq", "default");
   if (groq) return { selection: groq, reason: "fallback" };

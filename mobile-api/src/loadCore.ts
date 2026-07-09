@@ -66,6 +66,7 @@ export type LunaCoreModule = {
       detalhe_ambiente?: string;
       gerarResposta?: boolean;
       raciocinioAtivo?: boolean;
+      raciocinioEffort?: "low" | "medium" | "high";
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
       interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
@@ -206,6 +207,8 @@ async function prepararChatMobile(
   uid: string | null | undefined,
   planId: PlanId,
   timeZone?: string,
+  reasoningEnabled?: boolean,
+  reasoningEffort?: "low" | "medium" | "high",
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -271,7 +274,8 @@ async function prepararChatMobile(
   const usarNeuronioMemoriaLlm =
     selection.providerId === "groq" && mensagem.length < 4_000;
 
-  const raciocinioAtivo = isCerebras || isOpenrouter;
+  const raciocinioSuportado = isCerebras || isOpenrouter;
+  const raciocinioAtivo = reasoningEnabled !== false && raciocinioSuportado;
   const anexosImagem = (attachments ?? []).map((att, index) => ({
     id: att.id?.trim() || `img-${index + 1}`,
     nome: att.name?.trim() || undefined,
@@ -290,6 +294,7 @@ async function prepararChatMobile(
     memoria,
     usarNeuronioMemoriaLlm,
     raciocinioAtivo,
+    raciocinioEffort: reasoningEffort,
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -331,8 +336,21 @@ export async function executarChatMobile(
   uid?: string | null,
   planId: PlanId = "free",
   timeZone?: string,
+  reasoningEnabled?: boolean,
+  reasoningEffort?: "low" | "medium" | "high",
 ): Promise<ChatMobileResult> {
-  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId, timeZone);
+  const prep = await prepararChatMobile(
+    message,
+    sessionId,
+    attachments,
+    llm,
+    userDisplayName,
+    uid,
+    planId,
+    timeZone,
+    reasoningEnabled,
+    reasoningEffort,
+  );
 
   const rodarPipeline = async () => {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
@@ -343,6 +361,7 @@ export async function executarChatMobile(
       interlocutor: prep.interlocutor,
       gerarResposta: true,
       raciocinioAtivo: prep.raciocinioAtivo,
+      raciocinioEffort: prep.raciocinioEffort,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
@@ -372,12 +391,36 @@ export async function executarChatMobileStream(
   uid?: string | null,
   planId: PlanId = "free",
   timeZone?: string,
+  reasoningEnabled?: boolean,
+  reasoningEffort?: "low" | "medium" | "high",
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
-    return executarChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId, timeZone);
+    return executarChatMobile(
+      message,
+      sessionId,
+      attachments,
+      llm,
+      userDisplayName,
+      uid,
+      planId,
+      timeZone,
+      reasoningEnabled,
+      reasoningEffort,
+    );
   }
 
-  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId, timeZone);
+  const prep = await prepararChatMobile(
+    message,
+    sessionId,
+    attachments,
+    llm,
+    userDisplayName,
+    uid,
+    planId,
+    timeZone,
+    reasoningEnabled,
+    reasoningEffort,
+  );
 
   const rodarPipeline = async () => {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
@@ -388,6 +431,7 @@ export async function executarChatMobileStream(
       interlocutor: prep.interlocutor,
       gerarResposta: true,
       raciocinioAtivo: prep.raciocinioAtivo,
+      raciocinioEffort: prep.raciocinioEffort,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,

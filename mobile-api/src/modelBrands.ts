@@ -11,7 +11,7 @@
 
 export type LunaBrandMode = "orbita" | "pulse" | "core";
 
-export type LunaBrandProviderId = "groq" | "cerebras" | "auto";
+export type LunaBrandProviderId = "groq" | "cerebras" | "openrouter" | "auto";
 export type LunaBrandModelKey = "default" | "glm-47" | "gpt-oss-120b" | "auto";
 
 export type LunaModelBrand = {
@@ -59,6 +59,7 @@ const BRAND_BY_KEY: Record<string, LunaModelBrand> = {
   "groq-default": LUNA_BRAND_PULSE,
   "cerebras-glm-47": LUNA_BRAND_CORE,
   "cerebras-gpt-oss-120b": LUNA_BRAND_CORE_OSS,
+  "openrouter-default": LUNA_BRAND_CORE,
 };
 
 export function lunaModelBrand(

@@ -259,6 +259,8 @@ async function resolverTurnoChat(params: {
       auth?.uid ?? null,
       planId,
       parsed.timeZone,
+      parsed.reasoningEnabled,
+      parsed.reasoningEffort,
     ),
   );
 
@@ -554,6 +556,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         auth?.uid ?? null,
         planId,
         parsed.timeZone,
+        parsed.reasoningEnabled,
+        parsed.reasoningEffort,
       );
 
       clearTimeout(streamTimeout);

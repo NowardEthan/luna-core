@@ -167,6 +167,7 @@ export function aplicarCorpoRaciocinio(
   baseUrl: string,
   ativo: boolean,
   temFerramentas: boolean,
+  effort?: "low" | "medium" | "high",
 ): void {
   if (!modeloSuportaRaciocinioExplicito(modelo, baseUrl)) return;
 
@@ -183,9 +184,15 @@ export function aplicarCorpoRaciocinio(
     return;
   }
 
+  const effortValor = effort ?? process.env.CEREBRAS_REASONING_EFFORT?.trim().toLowerCase() ?? "medium";
+  const effortNormalizado: "low" | "medium" | "high" | "none" =
+    effortValor === "low" || effortValor === "medium" || effortValor === "high" || effortValor === "none"
+      ? effortValor
+      : "medium";
+
   if (/openrouter\.ai/i.test(baseUrl)) {
     if (ativo) {
-      corpo.reasoning = { effort: "medium" };
+      corpo.reasoning = { effort: effortNormalizado === "none" ? "medium" : effortNormalizado };
     } else {
       corpo.reasoning = { effort: "none" };
     }
@@ -193,15 +200,9 @@ export function aplicarCorpoRaciocinio(
   }
 
   if (/cerebras\.ai/i.test(baseUrl)) {
-    const effortRaw = process.env.CEREBRAS_REASONING_EFFORT?.trim().toLowerCase();
-    const effort =
-      effortRaw === "low" || effortRaw === "medium" || effortRaw === "high" || effortRaw === "none"
-        ? effortRaw
-        : "medium";
-
     if (/gemma-4/i.test(m)) {
       if (ativo) {
-        corpo.reasoning_effort = effort === "none" ? "low" : effort;
+        corpo.reasoning_effort = effortNormalizado === "none" ? "low" : effortNormalizado;
         corpo.reasoning_format = "parsed";
       }
       return;
@@ -210,7 +211,7 @@ export function aplicarCorpoRaciocinio(
     if (/zai-glm|glm-4/i.test(m)) {
       if (ativo) {
         corpo.reasoning_format = "parsed";
-        corpo.reasoning_effort = effort === "none" ? "none" : effort;
+        corpo.reasoning_effort = effortNormalizado === "none" ? "none" : effortNormalizado;
       } else {
         corpo.reasoning_effort = "none";
         corpo.reasoning_format = "hidden";
@@ -220,8 +221,8 @@ export function aplicarCorpoRaciocinio(
 
     if (/gpt-oss/i.test(m)) {
       corpo.reasoning_format = ativo ? "parsed" : "hidden";
-      if (ativo && effort !== "none") {
-        corpo.reasoning_effort = effort;
+      if (ativo && effortNormalizado !== "none") {
+        corpo.reasoning_effort = effortNormalizado;
       }
     }
   }

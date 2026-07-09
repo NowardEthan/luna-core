@@ -24,6 +24,7 @@ export type OpcoesMensagensRespondedor = {
   contextoCompilado: ContextoCompilado;
   historico?: Array<{ papel: "user" | "assistant"; conteudo: string }>;
   raciocinioAtivo?: boolean;
+  raciocinioEffort?: "low" | "medium" | "high";
   modelo: string;
   baseUrl?: string;
   interlocutor?: InterlocutorPipeline;
@@ -73,12 +74,14 @@ export async function responderComoLuna(
   baseUrl = "",
   interlocutor?: InterlocutorPipeline,
   intencao?: AnaliseContexto["intencao"],
+  raciocinioEffort?: "low" | "medium" | "high",
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
     contextoCompilado,
     historico,
     raciocinioAtivo,
+    raciocinioEffort,
     modelo,
     baseUrl,
     interlocutor,
@@ -90,6 +93,7 @@ export async function responderComoLuna(
     temperatura,
     mensagens,
     raciocinioAtivo,
+    raciocinioEffort,
   });
 
   return {
@@ -117,12 +121,14 @@ export async function responderComoLunaStream(
   callbacks: CallbacksStreamRespondedor = {},
   interlocutor?: InterlocutorPipeline,
   intencao?: AnaliseContexto["intencao"],
+  raciocinioEffort?: "low" | "medium" | "high",
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
     contextoCompilado,
     historico,
     raciocinioAtivo,
+    raciocinioEffort,
     modelo,
     baseUrl,
     interlocutor,
@@ -131,7 +137,7 @@ export async function responderComoLunaStream(
 
   const resposta = await completarStreamOpenAi(
     { apiKey, baseUrl },
-    { modelo, temperatura, mensagens, raciocinioAtivo },
+    { modelo, temperatura, mensagens, raciocinioAtivo, raciocinioEffort },
     callbacks.onChunk,
   );
 

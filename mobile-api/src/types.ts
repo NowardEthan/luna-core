@@ -17,6 +17,10 @@ export const ChatRequestSchema = z.object({
   userDisplayName: z.string().min(1).max(64).optional(),
   /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal. */
   timeZone: z.string().min(1).max(64).optional(),
+  /** Ativa/desativa o bloco de raciocínio visível. */
+  reasoningEnabled: z.boolean().optional(),
+  /** Nível de raciocínio: baixo, médio ou alto. */
+  reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
   /** Anexos de imagem em base64 para visão agêntica no core. */
   attachments: z
     .array(

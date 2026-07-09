@@ -97,6 +97,8 @@ export type OpcoesPipelineCompleto = {
   contexto_sense?: string;
   /** Default true — pede raciocínio explícito ao modelo maior quando suportado. */
   raciocinioAtivo?: boolean;
+  /** low/medium/high — controla a profundidade do raciocínio quando suportado. */
+  raciocinioEffort?: "low" | "medium" | "high";
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -224,6 +226,7 @@ export async function executarPipelineCompleto(
   const usarMemoria = opcoes.usarMemoriaSessao ?? true;
   const neuronioLlm = opcoes.usarNeuronioMemoriaLlm ?? true;
   const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
+  const raciocinioEffort = opcoes.raciocinioEffort;
 
   opcoes.onStatusHint?.("Analisando intenção…");
 
@@ -613,6 +616,7 @@ export async function executarPipelineCompleto(
           historico,
           anexosImagem,
           raciocinioAtivo,
+          raciocinioEffort,
           onAcao: opcoes.onAcaoAgentico,
           // onRaciocinioRodada dispara 2x por rodada (emProgresso true/false) com o
           // MESMO texto completo — não são deltas incrementais. Repassa só na 1ª,
@@ -646,6 +650,7 @@ export async function executarPipelineCompleto(
         },
         opcoes.interlocutor,
         analise.analise.intencao,
+        raciocinioEffort,
       );
       opcoes.onStreamDone?.(resposta);
     } else {
@@ -661,6 +666,7 @@ export async function executarPipelineCompleto(
         config.baseUrl,
         opcoes.interlocutor,
         analise.analise.intencao,
+        raciocinioEffort,
       );
     }
 

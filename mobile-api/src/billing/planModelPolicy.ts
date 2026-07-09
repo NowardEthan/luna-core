@@ -14,11 +14,17 @@ export function planIdForLlmRouting(uid: string | null | undefined, planId: Plan
   return planId;
 }
 
+/** Nome legado — na prática marca qualquer provedor/modelo pago (GLM, DeepSeek via OpenRouter). */
 export function isGlm47Provider(
   providerId?: string,
   modelKey?: string,
 ): boolean {
-  return providerId === "cerebras" || modelKey === "glm-47" || modelKey === "gpt-oss-120b";
+  return (
+    providerId === "cerebras" ||
+    providerId === "openrouter" ||
+    modelKey === "glm-47" ||
+    modelKey === "gpt-oss-120b"
+  );
 }
 
 export function filterProviderOptionsForPlan<T extends { providerId: string; modelKey: string }>(
@@ -32,14 +38,21 @@ export function filterProviderOptionsForPlan<T extends { providerId: string; mod
 export function clampProviderSelectionForPlan(
   planId: PlanId,
   selection: { providerId: string; modelKey: string },
-): { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto" } {
+): {
+  providerId: "groq" | "cerebras" | "openrouter" | "auto";
+  modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto";
+} {
+  type Clamped = {
+    providerId: "groq" | "cerebras" | "openrouter" | "auto";
+    modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto";
+  };
   if (isPremiumModelAllowed(planId)) {
-    return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto" };
+    return selection as Clamped;
   }
   if (isGlm47Provider(selection.providerId, selection.modelKey)) {
     return { providerId: "groq", modelKey: "default" };
   }
-  return selection as { providerId: "groq" | "cerebras" | "auto"; modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto" };
+  return selection as Clamped;
 }
 
 export const FREE_PLAN_MODEL_NOTICE = FREE_PLAN_BRAND_NOTICE;
