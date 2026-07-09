@@ -193,6 +193,10 @@ function isCerebrasConfig(config: ConfigLuna): boolean {
   return config.baseUrl.toLowerCase().includes("cerebras.ai");
 }
 
+function isOpenrouterConfig(config: ConfigLuna): boolean {
+  return config.baseUrl.toLowerCase().includes("openrouter.ai");
+}
+
 async function prepararChatMobile(
   message: string,
   sessionId: string | undefined,
@@ -208,22 +212,24 @@ async function prepararChatMobile(
   const config = selection ? resolveLlmConfig(selection) : null;
 
   if (!selection || !config) {
+    const temOpenrouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
     const temCerebras = Boolean(process.env.CEREBRAS_API_KEY?.trim());
     const temGroq = Boolean(
       process.env.LUNA_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim(),
     );
-    if (!temCerebras && !temGroq) {
+    if (!temOpenrouter && !temCerebras && !temGroq) {
       throw new Error(
-        "Nenhum provedor LLM configurado. Define CEREBRAS_API_KEY e/ou LUNA_API_KEY (Groq) no servidor.",
+        "Nenhum provedor LLM configurado. Define OPENROUTER_API_KEY, CEREBRAS_API_KEY e/ou LUNA_API_KEY (Groq) no servidor.",
       );
     }
     throw new Error(
-      "Não foi possível escolher um modelo para este plano. Verifica CEREBRAS_API_KEY (Core) ou LUNA_API_KEY (Pulse) no Railway.",
+      "Não foi possível escolher um modelo para este plano. Verifica OPENROUTER_API_KEY (Core), CEREBRAS_API_KEY (Core) ou LUNA_API_KEY (Pulse) no Railway.",
     );
   }
 
   const isCerebras = selection.providerId === "cerebras" || isCerebrasConfig(config);
-  const mensagemLimit = isCerebras ? 12_000 : undefined;
+  const isOpenrouter = selection.providerId === "openrouter" || isOpenrouterConfig(config);
+  const mensagemLimit = isCerebras || isOpenrouter ? 12_000 : undefined;
 
   const corePath = resolveLunaCorePath();
   const core = await loadLunaCoreModule();
@@ -265,7 +271,7 @@ async function prepararChatMobile(
   const usarNeuronioMemoriaLlm =
     selection.providerId === "groq" && mensagem.length < 4_000;
 
-  const raciocinioAtivo = isCerebras;
+  const raciocinioAtivo = isCerebras || isOpenrouter;
   const anexosImagem = (attachments ?? []).map((att, index) => ({
     id: att.id?.trim() || `img-${index + 1}`,
     nome: att.name?.trim() || undefined,
