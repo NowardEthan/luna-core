@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { tokens } from '../theme/tokens';
 
@@ -22,7 +23,12 @@ export const UserAvatarButton = memo(function UserAvatarButton({
   const radius = size / 2;
 
   const avatar = avatarUrl ? (
-    <Image source={{ uri: avatarUrl }} style={{ width: size, height: size, borderRadius: radius }} />
+    <Image
+      source={{ uri: avatarUrl }}
+      style={{ width: size, height: size, borderRadius: radius }}
+      contentFit="cover"
+      transition={150}
+    />
   ) : (
     <LinearGradient
       colors={[tokens.accentBright, tokens.accentDeep]}

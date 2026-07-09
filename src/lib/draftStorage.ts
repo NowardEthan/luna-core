@@ -24,8 +24,8 @@ export async function saveDraft(scope: string, text: string): Promise<void> {
       return;
     }
     await AsyncStorage.setItem(scope, text);
-  } catch {
-    /* offline / quota — estado em memória continua válido */
+  } catch (err) {
+    console.warn('[draftStorage] saveDraft failed — estado em memória continua válido', err);
   }
 }
 
@@ -84,8 +84,8 @@ export async function loadChatDraftMeta(): Promise<ChatDraftMeta | null> {
 export async function saveChatDraftMeta(meta: ChatDraftMeta): Promise<void> {
   try {
     await AsyncStorage.setItem(META_KEY, JSON.stringify(meta));
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[draftStorage] saveChatDraftMeta failed', err);
   }
 }
 

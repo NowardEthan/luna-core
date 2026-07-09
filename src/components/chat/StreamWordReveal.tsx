@@ -71,6 +71,9 @@ function FadeWord({
  * nunca entra no DOM de uma vez). Opacidade em View — fiável no Android;
  * Animated.Text aninhado ignora opacity e mostrava tudo de imediato.
  */
+/** Palavras reveladas há mais de ACTIVE_WINDOW passos viram texto estático — evita acumular um Animated.Value por palavra em respostas longas. */
+const ACTIVE_WINDOW = 40;
+
 export function StreamWordReveal({ text, streaming = false, style, muted = false }: Props) {
   const { reduceMotion } = useMotionProfile();
   const segments = useMemo(() => tokenizeStreamSegments(text), [text]);
@@ -80,6 +83,8 @@ export function StreamWordReveal({ text, streaming = false, style, muted = false
   const shouldAnimate = streaming && !reduceMotion && total > 0;
 
   const [visibleCount, setVisibleCount] = useState(shouldAnimate ? 0 : total);
+  const visibleCountRef = useRef(visibleCount);
+  visibleCountRef.current = visibleCount;
 
   useEffect(() => {
     if (!shouldAnimate) {
@@ -87,30 +92,30 @@ export function StreamWordReveal({ text, streaming = false, style, muted = false
       return;
     }
 
-    setVisibleCount(0);
-    if (total <= 0) return;
+    // Continua a revelação de onde parou — não reinicia a cada novo chunk de streaming.
+    if (total <= visibleCountRef.current) return;
 
-    let count = 0;
     let intervalId: ReturnType<typeof setInterval> | undefined;
 
+    const reveal = () => {
+      setVisibleCount((count) => {
+        const next = Math.min(count + 1, total);
+        if (next >= total && intervalId) clearInterval(intervalId);
+        return next;
+      });
+    };
+
     const bootId = requestAnimationFrame(() => {
-      count = 1;
-      setVisibleCount(1);
-
-      if (total <= 1) return;
-
-      intervalId = setInterval(() => {
-        count += 1;
-        setVisibleCount(count);
-        if (count >= total && intervalId) clearInterval(intervalId);
-      }, stagger);
+      reveal();
+      if (total <= visibleCountRef.current) return;
+      intervalId = setInterval(reveal, stagger);
     });
 
     return () => {
       cancelAnimationFrame(bootId);
       if (intervalId) clearInterval(intervalId);
     };
-  }, [shouldAnimate, total, stagger, text]);
+  }, [shouldAnimate, total, stagger]);
 
   if (!shouldAnimate) {
     return (
@@ -119,12 +124,18 @@ export function StreamWordReveal({ text, streaming = false, style, muted = false
   }
 
   const shown = segments.slice(0, visibleCount);
+  const settledCount = Math.max(0, shown.length - ACTIVE_WINDOW);
+  const settled = shown.slice(0, settledCount);
+  const active = shown.slice(settledCount);
 
   return (
     <View style={styles.container}>
       <View style={styles.flow}>
-        {shown.map((segment, idx) => (
-          <FadeWord key={`w-${idx}`} text={segment} style={style} muted={muted} />
+        {settled.length > 0 ? (
+          <Text style={[style, muted ? styles.mutedText : undefined]}>{settled.join('')}</Text>
+        ) : null}
+        {active.map((segment, idx) => (
+          <FadeWord key={`w-${settledCount + idx}`} text={segment} style={style} muted={muted} />
         ))}
       </View>
     </View>

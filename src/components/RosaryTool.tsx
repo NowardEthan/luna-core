@@ -1,94 +1,35 @@
 import React, { memo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Glass } from './Glass';
+
 import { tokens } from '../theme/tokens';
-import { type } from '../theme/typography';
-import {
-  formatRosaryProgress,
-  type RosaryMysterySet,
-  type RosaryState,
-} from '../hooks/useRosary';
 
 type Props = {
-  state: RosaryState;
-  onToggle: () => void;
-  onSelectSet: (set: RosaryMysterySet) => void;
-  onRequestReflection?: () => void;
+  active: boolean;
+  onPress: () => void;
+  onLongPress?: () => void;
 };
 
-const SETS: { key: RosaryMysterySet; label: string; color: string }[] = [
-  { key: 'joyful', label: 'Gozosos', color: '#FFD54F' },
-  { key: 'sorrowful', label: 'Dolorosos', color: '#90A4AE' },
-  { key: 'glorious', label: 'Gloriosos', color: '#FF8A65' },
-  { key: 'luminous', label: 'Luminosos', color: '#4FC3F7' },
-];
-
-export const RosaryTool = memo(function RosaryTool({
-  state,
-  onToggle,
-  onSelectSet,
-  onRequestReflection,
-}: Props) {
-  if (!state.active) {
-    return (
-      <Pressable
-        onPress={onToggle}
-        hitSlop={8}
-        accessibilityLabel="Rezar terço"
-        style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
-      >
-        <Ionicons name="flower-outline" size={24} color={tokens.accentSoft} />
-      </Pressable>
-    );
-  }
-
+/** Ícone flor — toggle do modo terço no composer. */
+export const RosaryTool = memo(function RosaryTool({ active, onPress, onLongPress }: Props) {
   return (
-    <View style={styles.wrap}>
-      <Glass radius={18} intensity={24} strong style={styles.panel}>
-        <View style={styles.header}>
-          <Ionicons name="flower" size={18} color={tokens.accentSoft} />
-          <Text style={[type.caption, styles.title]}>Terço</Text>
-          <Text style={[type.caption, styles.progress]}>{formatRosaryProgress(state)}</Text>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.setRow}
-          style={styles.setScroll}
-        >
-          {SETS.map((s) => (
-            <Pressable
-              key={s.key}
-              onPress={() => onSelectSet(s.key)}
-              style={[
-                styles.setChip,
-                state.mysterySet === s.key && { borderColor: s.color },
-              ]}
-            >
-              <View style={[styles.setDot, { backgroundColor: s.color }]} />
-              <Text style={[type.caption, styles.setLabel]}>{s.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <View style={styles.actions}>
-          {onRequestReflection ? (
-            <Pressable onPress={onRequestReflection} style={styles.actionBtn}>
-              <Text style={[type.caption, styles.actionLabel]}>Reflexão</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </Glass>
-    </View>
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      hitSlop={8}
+      accessibilityLabel={active ? 'Parar terço' : 'Rezar terço'}
+      style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+    >
+      <Ionicons
+        name={active ? 'flower' : 'flower-outline'}
+        size={24}
+        color={active ? tokens.accentBright : tokens.accentSoft}
+      />
+    </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
-  wrap: {
-    marginBottom: 6,
-  },
   iconBtn: {
     width: 36,
     height: 36,
@@ -98,64 +39,5 @@ const styles = StyleSheet.create({
   },
   iconBtnPressed: {
     opacity: 0.65,
-  },
-  panel: {
-    padding: 12,
-    gap: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    color: tokens.textHigh,
-    fontWeight: '600',
-  },
-  progress: {
-    color: tokens.textMid,
-    marginLeft: 'auto',
-  },
-  setScroll: {
-    flexGrow: 0,
-  },
-  setRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 2,
-    paddingRight: 12,
-  },
-  setChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tokens.glassBorder,
-  },
-  setDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  setLabel: {
-    color: tokens.textMid,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 12,
-    backgroundColor: tokens.glassStrong,
-  },
-  actionLabel: {
-    color: tokens.textHigh,
-    fontWeight: '500',
   },
 });

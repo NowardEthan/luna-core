@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import { useLayoutInsets } from '../hooks/useLayoutInsets';
 import { useMotionProfile } from '../hooks/useMotionProfile';
+import { hapticConfirm, hapticDestructive } from '../lib/haptics';
 import { springs } from '../lib/motionTokens';
 import { SettingsRow } from './settings/SettingsRow';
 import { tokens } from '../theme/tokens';
@@ -103,6 +104,7 @@ export function ProfileEditSheet({
   };
 
   const handleSave = () => {
+    hapticConfirm();
     onSave({
       displayName: nameDraft.trim() || displayName,
       bio: bioDraft.trim(),
@@ -178,7 +180,10 @@ export function ProfileEditSheet({
                     iconColor="#E57373"
                     label="Remover foto"
                     destructive
-                    onPress={onRemoveAvatar}
+                    onPress={() => {
+                      hapticDestructive();
+                      onRemoveAvatar();
+                    }}
                   />
                 ) : null}
                 <SettingsRow
@@ -197,7 +202,10 @@ export function ProfileEditSheet({
                     label="Remover capa"
                     destructive
                     last
-                    onPress={onRemoveCover}
+                    onPress={() => {
+                      hapticDestructive();
+                      onRemoveCover();
+                    }}
                   />
                 ) : null}
               </View>
@@ -240,11 +248,11 @@ const styles = StyleSheet.create({
   sheetScroll: { flexGrow: 1, justifyContent: 'flex-end' },
   sheet: {
     borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
     backgroundColor: tokens.ink1,
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: tokens.glassBorder,
-    paddingHorizontal: 18,
-    paddingBottom: 18,
   },
   handle: {
     alignSelf: 'center',

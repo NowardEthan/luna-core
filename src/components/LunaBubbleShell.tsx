@@ -1,7 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LunaAvatar } from './LunaAvatar';
+import { LunaHumorBadge } from './LunaHumorBadge';
+import type { LunaHumorBadge as LunaHumorBadgeType } from '../lib/lunaHumor';
 import { tokens } from '../theme/tokens';
 
 interface Props {
@@ -11,11 +13,23 @@ interface Props {
   compact?: boolean;
   /** Estado "pensando" — borda accent suave. */
   thinking?: boolean;
+  /** Humor do turno — chip animado ao lado do nome. */
+  humor?: LunaHumorBadgeType;
+  /** Abre o perfil da Luna (toque no nome/avatar). */
+  onPressProfile?: () => void;
   children: React.ReactNode;
 }
 
 /** Cartão da Luna — avatar + nome dentro da bolha, conteúdo abaixo. */
-export function LunaBubbleShell({ firstInGroup, richText, compact, thinking, children }: Props) {
+export function LunaBubbleShell({
+  firstInGroup,
+  richText,
+  compact,
+  thinking,
+  humor,
+  onPressProfile,
+  children,
+}: Props) {
   return (
     <View
       style={[
@@ -27,10 +41,17 @@ export function LunaBubbleShell({ firstInGroup, richText, compact, thinking, chi
     >
       {firstInGroup ? (
         <>
-          <View style={styles.header}>
+          <Pressable
+            onPress={onPressProfile}
+            disabled={!onPressProfile}
+            style={({ pressed }) => [styles.header, pressed && onPressProfile && styles.headerPressed]}
+            accessibilityRole={onPressProfile ? 'button' : undefined}
+            accessibilityLabel={onPressProfile ? 'Abrir perfil da Luna' : undefined}
+          >
             <LunaAvatar size={26} />
             <Text style={styles.name}>Luna</Text>
-          </View>
+            {humor ? <LunaHumorBadge humor={humor} inline /> : null}
+          </Pressable>
           <View style={styles.headerRule} />
         </>
       ) : null}
@@ -74,7 +95,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
+    rowGap: 4,
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 8,
@@ -85,6 +108,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.25,
+    flexShrink: 0,
+  },
+  headerPressed: {
+    backgroundColor: 'rgba(75, 117, 242, 0.1)',
   },
   headerRule: {
     height: StyleSheet.hairlineWidth,

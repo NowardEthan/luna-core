@@ -5,8 +5,10 @@ import { BubbleEnter } from './BubbleEnter';
 import { LunaBubbleShell } from './LunaBubbleShell';
 import { VoiceMessageBubble } from './VoiceMessageBubble';
 import { MessageMarkdown } from './chat/MessageMarkdown';
+import { StreamingMarkdown } from './chat/StreamingMarkdown';
 import { StreamWordReveal } from './chat/StreamWordReveal';
 import { ReasoningLiveStrip } from './chat/ReasoningLiveStrip';
+import { ResearchTrace } from './chat/ResearchTrace';
 import { ExcerptHighlightText } from './chat/excerptHighlight';
 import { shouldRenderMarkdown } from './chat/detectMarkdown';
 import { ThreadReferenceQuote } from './ThreadReferenceQuote';
@@ -35,6 +37,7 @@ interface Props {
     attachment: ComposerAttachment,
     opts?: { highlightExcerpt?: string },
   ) => void;
+  onOpenLunaProfile?: () => void;
 }
 
 function messageEqual(a: ChatMessage, b: ChatMessage): boolean {
@@ -54,7 +57,13 @@ function messageEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.audio?.durationMs === b.audio?.durationMs &&
     a.streaming === b.streaming &&
     a.reasoning === b.reasoning &&
-    a.reasoningStreaming === b.reasoningStreaming
+    a.reasoningStreaming === b.reasoningStreaming &&
+    a.research === b.research &&
+    a.researchLive?.ferramenta === b.researchLive?.ferramenta &&
+    a.researchLive?.argumento === b.researchLive?.argumento &&
+    a.researchLive?.rodada === b.researchLive?.rodada &&
+    a.humor?.label === b.humor?.label &&
+    a.humor?.tema === b.humor?.tema
   );
 }
 
@@ -69,6 +78,7 @@ function MessageBubbleInner({
   onTranscribe,
   onThreadReferencePress,
   onOpenDocumentPreview,
+  onOpenLunaProfile,
 }: Props) {
   const { interactions, reduceMotion } = useMotionProfile();
   const scale = useRef(new Animated.Value(1)).current;
@@ -82,7 +92,8 @@ function MessageBubbleInner({
   const hasAttachments = Boolean(message.attachments?.length);
   const hasText = Boolean(message.text?.trim());
   const isStreaming = Boolean(message.streaming);
-  const richText = !isStreaming && shouldRenderMarkdown(message);
+  const isMarkdown = shouldRenderMarkdown(message);
+  const richText = !isStreaming && isMarkdown;
   const role = isUser ? 'user' : 'luna';
   const handleReferencePress = message.reference
     ? () => onThreadReferencePress?.(message.reference!)
@@ -119,6 +130,8 @@ function MessageBubbleInner({
       }),
     ]).start();
   }, [dimmed, glow, interactions, lift, reduceMotion, rowOpacity, scale, selected]);
+
+  const lunaHumor = !isUser && firstInGroup ? message.humor : undefined;
 
   const bubble = isUser ? (
     isVoice && message.audio ? (
@@ -198,7 +211,7 @@ function MessageBubbleInner({
       </LinearGradient>
     )
   ) : isVoice && message.audio ? (
-    <LunaBubbleShell firstInGroup={firstInGroup} compact>
+    <LunaBubbleShell firstInGroup={firstInGroup} compact humor={lunaHumor} onPressProfile={onOpenLunaProfile}>
       <VoiceMessageBubble
         messageId={message.id}
         audio={message.audio}
@@ -211,7 +224,12 @@ function MessageBubbleInner({
       />
     </LunaBubbleShell>
   ) : (
-    <LunaBubbleShell firstInGroup={firstInGroup} richText={richText}>
+    <LunaBubbleShell
+      firstInGroup={firstInGroup}
+      richText={richText}
+      humor={lunaHumor}
+      onPressProfile={onOpenLunaProfile}
+    >
       {message.reference ? (
         <ThreadReferenceQuote
           reference={message.reference}
@@ -226,6 +244,13 @@ function MessageBubbleInner({
           onOpenDocumentPreview={onOpenDocumentPreview}
         />
       ) : null}
+      {message.research?.length || message.researchLive ? (
+        <ResearchTrace
+          steps={message.research}
+          live={message.researchLive}
+          citedText={message.text}
+        />
+      ) : null}
       {message.reasoning?.trim() || message.reasoningStreaming ? (
         <ReasoningLiveStrip
           reasoning={message.reasoning}
@@ -233,11 +258,15 @@ function MessageBubbleInner({
         />
       ) : null}
       {isStreaming ? (
-        <StreamWordReveal
-          text={message.text ?? ''}
-          streaming
-          style={[type.message, styles.lunaText]}
-        />
+        isMarkdown ? (
+          <StreamingMarkdown text={message.text ?? ''} highlightExcerpt={highlightExcerpt} />
+        ) : (
+          <StreamWordReveal
+            text={message.text ?? ''}
+            streaming
+            style={[type.message, styles.lunaText]}
+          />
+        )
       ) : richText ? (
         <MessageMarkdown content={message.text || ' '} highlightExcerpt={highlightExcerpt} />
       ) : (
@@ -301,6 +330,7 @@ export const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
     prev.onTranscribe === next.onTranscribe &&
     prev.onThreadReferencePress === next.onThreadReferencePress &&
     prev.onOpenDocumentPreview === next.onOpenDocumentPreview &&
+    prev.onOpenLunaProfile === next.onOpenLunaProfile &&
     messageEqual(prev.message, next.message)
   );
 });

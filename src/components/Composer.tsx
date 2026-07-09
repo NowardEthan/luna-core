@@ -18,6 +18,7 @@ import { VoiceClip } from '../data/fixtures';
 import { useComposerSessionControls } from '../hooks/ComposerSessionContext';
 import type { ThreadReference } from '../lib/messageReference';
 import type { ComposerAttachment, ComposerSendPayload } from '../lib/composerAttachmentModel';
+import { hapticListTap } from '../lib/haptics';
 import { ComposerReferenceChip } from './ComposerReferenceChip';
 import { ComposerAttachSheet } from './compositor/ComposerAttachSheet';
 import { ComposerAttachmentStrip } from './compositor/ComposerAttachmentStrip';
@@ -26,7 +27,7 @@ import { VoiceMicRecorder } from './VoiceMicRecorder';
 import { VoiceRecordingOverlay } from './VoiceRecordingOverlay';
 import { IDLE_VOICE_UI, type VoiceHoldUi } from './voiceUi';
 import { RosaryTool } from './RosaryTool';
-import type { RosaryMysterySet, RosaryState } from '../hooks/useRosary';
+import type { RosaryState } from '../hooks/useRosary';
 
 const MIN_INPUT_HEIGHT = 40;
 /** ~7 linhas visíveis antes do scroll interno. */
@@ -86,8 +87,7 @@ interface Props {
   onClearReference?: () => void;
   rosaryState?: RosaryState;
   onRosaryToggle?: () => void;
-  onRosarySelectSet?: (set: RosaryMysterySet) => void;
-  onRosaryReflection?: () => void;
+  onRosaryLongPress?: () => void;
 }
 
 export interface ComposerHandle {
@@ -106,8 +106,7 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
     onClearReference,
     rosaryState,
     onRosaryToggle,
-    onRosarySelectSet,
-    onRosaryReflection,
+    onRosaryLongPress,
   },
   ref,
 ) {
@@ -243,6 +242,7 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
 
   const handleSend = useCallback(() => {
     if (!canSend) return;
+    hapticListTap();
     onSend({
       text: value.trim(),
       attachments: attachments.map((a) => ({ ...a })),
@@ -268,15 +268,6 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
       ) : null}
       {hasAttachments ? (
         <ComposerAttachmentStrip attachments={attachments} onRemove={removeAttachment} />
-      ) : null}
-
-      {rosaryState && onRosaryToggle && onRosarySelectSet ? (
-        <RosaryTool
-          state={rosaryState}
-          onToggle={onRosaryToggle}
-          onSelectSet={onRosarySelectSet}
-          onRequestReflection={onRosaryReflection}
-        />
       ) : null}
 
       <View style={styles.row}>
@@ -338,24 +329,16 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
               </View>
 
               {rosaryState && onRosaryToggle ? (
-                <Pressable
+                <RosaryTool
+                  active={rosaryState.active}
                   onPress={onRosaryToggle}
-                  disabled={!editable || recording}
-                  hitSlop={8}
-                  accessibilityLabel="Rezar terço"
-                  style={({ pressed }) => [styles.rosaryBtn, pressed && styles.attachBtnPressed]}
-                >
-                  <Ionicons
-                    name="flower-outline"
-                    size={22}
-                    color={rosaryState.active ? tokens.accentSoft : tokens.textMid}
-                  />
-                </Pressable>
+                  onLongPress={onRosaryLongPress}
+                />
               ) : null}
 
               <Pressable
                 onPress={() => setAttachSheetOpen(true)}
-                disabled={!editable || recording}
+                disabled={!editable || recording || rosaryState?.active}
                 hitSlop={8}
                 accessibilityLabel="Anexos"
                 style={({ pressed }) => [styles.attachBtn, pressed && styles.attachBtnPressed]}

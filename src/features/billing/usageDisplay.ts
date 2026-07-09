@@ -1,4 +1,4 @@
-import { formatResetPrecise } from './planQuotas';
+import { formatResetPrecise, formatarTokens } from './planQuotas';
 import type { LunaUsageSnapshot } from './useLunaUsage';
 
 export type UsageStatusTone = 'normal' | 'warn' | 'danger';
@@ -9,13 +9,12 @@ export type UsageCompactBadge = {
   accessibilityLabel: string;
 };
 
-function formatCompactCount(n: number): string {
-  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
-  if (n >= 1000) {
-    const k = n / 1000;
-    return k >= 10 ? `${Math.round(k)}k` : `${k.toFixed(1).replace('.0', '')}k`;
-  }
-  return n.toLocaleString('pt-BR');
+function weeklyPressureSuffix(usage: LunaUsageSnapshot): string | null {
+  const weekly = usage.weeklyTokens;
+  if (usage.cycle !== 'window' || weekly == null || usage.bindingCycle === 'weekly') return null;
+  const pct = weekly.limit > 0 ? weekly.used / weekly.limit : 0;
+  if (pct < 0.8) return null;
+  return `${formatarTokens(weekly.used)}/${formatarTokens(weekly.limit)} sem.`;
 }
 
 /** Pill compacta — sempre visível quando há quota (não esconde com margem confortável). */
@@ -31,47 +30,48 @@ export function usageCompactBadge(
     return {
       label: 'Limite',
       tone: 'danger',
-      accessibilityLabel: 'Limite de mensagens atingido. Toque para ver planos.',
+      accessibilityLabel: 'Limite de tokens atingido. Toque para ver planos.',
     };
   }
 
   if (remaining == null) return null;
 
   const tone: UsageStatusTone =
-    remaining <= Math.max(3, Math.ceil(limit * 0.1))
-      ? 'warn'
-      : remaining <= Math.max(30, Math.ceil(limit * 0.2))
-        ? 'normal'
-        : 'normal';
+    remaining <= Math.max(500, Math.ceil(limit * 0.1)) ? 'warn' : 'normal';
 
-  const count = formatCompactCount(remaining);
+  const count = formatarTokens(remaining);
+  const weeklySuffix = weeklyPressureSuffix(usage);
   let label: string;
 
-  if (usage.bindingCycle === 'weekly' && usage.weeklyMessages?.resetsAtMs != null) {
+  if (usage.bindingCycle === 'weekly' && usage.weeklyTokens?.resetsAtMs != null) {
     label = `${count} · sem.`;
   } else if (usage.cycle === 'window' && usage.resetsAtMs != null) {
-    label = `${count} · ${formatResetPrecise(usage.resetsAtMs - Date.now())}`;
-  } else if (usage.resetDays != null) {
-    label = `${count} msgs`;
+    const windowPart = `${count} · ${formatResetPrecise(usage.resetsAtMs - Date.now())}`;
+    label = weeklySuffix ? `${windowPart} · ${weeklySuffix}` : windowPart;
   } else {
-    label = `${count} msgs`;
+    label = `${count} tokens`;
   }
 
   const resetDetail =
-    usage.bindingCycle === 'weekly' && usage.weeklyMessages?.resetsAtMs != null
-      ? formatResetPrecise(usage.weeklyMessages.resetsAtMs - Date.now())
+    usage.bindingCycle === 'weekly' && usage.weeklyTokens?.resetsAtMs != null
+      ? formatResetPrecise(usage.weeklyTokens.resetsAtMs - Date.now())
       : usage.cycle === 'window' && usage.resetsAtMs != null
         ? formatResetPrecise(usage.resetsAtMs - Date.now())
         : usage.resetDays != null
           ? `renova em ${usage.resetDays} dias`
           : null;
 
+  const weeklyNote =
+    weeklySuffix != null
+      ? ` Uso semanal: ${formatarTokens(usage.weeklyTokens!.used)} de ${formatarTokens(usage.weeklyTokens!.limit)}.`
+      : '';
+
   return {
     label,
     tone,
     accessibilityLabel: resetDetail
-      ? `${remaining} mensagens restantes. ${resetDetail}.`
-      : `${remaining} mensagens restantes.`,
+      ? `${formatarTokens(remaining)} tokens restantes. ${resetDetail}.${weeklyNote}`
+      : `${formatarTokens(remaining)} tokens restantes.${weeklyNote}`,
   };
 }
 

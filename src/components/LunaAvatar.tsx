@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { tokens } from '../theme/tokens';
 
 const lunaAvatar = require('../../assets/luna-avatar.png');
@@ -24,7 +25,7 @@ export const LunaAvatar = memo(function LunaAvatar({ size = 30, zoom = 1.14 }: P
           marginTop: -(imgSize - size) * 0.35,
           marginLeft: -(imgSize - size) * 0.5,
         }}
-        resizeMode="cover"
+        contentFit="cover"
       />
     </View>
   );

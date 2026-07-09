@@ -25,6 +25,7 @@ import {
   takePhotoWithCamera,
   type PickerAvailability,
 } from '../lib/pickComposerAttachments';
+import { hapticConfirm } from '../lib/haptics';
 import { tokens } from '../theme/tokens';
 import { AttachGalleryPanel } from './compositor/AttachGalleryPanel';
 
@@ -89,6 +90,7 @@ export function ProfileImagePickSheet({ visible, target, onClose, onPick }: Prop
       if (!first?.uri || pickBusy) return;
       setPickBusy(true);
       try {
+        hapticConfirm();
         onPick(first);
         onClose();
       } finally {
@@ -104,6 +106,7 @@ export function ProfileImagePickSheet({ visible, target, onClose, onPick }: Prop
       setPickBusy(true);
       try {
         const attachment = await attachmentFromGalleryPhoto(photo);
+        hapticConfirm();
         onPick(attachment);
         onClose();
       } finally {
@@ -189,9 +192,9 @@ const styles = StyleSheet.create({
   },
   backdrop: { ...StyleSheet.absoluteFillObject },
   sheet: {
-    backgroundColor: tokens.ink1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    backgroundColor: tokens.ink1,
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: tokens.glassBorder,
     borderBottomWidth: 0,

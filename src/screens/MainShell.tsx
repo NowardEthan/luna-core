@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { OrbitTabBar, OrbitTabId } from '../components/OrbitTabBar';
+import { OrbitTabBar, OrbitTabId, TAB_BAR_HEIGHT } from '../components/OrbitTabBar';
+import { OrbitTabBarQuickOverlay, type OrbitQuickAction } from '../components/OrbitQuickMenu';
 import { TabPane } from '../components/TabPane';
 import { SessionItem, UserProfile, VoiceClip } from '../data/fixtures';
 import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
@@ -15,6 +16,7 @@ interface Props {
   user: UserProfile;
   avatarUrl?: string | null;
   uid: string | null;
+  cloudEnabled: boolean;
   email: string | null;
   photoURL: string | null;
   isAnonymous: boolean;
@@ -33,9 +35,15 @@ interface Props {
   trashSessions: TrashSessionItem[];
   onRestoreSession: (id: string) => void;
   onPermanentDeleteTrash: (id: string) => void;
-  onNewChat: () => void;
+  onRenameActiveTitle?: (conversationId: string, title: string) => void;
   onVoiceSend: (clip: VoiceClip) => void;
   onOpenPlans?: () => void;
+  settingsLimitsPending?: boolean;
+  onSettingsLimitsHandled?: () => void;
+  quickMenuOpen: boolean;
+  onQuickMenuToggle: () => void;
+  onQuickMenuClose: () => void;
+  onQuickAction: (action: OrbitQuickAction) => void;
 }
 
 const INITIAL_MOUNT: Record<OrbitTabId, boolean> = {
@@ -50,6 +58,7 @@ export const MainShell = memo(function MainShell({
   user,
   avatarUrl,
   uid,
+  cloudEnabled,
   email,
   photoURL,
   isAnonymous,
@@ -68,9 +77,15 @@ export const MainShell = memo(function MainShell({
   trashSessions,
   onRestoreSession,
   onPermanentDeleteTrash,
-  onNewChat,
+  onRenameActiveTitle,
   onVoiceSend,
   onOpenPlans,
+  settingsLimitsPending,
+  onSettingsLimitsHandled,
+  quickMenuOpen,
+  onQuickMenuToggle,
+  onQuickMenuClose,
+  onQuickAction,
 }: Props) {
   const tab = mainTab;
   const [mounted, setMounted] = useState(INITIAL_MOUNT);
@@ -93,6 +108,25 @@ export const MainShell = memo(function MainShell({
     [onMainTabChange, tab],
   );
 
+  const [localLimitsPending, setLocalLimitsPending] = useState(false);
+
+  const openLimitsFromHome = useCallback(() => {
+    if (tab !== 'definicoes') {
+      setEnterDirection(tabSlideDirection(tab, 'definicoes'));
+      setStackOrder((n) => n + 1);
+      setMounted((prev) => (prev.definicoes ? prev : { ...prev, definicoes: true }));
+      onMainTabChange('definicoes');
+    }
+    setLocalLimitsPending(true);
+  }, [onMainTabChange, tab]);
+
+  const limitsPending = settingsLimitsPending || localLimitsPending;
+
+  const handleLimitsHandled = useCallback(() => {
+    setLocalLimitsPending(false);
+    onSettingsLimitsHandled?.();
+  }, [onSettingsLimitsHandled]);
+
   return (
     <View style={styles.root}>
       <View style={styles.content}>
@@ -110,6 +144,7 @@ export const MainShell = memo(function MainShell({
               onDeleteSession={onDeleteSession}
               onVoiceSend={onVoiceSend}
               onOpenPlans={onOpenPlans}
+              onOpenLimits={openLimitsFromHome}
               onOpenProfile={() => selectTab('conta')}
               onOpenConversas={() => selectTab('conversas')}
             />
@@ -122,11 +157,14 @@ export const MainShell = memo(function MainShell({
               sessions={sessions}
               trashSessions={trashSessions}
               syncError={syncError}
+              uid={uid}
+              cloudEnabled={cloudEnabled}
               onOpenSession={onOpenSession}
               onPrefetchSession={onPrefetchSession}
               onDeleteSession={onDeleteSession}
               onRestoreSession={onRestoreSession}
               onPermanentDeleteTrash={onPermanentDeleteTrash}
+              onRenameActiveTitle={onRenameActiveTitle}
             />
           </TabPane>
         ) : null}
@@ -139,13 +177,31 @@ export const MainShell = memo(function MainShell({
 
         {mounted.definicoes ? (
           <TabPane visible={tab === 'definicoes'} enterDirection={enterDirection} stackOrder={stackOrder}>
-            <SettingsScreen isAnonymous={isAnonymous} onResetSession={onResetSession} />
+            <SettingsScreen
+              isAnonymous={isAnonymous}
+              onResetSession={onResetSession}
+              autoOpenLimits={limitsPending}
+              onAutoOpenLimitsHandled={handleLimitsHandled}
+            />
           </TabPane>
         ) : null}
       </View>
 
       {!keyboardOpen ? (
-        <OrbitTabBar active={tab} onTab={selectTab} onNewChat={onNewChat} />
+        <>
+          <OrbitTabBarQuickOverlay
+            visible={quickMenuOpen}
+            onClose={onQuickMenuClose}
+            onAction={onQuickAction}
+            fabBottom={TAB_BAR_HEIGHT + 10}
+          />
+          <OrbitTabBar
+            active={tab}
+            onTab={selectTab}
+            quickMenuOpen={quickMenuOpen}
+            onQuickMenuToggle={onQuickMenuToggle}
+          />
+        </>
       ) : null}
     </View>
   );

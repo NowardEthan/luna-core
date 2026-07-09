@@ -1,13 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -83,6 +83,7 @@ export function ProfileScreen({ sessions, onOpenSession }: Props) {
   const [imagePickTarget, setImagePickTarget] = useState<ProfileImageTarget | null>(null);
   const [imageUploading, setImageUploading] = useState<ProfileImageTarget | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   useAndroidBackHandler(
     useCallback(() => {
@@ -128,7 +129,7 @@ export function ProfileScreen({ sessions, onOpenSession }: Props) {
 
   const pinCandidates = useMemo(() => sessions.slice(0, 8), [sessions]);
 
-  const combinedError = auth.error || google.error || googleError || imageError;
+  const combinedError = auth.error || google.error || googleError || imageError || profileError;
 
   const isSessionPinned = useCallback(
     (session: SessionItem) =>
@@ -146,9 +147,13 @@ export function ProfileScreen({ sessions, onOpenSession }: Props) {
 
   const handleSaveProfile = async (patch: { displayName: string; bio: string }) => {
     setSaving(true);
+    setProfileError(null);
     try {
       await profile.saveProfile(patch);
       setEditOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível salvar o perfil.';
+      setProfileError(message);
     } finally {
       setSaving(false);
     }
@@ -205,9 +210,9 @@ export function ProfileScreen({ sessions, onOpenSession }: Props) {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={[styles.coverWrap, { paddingTop: headerTopPad }]}>
           {coverUrl ? (
-            <Image source={{ uri: coverUrl }} style={styles.coverImage} blurRadius={18} />
+            <Image source={{ uri: coverUrl }} style={styles.coverImage} contentFit="cover" blurRadius={18} />
           ) : avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.coverImage} blurRadius={18} />
+            <Image source={{ uri: avatarUrl }} style={styles.coverImage} contentFit="cover" blurRadius={18} />
           ) : (
             <LinearGradient
               colors={['#1a2438', '#2B4B9E', '#4B75F2']}
@@ -229,7 +234,7 @@ export function ProfileScreen({ sessions, onOpenSession }: Props) {
         <View style={styles.body}>
           <View style={styles.avatarRow}>
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+              <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" transition={150} />
             ) : (
               <LinearGradient
                 colors={[tokens.accentBright, tokens.accentDeep]}

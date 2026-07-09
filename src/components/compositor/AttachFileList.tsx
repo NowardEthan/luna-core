@@ -1,13 +1,13 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import {
   formatAttachmentSize,
@@ -66,7 +66,7 @@ export function AttachFileList({
                       accessibilityState={{ selected }}
                     >
                       {file.uri ? (
-                        <Image source={{ uri: file.uri }} style={styles.imageThumb} resizeMode="cover" />
+                        <Image source={{ uri: file.uri }} style={styles.imageThumb} contentFit="cover" transition={150} />
                       ) : null}
                       <View style={[styles.imageCheck, selected && styles.imageCheckOn]}>
                         {selected ? <Ionicons name="checkmark" size={12} color={tokens.onAccent} /> : null}
@@ -89,7 +89,7 @@ export function AttachFileList({
             <>
               <Text style={styles.sectionLabel}>Arquivos recentes</Text>
               <Text style={styles.emptyHint}>
-                PDFs e documentos que escolheres aparecem aqui para reutilizar.
+                PDFs e documentos que você escolher aparecem aqui para reutilizar.
               </Text>
             </>
           ) : null}

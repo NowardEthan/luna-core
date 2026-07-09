@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,9 +8,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { GalleryPhoto } from '../../lib/mediaLibraryRecent';
 import { tokens } from '../../theme/tokens';
+import { SkeletonPhotoGrid } from '../Skeleton';
 
 const COLS = 3;
 const GAP = 2;
@@ -69,12 +70,7 @@ export function AttachPhotoGrid({
   }
 
   if (loading && photos.length === 0) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={tokens.accentBright} />
-        <Text style={styles.loadingLabel}>Carregando fotos…</Text>
-      </View>
-    );
+    return <SkeletonPhotoGrid columns={COLS} gap={GAP} />;
   }
 
   if (photosEmpty && photos.length === 0) {
@@ -137,7 +133,7 @@ export function AttachPhotoGrid({
           accessibilityLabel={photo.filename}
           accessibilityState={{ selected }}
         >
-          <Image source={{ uri: photo.displayUri }} style={styles.thumb} resizeMode="cover" />
+          <Image source={{ uri: photo.displayUri }} style={styles.thumb} contentFit="cover" transition={150} />
           <View style={[styles.selectRing, selected && styles.selectRingOn]}>
             {selected ? <Ionicons name="checkmark" size={15} color="#FFFFFF" /> : null}
           </View>
@@ -220,17 +216,6 @@ const styles = StyleSheet.create({
   selectRingOn: {
     backgroundColor: tokens.accent,
     borderColor: '#FFFFFF',
-  },
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 40,
-  },
-  loadingLabel: {
-    fontSize: 13,
-    color: tokens.textMid,
   },
   empty: {
     flex: 1,

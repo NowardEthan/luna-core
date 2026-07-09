@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import {
   loadGalleryAlbums,
@@ -18,6 +18,7 @@ import {
   type GalleryPhoto,
 } from '../../lib/mediaLibraryRecent';
 import { tokens } from '../../theme/tokens';
+import { SkeletonPhotoGrid } from '../Skeleton';
 import { AttachAlbumList } from './AttachAlbumList';
 
 const COLS = 3;
@@ -185,7 +186,7 @@ export function AttachGalleryPanel({
           accessibilityLabel={item.photo.filename}
           accessibilityState={{ selected }}
         >
-          <Image source={{ uri: item.photo.displayUri }} style={styles.thumb} resizeMode="cover" />
+          <Image source={{ uri: item.photo.displayUri }} style={styles.thumb} contentFit="cover" transition={150} />
           <View style={[styles.selectRing, selected && styles.selectRingOn]}>
             {selected ? <Ionicons name="checkmark" size={15} color="#FFFFFF" /> : null}
           </View>
@@ -266,10 +267,7 @@ export function AttachGalleryPanel({
           onSelectAllPhotos={handleSelectAllPhotos}
         />
       ) : loadingInitial && photos.length === 0 ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={tokens.accentBright} />
-          <Text style={styles.loadingLabel}>Carregando fotos…</Text>
-        </View>
+        <SkeletonPhotoGrid columns={COLS} gap={GAP} />
       ) : photosEmpty ? (
         <View style={styles.empty}>
           <Ionicons name="images-outline" size={28} color={tokens.textLow} />
@@ -376,13 +374,6 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.accent,
     borderColor: '#FFFFFF',
   },
-  loading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  loadingLabel: { fontSize: 13, color: tokens.textMid },
   footer: { paddingVertical: 16, alignItems: 'center' },
   empty: {
     flex: 1,

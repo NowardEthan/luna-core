@@ -60,6 +60,8 @@ export function getLunaFirestore(): Firestore | null {
       experimentalForceLongPolling: true,
       // @ts-expect-error opção interna do SDK — desactiva fetch streams no RN
       useFetchStreams: false,
+      // setDoc com campos undefined (ex.: fontes ausente numa etapa de pesquisa) não deve lançar.
+      ignoreUndefinedProperties: true,
     });
   } catch {
     firestoreInstance = getFirestore(app);

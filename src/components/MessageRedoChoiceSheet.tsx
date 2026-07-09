@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { RedoUserChoice } from '../lib/messageActions';
+import { hapticConfirm, hapticDestructive } from '../lib/haptics';
 import { MessageActionPreview } from './MessageActionPreview';
 import { tokens } from '../theme/tokens';
 
@@ -40,7 +41,13 @@ export function MessageRedoChoiceSheet({
               mensagem.
             </Text>
 
-            <Pressable onPress={onBranch} style={({ pressed }) => [styles.option, styles.primary, pressed && styles.pressed]}>
+            <Pressable
+              onPress={() => {
+                hapticConfirm();
+                onBranch();
+              }}
+              style={({ pressed }) => [styles.option, styles.primary, pressed && styles.pressed]}
+            >
               <Text style={styles.optionTitle}>Ramificar daqui</Text>
               <Text style={styles.optionDesc}>
                 Arquiva o ramo atual ({tailCount + 1} mensagens incluindo esta) num bloco
@@ -48,7 +55,13 @@ export function MessageRedoChoiceSheet({
               </Text>
             </Pressable>
 
-            <Pressable onPress={onTruncate} style={({ pressed }) => [styles.option, styles.danger, pressed && styles.pressed]}>
+            <Pressable
+              onPress={() => {
+                hapticDestructive();
+                onTruncate();
+              }}
+              style={({ pressed }) => [styles.option, styles.danger, pressed && styles.pressed]}
+            >
               <Text style={styles.optionTitle}>Apagar e refazer</Text>
               <Text style={styles.optionDesc}>
                 Remove esta mensagem e tudo que veio depois. O texto volta ao composer para
@@ -77,9 +90,9 @@ const styles = StyleSheet.create({
   dialog: {
     borderRadius: 20,
     padding: 18,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: tokens.shell,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: tokens.glassBorder,
   },
   eyebrow: {
     color: tokens.textLow,

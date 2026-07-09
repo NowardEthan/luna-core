@@ -40,3 +40,23 @@ export function hapticListTap() {
 export function hapticLongPress() {
   throttled(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
 }
+
+/** Confirmação de ação primária (salvar, enviar, concluir). */
+export function hapticConfirm() {
+  throttled(() => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+}
+
+/** Ação destrutiva (apagar, remover) — aviso antes de agir. */
+export function hapticDestructive() {
+  throttled(() => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning));
+}
+
+/** Falha / entrada inválida. */
+export function hapticError() {
+  throttled(() => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error));
+}
+
+/** Sucesso confirmado pelo backend (pagamento, upload). */
+export function hapticSuccess() {
+  throttled(() => void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+}

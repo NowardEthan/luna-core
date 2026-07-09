@@ -1,6 +1,5 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -23,10 +22,12 @@ import { ForkSourceBanner } from '../components/ForkSourceBanner';
 import { MessageArchivedBranch } from '../components/MessageArchivedBranch';
 import { ComposerDock } from '../components/ComposerDock';
 import { LunaAvatar } from '../components/LunaAvatar';
-import { LunaHumorBadge } from '../components/LunaHumorBadge';
 import { LunaThinking } from '../components/LunaThinking';
+import { SkeletonMessageList } from '../components/Skeleton';
+import { LunaProfileSheet } from '../components/LunaProfileSheet';
 import { MessageActionSheet } from '../components/MessageActionSheet';
 import { MessageActionToast } from '../components/MessageActionToast';
+import { RosarySessionHud } from '../components/RosarySessionHud';
 import { MessageBubble } from '../components/MessageBubble';
 import { MessageRedoChoiceSheet } from '../components/MessageRedoChoiceSheet';
 import { ChatMessage, VoiceClip } from '../data/fixtures';
@@ -39,7 +40,8 @@ import {
 } from '../hooks/useProgressiveThreadWindow';
 import { useKeyboardOpen } from '../hooks/useKeyboardBottomInset';
 import { useLunaUsageContext } from '../hooks/LunaUsageContext';
-import { UsageQuotaPill } from '../components/billing/UsageQuotaPill';
+import { UsageLimitChip } from '../components/billing/UsageLimitChip';
+import { quotaComposerPlaceholder } from '../features/billing/limitsSummary';
 import { useKeyboardHeight } from '../hooks/useKeyboardHeight';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 import { hapticLongPress, hapticListTap } from '../lib/haptics';
@@ -84,11 +86,18 @@ interface Props {
   onChange: (t: string) => void;
   onSend: (payload: ComposerSendPayload) => void;
   onRosaryToggle?: () => void;
-  onRosarySelectSet?: (set: import('../hooks/useRosary').RosaryMysterySet) => void;
+  onRosaryLongPress?: () => void;
   onRosaryReflection?: () => void;
+  onRosaryToggleMode?: () => void;
+  onRosaryStop?: () => void;
   rosaryState?: import('../hooks/useRosary').RosaryState;
+  rosaryPlaceholder?: string;
+  rosaryBeadCurrent?: number;
+  rosaryBeadTotal?: number;
+  rosaryMode?: import('../hooks/useRosary').PrayerMode | null;
   onBack: () => void;
-  onNewChat: () => void;
+  quickMenuOpen: boolean;
+  onQuickMenuToggle: () => void;
   onVoiceSend: (clip: VoiceClip) => void;
   onTranscribe: (messageId: string) => void;
   onMessageAction: (
@@ -118,6 +127,7 @@ interface Props {
   onScrollOffsetChange?: (y: number) => void;
   onScrollRestoreApplied?: () => void;
   onOpenPlans?: () => void;
+  onOpenLimits?: () => void;
   /** Humor dual-layer do último turno (header). */
   lunaHumorAtual?: LunaHumorBadgeType | null;
 }
@@ -198,6 +208,7 @@ interface RowProps {
     attachment: import('../lib/composerAttachmentModel').ComposerAttachment,
     opts?: { highlightExcerpt?: string },
   ) => void;
+  onOpenLunaProfile: () => void;
 }
 
 const ThreadMessageRow = memo(function ThreadMessageRow({
@@ -209,6 +220,7 @@ const ThreadMessageRow = memo(function ThreadMessageRow({
   onLongPress,
   onThreadReferencePress,
   onOpenDocumentPreview,
+  onOpenLunaProfile,
 }: RowProps) {
   const handleLongPress = useCallback(() => {
     hapticLongPress();
@@ -237,6 +249,7 @@ const ThreadMessageRow = memo(function ThreadMessageRow({
       onTranscribe={onTranscribe}
       onThreadReferencePress={onThreadReferencePress}
       onOpenDocumentPreview={onOpenDocumentPreview}
+      onOpenLunaProfile={onOpenLunaProfile}
     />
   );
 });
@@ -245,9 +258,12 @@ const BUBBLE_ENTER_MS = 420;
 
 /** Esconde resposta da Luna que chegou cedo via Firestore enquanto o indicador “pensando” está ativo. */
 function threadMessagesWhileLoading(messages: ChatMessage[], loading: boolean): ChatMessage[] {
-  const withoutEmptyStream = messages.filter(
-    (m) => !(m.role === 'luna' && m.streaming && !m.text?.trim()),
-  );
+  const withoutEmptyStream = messages.filter((m) => {
+    const semTextoAinda = m.role === 'luna' && m.streaming && !m.text?.trim();
+    if (!semTextoAinda) return true;
+    // Mesmo sem texto final, a bolha já pode ter pesquisa/raciocínio ao vivo — mostra.
+    return Boolean(m.researchLive || m.research?.length || m.reasoning?.trim());
+  });
   if (!loading || withoutEmptyStream.length === 0) return withoutEmptyStream;
   const last = withoutEmptyStream[withoutEmptyStream.length - 1];
   if (last.role === 'luna' && !last.streaming) return withoutEmptyStream.slice(0, -1);
@@ -332,11 +348,18 @@ export const ThreadScreen = memo(function ThreadScreen({
   onChange,
   onSend,
   onRosaryToggle,
-  onRosarySelectSet,
+  onRosaryLongPress,
   onRosaryReflection,
+  onRosaryToggleMode,
+  onRosaryStop,
   rosaryState,
+  rosaryPlaceholder,
+  rosaryBeadCurrent = 0,
+  rosaryBeadTotal = 59,
+  rosaryMode,
   onBack,
-  onNewChat,
+  quickMenuOpen,
+  onQuickMenuToggle,
   onVoiceSend,
   onTranscribe,
   onMessageAction,
@@ -361,6 +384,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   onScrollOffsetChange,
   onScrollRestoreApplied,
   onOpenPlans,
+  onOpenLimits,
   lunaHumorAtual,
 }: Props) {
   const listRef = useRef<FlatList<ThreadListItem>>(null);
@@ -373,8 +397,6 @@ export const ThreadScreen = memo(function ThreadScreen({
   const { reduceMotion } = useMotionProfile();
   const headerTopPad = useHeaderTopPadding(6);
 
-  const showQuotaPill = lunaUsage.quotaApplies && !lunaUsage.usage.loading;
-
   const [sheetMessage, setSheetMessage] = useState<ChatMessage | null>(null);
   const [redoChoice, setRedoChoice] = useState<RedoUserChoice | null>(null);
   const [quotePickerMessage, setQuotePickerMessage] = useState<ChatMessage | null>(null);
@@ -384,6 +406,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   const [scrolledUp, setScrolledUp] = useState(false);
   const [docPreviewTarget, setDocPreviewTarget] = useState<AttachmentPreviewTarget | null>(null);
   const [docPreviewSourceMessage, setDocPreviewSourceMessage] = useState<ChatMessage | null>(null);
+  const [lunaProfileOpen, setLunaProfileOpen] = useState(false);
   const referenceHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingReferenceScrollId = useRef<string | null>(null);
 
@@ -410,8 +433,12 @@ export const ThreadScreen = memo(function ThreadScreen({
         setQuotePickerMessage(null);
         return true;
       }
+      if (lunaProfileOpen) {
+        setLunaProfileOpen(false);
+        return true;
+      }
       return false;
-    }, [branchNavVisible, redoChoice, sheetMessage, docPreviewTarget, quotePickerMessage]),
+    }, [branchNavVisible, redoChoice, sheetMessage, docPreviewTarget, quotePickerMessage, lunaProfileOpen]),
     threadVisible,
   );
 
@@ -428,6 +455,11 @@ export const ThreadScreen = memo(function ThreadScreen({
 
   const focusComposer = useCallback(() => {
     composerRef.current?.focus();
+  }, []);
+
+  const openLunaProfile = useCallback(() => {
+    hapticListTap();
+    setLunaProfileOpen(true);
   }, []);
 
   const {
@@ -469,6 +501,22 @@ export const ThreadScreen = memo(function ThreadScreen({
     const base = inactiveTimelineLabel(activeTimeline);
     return `${base} · ${count} ${count === 1 ? 'mensagem' : 'mensagens'}`;
   }, [activeTimeline, archivedBranch]);
+
+  const [rosaryHudHeight, setRosaryHudHeight] = useState(0);
+
+  useEffect(() => {
+    if (!rosaryState?.active) setRosaryHudHeight(0);
+  }, [rosaryState?.active]);
+
+  const listContentStyle = useMemo(
+    () => [
+      styles.listContent,
+      rosaryState?.active && rosaryHudHeight > 0
+        ? { paddingBottom: rosaryHudHeight + 8 }
+        : null,
+    ],
+    [rosaryState?.active, rosaryHudHeight],
+  );
 
   const activeTailMessages = useMemo(() => {
     if (branchPoint == null) return displayMessages;
@@ -734,6 +782,7 @@ export const ThreadScreen = memo(function ThreadScreen({
           onLongPress={handleLongPress}
           onThreadReferencePress={handleReferencePress}
           onOpenDocumentPreview={handleOpenDocumentPreview}
+          onOpenLunaProfile={openLunaProfile}
         />
       );
     },
@@ -748,6 +797,7 @@ export const ThreadScreen = memo(function ThreadScreen({
       quotePickerMessage,
       referenceHighlight,
       sheetMessage?.id,
+      openLunaProfile,
     ],
   );
 
@@ -809,38 +859,34 @@ export const ThreadScreen = memo(function ThreadScreen({
         <Pressable onPress={onBack} hitSlop={12} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={22} color={tokens.textHigh} />
         </Pressable>
-        <LunaAvatar size={36} />
-        <View style={styles.headerText}>
-          <Text style={type.headerTitle} numberOfLines={1}>
-            {liveTitle}
-          </Text>
-          <View style={styles.statusRow}>
-            <View style={styles.onlineDot} />
-            <Text style={type.headerStatus} numberOfLines={1}>
-              {liveLoading ? 'pensando…' : 'online'}
+        <Pressable
+          onPress={openLunaProfile}
+          style={({ pressed }) => [styles.headerProfileTap, pressed && styles.headerProfilePressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Perfil da Luna"
+        >
+          <LunaAvatar size={36} />
+          <View style={styles.headerText}>
+            <Text style={type.headerTitle} numberOfLines={1}>
+              {liveTitle}
             </Text>
+            <View style={styles.statusRow}>
+              <View style={styles.onlineDot} />
+              <Text style={type.headerStatus} numberOfLines={1}>
+                {liveLoading ? 'pensando…' : 'online'}
+              </Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.headerTrailing}>
-          <View style={styles.headerTrailingMeta}>
-            {lunaHumorAtual ? <LunaHumorBadge humor={lunaHumorAtual} compact /> : null}
-            {showQuotaPill ? (
-              <UsageQuotaPill
-                usage={lunaUsage.usage}
-                remaining={lunaUsage.remaining}
-                exceeded={lunaUsage.isExceeded}
-                onPress={
-                  lunaUsage.isExceeded || (lunaUsage.remaining ?? 0) <= 50
-                    ? onOpenPlans
-                    : undefined
-                }
-              />
-            ) : null}
-          </View>
-          <Pressable onPress={onNewChat} hitSlop={12} style={[styles.iconBtn, styles.headerAddBtn]}>
-            <Ionicons name="add" size={22} color={tokens.textMid} />
-          </Pressable>
-        </View>
+        </Pressable>
+        <View style={styles.headerSpacer} />
+        <Pressable
+          onPress={onQuickMenuToggle}
+          hitSlop={12}
+          style={[styles.iconBtn, styles.headerAddBtn]}
+          accessibilityLabel={quickMenuOpen ? 'Fechar menu' : 'Abrir menu rápido'}
+        >
+          <Ionicons name="add" size={22} color={tokens.textMid} />
+        </Pressable>
       </View>
 
       {forkSource ? (
@@ -857,9 +903,7 @@ export const ThreadScreen = memo(function ThreadScreen({
       ) : null}
 
       {!hasMessages && liveHydrating ? (
-        <View style={styles.hydrating}>
-          <ActivityIndicator color={tokens.accent} />
-        </View>
+        <SkeletonMessageList />
       ) : !hasMessages && !liveLoading ? (
         <View style={styles.empty}>
           <LunaAvatar size={80} zoom={1.18} />
@@ -868,6 +912,18 @@ export const ThreadScreen = memo(function ThreadScreen({
         </View>
       ) : (
         <View style={styles.listStage}>
+          {rosaryState?.active ? (
+            <RosarySessionHud
+              state={rosaryState}
+              beadCurrent={rosaryBeadCurrent}
+              beadTotal={rosaryBeadTotal}
+              prayerMode={rosaryMode ?? null}
+              onToggleMode={onRosaryToggleMode ?? (() => {})}
+              onStop={onRosaryStop ?? (() => {})}
+              onReflection={onRosaryReflection}
+              onHeightChange={setRosaryHudHeight}
+            />
+          ) : null}
           <FlatList
             ref={listRef}
             data={listItems}
@@ -875,8 +931,12 @@ export const ThreadScreen = memo(function ThreadScreen({
             key={sessionKey ?? 'local'}
             keyExtractor={keyExtractor}
             renderItem={renderItem}
-            ListHeaderComponent={showThinking ? <LunaThinking /> : null}
-            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={
+              showThinking ? (
+                <LunaThinking humor={lunaHumorAtual} onOpenProfile={openLunaProfile} />
+              ) : null
+            }
+            contentContainerStyle={listContentStyle}
             style={styles.list}
             showsVerticalScrollIndicator={false}
             keyboardDismissMode="interactive"
@@ -927,6 +987,21 @@ export const ThreadScreen = memo(function ThreadScreen({
 
       <View style={styles.composerZone}>
         <ComposerDock>
+          {lunaUsage.isExceeded ? (
+            <UsageLimitChip
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              exceeded
+              onPress={onOpenLimits ?? onOpenPlans}
+            />
+          ) : lunaUsage.isReducedMode ? (
+            <UsageLimitChip
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              reduced
+              onPress={onOpenLimits ?? onOpenPlans}
+            />
+          ) : null}
           <Composer
             ref={composerRef}
             value={liveDraft}
@@ -935,16 +1010,20 @@ export const ThreadScreen = memo(function ThreadScreen({
             onVoiceResult={onVoiceSend}
             rosaryState={rosaryState}
             onRosaryToggle={onRosaryToggle}
-            onRosarySelectSet={onRosarySelectSet}
-            onRosaryReflection={onRosaryReflection}
+            onRosaryLongPress={onRosaryLongPress}
             placeholder={
               quotePickActive
                 ? 'Selecione o trecho na bolha…'
                 : liveLoading
                   ? 'Luna pensando…'
-                  : lunaUsage.isExceeded
-                    ? 'Limite mensal atingido'
-                    : 'Converse com a Luna…'
+                  : rosaryState?.active && rosaryPlaceholder
+                    ? rosaryPlaceholder
+                    : quotaComposerPlaceholder(
+                        lunaUsage.usage,
+                        lunaUsage.isExceeded,
+                        'Converse com a Luna…',
+                        lunaUsage.isReducedMode,
+                      )
             }
             editable={!liveLoading && !quotePickActive && !docPreviewActive && !lunaUsage.isExceeded}
             messageReference={messageReference}
@@ -991,6 +1070,12 @@ export const ThreadScreen = memo(function ThreadScreen({
         onAction={handleBranchNavAction}
         onClose={() => setBranchNavVisible(false)}
       />
+
+      <LunaProfileSheet
+        visible={lunaProfileOpen}
+        onClose={() => setLunaProfileOpen(false)}
+        humor={lunaHumorAtual}
+      />
     </View>
   );
 });
@@ -1006,23 +1091,21 @@ const styles = StyleSheet.create({
     borderBottomColor: tokens.glassBorder,
   },
   iconBtn: { padding: 8 },
-  headerText: { flex: 1, marginLeft: 10, minWidth: 0 },
-  headerTrailing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexShrink: 1,
-    maxWidth: '52%',
-    minWidth: 40,
-  },
-  headerTrailingMeta: {
+  headerProfileTap: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 6,
     minWidth: 0,
-    overflow: 'hidden',
+    marginLeft: 2,
+    paddingVertical: 4,
+    paddingRight: 8,
+    borderRadius: 12,
   },
+  headerProfilePressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  headerText: { flex: 1, marginLeft: 10, minWidth: 0 },
+  headerSpacer: { width: 4 },
   headerAddBtn: {
     flexShrink: 0,
     marginLeft: 2,
@@ -1040,7 +1123,6 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   listStage: { flex: 1, position: 'relative' },
   listContent: { paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6 },
-  hydrating: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   emptyTitle: {
     color: tokens.textHigh,

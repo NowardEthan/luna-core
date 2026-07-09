@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import {
   formatAttachmentSize,
@@ -63,7 +64,7 @@ export function MessageAttachments({
               >
                 <View style={styles.imageFrame}>
                   {att.uri ? (
-                    <Image source={{ uri: att.uri }} style={styles.image} />
+                    <Image source={{ uri: att.uri }} style={styles.image} contentFit="cover" transition={150} />
                   ) : (
                     <View style={styles.imageFallback}>
                       <Ionicons name="image-outline" size={22} color="rgba(255,255,255,0.65)" />

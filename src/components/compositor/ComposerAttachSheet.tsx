@@ -31,6 +31,7 @@ import {
   type PickerAvailability,
 } from '../../lib/pickComposerAttachments';
 import { loadRecentFiles, rememberRecentFiles } from '../../lib/recentFileCache';
+import { hapticConfirm, hapticListTap } from '../../lib/haptics';
 import { tokens } from '../../theme/tokens';
 import { AttachBottomBar } from './AttachBottomBar';
 import { AttachFileBrowserPanel } from './AttachFileBrowserPanel';
@@ -131,6 +132,7 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
   }, [galleryReloadKey, visible]);
 
   const togglePhoto = useCallback((photo: GalleryPhoto) => {
+    hapticListTap();
     setSelectedPhotoUris((prev) => {
       const next = new Set(prev);
       if (next.has(photo.uri)) next.delete(photo.uri);
@@ -147,6 +149,7 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
 
   const toggleFile = useCallback((file: ComposerAttachment) => {
     if (!file.uri) return;
+    hapticListTap();
     const uri = file.uri;
     setSelectedFileUris((prev) => {
       const next = new Set(prev);
@@ -164,6 +167,7 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
 
   const toggleBrowserEntry = useCallback((entry: FileBrowserEntry) => {
     if (entry.kind !== 'file') return;
+    hapticListTap();
     const uri = entry.uri;
     setSelectedFileUris((prev) => {
       const next = new Set(prev);
@@ -182,6 +186,7 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
   const handleConfirm = async () => {
     if (disabled || confirmBusy || selectedCount === 0) return;
 
+    hapticConfirm();
     setConfirmBusy(true);
     try {
       const selectedPhotos = [...photoSelection.values()];
@@ -332,10 +337,10 @@ const styles = StyleSheet.create({
     width: '100%',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    backgroundColor: tokens.shell,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: tokens.glassBorder,
     overflow: 'hidden',
+    backgroundColor: tokens.shell,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: tokens.glassBorder,
   },
   panel: {
     flex: 1,

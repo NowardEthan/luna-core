@@ -2,12 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { LunaBubbleShell } from './LunaBubbleShell';
 import { LunarPulse } from './LunarPulse';
+import type { LunaHumorBadge } from '../lib/lunaHumor';
 import { useMotionProfile } from '../hooks/useMotionProfile';
 
 /** Whispers cósmicos — igual Orbit concept (orbit-cosmic). */
 const WHISPERS = ['reunindo luz', 'orbitando ideias', 'compondo resposta'] as const;
 
-export function LunaThinking() {
+interface Props {
+  humor?: LunaHumorBadge | null;
+  onOpenProfile?: () => void;
+}
+
+export function LunaThinking({ humor, onOpenProfile }: Props) {
   const motion = useMotionProfile();
   const [whisperIndex, setWhisperIndex] = useState(0);
 
@@ -21,7 +27,13 @@ export function LunaThinking() {
 
   return (
     <View style={styles.wrap} accessibilityLiveRegion="polite" accessibilityLabel="Luna pensando">
-      <LunaBubbleShell firstInGroup thinking compact>
+      <LunaBubbleShell
+        firstInGroup
+        thinking
+        compact
+        humor={humor ?? undefined}
+        onPressProfile={onOpenProfile}
+      >
         <LunarPulse compact whisper={WHISPERS[whisperIndex]} />
       </LunaBubbleShell>
     </View>

@@ -27,7 +27,11 @@ export interface ChatMessage {
   /** Texto de raciocínio do modelo (faixa live acima da bolha). */
   reasoning?: string;
   reasoningStreaming?: boolean;
-  /** Humor dual-layer no turno (badge no header). */
+  /** Passos de pesquisa concluídos (web_search / ler_url) — bloco anexado à mensagem. */
+  research?: import('../lib/researchTrace').ResearchStep[];
+  /** Chamada de ferramenta de pesquisa em andamento — indicador ao vivo. */
+  researchLive?: import('../lib/researchTrace').ResearchLive;
+  /** Humor dual-layer no turno (chip na bolha). */
   humor?: LunaHumorBadge;
 }
 
@@ -38,6 +42,8 @@ export interface SessionItem {
   updatedAt: string;
   pinned?: boolean;
   messageCount?: number;
+  /** Pasta de organização (null/undefined = solta na raiz). */
+  collectionId?: string | null;
 }
 
 export interface UserProfile {

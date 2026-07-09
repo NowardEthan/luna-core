@@ -43,8 +43,8 @@ export async function saveBranchState(sessionId: string, state: PersistedBranchS
       return;
     }
     await AsyncStorage.setItem(key, JSON.stringify(state));
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[branchStorage] saveBranchState failed', err);
   }
 }
 
@@ -55,8 +55,8 @@ export async function appendForkLink(link: ForkLink): Promise<void> {
     if (list.some((l) => l.childSessionId === link.childSessionId)) return;
     list.unshift(link);
     await AsyncStorage.setItem(FORK_PREFIX, JSON.stringify(list.slice(0, 80)));
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[branchStorage] appendForkLink failed', err);
   }
 }
 
@@ -67,8 +67,8 @@ export async function removeForkLink(childSessionId: string): Promise<void> {
     const list = JSON.parse(raw) as ForkLink[];
     const next = list.filter((l) => l.childSessionId !== childSessionId);
     await AsyncStorage.setItem(FORK_PREFIX, JSON.stringify(next));
-  } catch {
-    /* noop */
+  } catch (err) {
+    console.warn('[branchStorage] removeForkLink failed', err);
   }
 }
 

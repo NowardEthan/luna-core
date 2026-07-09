@@ -3,6 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFabRotation } from './OrbitQuickMenu';
 import { usePressSpring } from '../hooks/usePressSpring';
 import { tokens } from '../theme/tokens';
 
@@ -30,11 +31,18 @@ const RIGHT: TabItem[] = [
 interface Props {
   active: OrbitTabId;
   onTab: (tab: OrbitTabId) => void;
-  onNewChat: () => void;
+  quickMenuOpen: boolean;
+  onQuickMenuToggle: () => void;
 }
 
-export const OrbitTabBar = memo(function OrbitTabBar({ active, onTab, onNewChat }: Props) {
+export const OrbitTabBar = memo(function OrbitTabBar({
+  active,
+  onTab,
+  quickMenuOpen,
+  onQuickMenuToggle,
+}: Props) {
   const insets = useSafeAreaInsets();
+  const fabRotation = useFabRotation(quickMenuOpen);
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -46,14 +54,20 @@ export const OrbitTabBar = memo(function OrbitTabBar({ active, onTab, onNewChat 
         </View>
 
         <View style={styles.centerSlot}>
-          <PressScale onPress={onNewChat} accessibilityLabel="Nova conversa" style={styles.ctaHit}>
+          <PressScale
+            onPress={onQuickMenuToggle}
+            accessibilityLabel={quickMenuOpen ? 'Fechar menu' : 'Abrir menu rápido'}
+            style={styles.ctaHit}
+          >
             <LinearGradient
               colors={[tokens.accentBright, tokens.accent]}
               start={{ x: 0.2, y: 0 }}
               end={{ x: 0.9, y: 1 }}
               style={styles.cta}
             >
-              <Ionicons name="add" size={28} color={tokens.onAccent} />
+              <Animated.View style={{ transform: [{ rotate: fabRotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
+                <Ionicons name="add" size={28} color={tokens.onAccent} />
+              </Animated.View>
             </LinearGradient>
           </PressScale>
         </View>

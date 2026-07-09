@@ -95,6 +95,7 @@ function toChatMessage(id: string, data: FirestoreMessageDoc): ChatMessage | nul
       mime: a.mime,
       uri: a.uri,
     })),
+    research: data.research,
   };
   if (data.audioDurationMs != null && data.audioDurationMs > 0) {
     msg.audio = { uri: data.audioUrl ?? '', durationMs: data.audioDurationMs };
@@ -150,7 +151,25 @@ function mapConversationToSession(id: string, data: FirestoreConversationDoc): S
     updatedAt: formatRelativeTime(updated),
     pinned: data.pinned === true,
     messageCount: typeof data.messageCount === 'number' ? data.messageCount : undefined,
+    collectionId: data.collectionId ?? null,
   };
+}
+
+async function buildConversationWritePatch(
+  convRef: ReturnType<typeof doc>,
+  previewSource: string,
+): Promise<Record<string, unknown>> {
+  const snap = await getDoc(convRef);
+  const data = snap.exists() ? (snap.data() as FirestoreConversationDoc) : undefined;
+  const preview = previewSource.slice(0, 120);
+  const patch: Record<string, unknown> = {
+    preview,
+    updatedAt: serverTimestamp(),
+  };
+  if (!data?.titleLocked) {
+    patch.title = deriveTitle(previewSource);
+  }
+  return patch;
 }
 
 export function subscribeConversations(
@@ -258,6 +277,7 @@ export async function writeLunaTextMessage(
   conversationId: string,
   messageId: string,
   text: string,
+  research?: FirestoreMessageDoc['research'],
 ): Promise<void> {
   const db = getLunaFirestore();
   if (!db) return;
@@ -279,6 +299,7 @@ export async function writeLunaTextMessage(
   await setDoc(msgRef, {
     role: 'luna',
     text: text.trim(),
+    ...(research?.length ? { research } : {}),
     createdAt: serverTimestamp(),
   });
 
@@ -301,18 +322,16 @@ export async function writeUserTextMessage(
   const convRef = doc(db, userConversationDoc(uid, conversationId));
   const msgRef = doc(db, `${userConversationMessagesCol(uid, conversationId)}/${messageId}`);
   const previewSource = displayText.trim() || reference?.excerpt || '';
-  const title = deriveTitle(previewSource);
   const preview = previewSource.slice(0, 120);
 
   const jaExiste = (await getDoc(msgRef)).exists();
+  const convPatch = await buildConversationWritePatch(convRef, previewSource);
 
   await setDoc(
     convRef,
     {
-      title,
-      preview,
+      ...convPatch,
       lunaSessaoId: conversationId,
-      updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     },
     { merge: true },
@@ -373,15 +392,14 @@ export async function writeUserVoiceMessage(
 
   const convRef = doc(db, userConversationDoc(uid, conversationId));
   const msgRef = doc(db, `${userConversationMessagesCol(uid, conversationId)}/${messageId}`);
-  const title = deriveTitle(placeholderText);
 
   const jaExiste = (await getDoc(msgRef)).exists();
+  const convPatch = await buildConversationWritePatch(convRef, placeholderText);
 
   await setDoc(
     convRef,
     {
-      title,
-      preview: placeholderText.slice(0, 120),
+      ...convPatch,
       lunaSessaoId: conversationId,
       updatedAt: serverTimestamp(),
       createdAt: serverTimestamp(),

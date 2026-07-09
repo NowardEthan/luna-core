@@ -35,6 +35,9 @@ yarn-error.*
 .env
 .env*.local
 
+# exports de logs/uso de API — nunca commitar
+info-logs/
+
 # typescript
 *.tsbuildinfo
 

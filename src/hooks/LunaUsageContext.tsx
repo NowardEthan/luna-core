@@ -5,14 +5,11 @@ import {
   canExtractDocuments,
   canSendCloudTurn,
   canTranscribeVoice,
+  isReducedModeOnly,
   quotaApplies,
-  remainingTurns,
+  remainingTokens,
 } from '../features/billing/quotaUtils';
-import {
-  useLunaUsage,
-  type LunaUsageSnapshot,
-  type QuotaKind,
-} from '../features/billing/useLunaUsage';
+import { useLunaUsage, type LunaUsageSnapshot } from '../features/billing/useLunaUsage';
 import type { LunaPlanId } from '../features/billing/types';
 import { useLunaAuth } from './useLunaAuth';
 import { useLunaBilling, type UseLunaBillingResult } from './useLunaBilling';
@@ -28,8 +25,11 @@ export type LunaUsageContextValue = UseLunaBillingResult & {
   canExtractDocuments: (count: number) => boolean;
   canTranscribeVoice: () => boolean;
   isExceeded: boolean;
+  /** Plano esgotado — chat continua em modo reduzido Cerebras (OSS). */
+  isReducedMode: boolean;
   remaining: number | null;
-  bumpUsage: (kind: QuotaKind, amount?: number) => void;
+  bumpTokens: (amount: number) => void;
+  rollbackTokens: (amount: number) => void;
   refreshUsage: () => Promise<void>;
 };
 
@@ -43,9 +43,10 @@ export function LunaUsageProvider({ children }: { children: ReactNode }) {
   const cloudEnabled = auth.configured && auth.uid != null;
 
   const value = useMemo((): LunaUsageContextValue => {
-    const { bumpUsage, refreshFromApi, ...usage } = usageState;
+    const { bumpTokens, rollbackTokens, refreshFromApi, ...usage } = usageState;
     const applies = quotaApplies(cloudEnabled, isAnonymous, usage);
     const canSend = canSendCloudTurn(cloudEnabled, isAnonymous, usage);
+    const reducedMode = isReducedModeOnly(usage);
     return {
       ...billing,
       usage,
@@ -57,11 +58,12 @@ export function LunaUsageProvider({ children }: { children: ReactNode }) {
       canExtractDocuments: (count) => canExtractDocuments(cloudEnabled, isAnonymous, usage, count),
       canTranscribeVoice: () => canTranscribeVoice(cloudEnabled, isAnonymous, usage),
       isExceeded: applies && !canSend,
-      remaining: remainingTurns(usage),
-      bumpUsage,
+      isReducedMode: applies && reducedMode,
+      remaining: remainingTokens(usage),
+      bumpTokens,
+      rollbackTokens,
       refreshUsage: async () => {
         const token = await auth.getIdToken();
-        console.log('[LunaUsageContext] refreshUsage token', { hasToken: Boolean(token), tokenPreview: token ? `${token.slice(0, 20)}...` : null });
         if (token) await refreshFromApi(token);
       },
     };

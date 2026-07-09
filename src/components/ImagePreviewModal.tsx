@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  Image,
   Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLayoutInsets } from '../hooks/useLayoutInsets';
 import { tokens } from '../theme/tokens';
@@ -53,7 +53,8 @@ export function ImagePreviewModal({ visible, uri, title, onClose }: Props) {
             <Image
               source={{ uri }}
               style={styles.image}
-              resizeMode="contain"
+              contentFit="contain"
+              transition={150}
               accessibilityLabel={title}
             />
           ) : null}

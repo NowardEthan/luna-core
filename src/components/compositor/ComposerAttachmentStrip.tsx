@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import {
   formatFileExtension,
@@ -37,7 +38,7 @@ export function ComposerAttachmentStrip({ attachments, onRemove }: Props) {
                 accessibilityLabel={`Ampliar ${att.name}`}
               >
                 {att.uri ? (
-                  <Image source={{ uri: att.uri }} style={styles.thumb} />
+                  <Image source={{ uri: att.uri }} style={styles.thumb} contentFit="cover" transition={150} />
                 ) : (
                   <View style={[styles.thumb, styles.thumbFallback]}>
                     <Ionicons name="image-outline" size={18} color={tokens.textMid} />

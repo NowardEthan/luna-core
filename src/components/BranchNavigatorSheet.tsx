@@ -10,7 +10,7 @@ import {
   timelineLabel,
 } from '../lib/branchState';
 import type { ForkLink } from '../lib/branchStorage';
-import { hapticLongPress } from '../lib/haptics';
+import { hapticConfirm, hapticDestructive, hapticLongPress } from '../lib/haptics';
 import { tokens } from '../theme/tokens';
 
 export type BranchNavigatorSelection =
@@ -194,9 +194,10 @@ export const BranchNavigatorSheet = memo(function BranchNavigatorSheet({
           <View style={styles.actionRow}>
             {!isActive ? (
               <Pressable
-                onPress={() =>
-                  onAction({ type: 'switch-timeline', timeline: selection.timeline })
-                }
+                onPress={() => {
+                  hapticConfirm();
+                  onAction({ type: 'switch-timeline', timeline: selection.timeline });
+                }}
                 style={({ pressed }) => [styles.actionBtn, styles.actionPrimary, pressed && styles.pressed]}
               >
                 <Text style={styles.actionPrimaryText}>Usar este ramo</Text>
@@ -210,7 +211,10 @@ export const BranchNavigatorSheet = memo(function BranchNavigatorSheet({
               </Pressable>
             )}
             <Pressable
-              onPress={() => onAction({ type: 'delete-timeline', timeline: selection.timeline })}
+              onPress={() => {
+                hapticDestructive();
+                onAction({ type: 'delete-timeline', timeline: selection.timeline });
+              }}
               style={({ pressed }) => [styles.actionBtn, styles.actionDanger, pressed && styles.pressed]}
             >
               <Ionicons name="trash-outline" size={16} color="#ffb4b4" />
@@ -228,19 +232,23 @@ export const BranchNavigatorSheet = memo(function BranchNavigatorSheet({
         </Text>
         <View style={styles.actionRow}>
           <Pressable
-            onPress={() => onAction({ type: 'open-session', sessionId: selection.sessionId })}
+            onPress={() => {
+              hapticConfirm();
+              onAction({ type: 'open-session', sessionId: selection.sessionId });
+            }}
             style={({ pressed }) => [styles.actionBtn, styles.actionPrimary, pressed && styles.pressed]}
           >
             <Text style={styles.actionPrimaryText}>Abrir</Text>
           </Pressable>
           <Pressable
-            onPress={() =>
+            onPress={() => {
+              hapticDestructive();
               onAction({
                 type: 'delete-fork',
                 childSessionId: selection.sessionId,
                 childTitle: selection.title,
-              })
-            }
+              });
+            }}
             style={({ pressed }) => [styles.actionBtn, styles.actionDanger, pressed && styles.pressed]}
           >
             <Ionicons name="trash-outline" size={16} color="#ffb4b4" />
@@ -350,9 +358,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     paddingTop: 10,
     maxHeight: '85%',
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: 'rgba(255,255,255,0.1)',
     backgroundColor: tokens.shell,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: tokens.glassBorder,
   },
   handle: {
     alignSelf: 'center',

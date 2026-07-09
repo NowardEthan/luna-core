@@ -18,6 +18,7 @@ import {
 } from '../../features/billing/cpfCnpj';
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight';
 import { useLayoutInsets } from '../../hooks/useLayoutInsets';
+import { hapticConfirm, hapticError } from '../../lib/haptics';
 import { tokens } from '../../theme/tokens';
 
 interface Props {
@@ -51,9 +52,11 @@ export function CpfCnpjSheet({ visible, onClose, onConfirm }: Props) {
   const handleConfirm = async () => {
     const digits = normalizeCpfCnpj(value);
     if (!isValidCpfCnpj(digits)) {
+      hapticError();
       setError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.');
       return;
     }
+    hapticConfirm();
     await saveCpfCnpj(digits);
     onConfirm(digits);
   };
@@ -61,11 +64,9 @@ export function CpfCnpjSheet({ visible, onClose, onConfirm }: Props) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable
-          style={[styles.sheet, { paddingBottom: sheetBottomPad }]}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View style={styles.handle} />
+        <Pressable style={styles.sheetWrap} onPress={(e) => e.stopPropagation()}>
+          <View style={[styles.sheet, { paddingBottom: sheetBottomPad }]}>
+            <View style={styles.handle} />
           <Text style={styles.title}>Dados para pagamento</Text>
           <Text style={styles.subtitle}>
             Precisamos do seu CPF ou CNPJ para emitir a cobrança com segurança.
@@ -90,6 +91,7 @@ export function CpfCnpjSheet({ visible, onClose, onConfirm }: Props) {
           <Pressable onPress={onClose} style={styles.cancel}>
             <Text style={styles.cancelText}>Cancelar</Text>
           </Pressable>
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -102,14 +104,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
+  sheetWrap: { width: '100%' },
   sheet: {
-    backgroundColor: tokens.ink1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
     paddingTop: 10,
     gap: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: tokens.ink1,
+    borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: tokens.glassBorder,
   },
   handle: {

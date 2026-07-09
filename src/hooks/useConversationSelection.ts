@@ -4,8 +4,9 @@ import { useCallback, useMemo, useState } from 'react';
 function useMultiSelection() {
   const [selected, setSelected] = useState<Map<string, string>>(() => new Map());
   const [confirming, setConfirming] = useState(false);
+  const [armed, setArmed] = useState(false);
 
-  const active = selected.size > 0;
+  const active = armed || selected.size > 0;
   const count = selected.size;
 
   const selectedIds = useMemo(() => [...selected.keys()], [selected]);
@@ -18,6 +19,7 @@ function useMultiSelection() {
   }, [count, selected]);
 
   const enter = useCallback((id: string, title: string) => {
+    setArmed(false);
     setSelected((prev) => {
       const next = new Map(prev);
       next.set(id, title);
@@ -26,7 +28,13 @@ function useMultiSelection() {
     setConfirming(false);
   }, []);
 
+  const arm = useCallback(() => {
+    setArmed(true);
+    setConfirming(false);
+  }, []);
+
   const exit = useCallback(() => {
+    setArmed(false);
     setSelected(new Map());
     setConfirming(false);
   }, []);
@@ -52,6 +60,7 @@ function useMultiSelection() {
     selectedIds,
     summaryTitle,
     enter,
+    arm,
     exit,
     toggle,
     isSelected,

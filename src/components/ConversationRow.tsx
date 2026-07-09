@@ -1,5 +1,5 @@
 import React, { memo, useLayoutEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, type GestureResponderHandlers } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Glass } from './Glass';
 import { LunaAvatar } from './LunaAvatar';
@@ -16,6 +16,10 @@ interface Props {
   onPress: () => void;
   onPressIn?: () => void;
   onLongPress?: () => void;
+  onMenuPress?: () => void;
+  dragEnabled?: boolean;
+  dragging?: boolean;
+  gripHandlers?: GestureResponderHandlers;
 }
 
 export const ConversationRow = memo(function ConversationRow({
@@ -25,6 +29,10 @@ export const ConversationRow = memo(function ConversationRow({
   onPress,
   onPressIn,
   onLongPress,
+  onMenuPress,
+  dragEnabled = false,
+  dragging = false,
+  gripHandlers,
 }: Props) {
   const { interactions, reduceMotion } = useMotionProfile();
   const selectAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -70,7 +78,7 @@ export const ConversationRow = memo(function ConversationRow({
     outputRange: ['rgba(255,255,255,0.055)', 'rgba(75,117,242,0.22)'],
   });
 
-  const dimOpacity = selectionMode && !selected ? 0.52 : 1;
+  const dimOpacity = selectionMode && !selected ? 0.52 : dragging ? 0.38 : 1;
 
   return (
     <Animated.View style={{ opacity: dimOpacity, transform: [{ scale: scaleAnim }] }}>
@@ -80,17 +88,29 @@ export const ConversationRow = memo(function ConversationRow({
         onLongPress={onLongPress ? handleLongPress : undefined}
         delayLongPress={420}
         android_ripple={{ color: 'rgba(75,117,242,0.14)' }}
-        style={({ pressed }) => [pressed && !selectionMode && styles.pressed]}
+        style={({ pressed }) => [pressed && !selectionMode && !dragging && styles.pressed]}
+        disabled={dragging}
       >
         <Animated.View
           style={[
             styles.shell,
+            dragging && styles.shellDragging,
             {
               borderColor,
               backgroundColor: bgTint,
             },
           ]}
         >
+          {dragEnabled && !selectionMode && gripHandlers ? (
+            <View
+              {...gripHandlers}
+              style={styles.gripSlot}
+              accessibilityRole="button"
+              accessibilityLabel="Arrastar conversa"
+            >
+              <Ionicons name="reorder-three" size={22} color={tokens.textLow} />
+            </View>
+          ) : null}
           <View style={[styles.checkSlot, selected && styles.checkSlotVisible]}>
             {selected ? (
               <View style={styles.checkCircle}>
@@ -110,7 +130,22 @@ export const ConversationRow = memo(function ConversationRow({
             </Text>
           </View>
           {!selectionMode ? (
-            <Text style={styles.time}>{session.updatedAt}</Text>
+            onMenuPress ? (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  onMenuPress();
+                }}
+                hitSlop={10}
+                style={styles.menuBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Opções da conversa"
+              >
+                <Ionicons name="ellipsis-horizontal" size={18} color={tokens.textMid} />
+              </Pressable>
+            ) : (
+              <Text style={styles.time}>{session.updatedAt}</Text>
+            )
           ) : null}
         </Animated.View>
       </Pressable>
@@ -205,6 +240,16 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
     overflow: 'hidden',
   },
+  shellDragging: {
+    borderStyle: 'dashed',
+  },
+  gripSlot: {
+    width: 28,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
+  },
   checkSlot: {
     width: 0,
     overflow: 'hidden',
@@ -240,5 +285,11 @@ const styles = StyleSheet.create({
   titleSelected: { color: tokens.accentBright },
   preview: { color: tokens.textMid, fontSize: 13 },
   time: { color: tokens.textLow, fontSize: 11, fontWeight: '500' },
+  menuBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pressed: { opacity: 0.9 },
 });

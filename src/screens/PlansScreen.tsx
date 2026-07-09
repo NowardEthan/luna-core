@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { CpfCnpjSheet } from '../components/billing/CpfCnpjSheet';
 import { PlanCard } from '../components/billing/PlanCard';
-import { UsageMeter } from '../components/billing/UsageMeter';
+import { limitsSettingsDetail } from '../features/billing/limitsSummary';
 import { isLunaBillingApiConfigured } from '../config/lunaBillingApi';
 import {
   isPlanCheckoutAvailable,
@@ -27,6 +27,7 @@ import type { PlanConfig } from '../features/billing/plans';
 import type { LunaUsageSnapshot } from '../features/billing/useLunaUsage';
 import type { LunaBillingState, LunaPlanId } from '../features/billing/types';
 import { useHeaderTopPadding } from '../hooks/useLayoutInsets';
+import { hapticConfirm, hapticError } from '../lib/haptics';
 import { tokens } from '../theme/tokens';
 
 interface Props {
@@ -37,9 +38,12 @@ interface Props {
   billingOverdue: boolean;
   onTrial: boolean;
   usage: LunaUsageSnapshot;
+  remaining: number | null;
+  exceeded?: boolean;
   isAnonymous: boolean;
   getIdToken: () => Promise<string | null>;
   onRefreshAccount: () => Promise<void>;
+  onOpenLimits?: () => void;
 }
 
 /** Ecrã de planos e assinatura — port do LunarGate (orbit-legacy). */
@@ -51,9 +55,12 @@ export function PlansScreen({
   billingOverdue,
   onTrial,
   usage,
+  remaining,
+  exceeded,
   isAnonymous,
   getIdToken,
   onRefreshAccount,
+  onOpenLimits,
 }: Props) {
   const headerTopPad = useHeaderTopPadding(12);
   const [period, setPeriod] = useState<BillingPeriod>('monthly');
@@ -97,10 +104,12 @@ export function PlansScreen({
         : await startAsaasCheckout(pendingPlan!.id, period, digits, getIdToken);
 
       if (result.ok) {
+        hapticConfirm();
         await Linking.openURL(result.url);
         startPlanPoll();
         setToast('Conclua o pagamento no navegador — o plano atualiza em instantes.');
       } else {
+        hapticError();
         setToast(result.error);
       }
     } finally {
@@ -182,7 +191,21 @@ export function PlansScreen({
             ) : null}
           </View>
 
-          {usage.cycle !== 'unlimited' ? <UsageMeter usage={usage} /> : null}
+          {usage.cycle !== 'unlimited' && onOpenLimits ? (
+            <Pressable
+              onPress={onOpenLimits}
+              style={({ pressed }) => [styles.limitsLink, pressed && styles.limitsLinkPressed]}
+            >
+              <Ionicons name="speedometer-outline" size={18} color={tokens.accentBright} />
+              <View style={styles.limitsLinkText}>
+                <Text style={styles.limitsLinkTitle}>Limites de uso</Text>
+                <Text style={styles.limitsLinkDetail}>
+                  {limitsSettingsDetail(usage, remaining, Boolean(exceeded))}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={tokens.textLow} />
+            </Pressable>
+          ) : null}
 
           {isAnonymous ? (
             <View style={styles.guestHint}>
@@ -330,6 +353,20 @@ const styles = StyleSheet.create({
   currentLabel: { color: tokens.textMid, fontSize: 13 },
   currentValue: { color: tokens.textHigh, fontSize: 22, fontWeight: '800' },
   renewal: { color: tokens.textLow, fontSize: 12 },
+  limitsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: tokens.glassStrong,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tokens.glassBorder,
+  },
+  limitsLinkPressed: { opacity: 0.88 },
+  limitsLinkText: { flex: 1, gap: 2 },
+  limitsLinkTitle: { color: tokens.textHigh, fontSize: 14, fontWeight: '600' },
+  limitsLinkDetail: { color: tokens.textMid, fontSize: 12 },
   guestHint: {
     flexDirection: 'row',
     gap: 10,

@@ -16,6 +16,7 @@ import {
   sheetActionItemsForMessage,
 } from '../lib/messageActions';
 import { useMotionProfile } from '../hooks/useMotionProfile';
+import { hapticListTap } from '../lib/haptics';
 import { springs } from '../lib/motionTokens';
 import { MessageActionPreview } from './MessageActionPreview';
 import { tokens } from '../theme/tokens';
@@ -115,6 +116,7 @@ export function MessageActionSheet({ visible, message, messages, onClose, onActi
   const sectionLabel = isUser ? 'Sua mensagem' : 'Resposta da Luna';
 
   const runAction = (action: MessageSheetAction) => {
+    hapticListTap();
     onAction(action, message);
     handleClose();
   };
@@ -189,12 +191,12 @@ const styles = StyleSheet.create({
   sheetWrap: { paddingHorizontal: 12, paddingBottom: 24 },
   sheet: {
     borderRadius: 22,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 12,
     backgroundColor: tokens.shell,
+    borderWidth: StyleSheet.hairlineWidth * 2,
+    borderColor: tokens.glassBorder,
     shadowColor: '#000',
     shadowOpacity: 0.45,
     shadowRadius: 24,

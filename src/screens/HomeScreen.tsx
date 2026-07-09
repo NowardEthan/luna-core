@@ -18,7 +18,8 @@ import { SessionItem, UserProfile, VoiceClip } from '../data/fixtures';
 import { useConversationSelection } from '../hooks/useConversationSelection';
 import { useHeaderTopPadding } from '../hooks/useLayoutInsets';
 import { useLunaUsageContext } from '../hooks/LunaUsageContext';
-import { UsageQuotaPill } from '../components/billing/UsageQuotaPill';
+import { UsageLimitChip } from '../components/billing/UsageLimitChip';
+import { quotaComposerPlaceholder } from '../features/billing/limitsSummary';
 import { tokens } from '../theme/tokens';
 import { layout } from '../theme/layout';
 import { type } from '../theme/typography';
@@ -42,6 +43,7 @@ interface Props {
   onDeleteSession: (id: string) => void;
   onVoiceSend: (clip: VoiceClip) => void;
   onOpenPlans?: () => void;
+  onOpenLimits?: () => void;
   onOpenProfile?: () => void;
   onOpenConversas?: () => void;
 }
@@ -58,14 +60,13 @@ export const HomeScreen = memo(function HomeScreen({
   onDeleteSession,
   onVoiceSend,
   onOpenPlans,
+  onOpenLimits,
   onOpenProfile,
   onOpenConversas,
 }: Props) {
   const lunaUsage = useLunaUsageContext();
   const headerTopPad = useHeaderTopPadding(8);
   const selection = useConversationSelection();
-
-  const showQuotaPill = lunaUsage.quotaApplies && !lunaUsage.usage.loading;
 
   const handleConfirmDelete = useCallback(() => {
     for (const id of selection.selectedIds) {
@@ -180,26 +181,32 @@ export const HomeScreen = memo(function HomeScreen({
 
       <View style={styles.composerZone}>
         <ComposerDock>
-          {showQuotaPill ? (
-            <View style={styles.quotaPillRow}>
-              <UsageQuotaPill
-                usage={lunaUsage.usage}
-                remaining={lunaUsage.remaining}
-                exceeded={lunaUsage.isExceeded}
-                onPress={
-                  lunaUsage.isExceeded || (lunaUsage.remaining ?? 0) <= 50
-                    ? onOpenPlans
-                    : undefined
-                }
-              />
-            </View>
+          {lunaUsage.isExceeded ? (
+            <UsageLimitChip
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              exceeded
+              onPress={onOpenLimits ?? onOpenPlans}
+            />
+          ) : lunaUsage.isReducedMode ? (
+            <UsageLimitChip
+              usage={lunaUsage.usage}
+              remaining={lunaUsage.remaining}
+              reduced
+              onPress={onOpenLimits ?? onOpenPlans}
+            />
           ) : null}
           <Composer
             value={draft}
             onChange={onChange}
             onSend={onSend}
             onVoiceResult={onVoiceSend}
-            placeholder="Escreva para a Luna…"
+            placeholder={quotaComposerPlaceholder(
+              lunaUsage.usage,
+              lunaUsage.isExceeded,
+              'Escreva para a Luna…',
+              lunaUsage.isReducedMode,
+            )}
             editable={!lunaUsage.isExceeded}
           />
         </ComposerDock>
@@ -261,10 +268,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     maxWidth: 280,
-  },
-  quotaPillRow: {
-    alignItems: 'flex-start',
-    marginBottom: 6,
   },
   section: {
     marginBottom: 20,

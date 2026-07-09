@@ -1,6 +1,7 @@
 import { getLunaApiUrl } from '../config/lunaApi';
 import { parseHumorBadge, type LunaHumorBadge } from '../lib/lunaHumor';
 import { postSse } from '../lib/lunaSseClient';
+import type { ResearchSource } from '../lib/researchTrace';
 
 export type LunaChatRequest = {
   message: string;
@@ -11,6 +12,8 @@ export type LunaChatRequest = {
   userDisplayName?: string;
   providerId?: 'groq' | 'cerebras' | 'auto';
   modelKey?: 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
+  /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal da Luna. */
+  timeZone?: string;
 };
 
 export type LunaChatResponse =
@@ -25,6 +28,7 @@ export type LunaChatResponse =
       autoMode?: boolean;
       humor_atual?: LunaHumorBadge;
       idempotent?: boolean;
+      quotaMode?: 'plan' | 'reduced';
     }
   | {
       ok: false;
@@ -99,22 +103,26 @@ export type LunaBillingUsageSnapshot = {
   cycle: 'window' | 'monthly' | 'unlimited';
   bindingCycle?: 'window' | 'weekly' | 'monthly';
   periodKey: string;
-  used: {
-    messages: number;
-    images: number;
-    documents: number;
-    voice: number;
-  };
-  limits: Record<string, number | null>;
-  remaining: Record<string, number | null>;
+  usedTokens: number;
+  windowTokenLimit: number | null;
+  remainingTokens: number | null;
   bonusTurns: number;
   resetsAtMs: number | null;
   windowHours: number | null;
-  weeklyMessages?: {
+  weeklyTokens?: {
     used: number;
     limit: number;
     remaining: number;
     resetsAtMs: number;
+  } | null;
+  reducedMode?: {
+    available: boolean;
+    dailyUsed: number;
+    dailyLimit: number;
+    dailyRemaining: number;
+    resetsAtMs: number;
+    requestsPerMinute: number;
+    inputTokensPerMinute: number;
   } | null;
 };
 
@@ -126,7 +134,6 @@ export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageS
 
   try {
     const headers = authHeaders(idToken);
-    console.log('[lunaClient] lunaFetchUsage request', { url: `${base}/v1/billing/usage`, hasAuth: Boolean(headers.Authorization), authPreview: headers.Authorization ? `${headers.Authorization.slice(0, 30)}...` : null });
     const res = await fetch(`${base}/v1/billing/usage`, {
       method: 'GET',
       headers,
@@ -137,7 +144,6 @@ export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageS
       usage?: LunaBillingUsageSnapshot;
       error?: string;
     };
-    console.log('[lunaClient] lunaFetchUsage response', { status: res.status, ok: data.ok, error: data.error, usage: data.usage });
     if (!res.ok || !data.ok || !data.usage) {
       throw new LunaApiError(data.error || `Erro ${res.status}`, { status: res.status });
     }
@@ -145,12 +151,39 @@ export async function lunaFetchUsage(idToken: string): Promise<LunaBillingUsageS
   } catch (err) {
     if (err instanceof LunaApiError) throw err;
     if (isNetworkFailure(err)) {
-      throw new LunaApiError('Sem conexão para atualizar o contador de mensagens.');
+      throw new LunaApiError('Sem conexão para atualizar o contador de tokens.');
     }
     throw new LunaApiError('Não foi possível consultar o uso de mensagens.');
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export type LunaRosaryReflectionRequest = {
+  mysteryName: string;
+  mysterySetLabel: string;
+  intention?: string;
+};
+
+/** Reflexão breve no terço — Groq Pulse, sem pipeline completo. */
+export async function lunaRosaryReflection(
+  request: LunaRosaryReflectionRequest,
+  idToken?: string | null,
+): Promise<string> {
+  const base = getLunaApiUrl();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+
+  const res = await fetch(`${base}/v1/rosary/reflection`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(request),
+  });
+  const data = (await res.json()) as { ok: boolean; text?: string; error?: string };
+  if (!res.ok || !data.ok || !data.text) {
+    throw new LunaApiError(data.error || `Erro ${res.status}`, { status: res.status });
+  }
+  return data.text;
 }
 
 /** Envia um turno de chat à Luna Mobile API. */
@@ -171,6 +204,7 @@ export async function lunaChat(request: LunaChatRequest): Promise<LunaChatRespon
         userDisplayName: request.userDisplayName,
         providerId: request.providerId,
         modelKey: request.modelKey,
+        timeZone: request.timeZone,
       }),
       signal: controller.signal,
     });
@@ -225,12 +259,25 @@ export type LunaStreamDone = {
   providerReason?: string;
   autoMode?: boolean;
   humor_atual?: LunaHumorBadge;
+  idempotent?: boolean;
+  quotaMode?: 'plan' | 'reduced';
+};
+
+export type LunaAcaoAgentico = {
+  tipo: 'inicio_ferramenta' | 'fim_ferramenta';
+  ferramenta: string;
+  argumentos: Record<string, unknown>;
+  rodada: number;
+  maxRodadas: number;
+  sucesso?: boolean;
+  fontes?: ResearchSource[];
 };
 
 export type LunaStreamHandlers = {
   onStatus?: (phase: 'analysing' | 'memory' | 'writing') => void;
   onReasoningDelta?: (delta: string) => void;
   onContentDelta?: (delta: string) => void;
+  onAcao?: (acao: LunaAcaoAgentico) => void;
   onDone?: (payload: LunaStreamDone) => void;
   onError?: (error: string) => void;
 };
@@ -267,6 +314,19 @@ function parseSseBlock(
     case 'content':
       if (typeof data.delta === 'string') handlers.onContentDelta?.(data.delta);
       break;
+    case 'acao':
+      if (typeof data.tipo === 'string' && typeof data.ferramenta === 'string') {
+        handlers.onAcao?.({
+          tipo: data.tipo as 'inicio_ferramenta' | 'fim_ferramenta',
+          ferramenta: data.ferramenta,
+          argumentos: (data.argumentos as Record<string, unknown>) ?? {},
+          rodada: Number(data.rodada ?? 0),
+          maxRodadas: Number(data.maxRodadas ?? 0),
+          sucesso: typeof data.sucesso === 'boolean' ? data.sucesso : undefined,
+          fontes: Array.isArray(data.fontes) ? (data.fontes as ResearchSource[]) : undefined,
+        });
+      }
+      break;
     case 'error':
       handlers.onError?.(typeof data.error === 'string' ? data.error : 'Erro de streaming.');
       break;
@@ -281,6 +341,8 @@ function parseSseBlock(
         providerReason: typeof data.providerReason === 'string' ? data.providerReason : undefined,
         autoMode: data.autoMode === true,
         humor_atual: parseHumorBadge(data.humor_atual),
+        idempotent: typeof data.idempotent === 'boolean' ? data.idempotent : undefined,
+        quotaMode: data.quotaMode === 'reduced' ? 'reduced' : data.quotaMode === 'plan' ? 'plan' : undefined,
       };
   }
   return null;
@@ -309,6 +371,7 @@ export async function lunaChatStream(
         userDisplayName: request.userDisplayName,
         providerId: request.providerId,
         modelKey: request.modelKey,
+        timeZone: request.timeZone,
       }),
       signal: controller.signal,
       onEvent: (event, dataLine) => {

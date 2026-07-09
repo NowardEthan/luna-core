@@ -30,6 +30,13 @@ export type FirestoreMessageDoc = {
     attachmentName?: string;
     attachmentUri?: string;
   };
+  /** Passos de pesquisa (web_search / ler_url) executados para gerar esta resposta. */
+  research?: {
+    ferramenta: string;
+    argumento: string;
+    sucesso?: boolean;
+    fontes?: { title?: string; url: string }[];
+  }[];
 };
 
 /** Doc mobile (subcollection messages) + legacy Orbit desktop (messages[] embutido). */
@@ -48,6 +55,17 @@ export type FirestoreConversationDoc = {
   messageCount?: number;
   /** Fixada no perfil / lista de conversas. */
   pinned?: boolean;
+  /** Pasta de organização. */
+  collectionId?: string | null;
+  /** Título definido manualmente — não sobrescrever com deriveTitle. */
+  titleLocked?: boolean;
+};
+
+export type FirestoreCollectionDoc = {
+  name: string;
+  parentId?: string | null;
+  createdAt?: Timestamp | number;
+  updatedAt?: Timestamp | number;
 };
 
 export type FirestoreTrashConversationDoc = FirestoreConversationDoc & {

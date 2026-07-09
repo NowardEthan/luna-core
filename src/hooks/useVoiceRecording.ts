@@ -138,7 +138,11 @@ export function useVoiceRecording() {
     }
     disposeRecorder(recorderRef.current);
     recorderRef.current = null;
-    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    try {
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    } catch {
+      /* falha ao liberar o modo de áudio não deve travar o cancelamento */
+    }
   }, [stopPolling]);
 
   const finish = useCallback(async (): Promise<VoiceClip | null> => {
@@ -156,7 +160,11 @@ export function useVoiceRecording() {
       return null;
     }
 
-    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    try {
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    } catch {
+      /* falha ao liberar o modo de áudio não deve travar o envio */
+    }
 
     const uri = recorder.uri;
     disposeRecorder(recorderRef.current);

@@ -2,12 +2,12 @@ import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { GalleryAlbum } from '../../lib/mediaLibraryRecent';
 import { tokens } from '../../theme/tokens';
@@ -61,7 +61,7 @@ export function AttachAlbumList({ albums, loading, onSelectAlbum, onSelectAllPho
         >
           <View style={styles.coverWrap}>
             {item.coverUri ? (
-              <Image source={{ uri: item.coverUri }} style={styles.cover} resizeMode="cover" />
+              <Image source={{ uri: item.coverUri }} style={styles.cover} contentFit="cover" transition={150} />
             ) : (
               <View style={styles.coverFallback}>
                 <Ionicons name="folder-outline" size={20} color={tokens.textMid} />
