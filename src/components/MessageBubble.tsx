@@ -8,7 +8,8 @@ import { MessageMarkdown } from './chat/MessageMarkdown';
 import { StreamingMarkdown } from './chat/StreamingMarkdown';
 import { StreamWordReveal } from './chat/StreamWordReveal';
 import { ReasoningLiveStrip } from './chat/ReasoningLiveStrip';
-import { ResearchTrace } from './chat/ResearchTrace';
+import { LunaActionTimeline } from './chat/LunaActionTimeline';
+import { buildResearchRunFromSteps } from '../lib/lunaActionModel';
 import { ExcerptHighlightText } from './chat/excerptHighlight';
 import { shouldRenderMarkdown } from './chat/detectMarkdown';
 import { ThreadReferenceQuote } from './ThreadReferenceQuote';
@@ -244,13 +245,20 @@ function MessageBubbleInner({
           onOpenDocumentPreview={onOpenDocumentPreview}
         />
       ) : null}
-      {message.research?.length || message.researchLive ? (
-        <ResearchTrace
-          steps={message.research}
-          live={message.researchLive}
-          citedText={message.text}
+      {(message.research?.length || message.researchLive) && (
+        <LunaActionTimeline
+          run={buildResearchRunFromSteps(message.research ?? [], {
+            live: message.researchLive
+              ? {
+                  ferramenta: message.researchLive.ferramenta,
+                  argumento: message.researchLive.argumento,
+                  rodada: message.researchLive.rodada,
+                  maxRodadas: message.researchLive.maxRodadas,
+                }
+              : undefined,
+          })}
         />
-      ) : null}
+      )}
       {message.reasoning?.trim() || message.reasoningStreaming ? (
         <ReasoningLiveStrip
           reasoning={message.reasoning}
