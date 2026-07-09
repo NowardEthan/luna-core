@@ -228,7 +228,7 @@ async function prepararChatMobile(
   }
 
   const isCerebras = selection.providerId === "cerebras" || isCerebrasConfig(config);
-  const isOpenrouter = selection.providerId === "openrouter" || isOpenrouterConfig(config);
+  const isOpenrouter = isOpenrouterConfig(config);
   const mensagemLimit = isCerebras || isOpenrouter ? 12_000 : undefined;
 
   const corePath = resolveLunaCorePath();
