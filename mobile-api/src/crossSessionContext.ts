@@ -7,7 +7,7 @@ type TurnoRemoto = {
 };
 
 type LunaCoreCross = {
-  prepararSessaoOrbit: (sessaoId: string) => unknown;
+  prepararSessaoOrbit: (sessaoId: string) => { mensagens: unknown[] };
   buscarContextoOutrasSessoes: (
     mensagem: string,
     sessaoAtualId: string,
@@ -203,6 +203,11 @@ export type PrepararMemoriaGlobalResult = {
   contextoCrossSessao: string[];
 };
 
+// Contexto de outras sessões não muda no meio de uma conversa — computa uma
+// vez por sessão (processo vivo) em vez de refazer ~4 leituras Firestore a
+// cada mensagem. Mesmo padrão de cache-em-memória de `roteador.ts:cacheEmbeddings`.
+const cacheContextoCrossSessao = new Map<string, string[]>();
+
 /**
  * Prepara memória global: hidrata sessão actual a partir do Firestore e
  * recolhe trechos de outras conversas do mesmo utilizador.
@@ -213,9 +218,14 @@ export async function prepararMemoriaGlobalMobile(
   const { core, uid, sessionId, mensagem } = input;
   const maxSessoes = input.maxSessoes ?? 3;
 
-  core.prepararSessaoOrbit(sessionId);
+  const sessaoLocal = core.prepararSessaoOrbit(sessionId);
 
-  if (uid) {
+  // `hidratarSessaoOrbit` só aplica o Firestore quando ele tem MAIS turnos
+  // que o local (ver orbitIntegracao.ts) — ou seja, a partir do momento em
+  // que a sessão já tem histórico local, essa leitura remota é sempre
+  // descartada. Só vale a pena pagar o round-trip quando a sessão local
+  // está mesmo vazia (instância nova do servidor, ou 1ª mensagem).
+  if (uid && sessaoLocal.mensagens.length === 0) {
     try {
       const turnos = await carregarMensagensFirestore(uid, sessionId);
       if (turnos.length > 0) {
@@ -229,11 +239,17 @@ export async function prepararMemoriaGlobalMobile(
   const resumos: string[] = [];
 
   if (uid) {
-    try {
-      const firestore = await buscarContextoFirestore(uid, sessionId, mensagem, maxSessoes);
-      resumos.push(...firestore);
-    } catch {
-      /* ignora falha remota */
+    const cacheado = cacheContextoCrossSessao.get(sessionId);
+    if (cacheado) {
+      resumos.push(...cacheado);
+    } else {
+      try {
+        const firestore = await buscarContextoFirestore(uid, sessionId, mensagem, maxSessoes);
+        resumos.push(...firestore);
+        cacheContextoCrossSessao.set(sessionId, firestore);
+      } catch {
+        /* ignora falha remota */
+      }
     }
   }
 
