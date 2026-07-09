@@ -256,6 +256,8 @@ function MessageBubbleInner({
                   maxRodadas: message.researchLive.maxRodadas,
                 }
               : undefined,
+            reasoning: message.reasoning,
+            citedText: message.text,
           })}
         />
       )}

@@ -134,6 +134,22 @@ const ActionStepCard = memo(function ActionStepCard({ step }: { step: LunaAction
             ))}
           </View>
         ) : null}
+        {step.citations && step.citations.length > 0 ? (
+          <View style={styles.citationList}>
+            {step.citations.map((citation) => (
+              <Pressable
+                key={citation.id}
+                style={styles.citationRow}
+                onPress={() => void Linking.openURL(citation.url)}
+              >
+                <Text style={styles.citationIndex}>[{citation.index}]</Text>
+                <Text style={styles.citationTitle} numberOfLines={1}>
+                  {citation.title}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -482,5 +498,24 @@ const styles = StyleSheet.create({
     color: tokens.textMid,
     lineHeight: 14,
     marginTop: 4,
+  },
+  citationList: {
+    marginTop: 8,
+    gap: 4,
+  },
+  citationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  citationIndex: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: tokens.accentText,
+  },
+  citationTitle: {
+    flex: 1,
+    fontSize: 12,
+    color: tokens.accentText,
   },
 });

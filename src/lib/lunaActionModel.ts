@@ -197,9 +197,25 @@ export function formatResearchMetricCitations(count: number): string {
 
 export function buildResearchRunFromSteps(
   steps: { ferramenta: string; argumento: string; sucesso?: boolean; fontes?: { title?: string; url: string }[] }[],
-  opts?: { live?: { ferramenta: string; argumento: string; rodada: number; maxRodadas: number } },
+  opts?: {
+    live?: { ferramenta: string; argumento: string; rodada: number; maxRodadas: number };
+    reasoning?: string;
+    citedText?: string;
+  },
 ): LunaActionRun {
-  const actionSteps: LunaActionStep[] = steps.map((s, index) => {
+  const actionSteps: LunaActionStep[] = [];
+
+  if (opts?.reasoning?.trim()) {
+    actionSteps.push({
+      id: 'rs-reasoning',
+      kind: 'reason',
+      label: 'Analisando pedido',
+      status: 'done',
+      reasoning: { id: 'rs-reasoning-text', text: opts.reasoning.trim(), status: 'done' },
+    });
+  }
+
+  for (const [index, s] of steps.entries()) {
     const isUrl = s.ferramenta === 'ler_url';
     const kind: LunaActionStepKind = isUrl ? 'read' : 'search';
     const label = isUrl ? `Ler ${s.argumento}` : `Pesquisar "${s.argumento}"`;
@@ -208,17 +224,41 @@ export function buildResearchRunFromSteps(
       title: f.title ?? hostFromUrl(f.url),
       url: f.url,
       domain: hostFromUrl(f.url),
+      snippet: (f as { snippet?: string }).snippet,
       status: s.sucesso === false ? 'rejected' : 'read',
     }));
-    return {
+    actionSteps.push({
       id: `rs-${index}`,
       kind,
       label,
       status: s.sucesso === false ? 'error' : 'done',
       queries: isUrl ? undefined : [s.argumento],
       sources,
-    };
-  });
+    });
+  }
+
+  const allSources = actionSteps.flatMap((step) => step.sources ?? []);
+  const citations: LunaResearchCitation[] = [];
+  if (opts?.citedText) {
+    const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(opts.citedText)) !== null) {
+      const title = match[1].trim();
+      const url = match[2].trim();
+      const sourceId = allSources.find((s) => s.url === url)?.id ?? `external-${citations.length}`;
+      citations.push({ id: `cite-${citations.length}`, index: citations.length + 1, sourceId, title, url });
+    }
+  }
+
+  if (citations.length > 0) {
+    actionSteps.push({
+      id: 'rs-citations',
+      kind: 'verify',
+      label: 'Referencias encontradas',
+      status: 'done',
+      citations,
+    });
+  }
 
   if (opts?.live && opts.live.maxRodadas > 0) {
     const isUrl = opts.live.ferramenta === 'ler_url';
