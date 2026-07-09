@@ -16,9 +16,9 @@ import {
 
 export { FREE_PLAN_DEFAULT_PROVIDER };
 
-export type LunaProviderId = 'groq' | 'cerebras' | 'auto';
+export type LunaProviderId = 'groq' | 'cerebras' | 'openrouter' | 'auto';
 
-export type LunaModelKey = 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
+export type LunaModelKey = 'default' | 'glm-47' | 'gpt-oss-120b' | 'deepseek-v3.2' | 'auto';
 
 export type LunaProviderSelection = {
   providerId: LunaProviderId;
@@ -41,11 +41,11 @@ export const DEFAULT_LUNA_PROVIDER: LunaProviderSelection = {
 };
 
 function isProviderId(v: unknown): v is LunaProviderId {
-  return v === 'groq' || v === 'cerebras' || v === 'auto';
+  return v === 'groq' || v === 'cerebras' || v === 'openrouter' || v === 'auto';
 }
 
 function isModelKey(v: unknown): v is LunaModelKey {
-  return v === 'default' || v === 'glm-47' || v === 'gpt-oss-120b' || v === 'auto';
+  return v === 'default' || v === 'glm-47' || v === 'gpt-oss-120b' || v === 'deepseek-v3.2' || v === 'auto';
 }
 
 /** Converte escolhas antigas (OpenRouter / qwen) e aplica política do plano. */
@@ -56,9 +56,15 @@ export function normalizeLegacyProviderSelection(
   const providerId = raw.providerId;
   const modelKey = raw.modelKey;
 
+  if (providerId === 'openrouter' && (modelKey === 'deepseek-v3.2' || modelKey === 'default' || !modelKey)) {
+    return isPremiumModelAllowed(planId)
+      ? { providerId: 'openrouter', modelKey: (modelKey === 'deepseek-v3.2' ? 'deepseek-v3.2' : 'default') as LunaModelKey }
+      : FREE_PLAN_DEFAULT_PROVIDER;
+  }
+
   if (providerId === 'openrouter' || modelKey === 'qwen-next' || modelKey === 'qwen-coder') {
     return isPremiumModelAllowed(planId)
-      ? { providerId: 'cerebras', modelKey: 'glm-47' }
+      ? { providerId: 'openrouter', modelKey: 'default' }
       : FREE_PLAN_DEFAULT_PROVIDER;
   }
 
@@ -233,6 +239,17 @@ function normalizeHealthOption(opt: {
     return {
       providerId: 'auto',
       modelKey: 'auto',
+      label: brand.fullName,
+      description: brand.description,
+      modelId: opt.modelId,
+    };
+  }
+
+  if (opt.providerId === 'openrouter' && (opt.modelKey === 'default' || opt.modelKey === 'deepseek-v3.2')) {
+    const brand = lunaModelBrand(opt.providerId, opt.modelKey);
+    return {
+      providerId: 'openrouter',
+      modelKey: opt.modelKey as LunaModelKey,
       label: brand.fullName,
       description: brand.description,
       modelId: opt.modelId,

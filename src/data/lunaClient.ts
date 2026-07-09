@@ -10,8 +10,8 @@ export type LunaChatRequest = {
   lunaMessageId?: string;
   idToken?: string | null;
   userDisplayName?: string;
-  providerId?: 'groq' | 'cerebras' | 'auto';
-  modelKey?: 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
+  providerId?: 'groq' | 'cerebras' | 'openrouter' | 'auto';
+  modelKey?: 'default' | 'glm-47' | 'gpt-oss-120b' | 'deepseek-v3.2' | 'auto';
   /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal da Luna. */
   timeZone?: string;
 };
@@ -59,8 +59,8 @@ export type LunaHealthResponse = {
   firebaseConfigured?: boolean;
   streamSupported?: boolean;
   llmProviders?: Array<{
-    providerId: 'groq' | 'cerebras' | 'auto';
-    modelKey: 'default' | 'glm-47' | 'gpt-oss-120b' | 'auto';
+    providerId: 'groq' | 'cerebras' | 'openrouter' | 'auto';
+    modelKey: 'default' | 'glm-47' | 'gpt-oss-120b' | 'deepseek-v3.2' | 'auto';
     label: string;
     description: string;
     modelId: string;
