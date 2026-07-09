@@ -9,20 +9,60 @@ import type { ResultadoResposta } from "./responderLuna.js";
 import { listarFerramentasChat } from "../ferramentas/registroFerramentasChat.js";
 import { consultarAtlas } from "../atlas/consultarAtlas.js";
 import { pesquisaWeb, webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
+import { lerUrl } from "../ferramentas/lerUrl.js";
+
+export type FonteAgentico = { title?: string; url: string };
+
+const MAX_RODADAS_AGENTICO = 4;
 
 export type AcaoAgenticoChat = {
   tipo: "inicio_ferramenta" | "fim_ferramenta";
   ferramenta: string;
   argumentos: Record<string, unknown>;
   rodada: number;
+  maxRodadas: number;
   sucesso?: boolean;
+  fontes?: FonteAgentico[];
 };
+
+type ResultadoFerramentaAnalisado = { ok: boolean; fontes?: FonteAgentico[] };
+
+/**
+ * web_search/ler_url nunca lançam exceção ao falhar (devolvem {ok:false} em vez
+ * disso), então `passo.sucesso` do executor não reflete se a busca funcionou de
+ * verdade. Reanalisa o JSON bruto pra decidir o `sucesso` que vai pro cliente.
+ */
+function analisarResultadoFerramenta(ferramenta: string, resultadoJson: string): ResultadoFerramentaAnalisado {
+  try {
+    const parsed = JSON.parse(resultadoJson) as {
+      ok?: boolean;
+      url?: string;
+      title?: string;
+      results?: Array<{ title?: string; url?: string }>;
+    };
+    if (parsed.ok === false) return { ok: false };
+    if (ferramenta === "web_search" && Array.isArray(parsed.results)) {
+      const fontes = parsed.results
+        .filter((r): r is { title?: string; url: string } => typeof r.url === "string" && r.url.length > 0)
+        .map((r) => ({ title: r.title, url: r.url }));
+      return { ok: true, fontes: fontes.length > 0 ? fontes : undefined };
+    }
+    if (ferramenta === "ler_url" && typeof parsed.url === "string") {
+      return { ok: true, fontes: [{ title: parsed.title, url: parsed.url }] };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: true };
+  }
+}
 
 export type OpcoesResponderAgentico = {
   historico?: Array<{ papel: "user" | "assistant"; conteudo: string }>;
   anexosImagem?: EntradaVisaoGemma["imagens"];
   raciocinioAtivo?: boolean;
   onAcao?: (acao: AcaoAgenticoChat) => void;
+  /** Raciocínio do modelo por rodada (antes de decidir usar ferramentas ou responder). */
+  onRaciocinio?: (rodada: number, texto: string, emProgresso: boolean) => void;
   visaoDeps?: DependenciasVisaoGemma;
 };
 
@@ -73,10 +113,13 @@ export async function responderComoLunaAgentico(
     compilarGuiaFerramentasPrompt(),
     contextoCompilado.briefing,
     "Se houver dúvida visual, use a ferramenta ver_imagem antes de responder.",
+    "Usa `ler_url` quando o usuário colar um link e quiser que leias, resumas ou analises aquela página específica.",
     webSearchDisponivel()
-      ? "Usa `web_search` quando precisares de informação actual da internet (notícias, preços, eventos). " +
+      ? "Usa `web_search` quando precisares de informação actual da internet por palavras-chave (notícias, preços, eventos) — não para abrir um link específico, aí usa `ler_url`. " +
         "Não repitas a mesma pesquisa se os resultados já estão nas tool messages deste turno. " +
-        "Na resposta final, estrutura em Markdown com links [nome](url) para fontes reais."
+        "Na resposta final, estrutura em Markdown com links [nome](url) apenas para fontes que realmente vieram no resultado da ferramenta (campo `results`/`url`). " +
+        "Se `web_search` ou `ler_url` devolver `ok: false` ou nenhum resultado, NÃO invente links, nomes de site ou citações. Começa a resposta avisando isso claramente (ex.: \"não encontrei nada na busca sobre X\") antes de qualquer outra coisa — não deixes o aviso escondido no meio ou no fim do texto. " +
+        "Nesse caso, se ainda assim quiseres responder com o que sabes do teu próprio treino, deixa isso bem explícito (\"pelo teu treino, sem confirmar agora\") e evita números, datas, versões ou benchmarks específicos que não consegues verificar — não escrevas uma resposta longa e estruturada em tópicos como se fosse pesquisa real; um resumo curto e visivelmente incerto é mais honesto."
       : null,
   ]
     .filter(Boolean)
@@ -89,19 +132,33 @@ export async function responderComoLunaAgentico(
     provedor,
     config,
     raciocinioAtivo: opcoes.raciocinioAtivo !== false,
-    maxRodadas: 4,
+    maxRodadas: MAX_RODADAS_AGENTICO,
     onToolCallStart: (nome, argumentos, rodada) => {
-      opcoes.onAcao?.({ tipo: "inicio_ferramenta", ferramenta: nome, argumentos, rodada });
+      opcoes.onAcao?.({
+        tipo: "inicio_ferramenta",
+        ferramenta: nome,
+        argumentos,
+        rodada,
+        maxRodadas: MAX_RODADAS_AGENTICO,
+      });
     },
     onToolCallComplete: (passo) => {
+      const ehFerramentaDePesquisa = passo.ferramenta === "web_search" || passo.ferramenta === "ler_url";
+      const analise =
+        passo.sucesso && ehFerramentaDePesquisa
+          ? analisarResultadoFerramenta(passo.ferramenta, passo.resultado)
+          : { ok: passo.sucesso };
       opcoes.onAcao?.({
         tipo: "fim_ferramenta",
         ferramenta: passo.ferramenta,
         argumentos: passo.argumentos,
         rodada: passo.rodada,
-        sucesso: passo.sucesso,
+        maxRodadas: MAX_RODADAS_AGENTICO,
+        sucesso: analise.ok,
+        fontes: analise.fontes,
       });
     },
+    onRaciocinioRodada: opcoes.onRaciocinio,
     toolExecutor: async (nome, args) => {
       if (nome === "web_search") {
         const query = typeof args.query === "string" ? args.query.trim() : "";
@@ -109,6 +166,15 @@ export async function responderComoLunaAgentico(
           return JSON.stringify({ ok: false, error: "Parâmetro query é obrigatório para web_search." });
         }
         const resultado = await pesquisaWeb(query);
+        return JSON.stringify(resultado);
+      }
+
+      if (nome === "ler_url") {
+        const url = typeof args.url === "string" ? args.url.trim() : "";
+        if (!url) {
+          return JSON.stringify({ ok: false, error: "Parâmetro url é obrigatório para ler_url." });
+        }
+        const resultado = await lerUrl(url);
         return JSON.stringify(resultado);
       }
 

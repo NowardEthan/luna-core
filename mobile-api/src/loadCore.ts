@@ -27,7 +27,9 @@ export type ChatStreamCallbacks = {
     ferramenta: string;
     argumentos: Record<string, unknown>;
     rodada: number;
+    maxRodadas: number;
     sucesso?: boolean;
+    fontes?: Array<{ title?: string; url: string }>;
   }) => void;
 };
 
@@ -69,6 +71,7 @@ export type LunaCoreModule = {
       interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
       config?: ConfigLuna;
       stream?: boolean;
+      timeZone?: string;
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;
       onStreamContentDelta?: (delta: string) => void;
@@ -83,7 +86,9 @@ export type LunaCoreModule = {
         ferramenta: string;
         argumentos: Record<string, unknown>;
         rodada: number;
+        maxRodadas: number;
         sucesso?: boolean;
+        fontes?: Array<{ title?: string; url: string }>;
       }) => void;
     },
   ) => Promise<{
@@ -196,6 +201,7 @@ async function prepararChatMobile(
   userDisplayName: string | undefined,
   uid: string | null | undefined,
   planId: PlanId,
+  timeZone?: string,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -281,6 +287,7 @@ async function prepararChatMobile(
     detalheAmbiente,
     interlocutor,
     anexosImagem,
+    timeZone,
   };
 }
 
@@ -317,8 +324,9 @@ export async function executarChatMobile(
   userDisplayName?: string,
   uid?: string | null,
   planId: PlanId = "free",
+  timeZone?: string,
 ): Promise<ChatMobileResult> {
-  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
+  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId, timeZone);
 
   const rodarPipeline = async () => {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
@@ -333,6 +341,7 @@ export async function executarChatMobile(
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
       stream: false,
+      timeZone: prep.timeZone,
     });
     return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
   };
@@ -356,12 +365,13 @@ export async function executarChatMobileStream(
   userDisplayName?: string,
   uid?: string | null,
   planId: PlanId = "free",
+  timeZone?: string,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
-    return executarChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
+    return executarChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId, timeZone);
   }
 
-  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId);
+  const prep = await prepararChatMobile(message, sessionId, attachments, llm, userDisplayName, uid, planId, timeZone);
 
   const rodarPipeline = async () => {
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
@@ -376,6 +386,7 @@ export async function executarChatMobileStream(
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
       stream: true,
+      timeZone: prep.timeZone,
       onStatusHint: (hint) => {
         const phase = mapStatusHint(hint);
         if (phase) callbacks.onStatus?.(phase);

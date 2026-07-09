@@ -258,6 +258,7 @@ async function resolverTurnoChat(params: {
       parsed.userDisplayName,
       auth?.uid ?? null,
       planId,
+      parsed.timeZone,
     ),
   );
 
@@ -502,6 +503,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             modelKey: llmSelection.modelKey,
             turnCount: 0,
             humor_atual: cached.humor_atual,
+            idempotent: true,
           });
           res.end();
           return;
@@ -551,6 +553,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.userDisplayName,
         auth?.uid ?? null,
         planId,
+        parsed.timeZone,
       );
 
       clearTimeout(streamTimeout);
@@ -590,6 +593,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         autoMode: result.autoMode,
         humor_atual: result.humor_atual,
         quotaMode: streamQuotaMode,
+        idempotent: false,
       });
       res.end();
     } catch (err) {

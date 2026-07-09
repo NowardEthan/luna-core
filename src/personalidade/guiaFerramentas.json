@@ -30,7 +30,7 @@
         "Quando a pergunta é só conversa, opinião ou conhecimento estável sem necessidade de fonte actual.",
         "Quando os resultados da mesma pesquisa já estão nas mensagens de ferramenta deste turno."
       ],
-      "saida_esperada": "Resposta em Markdown com síntese e links [título](url) para fontes reais."
+      "saida_esperada": "Resposta em Markdown com síntese e links [título](url) apenas para fontes que vieram de facto no resultado da ferramenta. Se a ferramenta falhar ou não devolver resultados, diz isso claramente — nunca inventes links ou fontes."
     }
   ]
 }

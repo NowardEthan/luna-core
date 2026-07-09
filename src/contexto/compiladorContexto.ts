@@ -5,6 +5,7 @@
 
 export type EntradasCompilador = {
   politica: string;
+  tempo?: string;
   identidade?: string;
   agentico?: string;
   formato?: string;
@@ -37,6 +38,7 @@ type SecaoDef = {
 };
 
 const SECOES: SecaoDef[] = [
+  { chave: "tempo", titulo: "Agora", prioridade: 0, orcamento: 80 },
   { chave: "identidade", titulo: "Identidade", prioridade: 1, orcamento: 320 },
   { chave: "agentico", titulo: "Ferramentas", prioridade: 2, orcamento: 60 },
   { chave: "formato", titulo: "Formato", prioridade: 2, orcamento: 80 },
@@ -57,6 +59,7 @@ const SECOES: SecaoDef[] = [
 
 /** Secções do Mundo Interior — nunca cortadas por orçamento. */
 const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
+  "tempo",
   "identidade",
   "intencao_luna",
   "humor",

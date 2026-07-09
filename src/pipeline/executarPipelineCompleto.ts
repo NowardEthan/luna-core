@@ -119,6 +119,8 @@ export type OpcoesPipelineCompleto = {
   onStreamDone?: (resposta: ResultadoResposta) => void;
   anexosImagem?: AnexoImagemChat[];
   onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
+  /** Fuso IANA do dispositivo do usuário (ex.: "America/Sao_Paulo") — para grounding temporal. */
+  timeZone?: string;
 };
 
 function pipelineMobileRapido(ambiente?: string): boolean {
@@ -144,6 +146,10 @@ function featureFlagAgenticoWebAtiva(): boolean {
   return true;
 }
 
+function mensagemContemUrl(mensagem: string): boolean {
+  return /https?:\/\/\S+/i.test(mensagem);
+}
+
 function deveUsarModoAgentico(
   provedor: ProvedorLlm,
   mensagem: string,
@@ -153,7 +159,7 @@ function deveUsarModoAgentico(
   const vision =
     featureFlagAgenticoVisionAtiva() &&
     (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
-  const web = featureFlagAgenticoWebAtiva();
+  const web = featureFlagAgenticoWebAtiva() || mensagemContemUrl(mensagem);
   return vision || web;
 }
 
@@ -502,6 +508,7 @@ export async function executarPipelineCompleto(
       resumoRolante: sessao?.resumo_rolante,
       interlocutor: opcoes.interlocutor,
       intencao: analise.analise.intencao,
+      timeZone: opcoes.timeZone,
     });
     entradas = { ...entradas, vida: nucleo.vida };
 
@@ -567,6 +574,7 @@ export async function executarPipelineCompleto(
           resumoRolante: sessao?.resumo_rolante,
           interlocutor: opcoes.interlocutor,
           intencao: analise.analise.intencao,
+          timeZone: opcoes.timeZone,
         });
         entradas = { ...entradas, vida: nucleo.vida };
       }
@@ -606,6 +614,14 @@ export async function executarPipelineCompleto(
           anexosImagem,
           raciocinioAtivo,
           onAcao: opcoes.onAcaoAgentico,
+          // onRaciocinioRodada dispara 2x por rodada (emProgresso true/false) com o
+          // MESMO texto completo — não são deltas incrementais. Repassa só na 1ª,
+          // senão o texto duplica na tira de raciocínio do cliente.
+          onRaciocinio: opcoes.onStreamReasoningDelta
+            ? (_rodada, texto, emProgresso) => {
+                if (emProgresso) opcoes.onStreamReasoningDelta!(texto);
+              }
+            : undefined,
         },
       );
     } else if (usarStream) {

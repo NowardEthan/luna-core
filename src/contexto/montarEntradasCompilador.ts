@@ -9,6 +9,7 @@ import { gerarBlocoPerfilComportamental } from "../perfil/gerenciadorPerfil.js";
 import { gerarBlocoContextoPreditivo } from "../preditivo/analisadorPreditivo.js";
 import type { PriorIntencao } from "../preditivo/esquemaPreditivo.js";
 import type { EntradasCompilador } from "./compiladorContexto.js";
+import { gerarBlocoTempo } from "./gerarBlocoTempo.js";
 import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
 import {
   extrairDadosAmbiente,
@@ -35,6 +36,8 @@ export type OpcoesMontarEntradas = {
   interlocutor?: InterlocutorPipeline;
   intencao?: AnaliseContexto["intencao"];
   ecossistema?: string;
+  /** Fuso IANA do dispositivo do usuário (ex.: "America/Sao_Paulo"). */
+  timeZone?: string;
 };
 
 export function montarEntradasCompilador(opcoes: OpcoesMontarEntradas): EntradasCompilador {
@@ -52,6 +55,7 @@ export function montarEntradasCompilador(opcoes: OpcoesMontarEntradas): Entradas
     interlocutor,
     intencao,
     ecossistema,
+    timeZone,
   } = opcoes;
 
   let kernelFinal = kernel?.trim() || undefined;
@@ -69,6 +73,7 @@ export function montarEntradasCompilador(opcoes: OpcoesMontarEntradas): Entradas
 
   return {
     politica: montarBlocoPoliticaSituacional(politica),
+    tempo: gerarBlocoTempo(new Date(), timeZone),
     identidade: identidade.trim() || undefined,
     formato: montarSliceFormato(politica),
     ecossistema: ecossistema?.trim() || undefined,

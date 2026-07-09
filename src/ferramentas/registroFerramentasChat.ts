@@ -59,9 +59,26 @@ const FERRAMENTA_WEB_SEARCH: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_LER_URL: DefinicaoFerramenta = {
+  nome: "ler_url",
+  descricao:
+    "Abre e lê o conteúdo de uma URL específica (ex.: um link que o usuário colou na conversa). " +
+    "Usa esta ferramenta — não web_search — quando já existe um link concreto para ler, resumir ou analisar.",
+  parametros: {
+    type: "object",
+    properties: {
+      url: {
+        type: "string",
+        description: "URL completa a abrir (deve começar com http:// ou https://).",
+      },
+    },
+    required: ["url"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(): DefinicaoFerramenta[] {
-  const ferramentas = [...FERRAMENTAS_BASE];
+  const ferramentas = [...FERRAMENTAS_BASE, FERRAMENTA_LER_URL];
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
   }

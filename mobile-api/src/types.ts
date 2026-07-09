@@ -15,6 +15,8 @@ export const ChatRequestSchema = z.object({
   modelKey: LlmModelKeySchema.optional(),
   /** Nome preferido do utilizador (perfil/conta) — evita confundir com «Luna». */
   userDisplayName: z.string().min(1).max(64).optional(),
+  /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal. */
+  timeZone: z.string().min(1).max(64).optional(),
   /** Anexos de imagem em base64 para visão agêntica no core. */
   attachments: z
     .array(
