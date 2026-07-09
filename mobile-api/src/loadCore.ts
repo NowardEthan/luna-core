@@ -4,6 +4,7 @@ import { prepararMemoriaGlobalMobile } from "./crossSessionContext.js";
 import { resolveLunaCoreEntry, resolveLunaCorePath } from "./resolveCorePath.js";
 import {
   isStreamSupported,
+  listConfiguredProviderOptions,
   resolveLlmConfig,
   resolveLlmProviderSelection,
   type ConfigLuna,
@@ -325,6 +326,45 @@ function resultadoFromPipeline(
     autoMode: Boolean(resolved?.autoReason),
     humor_atual: resultado.humor_atual,
   };
+}
+
+function erroDeProvedorRecuperavel(erro: unknown): boolean {
+  const mensagem = erro instanceof Error ? erro.message : String(erro);
+  const texto = mensagem.toLowerCase();
+  return (
+    texto.includes("402") ||
+    texto.includes("429") ||
+    texto.includes("500") ||
+    texto.includes("503") ||
+    texto.includes("rate limit") ||
+    texto.includes("limit exceeded") ||
+    texto.includes("payment") ||
+    texto.includes("credits") ||
+    texto.includes("limite de pedidos") ||
+    texto.includes("indisponível") ||
+    texto.includes("indisponivel") ||
+    texto.includes("timeout")
+  );
+}
+
+function listarFallbackSelections(
+  atual: LlmProviderSelection,
+  planId: PlanId,
+): LlmProviderSelection[] {
+  const todos = listConfiguredProviderOptions();
+  // Ordem preferida de fallback: OpenRouter -> Cerebras (GLM) -> Cerebras (GPT-OSS) -> Groq
+  const ordem: LlmProviderSelection[] = [
+    { providerId: "openrouter", modelKey: "default" },
+    { providerId: "cerebras", modelKey: "glm-47" },
+    { providerId: "cerebras", modelKey: "gpt-oss-120b" },
+    { providerId: "groq", modelKey: "default" },
+  ];
+  return ordem
+    .filter(
+      (sel) =>
+        sel.providerId !== atual.providerId || sel.modelKey !== atual.modelKey,
+    )
+    .filter((sel) => todos.some((o) => o.providerId === sel.providerId && o.modelKey === sel.modelKey));
 }
 
 export async function executarChatMobile(

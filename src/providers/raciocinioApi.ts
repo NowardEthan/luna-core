@@ -29,7 +29,7 @@ export function modeloSuportaRaciocinioExplicito(modelo: string, baseUrl: string
     return /zai-glm|glm-4|gpt-oss|gemma-4/i.test(m);
   }
   if (/openrouter\.ai/i.test(baseUrl)) {
-    return /ring|deepseek.*r1|qwen.*thinking|mai-ds-r|thinking/i.test(m);
+    return /ring|deepseek.*r[1-9]|deepseek.*flash|qwen.*thinking|mai-ds-r|thinking/i.test(m);
   }
   return /thinking|r1|gpt-oss|qwen3/i.test(m);
 }

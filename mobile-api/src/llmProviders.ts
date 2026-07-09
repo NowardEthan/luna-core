@@ -69,7 +69,7 @@ const CEREBRAS_GLM_47 = {
 const OPENROUTER_DEEPSEEK = {
   label: LUNA_BRAND_CORE.fullName,
   description: LUNA_BRAND_CORE.description,
-  modelId: "deepseek/deepseek-v3.2",
+  modelId: "deepseek/deepseek-v4-flash",
 };
 
 const CEREBRAS_GPT_OSS_120B = {
