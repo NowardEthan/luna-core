@@ -14,6 +14,10 @@ export type LunaChatRequest = {
   modelKey?: 'default' | 'glm-47' | 'gpt-oss-120b' | 'deepseek-v3.2' | 'auto';
   /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal da Luna. */
   timeZone?: string;
+  /** Ativa/desativa o bloco de raciocínio visível. */
+  reasoningEnabled?: boolean;
+  /** Nível de raciocínio: baixo, médio ou alto. */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 };
 
 export type LunaChatResponse =
@@ -205,6 +209,8 @@ export async function lunaChat(request: LunaChatRequest): Promise<LunaChatRespon
         providerId: request.providerId,
         modelKey: request.modelKey,
         timeZone: request.timeZone,
+        reasoningEnabled: request.reasoningEnabled,
+        reasoningEffort: request.reasoningEffort,
       }),
       signal: controller.signal,
     });
@@ -372,6 +378,8 @@ export async function lunaChatStream(
         providerId: request.providerId,
         modelKey: request.modelKey,
         timeZone: request.timeZone,
+        reasoningEnabled: request.reasoningEnabled,
+        reasoningEffort: request.reasoningEffort,
       }),
       signal: controller.signal,
       onEvent: (event, dataLine) => {

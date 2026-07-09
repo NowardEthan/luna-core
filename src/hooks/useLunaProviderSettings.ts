@@ -4,10 +4,15 @@ import {
   FREE_PLAN_DEFAULT_PROVIDER,
   buildProviderOptionsFromHealth,
   loadLunaProviderSelection,
+  loadReasoningEffort,
+  loadReasoningEnabled,
   pickAvailableProvider,
   saveLunaProviderSelection,
+  saveReasoningEffort,
+  saveReasoningEnabled,
   type LunaProviderOption,
   type LunaProviderSelection,
+  type LunaReasoningEffort,
 } from '../lib/lunaProviderSettings';
 import {
   filterProviderOptionsForPlan,
@@ -27,6 +32,8 @@ export function useLunaProviderSettings(planId: LunaPlanId = 'free') {
   const [legacyApi, setLegacyApi] = useState(false);
   const [apiReachable, setApiReachable] = useState(false);
   const [lastRouting, setLastRouting] = useState<string | null>(null);
+  const [reasoningEnabled, setReasoningEnabledState] = useState<boolean>(true);
+  const [reasoningEffort, setReasoningEffortState] = useState<LunaReasoningEffort>('medium');
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -39,10 +46,14 @@ export function useLunaProviderSettings(planId: LunaPlanId = 'free') {
   const refreshFromServer = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [stored, healthData] = await Promise.all([
+      const [stored, healthData, enabled, effort] = await Promise.all([
         loadLunaProviderSelection(planId),
         lunaHealth(),
+        loadReasoningEnabled(),
+        loadReasoningEffort(),
       ]);
+      setReasoningEnabled(enabled);
+      setReasoningEffort(effort);
       if (!mountedRef.current) return { selection: stored, options: [] };
 
       const built = buildProviderOptionsFromHealth(healthData);
@@ -80,6 +91,22 @@ export function useLunaProviderSettings(planId: LunaPlanId = 'free') {
     [planId],
   );
 
+  const setReasoningEnabled = useCallback(
+    async (enabled: boolean) => {
+      setReasoningEnabledState(enabled);
+      await saveReasoningEnabled(enabled);
+    },
+    [],
+  );
+
+  const setReasoningEffort = useCallback(
+    async (effort: LunaReasoningEffort) => {
+      setReasoningEffortState(effort);
+      await saveReasoningEffort(effort);
+    },
+    [],
+  );
+
   return useMemo(
     () => ({
       selection,
@@ -93,6 +120,10 @@ export function useLunaProviderSettings(planId: LunaPlanId = 'free') {
       setLastRouting,
       setProvider,
       refreshFromServer,
+      reasoningEnabled,
+      reasoningEffort,
+      setReasoningEnabled,
+      setReasoningEffort,
     }),
     [
       selection,
@@ -105,6 +136,10 @@ export function useLunaProviderSettings(planId: LunaPlanId = 'free') {
       lastRouting,
       setProvider,
       refreshFromServer,
+      reasoningEnabled,
+      reasoningEffort,
+      setReasoningEnabled,
+      setReasoningEffort,
     ],
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { tokens } from '../../theme/tokens';
 
@@ -14,6 +14,12 @@ interface Props {
   loading?: boolean;
   last?: boolean;
   onPress?: () => void;
+  /** Exibe um Switch no lado direito. */
+  toggle?: boolean;
+  /** Estado do switch. */
+  toggled?: boolean;
+  /** Chamado quando o switch muda. */
+  onToggle?: (value: boolean) => void;
 }
 
 /** Linha de definição — toque opcional. */
@@ -28,6 +34,9 @@ export function SettingsRow({
   loading,
   last,
   onPress,
+  toggle,
+  toggled,
+  onToggle,
 }: Props) {
   const content = (
     <>
@@ -44,6 +53,14 @@ export function SettingsRow({
         <Text style={styles.value} numberOfLines={1}>
           {value}
         </Text>
+      ) : null}
+      {toggle ? (
+        <Switch
+          value={toggled}
+          onValueChange={onToggle}
+          trackColor={{ false: tokens.surfaceRaised, true: `${tokens.accentBright}80` }}
+          thumbColor={toggled ? tokens.accentBright : tokens.textLow}
+        />
       ) : null}
       {showChevron ? <Ionicons name="chevron-forward" size={18} color={tokens.textLow} /> : null}
     </>

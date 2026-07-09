@@ -1,7 +1,11 @@
 import React, { createContext, useContext, type ReactNode } from 'react';
 import { useLunaProviderSettings } from './useLunaProviderSettings';
 import { useLunaUsageContext } from './LunaUsageContext';
-import type { LunaProviderOption, LunaProviderSelection } from '../lib/lunaProviderSettings';
+import type {
+  LunaProviderOption,
+  LunaProviderSelection,
+  LunaReasoningEffort,
+} from '../lib/lunaProviderSettings';
 import type { LunaHealthResponse } from '../data/lunaClient';
 
 type LunaProviderContextValue = {
@@ -19,6 +23,10 @@ type LunaProviderContextValue = {
     selection: LunaProviderSelection;
     options: LunaProviderOption[];
   }>;
+  reasoningEnabled: boolean;
+  reasoningEffort: LunaReasoningEffort;
+  setReasoningEnabled: (enabled: boolean) => Promise<void>;
+  setReasoningEffort: (effort: LunaReasoningEffort) => Promise<void>;
 };
 
 const LunaProviderContext = createContext<LunaProviderContextValue | null>(null);

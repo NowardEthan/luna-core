@@ -50,7 +50,13 @@ export function useOrbitChat() {
   const keyboardOpen = useKeyboardOpen();
   const lunaUsage = useLunaUsageContext();
   const profile = useUserProfile(auth.user, 'Você');
-  const { selection: lunaProvider, legacyApi, setLastRouting } = useLunaProvider();
+  const {
+    selection: lunaProvider,
+    legacyApi,
+    setLastRouting,
+    reasoningEnabled,
+    reasoningEffort,
+  } = useLunaProvider();
   const cloudEnabled = auth.configured && auth.uid != null;
 
   const [screen, setScreen] = useState<Screen>('home');
@@ -243,6 +249,8 @@ export function useOrbitChat() {
     getIdToken: auth.getIdToken,
     displayName: profile.displayName,
     lunaProvider,
+    reasoningEnabled,
+    reasoningEffort,
     legacyApi,
     setLastRouting,
     lunaUsage,

@@ -160,6 +160,42 @@ export function SettingsScreen({
           )}
         </SettingsSection>
 
+        <SettingsSection
+          title="Raciocínio"
+          footer="Quando ativo, a Luna mostra o passo a passo do pensamento dela. Desativar não muda a resposta."
+        >
+          <SettingsRow
+            icon="sparkles-outline"
+            label="Mostrar raciocínio"
+            detail="Deixa o bloco de pensamento visível"
+            toggle
+            toggled={lunaProvider.reasoningEnabled}
+            onToggle={(enabled) => void lunaProvider.setReasoningEnabled(enabled)}
+            last={!lunaProvider.reasoningEnabled}
+          />
+          {lunaProvider.reasoningEnabled && (
+            <SettingsRow
+              icon="layers-outline"
+              label="Profundidade"
+              detail="Quanto mais alto, mais etapas de raciocínio"
+              value={
+                lunaProvider.reasoningEffort === 'low'
+                  ? 'Baixa'
+                  : lunaProvider.reasoningEffort === 'high'
+                    ? 'Alta'
+                    : 'Média'
+              }
+              showChevron
+              onPress={() => {
+                const next: typeof lunaProvider.reasoningEffort[] = ['low', 'medium', 'high'];
+                const idx = next.indexOf(lunaProvider.reasoningEffort);
+                void lunaProvider.setReasoningEffort(next[(idx + 1) % next.length]);
+              }}
+              last
+            />
+          )}
+        </SettingsSection>
+
         <SettingsSection title="Sessão">
           <SettingsRow
             icon="log-out-outline"

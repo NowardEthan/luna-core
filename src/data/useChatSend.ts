@@ -25,7 +25,7 @@ import { formatMessageWithReference, type ThreadReference } from '../lib/message
 import { estimateFadeDrainMs, tokenizeStreamSegments } from '../lib/streamWordBuffer';
 import { flushStreamRender } from '../lib/lunaSseClient';
 import { looksLikeMarkdown } from '../components/chat/detectMarkdown';
-import type { LunaProviderSelection } from '../lib/lunaProviderSettings';
+import type { LunaProviderSelection, LunaReasoningEffort } from '../lib/lunaProviderSettings';
 import type { LunaUsageContextValue } from '../hooks/LunaUsageContext';
 
 const DEVICE_TIME_ZONE = (() => {
@@ -62,6 +62,8 @@ type UseChatSendParams = {
   getIdToken: () => Promise<string | null>;
   displayName: string;
   lunaProvider: LunaProviderSelection;
+  reasoningEnabled: boolean;
+  reasoningEffort: LunaReasoningEffort;
   legacyApi: boolean;
   setLastRouting: (reason: string | null) => void;
   lunaUsage: LunaUsageContextValue;
@@ -95,6 +97,8 @@ export function useChatSend({
   getIdToken,
   displayName,
   lunaProvider,
+  reasoningEnabled,
+  reasoningEffort,
   legacyApi,
   setLastRouting,
   lunaUsage,
@@ -184,6 +188,8 @@ export function useChatSend({
         idToken,
         userDisplayName: displayName,
         timeZone: DEVICE_TIME_ZONE,
+        reasoningEnabled,
+        reasoningEffort,
         ...(legacyApi
           ? {}
           : {

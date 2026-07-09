@@ -34,6 +34,10 @@ export type LunaProviderOption = {
 };
 
 const STORAGE_KEY = 'orbit.luna.provider';
+const REASONING_ENABLED_KEY = 'orbit.luna.reasoning.enabled';
+const REASONING_EFFORT_KEY = 'orbit.luna.reasoning.effort';
+
+export type LunaReasoningEffort = 'low' | 'medium' | 'high';
 
 export const DEFAULT_LUNA_PROVIDER: LunaProviderSelection = {
   providerId: 'cerebras',
@@ -120,6 +124,40 @@ export async function loadLunaProviderSelection(
 /** Grava a escolha no dispositivo. */
 export async function saveLunaProviderSelection(selection: LunaProviderSelection): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
+}
+
+function isReasoningEffort(v: unknown): v is LunaReasoningEffort {
+  return v === 'low' || v === 'medium' || v === 'high';
+}
+
+/** Lê se o raciocínio visível está ativado (default: true). */
+export async function loadReasoningEnabled(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(REASONING_ENABLED_KEY);
+    return raw == null ? true : raw === 'true';
+  } catch {
+    return true;
+  }
+}
+
+/** Grava se o raciocínio visível está ativado. */
+export async function saveReasoningEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(REASONING_ENABLED_KEY, String(enabled));
+}
+
+/** Lê o nível de raciocínio (default: medium). */
+export async function loadReasoningEffort(): Promise<LunaReasoningEffort> {
+  try {
+    const raw = await AsyncStorage.getItem(REASONING_EFFORT_KEY);
+    return isReasoningEffort(raw) ? raw : 'medium';
+  } catch {
+    return 'medium';
+  }
+}
+
+/** Grava o nível de raciocínio. */
+export async function saveReasoningEffort(effort: LunaReasoningEffort): Promise<void> {
+  await AsyncStorage.setItem(REASONING_EFFORT_KEY, effort);
 }
 
 /** Valida se a opção ainda existe no servidor (health). */
