@@ -114,6 +114,8 @@ function sendSseEvent(res: ServerResponse, event: string, data: unknown): void {
 }
 
 function sendMappedSseError(res: ServerResponse, erro: unknown): void {
+  const detalhe = erro instanceof Error ? erro.stack ?? erro.message : String(erro);
+  console.error("[server] SSE error mapped:", detalhe);
   sendSseEvent(res, "error", mapearErroParaEventoSse(erro));
 }
 
@@ -444,8 +446,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       };
       return sendJson(res, 200, payload);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const payload: ChatResponse = { ok: false, error: message };
+      const message = err instanceof Error ? err.stack ?? err.message : String(err);
+      console.error("[server] /v1/chat error:", message);
+      const payload: ChatResponse = { ok: false, error: err instanceof Error ? err.message : String(err) };
       return sendJson(res, 400, payload);
     }
   }
@@ -601,6 +604,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       });
       res.end();
     } catch (err) {
+      const message = err instanceof Error ? err.stack ?? err.message : String(err);
+      console.error("[server] /v1/chat/stream error:", message);
       if (sseStarted) {
         sendMappedSseError(res, err);
         res.end();
