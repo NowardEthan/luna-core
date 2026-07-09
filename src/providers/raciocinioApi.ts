@@ -45,11 +45,13 @@ export function precisaRaciocinioPorPrompt(
 }
 
 const BLOCO_RACIOCINIO_PROMPT =
-  "Antes da resposta visível ao utilizador, escreve o teu raciocínio em português (Portugal) " +
-  "num bloco de raciocínio delimitado (tags XML think de abertura e fecho). " +
-  "Esse bloco também é lido pela pessoa — continua na primeira pessoa, dentro da personagem, " +
-  "sem citar rótulos do briefing nem falar de ti mesma como um processo de sistema. " +
-  "Depois escreve a resposta final — sem repetir o bloco de raciocínio.";
+  "Antes da resposta visível ao usuario, escreve o teu raciocinio em portugues do Brasil " +
+  "num bloco de raciocinio delimitado (tags XML think de abertura e fecho). " +
+  "Esse bloco tambem e lido pela pessoa — continua na primeira pessoa, dentro da personagem, " +
+  "sem citar rotulos do briefing (ex.: 'Olhando para o briefing', 'Perfil de escrita', 'Familias de humor', 'Calor textual'), " +
+  "sem listar marcacoes de sistema e sem falar de ti mesma como um processo, modelo ou codigo. " +
+  "Pensa em voz propria: o que sentiu, o que percebeu na mensagem, o que pretende responder. " +
+  "Depois escreve a resposta final — sem repetir o bloco de raciocinio.";
 
 export function blocoPromptRaciocinioInline(): string {
   return BLOCO_RACIOCINIO_PROMPT;
@@ -91,6 +93,57 @@ export function extrairRaciocinioInline(conteudo: string): ExtracaoRaciocinioInl
   return { conteudo: raw };
 }
 
+const META_INSTRUCTION_TERMS = [
+  /olhando para o briefing/i,
+  /perfil de escrita/i,
+  /fam[ií]lias de humor/i,
+  /calor textual/i,
+  /interjei[çc][õo]es/i,
+  /pergunta final/i,
+  /arqu[eé]tipo/i,
+  /modos de presen[çc]a/i,
+  /ajustes de tom/i,
+  /guia markdown/i,
+  /antipadr[õo]es/i,
+  /o usu[áa]rio disse/i,
+  /o usu[áa]rio [ée]/i,
+  /vou responder/i,
+  /resposta final/i,
+  /\bbriefing\b/i,
+];
+
+function raciocinioPareceDumpDeInstrucoes(texto: string): boolean {
+  const linhas = texto.split(/\n+/).filter((l) => l.trim());
+  let matches = 0;
+  for (const linha of linhas) {
+    if (META_INSTRUCTION_TERMS.some((re) => re.test(linha))) matches++;
+  }
+  return matches >= 2 || matches / Math.max(linhas.length, 1) > 0.25;
+}
+
+/** Remove parágrafos que reproduzem o briefing / meta-instruções. */
+export function sanitizarRaciocinioParaCliente(raciocinio?: string): string | undefined {
+  if (!raciocinio?.trim()) return undefined;
+
+  const paragrafos = raciocinio
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const limpos = paragrafos.filter((p) => {
+    const primeiraLinha = p.split(/\n/)[0] ?? "";
+    const pareceMeta = META_INSTRUCTION_TERMS.some((re) => re.test(p) || re.test(primeiraLinha));
+    const soMarcador = /^\s*[-–—•]\s*/.test(p);
+    return !pareceMeta && !soMarcador;
+  });
+
+  const resultado = limpos.join("\n\n");
+  if (!resultado.trim() || raciocinioPareceDumpDeInstrucoes(raciocinio)) {
+    return undefined;
+  }
+  return resultado;
+}
+
 /** Resolve raciocínio: campos da API primeiro, depois tags inline no conteúdo. */
 export function resolverRaciocinioResposta(
   mensagem: unknown,
@@ -98,12 +151,12 @@ export function resolverRaciocinioResposta(
 ): { conteudo: string; raciocinio?: string } {
   const daApi = extrairRaciocinioDeMensagem(mensagem);
   if (daApi) {
-    return { conteudo, raciocinio: daApi };
+    return { conteudo, raciocinio: sanitizarRaciocinioParaCliente(daApi) };
   }
   const inline = extrairRaciocinioInline(conteudo);
   return {
     conteudo: inline.conteudo,
-    raciocinio: inline.raciocinio,
+    raciocinio: sanitizarRaciocinioParaCliente(inline.raciocinio),
   };
 }
 
