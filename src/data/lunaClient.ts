@@ -71,7 +71,7 @@ export type LunaHealthResponse = {
   }>;
 };
 
-function isNetworkFailure(err: unknown): boolean {
+export function isNetworkFailure(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const msg = err.message.toLowerCase();
   return (
@@ -414,10 +414,13 @@ export async function lunaChatStream(
     if (isNetworkFailure(err)) {
       throw new LunaApiError(
         'Sem conexão com a internet. Verifique o Wi‑Fi ou os dados móveis e tente novamente.',
+        { code: 'network' },
       );
     }
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new LunaApiError('A Luna demorou demais para responder. Tente novamente.');
+      throw new LunaApiError('A Luna demorou demais para responder. Tente novamente.', {
+        code: 'network',
+      });
     }
     throw new LunaApiError(
       'Não consegui falar com a Luna. Verifique a conexão ou se a API está online.',

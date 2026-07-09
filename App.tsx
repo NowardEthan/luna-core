@@ -475,6 +475,7 @@ function OrbitApp() {
               onQuickMenuToggle={handleQuickMenuToggle}
               onVoiceSend={chat.sendVoiceMessage}
               onTranscribe={chat.requestTranscript}
+              onResend={chat.resendMessage}
               messageFeedback={chat.messageFeedback}
               onMessageAction={(action, id, opts) => void chat.runMessageAction(action, id, opts)}
               onBranchFromMessage={chat.branchFromMessage}

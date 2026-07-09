@@ -33,6 +33,10 @@ export interface ChatMessage {
   researchLive?: import('../lib/researchTrace').ResearchLive;
   /** Humor dual-layer no turno (chip na bolha). */
   humor?: LunaHumorBadge;
+  /** Envio em andamento (inclui retries automáticos) — nunca vira bolha falsa da Luna. */
+  sending?: boolean;
+  /** Falha definitiva após esgotar retries — toque na bolha reenvia. */
+  sendError?: string;
 }
 
 export interface SessionItem {

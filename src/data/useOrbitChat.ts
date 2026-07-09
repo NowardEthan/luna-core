@@ -5,6 +5,8 @@ import { useChatMessages } from './useChatMessages';
 import { useConversationsList } from './useConversationsList';
 import { useChatBranching } from './useChatBranching';
 import { useChatSend } from './useChatSend';
+import { usePendingSendQueue } from '../hooks/usePendingSendQueue';
+import { usePendingSendRetry } from '../hooks/usePendingSendRetry';
 import { useVoiceMessages } from './useVoiceMessages';
 import { useMessageActions } from './useMessageActions';
 import { newSessionId } from './sessionId';
@@ -234,6 +236,8 @@ export function useOrbitChat() {
     setScreen('thread');
   }, [bumpThreadEnter, clearMessageReference, flush, resetBranchState]);
 
+  const pendingSendQueue = usePendingSendQueue();
+
   const {
     callLuna,
     deliverLunaError,
@@ -243,6 +247,8 @@ export function useOrbitChat() {
     sendSuggestion,
     sendRosaryMessage,
     sendRosaryReflection,
+    sendPendingEntry,
+    resendMessage,
   } = useChatSend({
     cloudEnabled,
     uid: auth.uid,
@@ -270,6 +276,14 @@ export function useOrbitChat() {
     draft,
     clearDraft,
     startNewChat,
+    pendingQueue: pendingSendQueue,
+  });
+
+  usePendingSendRetry({
+    activeSessionId,
+    loading,
+    pendingQueue: pendingSendQueue,
+    sendPendingEntry,
   });
 
   const { sendVoiceMessage, requestTranscript } = useVoiceMessages({
@@ -542,6 +556,7 @@ export function useOrbitChat() {
     sendRosaryReflection,
     sendVoiceMessage,
     requestTranscript,
+    resendMessage,
     runMessageAction,
     branchFromMessage,
     truncateThreadFromIndex,

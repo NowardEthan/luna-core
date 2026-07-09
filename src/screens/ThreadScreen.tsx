@@ -100,6 +100,7 @@ interface Props {
   onQuickMenuToggle: () => void;
   onVoiceSend: (clip: VoiceClip) => void;
   onTranscribe: (messageId: string) => void;
+  onResend: (messageId: string) => void;
   onMessageAction: (
     action: MessageSheetAction,
     messageId: string,
@@ -202,6 +203,7 @@ interface RowProps {
   quotePickTargetId: string | null;
   referenceHighlight: ReferenceHighlight | null;
   onTranscribe: (messageId: string) => void;
+  onResend: (messageId: string) => void;
   onLongPress: (message: ChatMessage) => void;
   onThreadReferencePress: (reference: ThreadReference) => void;
   onOpenDocumentPreview: (
@@ -217,6 +219,7 @@ const ThreadMessageRow = memo(function ThreadMessageRow({
   quotePickTargetId,
   referenceHighlight,
   onTranscribe,
+  onResend,
   onLongPress,
   onThreadReferencePress,
   onOpenDocumentPreview,
@@ -247,6 +250,7 @@ const ThreadMessageRow = memo(function ThreadMessageRow({
       highlightExcerpt={highlightExcerpt}
       onLongPress={handleLongPress}
       onTranscribe={onTranscribe}
+      onResend={onResend}
       onThreadReferencePress={onThreadReferencePress}
       onOpenDocumentPreview={onOpenDocumentPreview}
       onOpenLunaProfile={onOpenLunaProfile}
@@ -362,6 +366,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   onQuickMenuToggle,
   onVoiceSend,
   onTranscribe,
+  onResend,
   onMessageAction,
   onBranchFromMessage,
   onTruncateFromMessage,
@@ -779,6 +784,7 @@ export const ThreadScreen = memo(function ThreadScreen({
           quotePickTargetId={quotePickerMessage?.id ?? null}
           referenceHighlight={referenceHighlight}
           onTranscribe={onTranscribe}
+          onResend={onResend}
           onLongPress={handleLongPress}
           onThreadReferencePress={handleReferencePress}
           onOpenDocumentPreview={handleOpenDocumentPreview}
@@ -794,6 +800,7 @@ export const ThreadScreen = memo(function ThreadScreen({
       inactiveBranchLabel,
       onToggleArchivedBranch,
       onTranscribe,
+      onResend,
       quotePickerMessage,
       referenceHighlight,
       sheetMessage?.id,

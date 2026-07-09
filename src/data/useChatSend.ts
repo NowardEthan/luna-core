@@ -27,6 +27,11 @@ import { flushStreamRender } from '../lib/lunaSseClient';
 import { looksLikeMarkdown } from '../components/chat/detectMarkdown';
 import type { LunaProviderSelection, LunaReasoningEffort } from '../lib/lunaProviderSettings';
 import type { LunaUsageContextValue } from '../hooks/LunaUsageContext';
+import { isNetworkClassifiedError } from '../lib/networkFailure';
+import type { PendingSendEntry } from '../lib/pendingSendQueue';
+import type { PendingSendQueue } from '../hooks/usePendingSendQueue';
+
+const SEND_ERROR_MESSAGE = 'Falha ao enviar. Toque para tentar novamente.';
 
 const DEVICE_TIME_ZONE = (() => {
   try {
@@ -83,6 +88,7 @@ type UseChatSendParams = {
   draft: string;
   clearDraft: () => Promise<void> | void;
   startNewChat: () => void;
+  pendingQueue: PendingSendQueue;
 };
 
 /**
@@ -118,6 +124,7 @@ export function useChatSend({
   draft,
   clearDraft,
   startNewChat,
+  pendingQueue,
 }: UseChatSendParams) {
   const aplicarHumorResposta = useCallback(
     (humor: LunaHumorBadge | undefined, lunaMessageId: string) => {
@@ -164,7 +171,11 @@ export function useChatSend({
 
   const callLuna = useCallback(
     async (message: string, userMessageId: string) => {
-      if (blockIfQuotaExceeded()) return;
+      if (blockIfQuotaExceeded()) {
+        updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false }));
+        void pendingQueue.remove(userMessageId);
+        return;
+      }
 
       const sessionId = ensureSessionId();
       const lunaMessageId = lunaMessageIdForUser(userMessageId);
@@ -176,6 +187,8 @@ export function useChatSend({
           idToken = await getIdTokenComTimeout(getIdToken);
         } catch (err) {
           setLoading(false);
+          updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false }));
+          void pendingQueue.remove(userMessageId);
           deliverLunaError(err);
           return;
         }
@@ -227,12 +240,14 @@ export function useChatSend({
       let streamErrorMessage: string | null = null;
       const steps: ResearchStep[] = [];
       let reasoningText = '';
+      let streamedText = '';
 
       try {
-        // Streaming SSE — traz eventos de ação (pesquisa web / leitura de link) e
-        // raciocínio ao vivo. O texto final chega inteiro no evento `done`; o
-        // efeito de revelação palavra a palavra continua sendo simulado no
-        // cliente logo abaixo.
+        // Streaming SSE — traz eventos de ação (pesquisa web / leitura de link),
+        // raciocínio e o próprio conteúdo (onContentDelta) ao vivo. Quando o
+        // servidor manda deltas de conteúdo, a revelação palavra a palavra
+        // (StreamWordReveal) já acompanha em tempo real; o texto final do
+        // evento `done` só corrige eventuais diferenças de última hora.
         const result = await lunaChatStream(chatRequest, {
           onError: (message) => {
             streamErrorMessage = message;
@@ -240,6 +255,10 @@ export function useChatSend({
           onReasoningDelta: (delta) => {
             reasoningText += delta;
             upsertStreamMessage({ reasoning: reasoningText, reasoningStreaming: true });
+          },
+          onContentDelta: (delta) => {
+            streamedText += delta;
+            upsertStreamMessage({ text: streamedText, streaming: true });
           },
           onAcao: (acao) => {
             if (!ehFerramentaDePesquisa(acao.ferramenta)) return;
@@ -272,9 +291,17 @@ export function useChatSend({
         setLoading(false);
         upsertStreamMessage({ text: result.text, streaming: true, reasoningStreaming: false });
         await flushStreamRender();
-        await new Promise<void>((resolve) => {
-          setTimeout(resolve, estimateFadeDrainMs(result.text));
-        });
+        // Se o conteúdo já chegou ao vivo via onContentDelta, só falta revelar a
+        // "cauda" (o que o evento `done` acrescentou/corrigiu por cima do que já
+        // foi streamado) — não a resposta inteira de novo.
+        const caudaNaoRevelada = result.text.startsWith(streamedText)
+          ? result.text.slice(streamedText.length)
+          : result.text;
+        if (caudaNaoRevelada.length > 0) {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, estimateFadeDrainMs(caudaNaoRevelada));
+          });
+        }
 
         const format = looksLikeMarkdown(result.text) ? ('markdown' as const) : undefined;
         upsertStreamMessage({
@@ -284,6 +311,8 @@ export function useChatSend({
           humor: result.humor_atual,
         });
         aplicarHumorResposta(result.humor_atual, lunaMessageId);
+        updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false, sendError: undefined }));
+        void pendingQueue.remove(userMessageId);
 
         if (cloudEnabled && uid) {
           if (!result.idempotent) {
@@ -309,6 +338,21 @@ export function useChatSend({
           streamErrorMessage && err instanceof LunaApiError && !err.code
             ? new LunaApiError(streamErrorMessage)
             : err;
+
+        if (isNetworkClassifiedError(effectiveErr)) {
+          const { gaveUp } = await pendingQueue.markAttemptFailed(userMessageId);
+          if (gaveUp) {
+            updateMessageById(userMessageId, (msg) => ({
+              ...msg,
+              sending: false,
+              sendError: SEND_ERROR_MESSAGE,
+            }));
+          }
+          return;
+        }
+
+        updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false }));
+        void pendingQueue.remove(userMessageId);
         deliverLunaError(effectiveErr);
       }
     },
@@ -323,18 +367,61 @@ export function useChatSend({
       legacyApi,
       lunaProvider,
       lunaUsage,
+      pendingQueue,
       sessionIdRef,
       setLastRouting,
       setLoading,
       setLocalMessages,
       setMessageFeedback,
       uid,
+      updateMessageById,
     ],
   );
 
+  /**
+   * Ponto único pro primeiro envio e todo retry (manual ou automático). Escreve
+   * o doc do usuário no Firestore só na primeira vez (`entry.userDocWritten`),
+   * depois chama `callLuna` — que já trata seus próprios erros e nunca lança.
+   */
+  const sendPendingEntry = useCallback(
+    async (entry: PendingSendEntry) => {
+      try {
+        if (entry.cloudEnabled && entry.uid && !entry.userDocWritten) {
+          await writeUserTextMessage(
+            entry.uid,
+            entry.sessionId,
+            entry.userMessageId,
+            entry.firestoreText,
+            entry.reference,
+            entry.attachments,
+          );
+          await pendingQueue.markUserDocWritten(entry.userMessageId);
+        }
+        await callLuna(entry.apiText, entry.userMessageId);
+      } catch (err) {
+        if (isNetworkClassifiedError(err)) {
+          const { gaveUp } = await pendingQueue.markAttemptFailed(entry.userMessageId);
+          if (gaveUp) {
+            updateMessageById(entry.userMessageId, (msg) => ({
+              ...msg,
+              sending: false,
+              sendError: SEND_ERROR_MESSAGE,
+            }));
+          }
+          return;
+        }
+        updateMessageById(entry.userMessageId, (msg) => ({ ...msg, sending: false }));
+        void pendingQueue.remove(entry.userMessageId);
+        deliverLunaError(err);
+      }
+    },
+    [callLuna, deliverLunaError, pendingQueue, updateMessageById],
+  );
+
   const submitPayload = useCallback(
-    (payload: ComposerSendPayload) => {
-      const ref = messageReference;
+    (payload: ComposerSendPayload, opts?: { existingMessageId?: string; existingReference?: ThreadReference }) => {
+      const isResend = Boolean(opts?.existingMessageId);
+      const ref = isResend ? (opts?.existingReference ?? null) : messageReference;
       const clean = payload.text.trim();
       const attachments = payload.attachments;
       if (loading || (!clean && !ref && attachments.length === 0)) return;
@@ -355,25 +442,29 @@ export function useChatSend({
       }
 
       const isBranchContinuation = branchPoint != null && messages.length === branchPoint;
-      const userMsgId = newMessageId('u');
-      const userMsg: ChatMessage = {
-        id: userMsgId,
-        role: 'user',
-        text: clean || undefined,
-        attachments: attachments.length > 0 ? attachments.map((a) => ({ ...a })) : undefined,
-        reference: ref ?? undefined,
-      };
+      const userMsgId = opts?.existingMessageId ?? newMessageId('u');
 
       let apiText = clean;
       const needsEnrichment = imageAttachments.length > 0 || fileAttachments.length > 0;
       const firestoreText = clean || attachmentsPreviewLabel(attachments);
 
-      setLocalMessages((m) => [...m, userMsg]);
-
-      void clearDraft();
-      clearMessageReference();
-      if (isBranchContinuation) {
-        setMessageFeedback(feedbackForBranchContinuation());
+      if (isResend) {
+        updateMessageById(userMsgId, (msg) => ({ ...msg, sending: true, sendError: undefined }));
+      } else {
+        const userMsg: ChatMessage = {
+          id: userMsgId,
+          role: 'user',
+          text: clean || undefined,
+          attachments: attachments.length > 0 ? attachments.map((a) => ({ ...a })) : undefined,
+          reference: ref ?? undefined,
+          sending: true,
+        };
+        setLocalMessages((m) => [...m, userMsg]);
+        void clearDraft();
+        clearMessageReference();
+        if (isBranchContinuation) {
+          setMessageFeedback(feedbackForBranchContinuation());
+        }
       }
 
       void (async () => {
@@ -403,9 +494,11 @@ export function useChatSend({
           }
           if (ref) apiText = formatMessageWithReference(apiText, ref);
 
+          const sessionId = ensureSessionId();
+          let persistedAttachments =
+            attachments.length > 0 ? attachments.map((a) => ({ ...a })) : undefined;
+
           if (cloudEnabled && uid) {
-            const sessionId = ensureSessionId();
-            let persistedAttachments = userMsg.attachments;
             if (attachments.length > 0) {
               persistedAttachments = await uploadChatAttachments(
                 uid,
@@ -418,14 +511,6 @@ export function useChatSend({
                 attachments: persistedAttachments,
               }));
             }
-            await writeUserTextMessage(
-              uid,
-              sessionId,
-              userMsgId,
-              firestoreText,
-              ref ?? undefined,
-              persistedAttachments,
-            );
 
             const milestonePatch: Parameters<typeof mergeUserMilestones>[1] = {};
             if (imageAttachments.length > 0) milestonePatch.imageAttachment = true;
@@ -436,9 +521,42 @@ export function useChatSend({
             }
           }
 
-          await callLuna(apiText, userMsgId);
+          const entry: PendingSendEntry = {
+            userMessageId: userMsgId,
+            lunaMessageId: lunaMessageIdForUser(userMsgId),
+            sessionId,
+            uid: uid ?? null,
+            cloudEnabled,
+            apiText,
+            firestoreText,
+            reference: ref ?? undefined,
+            attachments: persistedAttachments,
+            displayName,
+            timeZone: DEVICE_TIME_ZONE,
+            reasoningEnabled,
+            reasoningEffort,
+            legacyApi,
+            providerId: lunaProvider.providerId,
+            modelKey: lunaProvider.modelKey,
+            attempt: 0,
+            nextAttemptAtMs: Date.now(),
+            createdAtMs: Date.now(),
+            userDocWritten: false,
+          };
+
+          await pendingQueue.enqueue(entry);
+          await sendPendingEntry(entry);
         } catch (err) {
           setLoading(false);
+          if (isNetworkClassifiedError(err)) {
+            updateMessageById(userMsgId, (msg) => ({
+              ...msg,
+              sending: false,
+              sendError: SEND_ERROR_MESSAGE,
+            }));
+            return;
+          }
+          updateMessageById(userMsgId, (msg) => ({ ...msg, sending: false }));
           deliverLunaError(err);
         }
       })();
@@ -446,23 +564,41 @@ export function useChatSend({
     [
       blockIfQuotaExceeded,
       branchPoint,
-      callLuna,
       clearDraft,
       clearMessageReference,
       cloudEnabled,
       deliverLunaError,
+      displayName,
       ensureSessionId,
       getIdToken,
+      legacyApi,
       loading,
+      lunaProvider,
       lunaUsage,
       messageReference,
       messages.length,
+      pendingQueue,
+      reasoningEffort,
+      reasoningEnabled,
+      sendPendingEntry,
       setLoading,
       setLocalMessages,
       setMessageFeedback,
       uid,
       updateMessageById,
     ],
+  );
+
+  const resendMessage = useCallback(
+    (messageId: string) => {
+      const existing = messages.find((msg) => msg.id === messageId && msg.role === 'user');
+      if (!existing) return;
+      submitPayload(
+        { text: existing.text ?? '', attachments: existing.attachments ?? [] },
+        { existingMessageId: messageId, existingReference: existing.reference },
+      );
+    },
+    [messages, submitPayload],
   );
 
   const submit = useCallback(
@@ -564,5 +700,7 @@ export function useChatSend({
     sendSuggestion,
     sendRosaryMessage,
     sendRosaryReflection,
+    sendPendingEntry,
+    resendMessage,
   };
 }

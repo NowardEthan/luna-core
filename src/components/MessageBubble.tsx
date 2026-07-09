@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BubbleEnter } from './BubbleEnter';
 import { LunaBubbleShell } from './LunaBubbleShell';
@@ -33,6 +34,7 @@ interface Props {
   highlightExcerpt?: string;
   onLongPress?: () => void;
   onTranscribe?: (messageId: string) => void;
+  onResend?: (messageId: string) => void;
   onThreadReferencePress?: (reference: ThreadReference) => void;
   onOpenDocumentPreview?: (
     attachment: ComposerAttachment,
@@ -64,7 +66,9 @@ function messageEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.researchLive?.argumento === b.researchLive?.argumento &&
     a.researchLive?.rodada === b.researchLive?.rodada &&
     a.humor?.label === b.humor?.label &&
-    a.humor?.tema === b.humor?.tema
+    a.humor?.tema === b.humor?.tema &&
+    a.sending === b.sending &&
+    a.sendError === b.sendError
   );
 }
 
@@ -77,6 +81,7 @@ function MessageBubbleInner({
   highlightExcerpt,
   onLongPress,
   onTranscribe,
+  onResend,
   onThreadReferencePress,
   onOpenDocumentPreview,
   onOpenLunaProfile,
@@ -206,6 +211,22 @@ function MessageBubbleInner({
               highlightStyle={styles.userExcerptHighlight}
               pulse={pulseExcerpt}
             />
+          </Pressable>
+        ) : null}
+        {message.sending ? (
+          <View style={styles.sendStatusRow}>
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.9)" />
+            <Text style={styles.sendStatusText}>Enviando…</Text>
+          </View>
+        ) : message.sendError ? (
+          <Pressable
+            onPress={() => onResend?.(message.id)}
+            style={styles.sendStatusRow}
+            accessibilityRole="button"
+            accessibilityLabel="Falha ao enviar. Tentar novamente."
+          >
+            <Ionicons name="refresh" size={13} color="#FFB4AB" />
+            <Text style={styles.sendErrorText}>Falha ao enviar · Tentar novamente</Text>
           </Pressable>
         ) : null}
         </View>
@@ -338,6 +359,7 @@ export const MessageBubble = React.memo(MessageBubbleInner, (prev, next) => {
     prev.highlightExcerpt === next.highlightExcerpt &&
     prev.onLongPress === next.onLongPress &&
     prev.onTranscribe === next.onTranscribe &&
+    prev.onResend === next.onResend &&
     prev.onThreadReferencePress === next.onThreadReferencePress &&
     prev.onOpenDocumentPreview === next.onOpenDocumentPreview &&
     prev.onOpenLunaProfile === next.onOpenLunaProfile &&
@@ -418,5 +440,21 @@ const styles = StyleSheet.create({
   },
   userTextWithAttachments: {
     paddingTop: 6,
+  },
+  sendStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 6,
+  },
+  sendStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.82)',
+  },
+  sendErrorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFB4AB',
   },
 });
