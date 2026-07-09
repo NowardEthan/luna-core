@@ -47,6 +47,8 @@ export function precisaRaciocinioPorPrompt(
 const BLOCO_RACIOCINIO_PROMPT =
   "Antes da resposta visível ao utilizador, escreve o teu raciocínio em português (Portugal) " +
   "num bloco de raciocínio delimitado (tags XML think de abertura e fecho). " +
+  "Esse bloco também é lido pela pessoa — continua na primeira pessoa, dentro da personagem, " +
+  "sem citar rótulos do briefing nem falar de ti mesma como um processo de sistema. " +
   "Depois escreve a resposta final — sem repetir o bloco de raciocínio.";
 
 export function blocoPromptRaciocinioInline(): string {
