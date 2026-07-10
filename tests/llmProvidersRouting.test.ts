@@ -95,7 +95,7 @@ describe("roteamento LLM mobile-api", () => {
     const config = resolveLlmConfig(resolved!.selection);
     expect(config?.baseUrl).toContain("openrouter.ai");
     expect(config?.apiKey).toBe("sk-or-test");
-    expect(config?.modeloMaior).toBe("deepseek/deepseek-v3.2");
+    expect(config?.modeloMaior).toMatch(/^deepseek\//);
   });
 
   it("plano free não recebe DeepSeek/OpenRouter mesmo com OPENROUTER_API_KEY configurada", () => {

@@ -1,7 +1,10 @@
 import type { MemoriaSessaoMobile } from "./typesMemoriaMobile.js";
 
-/** Texto máximo por arquivo dentro do turno enviado ao LLM. */
+/** Texto máximo por arquivo dentro do turno enviado ao LLM — provedores de janela curta (Groq/Pulse). */
 export const MAX_ATTACHMENT_TEXT_IN_CHAT = 2_000;
+
+/** Texto máximo por arquivo — provedores de contexto grande (DeepSeek/OpenRouter, Cerebras/Core). */
+export const MAX_ATTACHMENT_TEXT_IN_CHAT_DEEP = 100_000;
 
 /** Tamanho máximo do turno do utilizador (pergunta + bloco [Anexos]). */
 export const MAX_MOBILE_USER_MESSAGE_CHARS = 5_500;
@@ -16,19 +19,22 @@ const TRUNCATE_DOC_NOTICE =
 const TRUNCATE_MSG_NOTICE =
   "\n\n[… mensagem truncada por limite do modelo Groq …]";
 
-export function truncateAttachmentTextForChat(text: string): string {
+export function truncateAttachmentTextForChat(
+  text: string,
+  maxChars: number = MAX_ATTACHMENT_TEXT_IN_CHAT,
+): string {
   const normalized = text.replace(/\r\n/g, "\n").trim();
-  if (normalized.length <= MAX_ATTACHMENT_TEXT_IN_CHAT) return normalized;
-  return `${normalized.slice(0, MAX_ATTACHMENT_TEXT_IN_CHAT)}${TRUNCATE_DOC_NOTICE}`;
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, maxChars)}${TRUNCATE_DOC_NOTICE}`;
 }
 
 /** Encolhe blocos [Anexos] antes de mandar ao pipeline Luna. */
 export function truncateMobileChatMessage(
   message: string,
-  options?: { maxChars?: number },
+  options?: { maxChars?: number; maxAttachmentChars?: number },
 ): string {
   const maxChars = options?.maxChars ?? MAX_MOBILE_USER_MESSAGE_CHARS;
-  let result = shrinkAttachmentBlocks(message);
+  let result = shrinkAttachmentBlocks(message, options?.maxAttachmentChars);
 
   if (result.length <= maxChars) return result;
   const notice =
@@ -38,7 +44,7 @@ export function truncateMobileChatMessage(
   return `${result.slice(0, maxChars)}${notice}`;
 }
 
-function shrinkAttachmentBlocks(message: string): string {
+function shrinkAttachmentBlocks(message: string, maxAttachmentChars?: number): string {
   const marker = "  Conteúdo do arquivo:\n";
   let idx = 0;
   let out = "";
@@ -64,7 +70,7 @@ function shrinkAttachmentBlocks(message: string): string {
       break;
     }
 
-    const trimmed = truncateAttachmentTextForChat(body);
+    const trimmed = truncateAttachmentTextForChat(body, maxAttachmentChars);
     out += trimmed
       .split("\n")
       .map((line) => `    ${line}`)

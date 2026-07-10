@@ -24,8 +24,8 @@ export type ExtractedDocument = {
 };
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
-/** Extração completa (preview no telemóvel). O chat trunca antes do LLM. */
-const MAX_TEXT_CHARS = 8_000;
+/** Extração completa (preview no telemóvel). O chat trunca de novo antes do LLM, conforme o provedor. */
+const MAX_TEXT_CHARS = 120_000;
 
 const TEXT_EXTENSIONS = new Set([
   "md",
