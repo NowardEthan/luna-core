@@ -38,7 +38,13 @@ import { lerRelacaoHumor } from "../mundo/humor/relacaoHumor.js";
 import { humorParaPerfilExpressao } from "../mundo/humor/humorParaPerfilExpressao.js";
 import { humorParaBadge, type HumorBadgePayload } from "../mundo/humor/humorParaBadge.js";
 import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/talamoPipeline.js";
-import { classificarPesoTurno, escolherModeloResposta } from "../estado/pesoTurno.js";
+import {
+  classificarPesoTurno,
+  escolherModeloResposta,
+  precisaRigor,
+  temperaturaResposta,
+  blocoProtocoloRigor,
+} from "../estado/pesoTurno.js";
 import { prepararNucleoMundoInterior } from "../mundo/montarNucleoMundoInterior.js";
 import { coletarNeuroniosSempreAtivos } from "../neuronios/coletarSempreAtivos.js";
 import { criarVontadeNarrativa } from "../mundo/vontade/storeVontade.js";
@@ -614,9 +620,21 @@ export async function executarPipelineCompleto(
     // emocional/técnico continua no modelo grande. Sem custo: usa a análise já feita.
     const pesoTurno = classificarPesoTurno(analise.analise, profundidade);
     const modeloResposta = escolherModeloResposta(pesoTurno, config.modeloMenor, config.modeloMaior);
-    const configResposta = modeloResposta === config.modeloMaior
-      ? config
-      : { ...config, modeloMaior: modeloResposta };
+
+    // P1 camada 3 — rigor: em turno técnico, injeta o protocolo de autocrítica no
+    // briefing e baixa a temperatura (consistência > flair). Sem chamada de LLM extra.
+    const rigor = precisaRigor(analise.analise);
+    const tempResposta = temperaturaResposta(rigor, config.temperaturaMaior);
+    if (rigor && contextoCompilado) {
+      contextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${blocoProtocoloRigor()}`,
+      };
+    }
+    const configResposta =
+      modeloResposta === config.modeloMaior && tempResposta === config.temperaturaMaior
+        ? config
+        : { ...config, modeloMaior: modeloResposta, temperaturaMaior: tempResposta };
 
     if (usarModoAgentico && ehProvedorAgente(provedor)) {
       resposta = await responderComoLunaAgentico(
@@ -647,7 +665,7 @@ export async function executarPipelineCompleto(
         config.apiKey,
         config.baseUrl,
         modeloResposta,
-        config.temperaturaMaior,
+        tempResposta,
         contextoCompilado,
         historico,
         raciocinioAtivo,
@@ -671,7 +689,7 @@ export async function executarPipelineCompleto(
         politicaComMemoria,
         provedor,
         modeloResposta,
-        config.temperaturaMaior,
+        tempResposta,
         contextoCompilado,
         historico,
         raciocinioAtivo,

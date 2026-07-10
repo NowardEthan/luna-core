@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classificarPesoTurno, escolherModeloResposta } from "./pesoTurno.js";
+import {
+  classificarPesoTurno,
+  escolherModeloResposta,
+  precisaRigor,
+  temperaturaResposta,
+} from "./pesoTurno.js";
 import type { AnaliseContexto } from "../analyzers/esquema.js";
 import type { ProfundidadeAnalise } from "./talamoPipeline.js";
 
@@ -60,6 +65,61 @@ describe("classificarPesoTurno — guardas", () => {
   it("código ou ferramenta é pesado", () => {
     expect(classificarPesoTurno(analise({ requer_codigo: true }), "moderado")).toBe("pesado");
     expect(classificarPesoTurno(analise({ envolve_ferramenta: true }), "moderado")).toBe("pesado");
+  });
+});
+
+describe("precisaRigor (camada 3)", () => {
+  const anterior = process.env.LUNA_RIGOR;
+
+  it("intenções técnicas/consultivas precisam de rigor", () => {
+    for (const intencao of [
+      "pergunta_tecnica",
+      "pedido_codigo",
+      "projeto_arquitetural",
+      "pergunta_arquitetura",
+      "acao_critica",
+    ]) {
+      expect(precisaRigor({ intencao } as never)).toBe(true);
+    }
+  });
+
+  it("papo/emocional/identitário NÃO precisam de rigor factual", () => {
+    for (const intencao of [
+      "conversa_casual",
+      "apoio_emocional",
+      "expressao_afetiva",
+      "pergunta_identitaria",
+    ]) {
+      expect(precisaRigor({ intencao } as never)).toBe(false);
+    }
+  });
+
+  it("kill-switch LUNA_RIGOR=0 desliga tudo", () => {
+    process.env.LUNA_RIGOR = "0";
+    expect(precisaRigor({ intencao: "pergunta_tecnica" } as never)).toBe(false);
+    if (anterior === undefined) delete process.env.LUNA_RIGOR;
+    else process.env.LUNA_RIGOR = anterior;
+  });
+});
+
+describe("temperaturaResposta (camada 3)", () => {
+  it("turno sem rigor mantém a temperatura base", () => {
+    expect(temperaturaResposta(false, 0.85)).toBe(0.85);
+  });
+
+  it("turno de rigor baixa a temperatura (default 0.35)", () => {
+    const anterior = process.env.LUNA_TEMP_RIGOR;
+    delete process.env.LUNA_TEMP_RIGOR;
+    expect(temperaturaResposta(true, 0.85)).toBe(0.35);
+    if (anterior !== undefined) process.env.LUNA_TEMP_RIGOR = anterior;
+  });
+
+  it("nunca sobe a temperatura acima da base", () => {
+    const anterior = process.env.LUNA_TEMP_RIGOR;
+    process.env.LUNA_TEMP_RIGOR = "0.9";
+    expect(temperaturaResposta(true, 0.4)).toBe(0.4);
+    if (anterior === undefined) delete process.env.LUNA_TEMP_RIGOR;
+    else process.env.LUNA_TEMP_RIGOR = anterior;
   });
 });
 

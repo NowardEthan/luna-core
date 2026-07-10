@@ -17,7 +17,10 @@ import { calcularCosineSimilarity } from "./cosineSimilarity.js";
 import { calcularSaliencia, calcularScoreRetrieval, type InputSaliencia } from "./calculadorSaliencia.js";
 import { inferirCategoria, CATEGORIAS_RELACIONADAS, type CategoriaMemoria } from "./categorizador.js";
 
-const CAMINHO_DB = join(RAIZ_PACOTE, "logs", "memoria.db");
+// Override por env — permite rodar baselines/testes contra um DB isolado, sem
+// contaminar a memória real da Luna (lição: replays de conversa gravavam fatos
+// do "usuário" de teste no memoria.db de produção).
+const CAMINHO_DB = process.env.LUNA_DB_PATH?.trim() || join(RAIZ_PACOTE, "logs", "memoria.db");
 
 let dbInstancia: DatabaseType.Database | null = null;
 
@@ -32,8 +35,8 @@ export function obterDb(): DatabaseType.Database {
     );
   }
   if (!dbInstancia) {
-    const dirLogs = join(RAIZ_PACOTE, "logs");
-    if (!existsSync(dirLogs)) mkdirSync(dirLogs, { recursive: true });
+    const dirDb = dirname(CAMINHO_DB);
+    if (!existsSync(dirDb)) mkdirSync(dirDb, { recursive: true });
 
     dbInstancia = new (carregarSqlite())(CAMINHO_DB);
     dbInstancia.pragma("journal_mode = WAL");
