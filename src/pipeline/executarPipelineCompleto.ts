@@ -45,6 +45,11 @@ import {
   temperaturaResposta,
   blocoProtocoloRigor,
 } from "../estado/pesoTurno.js";
+import {
+  criticarRigor,
+  criticoRigorAtivo,
+  blocoRevisaoRigor,
+} from "../estado/criticoRigor.js";
 import { prepararNucleoMundoInterior } from "../mundo/montarNucleoMundoInterior.js";
 import { coletarNeuroniosSempreAtivos } from "../neuronios/coletarSempreAtivos.js";
 import { criarVontadeNarrativa } from "../mundo/vontade/storeVontade.js";
@@ -624,6 +629,9 @@ export async function executarPipelineCompleto(
     // P1 camada 3 — rigor: em turno técnico, injeta o protocolo de autocrítica no
     // briefing e baixa a temperatura (consistência > flair). Sem chamada de LLM extra.
     const rigor = precisaRigor(analise.analise);
+    if (process.env.LUNA_DEBUG_CRITICO === "1") {
+      console.error(`[rigor] intent=${analise.analise.intencao} rigor=${rigor}`);
+    }
     const tempResposta = temperaturaResposta(rigor, config.temperaturaMaior);
     if (rigor && contextoCompilado) {
       contextoCompilado = {
@@ -698,6 +706,55 @@ export async function executarPipelineCompleto(
         analise.analise.intencao,
         raciocinioEffort,
       );
+    }
+
+    // P1 camada 3 v2 — crítico dedicado: em turno de rigor, um 2º LLM (o menor)
+    // checa se a resposta cobriu as implicações dos fatos concretos. Se achar
+    // lacunas, uma passada de revisão as incorpora. Nunca bloqueia: em falha, o
+    // crítico devolve "sólido". Kill-switch LUNA_CRITICO=0.
+    //
+    // Só é pulado no caminho de streaming AO VIVO (responderComoLunaStream), onde
+    // o texto já foi para o cliente token-a-token — revisar ali seria "jarring".
+    // O caminho agêntico entrega o texto inteiro no fim, então revisar é seguro.
+    const respostaStreamadaAoVivo = usarStream && !usarModoAgentico;
+    if (
+      rigor &&
+      criticoRigorAtivo() &&
+      !respostaStreamadaAoVivo &&
+      resposta.texto.trim() &&
+      contextoCompilado &&
+      config.modeloMenor
+    ) {
+      const critica = await criticarRigor(
+        { mensagemUsuario: mensagem, respostaRascunho: resposta.texto },
+        { provedor: provedorMenor ?? provedor, modelo: config.modeloMenor },
+      );
+      if (process.env.LUNA_DEBUG_CRITICO === "1") {
+        console.error(
+          `[critico] intent=${analise.analise.intencao} solido=${critica.solido} lacunas=${JSON.stringify(critica.lacunas)}`,
+        );
+      }
+      if (!critica.solido && critica.lacunas.length > 0) {
+        const ctxRevisao: ContextoCompilado = {
+          ...contextoCompilado,
+          briefing: `${contextoCompilado.briefing}\n\n${blocoRevisaoRigor(critica.lacunas)}`,
+        };
+        const revisada = await responderComoLuna(
+          mensagem,
+          politicaComMemoria,
+          provedor,
+          modeloResposta,
+          tempResposta,
+          ctxRevisao,
+          historico,
+          raciocinioAtivo,
+          config.baseUrl,
+          opcoes.interlocutor,
+          analise.analise.intencao,
+          raciocinioEffort,
+        );
+        if (revisada.texto.trim()) resposta = revisada;
+      }
     }
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";
