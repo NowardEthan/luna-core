@@ -1,5 +1,6 @@
 import React, { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Easing,
   Platform,
@@ -27,6 +28,7 @@ import { VoiceMicRecorder } from './VoiceMicRecorder';
 import { VoiceRecordingOverlay } from './VoiceRecordingOverlay';
 import { IDLE_VOICE_UI, type VoiceHoldUi } from './voiceUi';
 import { RosaryTool } from './RosaryTool';
+import { ROSARY_ENABLED } from '../config/features';
 import type { RosaryState } from '../hooks/useRosary';
 
 const MIN_INPUT_HEIGHT = 40;
@@ -37,6 +39,10 @@ const OUTER_BTN = 46;
 /** Slot do botão de voz — compacto; overflow visible para gestos de gravação. */
 const MIC_ACTION_SLOT = 54;
 const LINE_HEIGHT = 22;
+/** A Luna só analisa até 5 imagens por mensagem (limite do servidor de visão). */
+const MAX_IMAGE_ATTACHMENTS = 5;
+/** Mesmo teto do servidor de extração de documentos. */
+const MAX_FILE_ATTACHMENTS = 5;
 
 type ScrollHints = {
   canScrollUp: boolean;
@@ -254,7 +260,23 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
 
   const addAttachments = useCallback((picked: ComposerAttachment[]) => {
     if (picked.length === 0) return;
-    setAttachments((prev) => [...prev, ...picked]);
+    setAttachments((prev) => {
+      const merged = [...prev, ...picked];
+      const images = merged.filter((a) => a.kind === 'image');
+      const files = merged.filter((a) => a.kind === 'file');
+      const overImages = images.length > MAX_IMAGE_ATTACHMENTS;
+      const overFiles = files.length > MAX_FILE_ATTACHMENTS;
+      if (overImages || overFiles) {
+        Alert.alert(
+          'Limite de anexos',
+          `A Luna analisa até ${MAX_IMAGE_ATTACHMENTS} imagens e até ${MAX_FILE_ATTACHMENTS} arquivos por mensagem. O restante não foi anexado.`,
+        );
+      }
+      const cappedImages = images.slice(0, MAX_IMAGE_ATTACHMENTS);
+      const cappedFiles = files.slice(0, MAX_FILE_ATTACHMENTS);
+      const allowedIds = new Set([...cappedImages, ...cappedFiles].map((a) => a.id));
+      return merged.filter((a) => allowedIds.has(a.id));
+    });
   }, []);
 
   const removeAttachment = useCallback((id: string) => {
@@ -328,7 +350,7 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
                 ) : null}
               </View>
 
-              {rosaryState && onRosaryToggle ? (
+              {ROSARY_ENABLED && rosaryState && onRosaryToggle ? (
                 <RosaryTool
                   active={rosaryState.active}
                   onPress={onRosaryToggle}

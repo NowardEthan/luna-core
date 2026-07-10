@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   DEFAULT_LUNA_PROVIDER,
   FREE_PLAN_DEFAULT_PROVIDER,
@@ -77,6 +78,15 @@ export function useLunaProviderSettings(planId: LunaPlanId = 'free') {
 
   useEffect(() => {
     void refreshFromServer();
+  }, [refreshFromServer]);
+
+  // Ao voltar do background, re-valida a saúde da API — senão o banner de
+  // "Luna API indisponível" fica preso num estado velho de quando o app abriu.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (status) => {
+      if (status === 'active') void refreshFromServer();
+    });
+    return () => sub.remove();
   }, [refreshFromServer]);
 
   const setProvider = useCallback(

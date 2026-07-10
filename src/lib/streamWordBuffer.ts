@@ -4,8 +4,9 @@ export function tokenizeStreamSegments(text: string): string[] {
   return text.match(/\S+\s*|\s+/g) ?? [text];
 }
 
-/** Duração do fade de opacidade de cada palavra ao entrar. */
-export const STREAM_FADE_MS = 820;
+/** Duração do fade de opacidade de cada palavra ao entrar (curto — só suaviza,
+ *  não segura o texto; a chegada é em tempo real via onContentDelta). */
+export const STREAM_FADE_MS = 280;
 /** Intervalo entre revelar cada palavra (a bolha cresce progressivamente). */
 export const STREAM_SEGMENT_STAGGER_MAX_MS = 46;
 export const STREAM_SEGMENT_STAGGER_MIN_MS = 12;

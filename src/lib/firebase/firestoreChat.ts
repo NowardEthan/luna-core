@@ -96,6 +96,7 @@ function toChatMessage(id: string, data: FirestoreMessageDoc): ChatMessage | nul
       uri: a.uri,
     })),
     research: data.research,
+    reasoning: data.reasoning,
   };
   if (data.audioDurationMs != null && data.audioDurationMs > 0) {
     msg.audio = { uri: data.audioUrl ?? '', durationMs: data.audioDurationMs };
@@ -278,6 +279,7 @@ export async function writeLunaTextMessage(
   messageId: string,
   text: string,
   research?: FirestoreMessageDoc['research'],
+  reasoning?: string,
 ): Promise<void> {
   const db = getLunaFirestore();
   if (!db) return;
@@ -300,6 +302,7 @@ export async function writeLunaTextMessage(
     role: 'luna',
     text: text.trim(),
     ...(research?.length ? { research } : {}),
+    ...(reasoning?.trim() ? { reasoning: reasoning.trim() } : {}),
     createdAt: serverTimestamp(),
   });
 

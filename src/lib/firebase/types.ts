@@ -37,6 +37,8 @@ export type FirestoreMessageDoc = {
     sucesso?: boolean;
     fontes?: { title?: string; url: string }[];
   }[];
+  /** Raciocínio da Luna — persistido para sobreviver a reload/background do app. */
+  reasoning?: string;
 };
 
 /** Doc mobile (subcollection messages) + legacy Orbit desktop (messages[] embutido). */

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 
 function isConnected(state: NetInfoState): boolean {
@@ -24,9 +25,19 @@ export function useNetworkStatus() {
 
     void NetInfo.fetch().then(apply);
     const unsub = NetInfo.addEventListener(apply);
+
+    // Ao voltar do background, o NetInfo pode não ter emitido eventos enquanto o
+    // app estava fechado — o estado fica velho e o banner "prende". Re-checa na
+    // volta pro foreground para o banner refletir a conectividade real de novo.
+    const onAppState = (status: AppStateStatus) => {
+      if (status === 'active') void NetInfo.fetch().then(apply);
+    };
+    const appStateSub = AppState.addEventListener('change', onAppState);
+
     return () => {
       mounted = false;
       unsub();
+      appStateSub.remove();
     };
   }, []);
 

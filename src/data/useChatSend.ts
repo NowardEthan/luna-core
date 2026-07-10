@@ -289,19 +289,11 @@ export function useChatSend({
         }
 
         setLoading(false);
+        // Real-time: o texto final do evento `done` só corrige eventuais diferenças
+        // de última hora sobre o que já foi streamado ao vivo. Sem espera artificial
+        // pela animação — o que chegou já está na tela.
         upsertStreamMessage({ text: result.text, streaming: true, reasoningStreaming: false });
         await flushStreamRender();
-        // Se o conteúdo já chegou ao vivo via onContentDelta, só falta revelar a
-        // "cauda" (o que o evento `done` acrescentou/corrigiu por cima do que já
-        // foi streamado) — não a resposta inteira de novo.
-        const caudaNaoRevelada = result.text.startsWith(streamedText)
-          ? result.text.slice(streamedText.length)
-          : result.text;
-        if (caudaNaoRevelada.length > 0) {
-          await new Promise<void>((resolve) => {
-            setTimeout(resolve, estimateFadeDrainMs(caudaNaoRevelada));
-          });
-        }
 
         const format = looksLikeMarkdown(result.text) ? ('markdown' as const) : undefined;
         upsertStreamMessage({
@@ -316,7 +308,7 @@ export function useChatSend({
 
         if (cloudEnabled && uid) {
           if (!result.idempotent) {
-            void writeLunaTextMessage(uid, result.sessionId, lunaMessageId, result.text, steps).catch(
+            void writeLunaTextMessage(uid, result.sessionId, lunaMessageId, result.text, steps, reasoningText).catch(
               () => {},
             );
           }

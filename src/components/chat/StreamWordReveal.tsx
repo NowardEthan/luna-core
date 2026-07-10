@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Easing,
@@ -10,7 +10,6 @@ import {
 import {
   STREAM_FADE_LIFT_PX,
   STREAM_FADE_MS,
-  segmentStaggerMs,
   tokenizeStreamSegments,
 } from '../../lib/streamWordBuffer';
 import { useMotionProfile } from '../../hooks/useMotionProfile';
@@ -78,44 +77,8 @@ export function StreamWordReveal({ text, streaming = false, style, muted = false
   const { reduceMotion } = useMotionProfile();
   const segments = useMemo(() => tokenizeStreamSegments(text), [text]);
   const total = segments.length;
-  const stagger = useMemo(() => segmentStaggerMs(total), [total]);
 
   const shouldAnimate = streaming && !reduceMotion && total > 0;
-
-  const [visibleCount, setVisibleCount] = useState(shouldAnimate ? 0 : total);
-  const visibleCountRef = useRef(visibleCount);
-  visibleCountRef.current = visibleCount;
-
-  useEffect(() => {
-    if (!shouldAnimate) {
-      setVisibleCount(total);
-      return;
-    }
-
-    // Continua a revelação de onde parou — não reinicia a cada novo chunk de streaming.
-    if (total <= visibleCountRef.current) return;
-
-    let intervalId: ReturnType<typeof setInterval> | undefined;
-
-    const reveal = () => {
-      setVisibleCount((count) => {
-        const next = Math.min(count + 1, total);
-        if (next >= total && intervalId) clearInterval(intervalId);
-        return next;
-      });
-    };
-
-    const bootId = requestAnimationFrame(() => {
-      reveal();
-      if (total <= visibleCountRef.current) return;
-      intervalId = setInterval(reveal, stagger);
-    });
-
-    return () => {
-      cancelAnimationFrame(bootId);
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [shouldAnimate, total, stagger]);
 
   if (!shouldAnimate) {
     return (
@@ -123,10 +86,13 @@ export function StreamWordReveal({ text, streaming = false, style, muted = false
     );
   }
 
-  const shown = segments.slice(0, visibleCount);
-  const settledCount = Math.max(0, shown.length - ACTIVE_WINDOW);
-  const settled = shown.slice(0, settledCount);
-  const active = shown.slice(settledCount);
+  // Real-time: renderiza TUDO que já chegou do servidor (o texto cresce token a
+  // token via onContentDelta). Sem stagger artificial nem orçamento de 5s — cada
+  // palavra recém-chegada só ganha um fade curto ao entrar; as antigas viram
+  // texto estático. O que aparece na tela acompanha o que o modelo já gerou.
+  const settledCount = Math.max(0, total - ACTIVE_WINDOW);
+  const settled = segments.slice(0, settledCount);
+  const active = segments.slice(settledCount);
 
   return (
     <View style={styles.container}>
