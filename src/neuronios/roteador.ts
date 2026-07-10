@@ -78,10 +78,12 @@ export async function coletarNeuroniosAtivos(
   const { ativos, scores } = await rotear(ctx.mensagem, ctx.intencao);
   const dados: Partial<Record<string, string>> = {};
 
-  for (const n of ativos) {
-    const valor = await n.coletar(ctx);
+  // P1 (Luna Profunda) — coleta concorrente; aplicação em ordem preserva o comportamento.
+  const valores = await Promise.all(ativos.map((n) => n.coletar(ctx)));
+  for (let i = 0; i < ativos.length; i++) {
+    const valor = valores[i];
     if (valor?.trim()) {
-      dados[n.prioridade_compilador] = valor.trim();
+      dados[ativos[i].prioridade_compilador] = valor.trim();
     }
   }
 

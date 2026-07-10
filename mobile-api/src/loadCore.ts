@@ -12,7 +12,7 @@ import {
 } from "./llmProviders.js";
 import type { PlanId } from "./billing/planMapping.js";
 import { compactarSessaoPersistida } from "./sessaoMobile.js";
-import { truncateMobileChatMessage } from "./truncateForGroq.js";
+import { MAX_ATTACHMENT_TEXT_IN_CHAT_DEEP, truncateMobileChatMessage } from "./truncateForGroq.js";
 import { sanitizarInterlocutorPipeline } from "../../dist/interlocutor/validadorInterlocutor.js";
 import {
   deveUsarPersistenciaFirestore,
@@ -105,7 +105,10 @@ export type LunaCoreModule = {
     };
     log_path: string;
   }>;
-  prepararSessaoOrbit: (sessaoId: string) => unknown;
+  // O retorno real é uma MemoriaSessao; tipar ao menos `mensagens` mantém este
+  // tipo compatível com LunaCoreCross (crossSessionContext), senão o build quebra
+  // ao passar `core` para funções que esperam LunaCoreCross (TS2322).
+  prepararSessaoOrbit: (sessaoId: string) => { mensagens: unknown[] };
   buscarContextoOutrasSessoes: (
     mensagem: string,
     sessaoAtualId: string,
@@ -233,7 +236,10 @@ async function prepararChatMobile(
 
   const isCerebras = selection.providerId === "cerebras" || isCerebrasConfig(config);
   const isOpenrouter = isOpenrouterConfig(config);
-  const mensagemLimit = isCerebras || isOpenrouter ? 12_000 : undefined;
+  const isDeepProvider = isCerebras || isOpenrouter;
+  // Cerebras/OpenRouter (DeepSeek) têm janela de contexto grande — deixa ler documentos quase inteiros.
+  const mensagemLimit = isDeepProvider ? 120_000 : undefined;
+  const anexoLimit = isDeepProvider ? MAX_ATTACHMENT_TEXT_IN_CHAT_DEEP : undefined;
 
   const corePath = resolveLunaCorePath();
   const core = await loadLunaCoreModule();
@@ -241,7 +247,10 @@ async function prepararChatMobile(
 
   process.chdir(corePath);
 
-  const mensagem = truncateMobileChatMessage(message, { maxChars: mensagemLimit });
+  const mensagem = truncateMobileChatMessage(message, {
+    maxChars: mensagemLimit,
+    maxAttachmentChars: anexoLimit,
+  });
 
   if (sessionId) {
     try {

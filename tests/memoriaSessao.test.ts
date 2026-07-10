@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach, beforeAll, afterAll } from "vitest";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -18,6 +18,17 @@ import { montarEntradasCompilador } from "../src/contexto/montarEntradasCompilad
 import type { ConfigLuna } from "../src/providers/tipos.js";
 import type { PoliticaDecisao } from "../src/analyzers/esquema.js";
 import type { DecisaoMemoria } from "../src/memoria/esquemaMemoria.js";
+
+// Exercitam o caminho do MODELO GRANDE com saudações casuais; o gate de peso
+// (P1 camada 1) as desviaria para o modelo menor. Gate coberto em testes próprios.
+const gateAnterior = process.env.LUNA_GATE_PESO;
+beforeAll(() => {
+  process.env.LUNA_GATE_PESO = "0";
+});
+afterAll(() => {
+  if (gateAnterior === undefined) delete process.env.LUNA_GATE_PESO;
+  else process.env.LUNA_GATE_PESO = gateAnterior;
+});
 
 const DECISAO_NENHUMA: DecisaoMemoria = {
   acao: "ignorar",

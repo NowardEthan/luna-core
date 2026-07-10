@@ -44,8 +44,8 @@ function sleep(ms: number): Promise<void> {
 
 function llmFetchTimeoutMs(): number {
   const raw = process.env.LUNA_LLM_TIMEOUT_MS?.trim();
-  const n = raw ? Number.parseInt(raw, 10) : 60_000;
-  return Number.isFinite(n) && n > 0 ? n : 60_000;
+  const n = raw ? Number.parseInt(raw, 10) : 120_000;
+  return Number.isFinite(n) && n > 0 ? n : 120_000;
 }
 
 function signalComTimeout(init: RequestInit, timeoutMs: number): AbortSignal {

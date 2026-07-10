@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach, beforeAll, afterAll } from "vitest";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -6,6 +6,18 @@ import { criarProvedorMock } from "../src/providers/mockProvedor.js";
 import { executarPipelineCompleto } from "../src/pipeline/executarPipelineCompleto.js";
 import { PASTA_LOGS } from "../src/logs/registradorDecisao.js";
 import type { ConfigLuna } from "../src/providers/tipos.js";
+
+// Estes testes exercitam o caminho do MODELO GRANDE com mensagens casuais.
+// O gate de peso (P1 camada 1) desviaria turnos leves para o modelo menor —
+// ele tem cobertura própria em src/estado/pesoTurno.test.ts e tests/gatePesoPipeline.test.ts.
+const gateAnterior = process.env.LUNA_GATE_PESO;
+beforeAll(() => {
+  process.env.LUNA_GATE_PESO = "0";
+});
+afterAll(() => {
+  if (gateAnterior === undefined) delete process.env.LUNA_GATE_PESO;
+  else process.env.LUNA_GATE_PESO = gateAnterior;
+});
 
 const CONFIG_TESTE: ConfigLuna = {
   apiKey: "test",

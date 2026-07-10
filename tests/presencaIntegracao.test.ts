@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { existsSync, rmSync } from "node:fs";
 
 import { executarPipelineCompleto } from "../src/pipeline/executarPipelineCompleto.js";
@@ -10,6 +10,17 @@ import type {
   RequisicaoCompletacao,
   RespostaCompletacao,
 } from "../src/providers/tipos.js";
+
+// Estes testes inspecionam o prompt enviado ao MODELO GRANDE em turnos casuais.
+// O gate de peso (P1 camada 1) os desviaria para o menor — ele tem testes próprios.
+const gateAnterior = process.env.LUNA_GATE_PESO;
+beforeAll(() => {
+  process.env.LUNA_GATE_PESO = "0";
+});
+afterAll(() => {
+  if (gateAnterior === undefined) delete process.env.LUNA_GATE_PESO;
+  else process.env.LUNA_GATE_PESO = gateAnterior;
+});
 
 const CONFIG: ConfigLuna = {
   apiKey: "test",

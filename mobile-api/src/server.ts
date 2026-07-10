@@ -2,6 +2,8 @@ import { existsSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
 
+import { ZodError } from "zod";
+
 import {
   isFirebaseAdminConfigured,
   isFirebaseAuthRequired,
@@ -119,6 +121,21 @@ function sendMappedSseError(res: ServerResponse, erro: unknown): void {
   sendSseEvent(res, "error", mapearErroParaEventoSse(erro));
 }
 
+/** Nunca deixa vazar o JSON cru de validação (Zod) pro cliente — vira texto de chat se não tratado. */
+function friendlyErrorMessage(err: unknown): string {
+  if (err instanceof ZodError) {
+    const issue = err.issues[0];
+    if (issue?.code === "too_big" && issue.type === "array") {
+      return `Envie no máximo ${issue.maximum} de cada vez.`;
+    }
+    if (issue?.code === "too_small" && issue.type === "array") {
+      return "Envie pelo menos um item.";
+    }
+    return "Pedido inválido — confira o que foi enviado.";
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -156,8 +173,16 @@ function quotaDeniedPayload(
 
 function chatTimeoutMs(): number {
   const raw = process.env.LUNA_CHAT_TIMEOUT_MS?.trim();
-  const n = raw ? Number.parseInt(raw, 10) : 90_000;
-  return Number.isFinite(n) && n > 0 ? n : 90_000;
+  const n = raw ? Number.parseInt(raw, 10) : 150_000;
+  return Number.isFinite(n) && n > 0 ? n : 150_000;
+}
+
+// Timeout do streaming SSE — a escada mais folgada (LLM 120s < servidor 150s < streaming).
+// Configurável por env; default 180s pra caber respostas profundas do v4-pro.
+function streamTimeoutMs(): number {
+  const raw = process.env.LUNA_STREAM_TIMEOUT_MS?.trim();
+  const n = raw ? Number.parseInt(raw, 10) : 180_000;
+  return Number.isFinite(n) && n > 0 ? n : 180_000;
 }
 
 async function comTimeoutChat<T>(promise: Promise<T>, ms = chatTimeoutMs()): Promise<T> {
@@ -323,7 +348,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       console.log(`[server] GET /v1/billing/usage response uid=${auth.uid} usedTokens=${usage.usedTokens} remaining=${usage.remainingTokens} planId=${usage.planId}`);
       return sendJson(res, 200, { ok: true, usage });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = friendlyErrorMessage(err);
       return sendJson(res, 500, { ok: false, error: message });
     }
   }
@@ -339,7 +364,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const text = await generateRosaryReflection(parsed);
       return sendJson(res, 200, { ok: true, text } satisfies RosaryReflectionResponse);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = friendlyErrorMessage(err);
       return sendJson(res, 400, { ok: false, error: message } satisfies RosaryReflectionResponse);
     }
   }
@@ -448,7 +473,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     } catch (err) {
       const message = err instanceof Error ? err.stack ?? err.message : String(err);
       console.error("[server] /v1/chat error:", message);
-      const payload: ChatResponse = { ok: false, error: err instanceof Error ? err.message : String(err) };
+      const payload: ChatResponse = { ok: false, error: friendlyErrorMessage(err) };
       return sendJson(res, 400, payload);
     }
   }
@@ -539,10 +564,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       });
       sseStarted = true;
 
+      const streamMs = streamTimeoutMs();
       const streamTimeout = setTimeout(() => {
-        sendMappedSseError(res, new Error("Timeout de streaming (120s)."));
+        sendMappedSseError(res, new Error(`Timeout de streaming (${Math.round(streamMs / 1000)}s).`));
         res.end();
-      }, 120_000);
+      }, streamMs);
 
       const result = await executarChatMobileStream(
         parsed.message,
@@ -612,7 +638,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       } else if (err instanceof QuotaExceededError || err instanceof ReducedQuotaExceededError) {
         return sendJson(res, 429, quotaDeniedPayload(err) satisfies ChatResponse);
       } else {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = friendlyErrorMessage(err);
         const payload: ChatResponse = { ok: false, error: message };
         return sendJson(res, 400, payload);
       }
@@ -644,7 +670,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const payload: TranscribeResponse = { ok: true, text };
       return sendJson(res, 200, payload);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = friendlyErrorMessage(err);
       const payload: TranscribeResponse = { ok: false, error: message };
       return sendJson(res, 400, payload);
     }
@@ -681,7 +707,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const payload: VisionResponse = { ok: true, descriptions };
       return sendJson(res, 200, payload);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = friendlyErrorMessage(err);
       console.log(`[server] /v1/vision error`, message);
       const payload: VisionResponse = { ok: false, error: message };
       return sendJson(res, 400, payload);
@@ -719,7 +745,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const payload: ExtractDocumentsResponse = { ok: true, documents };
       return sendJson(res, 200, payload);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = friendlyErrorMessage(err);
       console.log(`[server] /v1/extract-documents error`, message);
       const payload: ExtractDocumentsResponse = { ok: false, error: message };
       return sendJson(res, 400, payload);
@@ -733,7 +759,7 @@ const server = createServer((req, res) => {
   void handleRequest(req, res).catch((err) => {
     sendJson(res, 500, {
       ok: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: friendlyErrorMessage(err),
     });
   });
 });

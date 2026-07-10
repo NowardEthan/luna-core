@@ -1,5 +1,9 @@
 import type { MemoriaSessao } from "../../memoria/esquemaMemoria.js";
-import { criarVontadeNarrativa, type VontadeNarrativa } from "./storeVontade.js";
+import {
+  arquivarVontadesDeSeguimentoAnteriores,
+  criarVontadeNarrativa,
+  type VontadeNarrativa,
+} from "./storeVontade.js";
 
 function normalizar(texto: string): string {
   return texto.replace(/\s+/g, " ").trim();
@@ -31,11 +35,18 @@ export function gerarVontadePosSessao(sessao: MemoriaSessao): VontadeNarrativa {
   const gatilho = inferirGatilho(sessao);
   const assunto = extrairAssunto(sessao);
 
+  // O assunto é copiado VERBATIM da fala do usuário, logo vem em 1ª pessoa ("tô montando…").
+  // Sem dizer de quem são as palavras, o modelo troca a atribuição e adota o hobby do
+  // usuário como se fosse dela. A atribuição explícita abaixo é obrigatória.
   const vontade = assunto
-    ? `Voltar a puxar com ele o assunto: "${assunto}" — ver no que deu, por conta própria.`
+    ? `Voltar a puxar, por conta própria, o assunto que o USUÁRIO trouxe — palavras dele, não suas: "${assunto}" — e ver no que deu.`
     : sessao.mensagens.length > 12
       ? "Retomar por iniciativa própria o fio principal desta conversa no próximo encontro."
       : "Chegar no próximo encontro trazendo algo, não só esperando ele começar.";
+
+  // Só a vontade de seguimento mais recente fica viva — senão empilham e ela
+  // repuxa todos os assuntos antigos, para sempre, em toda conversa.
+  arquivarVontadesDeSeguimentoAnteriores(sessao.id);
 
   return criarVontadeNarrativa({
     sessao_id: sessao.id,

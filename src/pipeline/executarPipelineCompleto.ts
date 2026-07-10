@@ -38,6 +38,7 @@ import { lerRelacaoHumor } from "../mundo/humor/relacaoHumor.js";
 import { humorParaPerfilExpressao } from "../mundo/humor/humorParaPerfilExpressao.js";
 import { humorParaBadge, type HumorBadgePayload } from "../mundo/humor/humorParaBadge.js";
 import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/talamoPipeline.js";
+import { classificarPesoTurno, escolherModeloResposta } from "../estado/pesoTurno.js";
 import { prepararNucleoMundoInterior } from "../mundo/montarNucleoMundoInterior.js";
 import { coletarNeuroniosSempreAtivos } from "../neuronios/coletarSempreAtivos.js";
 import { criarVontadeNarrativa } from "../mundo/vontade/storeVontade.js";
@@ -50,7 +51,6 @@ import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { AnexoImagemChat } from "../agentico/especialistas/visaoGemma.js";
 import { simularVidaInterior } from "../mundo/vida/simuladorVida.js";
-import { registrarGostoLuna } from "../mundo/gostos/storeGostos.js";
 import { inferirEFormatarConhecimento } from "../conhecimento/formatarConhecimento.js";
 
 inicializarNeuroniosPadrao();
@@ -357,6 +357,15 @@ export async function executarPipelineCompleto(
     console.error("Aviso: falha ao atualizar humor", e);
   }
 
+  // P1 (Luna Profunda) — memória depende só de `analise`, não de intenção/neurônios.
+  // Dispara já, roda concorrente com intenção; awaited abaixo onde é consumida.
+  const memoriaPromise = avaliarMemoria(
+    mensagem,
+    sessao,
+    neuronioLlm ? provedorMenor : undefined,
+    neuronioLlm ? config?.modeloMenor : undefined,
+  );
+
   // Intenção própria da Luna: o que ELA quer nesta troca (não só reagir).
   // Turnos simples usam regras (sem custo de LLM); demais usam o modelo menor (Cerebras).
   try {
@@ -428,12 +437,7 @@ export async function executarPipelineCompleto(
 
   opcoes.onStatusHint?.("Consultando memória…");
 
-  const memoria = await avaliarMemoria(
-    mensagem,
-    sessao,
-    neuronioLlm ? provedorMenor : undefined,
-    neuronioLlm ? config?.modeloMenor : undefined,
-  );
+  const memoria = await memoriaPromise;
 
   const politicaComMemoria = {
     ...pipeline.politica,
@@ -606,11 +610,19 @@ export async function executarPipelineCompleto(
     const anexosImagem = opcoes.anexosImagem ?? [];
     const usarModoAgentico = deveUsarModoAgentico(provedor, mensagem, anexosImagem);
 
+    // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
+    // emocional/técnico continua no modelo grande. Sem custo: usa a análise já feita.
+    const pesoTurno = classificarPesoTurno(analise.analise, profundidade);
+    const modeloResposta = escolherModeloResposta(pesoTurno, config.modeloMenor, config.modeloMaior);
+    const configResposta = modeloResposta === config.modeloMaior
+      ? config
+      : { ...config, modeloMaior: modeloResposta };
+
     if (usarModoAgentico && ehProvedorAgente(provedor)) {
       resposta = await responderComoLunaAgentico(
         mensagem,
         provedor,
-        config,
+        configResposta,
         contextoCompilado,
         {
           historico,
@@ -634,7 +646,7 @@ export async function executarPipelineCompleto(
         politicaComMemoria,
         config.apiKey,
         config.baseUrl,
-        config.modeloMaior,
+        modeloResposta,
         config.temperaturaMaior,
         contextoCompilado,
         historico,
@@ -658,7 +670,7 @@ export async function executarPipelineCompleto(
         mensagem,
         politicaComMemoria,
         provedor,
-        config.modeloMaior,
+        modeloResposta,
         config.temperaturaMaior,
         contextoCompilado,
         historico,
@@ -690,11 +702,11 @@ export async function executarPipelineCompleto(
     } catch (e) {
       console.error("Aviso: falha ao salvar perfil comportamental", e);
     }
-    try {
-      registrarGostoLuna(memoria.decisao.conteudo, 0.7, "inferido de preferência confirmada");
-    } catch (e) {
-      console.error("Aviso: falha ao registrar gosto da Luna", e);
-    }
+    // NÃO registrar isto como gosto da Luna: `conteudo` é a preferência do USUÁRIO
+    // (ex.: "prefiro respostas curtas"). Copiá-la para `luna_gostos` injetava texto do
+    // usuário em 1ª pessoa como identidade dela, causando confabulação de história
+    // compartilhada (ela trocava "meu hobby" por "teu hobby"). O perfil acima já é o
+    // lugar correto para preferências do usuário.
   }
 
   // V2.3 — resposta entregue, volta para aguardando_input

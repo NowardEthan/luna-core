@@ -7,14 +7,17 @@ export async function coletarNeuroniosSempreAtivos(
 ): Promise<Partial<EntradasCompilador>> {
   const dados: Partial<EntradasCompilador> = {};
 
-  for (const neuronio of neuroniosRegistrados()) {
-    if (!neuronio.sempre_ativo) continue;
-    const chave = neuronio.prioridade_compilador;
-    if (chave === "politica") continue;
+  // P1 (Luna Profunda) — coleta concorrente. A aplicação abaixo mantém a ordem
+  // de registro dos neurônios, então a concatenação sai idêntica à versão em série.
+  const ativos = neuroniosRegistrados().filter(
+    (n) => n.sempre_ativo && n.prioridade_compilador !== "politica",
+  );
+  const valores = await Promise.all(ativos.map((n) => n.coletar(ctx)));
 
-    const valor = await neuronio.coletar(ctx);
+  for (let i = 0; i < ativos.length; i++) {
+    const valor = valores[i];
     if (!valor?.trim()) continue;
-
+    const chave = ativos[i].prioridade_compilador;
     const existente = dados[chave]?.trim();
     dados[chave] = existente ? `${existente}\n${valor.trim()}` : valor.trim();
   }

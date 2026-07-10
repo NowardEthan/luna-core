@@ -109,6 +109,39 @@ export function inserirFatoLongo(
   const cache = getCacheMundo();
   const agora = new Date().toISOString();
 
+  // Dedupe na fonte: o mesmo fato reconfirmado não deve virar linha nova.
+  // Sem isto, "Prefiro respostas curtas" acumulou 29 cópias e era injetado 29x
+  // no contexto de todo turno (sinal virava ruído).
+  const chaveDedupe = conteudo.trim().toLowerCase();
+  if (cache) {
+    const existenteCache = [...cache.memoriaFatos.values()].find(
+      (f) =>
+        f.ativo === 1 &&
+        f.escopo === escopo &&
+        f.conteudo.trim().toLowerCase() === chaveDedupe,
+    );
+    if (existenteCache) {
+      const atualizado = { ...existenteCache, atualizado_em: agora };
+      cache.memoriaFatos.set(atualizado.id, atualizado);
+      cache.dirty.memoriaFatos.add(atualizado.id);
+      return atualizado;
+    }
+  } else if (sqliteFallbackPermitido()) {
+    const existenteDb = obterDb()
+      .prepare(
+        `SELECT * FROM fatos_confirmados
+         WHERE ativo = 1 AND escopo = ? AND lower(trim(conteudo)) = ?
+         LIMIT 1`,
+      )
+      .get(escopo, chaveDedupe) as FatoConfirmadoDb | undefined;
+    if (existenteDb) {
+      obterDb()
+        .prepare(`UPDATE fatos_confirmados SET atualizado_em = ? WHERE id = ?`)
+        .run(agora, existenteDb.id);
+      return { ...existenteDb, atualizado_em: agora };
+    }
+  }
+
   const inputSaliencia: InputSaliencia = {
     tipo,
     sensibilidade,
