@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { ChatMessage } from './fixtures';
 import { newMessageId } from './messageId';
@@ -126,6 +126,10 @@ export function useChatSend({
   startNewChat,
   pendingQueue,
 }: UseChatSendParams) {
+  // Mensagens com envio em voo (por userMessageId). Impede que o envio direto e
+  // o motor de retry disparem a MESMA mensagem em paralelo (ver sendPendingEntry).
+  const inFlightRef = useRef<Set<string>>(new Set());
+
   const aplicarHumorResposta = useCallback(
     (humor: LunaHumorBadge | undefined, lunaMessageId: string) => {
       if (!humor) return;
@@ -159,12 +163,15 @@ export function useChatSend({
   );
 
   const deliverLunaError = useCallback(
-    (err: unknown) => {
+    (err: unknown, lunaMessageId: string) => {
       const text =
         err instanceof LunaApiError
           ? err.message
           : 'Algo deu errado ao falar com a Luna. Tente novamente.';
-      deliverLunaReply(text, `l${Date.now()}`);
+      // Renderiza no slot DETERMINÍSTICO da Luna (lunaMessageIdForUser) — nunca
+      // num id aleatório. Assim há no máximo uma bolha de erro por mensagem, e um
+      // reenvio a sobrescreve com o novo streaming (sem acúmulo, sem duplicata).
+      deliverLunaReply(text, lunaMessageId);
     },
     [deliverLunaReply],
   );
@@ -189,7 +196,7 @@ export function useChatSend({
           setLoading(false);
           updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false }));
           void pendingQueue.remove(userMessageId);
-          deliverLunaError(err);
+          deliverLunaError(err, lunaMessageId);
           return;
         }
       }
@@ -337,7 +344,6 @@ export function useChatSend({
         }
       } catch (err) {
         setLoading(false);
-        setLocalMessages((m) => m.filter((msg) => msg.id !== lunaMessageId));
         if (bumpedTokens > 0) {
           lunaUsage.rollbackTokens(bumpedTokens);
         }
@@ -350,6 +356,9 @@ export function useChatSend({
             : err;
 
         if (isNetworkClassifiedError(effectiveErr)) {
+          // Erro de rede: some com o slot vazio da Luna; o balão do usuário
+          // carrega o estado de retry (spinner/tentar de novo).
+          setLocalMessages((m) => m.filter((msg) => msg.id !== lunaMessageId));
           const { gaveUp } = await pendingQueue.markAttemptFailed(userMessageId);
           if (gaveUp) {
             updateMessageById(userMessageId, (msg) => ({
@@ -361,9 +370,21 @@ export function useChatSend({
           return;
         }
 
+        // Erro definitivo (não-rede): renderiza NO MESMO slot reservado da Luna
+        // (upsert por lunaMessageId), em vez de criar bolha nova. Um reenvio
+        // sobrescreve com o novo streaming — nunca acumula nem duplica.
         updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false }));
         void pendingQueue.remove(userMessageId);
-        deliverLunaError(effectiveErr);
+        upsertStreamMessage({
+          text:
+            effectiveErr instanceof LunaApiError
+              ? effectiveErr.message
+              : 'Algo deu errado ao falar com a Luna. Tente novamente.',
+          streaming: false,
+          reasoning: undefined,
+          reasoningStreaming: false,
+          researchLive: undefined,
+        });
       }
     },
     [
@@ -395,6 +416,13 @@ export function useChatSend({
    */
   const sendPendingEntry = useCallback(
     async (entry: PendingSendEntry) => {
+      // Mutex por-entrada: o envio direto (submitPayload) e o motor de retry
+      // (usePendingSendRetry, gatilhos de 5s/reconexão) passam por ESTE ponto.
+      // Sem o mutex, uma corrida — o `loadingRef` do retry atrasa em relação ao
+      // `loading` real — dispararia dois envios da MESMA mensagem, dois streams
+      // no mesmo slot da Luna ("duas versões, a primeira some e é substituída").
+      if (inFlightRef.current.has(entry.userMessageId)) return;
+      inFlightRef.current.add(entry.userMessageId);
       try {
         if (entry.cloudEnabled && entry.uid && !entry.userDocWritten) {
           await writeUserTextMessage(
@@ -422,7 +450,9 @@ export function useChatSend({
         }
         updateMessageById(entry.userMessageId, (msg) => ({ ...msg, sending: false }));
         void pendingQueue.remove(entry.userMessageId);
-        deliverLunaError(err);
+        deliverLunaError(err, entry.lunaMessageId);
+      } finally {
+        inFlightRef.current.delete(entry.userMessageId);
       }
     },
     [callLuna, deliverLunaError, pendingQueue, updateMessageById],
@@ -573,7 +603,7 @@ export function useChatSend({
             return;
           }
           updateMessageById(userMsgId, (msg) => ({ ...msg, sending: false }));
-          deliverLunaError(err);
+          deliverLunaError(err, lunaMessageIdForUser(userMsgId));
         }
       })();
     },

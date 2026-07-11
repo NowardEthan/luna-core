@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { ChatMessage, VoiceClip } from './fixtures';
 import { LunaApiError } from './lunaClient';
 import { newMessageId } from './messageId';
+import { lunaMessageIdForUser } from '../lib/chatMessageIds';
 import { transcribeVoiceClip } from './transcribeVoice';
 import { formatVoiceDuration } from '../hooks/useVoiceRecording';
 import type { LunaUsageContextValue } from '../hooks/LunaUsageContext';
@@ -34,7 +35,7 @@ type UseVoiceMessagesParams = {
   clearDraft: () => Promise<void> | void;
   setLoading: (value: boolean) => void;
   callLuna: (message: string, userMessageId: string) => Promise<void>;
-  deliverLunaError: (err: unknown) => void;
+  deliverLunaError: (err: unknown, lunaMessageId: string) => void;
 };
 
 /**
@@ -149,7 +150,10 @@ export function useVoiceMessages({
             transcriptError: message,
           }));
           setLoading(false);
-          deliverLunaError(new LunaApiError(`Não consegui entender o áudio: ${message}`));
+          deliverLunaError(
+            new LunaApiError(`Não consegui entender o áudio: ${message}`),
+            lunaMessageIdForUser(userMsgId),
+          );
         });
     },
     [
