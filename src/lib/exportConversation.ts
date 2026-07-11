@@ -16,10 +16,10 @@ function messageBody(msg: ChatMessage): string {
 }
 
 /**
- * Formata uma conversa como texto simples e legível para compartilhar via a
- * folha nativa (WhatsApp, e-mail, notas...). Espera `messages` em ordem
- * cronológica (mais antiga primeiro). Ignora bolhas sem conteúdo (ex.: slot de
- * streaming vazio ou falha de rede sem texto).
+ * Formata uma conversa como **Markdown** para exportar como arquivo `.md`
+ * (importável em Obsidian, Notion, etc.) ou compartilhar como texto. Espera
+ * `messages` em ordem cronológica (mais antiga primeiro). Ignora bolhas sem
+ * conteúdo (ex.: slot de streaming vazio ou falha de rede sem texto).
  */
 export function formatConversationForExport(
   title: string,
@@ -34,17 +34,29 @@ export function formatConversationForExport(
     minute: '2-digit',
   });
 
-  const header = `${title.trim() || 'Conversa'}\nExportado do Orbit · ${stamp}\n${'—'.repeat(24)}`;
+  const header = `# ${title.trim() || 'Conversa'}\n\n*Exportado do Orbit · ${stamp}*\n\n---`;
 
   const body = messages
     .filter((m) => !m.streaming)
     .map((m) => {
       const content = messageBody(m);
       if (!content) return null;
-      return `${speakerLabel(m.role)}:\n${content}`;
+      return `**${speakerLabel(m.role)}:**\n\n${content}`;
     })
     .filter((block): block is string => block != null)
     .join('\n\n');
 
   return `${header}\n\n${body}\n`;
+}
+
+/** Nome-base seguro (sem extensão) para o arquivo exportado, derivado do título. */
+export function exportFileBaseName(title: string): string {
+  const clean = (title.trim() || 'conversa')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove acentos
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .slice(0, 48);
+  return clean || 'conversa';
 }

@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useHeaderTopPadding } from '../hooks/useLayoutInsets';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { ThreadHeaderMenu, type ThreadMenuItem } from '../components/ThreadHeaderMenu';
-import { formatConversationForExport } from '../lib/exportConversation';
+import { exportFileBaseName, formatConversationForExport } from '../lib/exportConversation';
 import { BranchContinuationMarker } from '../components/BranchContinuationMarker';
 import type { BranchNavigatorAction } from '../components/BranchNavigatorSheet';
 import { BranchNavigatorSheet } from '../components/BranchNavigatorSheet';
@@ -476,9 +478,28 @@ export const ThreadScreen = memo(function ThreadScreen({
 
   const handleExportConversation = useCallback(() => {
     const text = formatConversationForExport(title, messages);
-    // Share nativo do RN — sem dependência nova. No Android compartilha o texto;
-    // no iOS `message` + `title` (assunto no e-mail).
-    void Share.share({ message: text, title: title || 'Conversa' }).catch(() => {});
+    void (async () => {
+      try {
+        // Escreve um .md real no cache e compartilha o ARQUIVO (importável em
+        // Obsidian/Notion, salvável no Drive) via a folha nativa.
+        const file = new File(Paths.cache, `${exportFileBaseName(title)}.md`);
+        if (file.exists) file.delete();
+        file.create();
+        file.write(text);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(file.uri, {
+            mimeType: 'text/markdown',
+            UTI: 'net.daringfireball.markdown',
+            dialogTitle: 'Exportar conversa',
+          });
+          return;
+        }
+      } catch {
+        /* cai no fallback de texto abaixo */
+      }
+      // Fallback: se escrever/compartilhar o arquivo falhar, compartilha o texto.
+      void Share.share({ message: text, title: title || 'Conversa' }).catch(() => {});
+    })();
   }, [messages, title]);
 
   const headerMenuItems = useMemo<ThreadMenuItem[]>(() => {
