@@ -26,6 +26,7 @@ import {
 import {
   NativePickerUnavailableError,
   checkPickerAvailability,
+  materializeFileToCache,
   pickDocuments,
   takePhotoWithCamera,
   type PickerAvailability,
@@ -68,8 +69,11 @@ async function finalizePick(
   onClose: () => void,
 ) {
   if (items.length === 0) return;
-  await rememberRecentFiles(items);
-  onPick(items);
+  // Materializa arquivos (content:// do SAF / cache obsoleto) num file:// fresco
+  // e legível antes de anexar — evita o "Não consegui ler o arquivo" no envio.
+  const ready = await Promise.all(items.map(materializeFileToCache));
+  await rememberRecentFiles(ready);
+  onPick(ready);
   onClose();
 }
 

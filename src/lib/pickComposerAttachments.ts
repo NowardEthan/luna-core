@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { File, Paths } from 'expo-file-system';
 import {
   attachmentKindFromMime,
   newAttachmentId,
@@ -135,6 +136,33 @@ export async function takePhotoWithCamera(): Promise<ComposerAttachment[]> {
   });
   if (result.canceled || !result.assets?.length) return [];
   return result.assets.map(imageAssetToAttachment);
+}
+
+/**
+ * Copia um arquivo (URI `content://` do SAF vindo dos recentes/navegador do
+ * dispositivo, ou um `file://` de cache possivelmente já obsoleto) para um
+ * arquivo NOVO no cache do app, devolvendo um `file://` legível — o mesmo que o
+ * picker nativo faz com `copyToCacheDirectory: true`. Sem isso, ler o arquivo no
+ * envio (`new File(uri).base64()`) falha para content:// / cache limpo e a
+ * mensagem estoura "Não consegui ler o arquivo anexado".
+ *
+ * Defensivo: se a cópia falhar (arquivo sumiu, API indisponível), devolve o
+ * anexo ORIGINAL sem alteração — nunca regride o caminho que já funcionava.
+ * Só se aplica a `kind === 'file'`; imagens da galeria já chegam com localUri.
+ */
+export async function materializeFileToCache(att: ComposerAttachment): Promise<ComposerAttachment> {
+  if (att.kind !== 'file' || !att.uri) return att;
+  const uri = att.uri;
+  if (uri.startsWith('https://') || uri.startsWith('http://')) return att; // já remoto
+  try {
+    const src = new File(uri);
+    const safeName = (att.name || `arquivo-${Date.now()}`).replace(/[^\w.\-]+/g, '_');
+    const dest = new File(Paths.cache, `luna-att-${newAttachmentId()}-${safeName}`);
+    await src.copy(dest);
+    return { ...att, uri: dest.uri };
+  } catch {
+    return att;
+  }
 }
 
 export async function pickDocuments(): Promise<ComposerAttachment[]> {
