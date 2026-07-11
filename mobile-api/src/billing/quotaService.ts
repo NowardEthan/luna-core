@@ -24,6 +24,7 @@ import {
   type ReducedModeSnapshot,
 } from "./reducedQuota.js";
 import { migrarContadoresLegados, CUSTO_MINIMO_CHAT } from "./tokenEstimate.js";
+import { ehCriadorVerificado } from "../criadorVerificado.js";
 
 export class QuotaExceededError extends Error {
   readonly code = "quota_exceeded" as const;
@@ -221,6 +222,13 @@ export async function getQuotaSnapshot(uid: string): Promise<QuotaUsageSnapshot>
       0,
       FREE_USAGE_DOC_ID,
     );
+    if (ehCriadorVerificado(uid)) {
+      // Criador ilimitado: mantém a contagem REAL (usedTokens continua contando),
+      // mas sem teto (windowTokenLimit/remaining = null). O app usa
+      // `windowTokenLimit !== null` para decidir se há limite → trata como
+      // ilimitado, não mostra UI de limite nem desabilita o composer.
+      return { ...snapshot, windowTokenLimit: null, remainingTokens: null, weeklyTokens: null, reducedMode: null };
+    }
     return attachReducedMode(uid, snapshot);
   }
 
@@ -235,6 +243,10 @@ export async function getQuotaSnapshot(uid: string): Promise<QuotaUsageSnapshot>
 /** Verifica se há tokens suficientes sem consumir. */
 export async function assertTokensAvailable(uid: string, amount: number): Promise<void> {
   if (amount < 1) return;
+
+  // Criador = limite ilimitado: nunca bloqueado. O consumo ainda é contado
+  // (ver consumeTokens), só não há teto para o barrar.
+  if (ehCriadorVerificado(uid)) return;
 
   const db = requireFirestore();
   const userRef = db.doc(`users/${uid}`);
@@ -306,6 +318,10 @@ export async function resolveQuotaForRequest(
 export async function consumeTokens(uid: string, amount: number): Promise<QuotaUsageSnapshot> {
   if (amount < 1) amount = 1;
 
+  // Criador: conta os tokens normalmente (incrementa os contadores abaixo), mas
+  // NUNCA é barrado por teto — os throws de limite são pulados só para ele.
+  const criador = ehCriadorVerificado(uid);
+
   const db = requireFirestore();
   const userRef = db.doc(`users/${uid}`);
 
@@ -329,7 +345,7 @@ export async function consumeTokens(uid: string, amount: number): Promise<QuotaU
     const usageSnap = await tx.get(usageRef);
     const window = readWindowTokens(usageSnap.data(), now);
 
-    if (window.tokens + amount > windowLimit) {
+    if (!criador && window.tokens + amount > windowLimit) {
       throw new QuotaExceededError(
         window.tokens,
         windowLimit,
@@ -343,7 +359,7 @@ export async function consumeTokens(uid: string, amount: number): Promise<QuotaU
     const weeklySnap = await tx.get(weeklyRef);
     const weekly = readWeeklyTokens(weeklySnap.data(), now);
 
-    if (weekly.tokens + amount > weeklyLimit) {
+    if (!criador && weekly.tokens + amount > weeklyLimit) {
       throw new QuotaExceededError(
         weekly.tokens,
         weeklyLimit,

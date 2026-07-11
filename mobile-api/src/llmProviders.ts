@@ -486,11 +486,16 @@ function resolveOpenrouterConfig(): ConfigLuna | null {
 
   const baseUrl = process.env.OPENROUTER_API_BASE?.trim() || OPENROUTER_BASE;
   const model = resolveOpenrouterModelId();
+  // Modelo AUXILIAR/leve (flash): é o que o gate de peso usa no turno casual e o que
+  // o pipeline usa nas chamadas leves (análise/intenção/memória). Sem um modelo menor
+  // DISTINTO, modeloMenor === modeloMaior (Pro) e o gate nunca rebaixa → tudo ia pro
+  // Pro (caro e lento). Configurável por OPENROUTER_MODELO_MENOR.
+  const modelMenor = process.env.OPENROUTER_MODELO_MENOR?.trim() || "deepseek/deepseek-v4-flash";
 
   const config: ConfigLuna = {
     apiKey,
     baseUrl,
-    modeloMenor: model,
+    modeloMenor: modelMenor,
     modeloMaior: model,
     temperaturaMenor: 0,
     temperaturaMaior: Number(process.env.OPENROUTER_TEMPERATURA ?? process.env.LUNA_TEMPERATURA_MAIOR ?? 1),
