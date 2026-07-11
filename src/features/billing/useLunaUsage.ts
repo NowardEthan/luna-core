@@ -146,6 +146,10 @@ export function useLunaUsage(
   const [pendingTokens, setPendingTokens] = useState(0);
   const [pendingWeeklyTokens, setPendingWeeklyTokens] = useState(0);
   const [reducedMode, setReducedMode] = useState<ReducedModeSnapshot | null>(null);
+  // Sinal de "ilimitado" vindo do servidor (ex.: criador). Quando o backend
+  // devolve windowTokenLimit === null, tratamos como sem teto — em vez de
+  // recalcular o limite localmente a partir do plano (que voltaria a barrar).
+  const [serverUnlimited, setServerUnlimited] = useState(false);
   const [clockTick, setClockTick] = useState(0);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -158,7 +162,10 @@ export function useLunaUsage(
     [planId, docData, bonusTurns, clockTick],
   );
 
-  const windowLimit = useMemo(() => windowTokenLimitForPlan(planId), [planId]);
+  const windowLimit = useMemo(
+    () => (serverUnlimited ? null : windowTokenLimitForPlan(planId)),
+    [planId, serverUnlimited],
+  );
 
   const usedTokens = useMemo(() => {
     if (windowLimit === null) return 0;
@@ -225,6 +232,7 @@ export function useLunaUsage(
         setWeeklyDocData(parsedApi.weekly);
         setBonusTurns(usage.bonusTurns);
         setReducedMode(usage.reducedMode ?? null);
+        setServerUnlimited(usage.windowTokenLimit === null);
         setPendingTokens(0);
         setPendingWeeklyTokens(0);
         setWindowLoaded(true);
@@ -245,6 +253,7 @@ export function useLunaUsage(
       setPendingTokens(0);
       setPendingWeeklyTokens(0);
       setReducedMode(null);
+      setServerUnlimited(false);
       setWindowLoaded(false);
       setWeeklyLoaded(!usesRollingWindow(planId));
       return;
