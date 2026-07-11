@@ -242,6 +242,16 @@ export function useChatSend({
       let reasoningText = '';
       let streamedText = '';
 
+      // Assim que o servidor reage (qualquer evento do stream), a mensagem do
+      // usuário passa de "enviando" (relógio) para "enviado" (um tique): o
+      // backend recebeu e já começou a responder.
+      let serverAcked = false;
+      const markServerAck = () => {
+        if (serverAcked) return;
+        serverAcked = true;
+        updateMessageById(userMessageId, (msg) => ({ ...msg, deliveryStatus: 'sent' }));
+      };
+
       try {
         // Streaming SSE — traz eventos de ação (pesquisa web / leitura de link),
         // raciocínio e o próprio conteúdo (onContentDelta) ao vivo. Quando o
@@ -253,14 +263,17 @@ export function useChatSend({
             streamErrorMessage = message;
           },
           onReasoningDelta: (delta) => {
+            markServerAck();
             reasoningText += delta;
             upsertStreamMessage({ reasoning: reasoningText, reasoningStreaming: true });
           },
           onContentDelta: (delta) => {
+            markServerAck();
             streamedText += delta;
             upsertStreamMessage({ text: streamedText, streaming: true });
           },
           onAcao: (acao) => {
+            markServerAck();
             if (!ehFerramentaDePesquisa(acao.ferramenta)) return;
             const argumento = argumentoDaAcao(acao.ferramenta, acao.argumentos);
             if (acao.tipo === 'inicio_ferramenta') {
@@ -303,7 +316,12 @@ export function useChatSend({
           humor: result.humor_atual,
         });
         aplicarHumorResposta(result.humor_atual, lunaMessageId);
-        updateMessageById(userMessageId, (msg) => ({ ...msg, sending: false, sendError: undefined }));
+        updateMessageById(userMessageId, (msg) => ({
+          ...msg,
+          sending: false,
+          deliveryStatus: 'received',
+          sendError: undefined,
+        }));
         void pendingQueue.remove(userMessageId);
 
         if (cloudEnabled && uid) {
@@ -441,7 +459,12 @@ export function useChatSend({
       const firestoreText = clean || attachmentsPreviewLabel(attachments);
 
       if (isResend) {
-        updateMessageById(userMsgId, (msg) => ({ ...msg, sending: true, sendError: undefined }));
+        updateMessageById(userMsgId, (msg) => ({
+          ...msg,
+          sending: true,
+          deliveryStatus: 'sending',
+          sendError: undefined,
+        }));
       } else {
         const userMsg: ChatMessage = {
           id: userMsgId,
@@ -450,6 +473,7 @@ export function useChatSend({
           attachments: attachments.length > 0 ? attachments.map((a) => ({ ...a })) : undefined,
           reference: ref ?? undefined,
           sending: true,
+          deliveryStatus: 'sending',
         };
         setLocalMessages((m) => [...m, userMsg]);
         void clearDraft();

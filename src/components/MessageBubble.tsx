@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BubbleEnter } from './BubbleEnter';
@@ -68,7 +68,37 @@ function messageEqual(a: ChatMessage, b: ChatMessage): boolean {
     a.humor?.label === b.humor?.label &&
     a.humor?.tema === b.humor?.tema &&
     a.sending === b.sending &&
+    a.deliveryStatus === b.deliveryStatus &&
     a.sendError === b.sendError
+  );
+}
+
+/**
+ * Ticks de entrega estilo WhatsApp na bolha do usuário:
+ * relógio (a caminho) → um tique (servidor recebeu) → tique duplo (Luna respondeu).
+ * Discreto — não compete com o texto, só confirma o percurso da mensagem.
+ */
+function MessageDeliveryTicks({ status }: { status?: 'sending' | 'sent' | 'received' }) {
+  if (!status) return null;
+  if (status === 'sending') {
+    return (
+      <View style={styles.ticksRow} accessibilityLabel="Enviando">
+        <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.5)" />
+      </View>
+    );
+  }
+  const received = status === 'received';
+  return (
+    <View
+      style={styles.ticksRow}
+      accessibilityLabel={received ? 'Recebido pela Luna' : 'Enviado'}
+    >
+      <Ionicons
+        name={received ? 'checkmark-done' : 'checkmark'}
+        size={15}
+        color={received ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)'}
+      />
+    </View>
   );
 }
 
@@ -213,12 +243,7 @@ function MessageBubbleInner({
             />
           </Pressable>
         ) : null}
-        {message.sending ? (
-          <View style={styles.sendStatusRow}>
-            <ActivityIndicator size="small" color="rgba(255,255,255,0.9)" />
-            <Text style={styles.sendStatusText}>Enviando…</Text>
-          </View>
-        ) : message.sendError ? (
+        {message.sendError ? (
           <Pressable
             onPress={() => onResend?.(message.id)}
             style={styles.sendStatusRow}
@@ -228,7 +253,11 @@ function MessageBubbleInner({
             <Ionicons name="refresh" size={13} color="#FFB4AB" />
             <Text style={styles.sendErrorText}>Falha ao enviar · Tentar novamente</Text>
           </Pressable>
-        ) : null}
+        ) : (
+          <MessageDeliveryTicks
+            status={message.deliveryStatus ?? (message.sending ? 'sending' : undefined)}
+          />
+        )}
         </View>
       </LinearGradient>
     )
@@ -447,10 +476,13 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingTop: 6,
   },
-  sendStatusText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.82)',
+  ticksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
+    minHeight: 15,
+    paddingTop: 3,
   },
   sendErrorText: {
     fontSize: 11,

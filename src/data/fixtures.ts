@@ -35,6 +35,13 @@ export interface ChatMessage {
   humor?: LunaHumorBadge;
   /** Envio em andamento (inclui retries automáticos) — nunca vira bolha falsa da Luna. */
   sending?: boolean;
+  /**
+   * Estado de entrega da mensagem do usuário (ticks estilo WhatsApp):
+   * 'sending' = a caminho do servidor · 'sent' = servidor recebeu (Luna começou a
+   * responder) · 'received' = Luna processou e respondeu. Independente de `sending`,
+   * que continua governando a lógica de fila/reenvio.
+   */
+  deliveryStatus?: 'sending' | 'sent' | 'received';
   /** Falha definitiva após esgotar retries — toque na bolha reenvia. */
   sendError?: string;
 }
