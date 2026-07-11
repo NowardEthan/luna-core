@@ -21,6 +21,10 @@ interface Props {
   visible: boolean;
   title: string;
   pinned?: boolean;
+  /** Esconde "Mover para" (ação de pasta) — usar false na lista simples sem pastas. */
+  showMove?: boolean;
+  /** Esconde "Fixar" — usar false na lista simples. */
+  showPin?: boolean;
   onClose: () => void;
   onAction: (action: OrganizeSheetAction) => void;
 }
@@ -57,6 +61,8 @@ export function ConversationOrganizeSheet({
   visible,
   title,
   pinned,
+  showMove = true,
+  showPin = true,
   onClose,
   onAction,
 }: Props) {
@@ -115,24 +121,28 @@ export function ConversationOrganizeSheet({
               onAction('rename');
             }}
           />
-          <ActionRow
-            icon="folder-open-outline"
-            label={ORGANIZE_COPY.moveTo}
-            onPress={() => {
-              hapticListTap();
-              handleClose();
-              onAction('move');
-            }}
-          />
-          <ActionRow
-            icon={pinned ? 'pin' : 'pin-outline'}
-            label={pinned ? ORGANIZE_COPY.unpin : ORGANIZE_COPY.pin}
-            onPress={() => {
-              hapticListTap();
-              handleClose();
-              onAction(pinned ? 'unpin' : 'pin');
-            }}
-          />
+          {showMove ? (
+            <ActionRow
+              icon="folder-open-outline"
+              label={ORGANIZE_COPY.moveTo}
+              onPress={() => {
+                hapticListTap();
+                handleClose();
+                onAction('move');
+              }}
+            />
+          ) : null}
+          {showPin ? (
+            <ActionRow
+              icon={pinned ? 'pin' : 'pin-outline'}
+              label={pinned ? ORGANIZE_COPY.unpin : ORGANIZE_COPY.pin}
+              onPress={() => {
+                hapticListTap();
+                handleClose();
+                onAction(pinned ? 'unpin' : 'pin');
+              }}
+            />
+          ) : null}
           <ActionRow
             icon="checkbox-outline"
             label={ORGANIZE_COPY.select}
