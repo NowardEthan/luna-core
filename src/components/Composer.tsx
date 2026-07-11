@@ -150,6 +150,8 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
   const expanded = inputHeight > MIN_INPUT_HEIGHT + 2 || value.includes('\n');
   const isScrollClipped = contentHeight > MAX_INPUT_HEIGHT + 1;
   const hasAttachments = attachments.length > 0;
+  const usedImages = attachments.filter((a) => a.kind === 'image').length;
+  const usedFiles = attachments.filter((a) => a.kind === 'file').length;
 
   const resetInputLayout = useCallback(() => {
     setInputHeight(MIN_INPUT_HEIGHT);
@@ -450,6 +452,10 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
       <ComposerAttachSheet
         visible={attachSheetOpen}
         disabled={!editable || recording}
+        imageBudget={Math.max(0, MAX_IMAGE_ATTACHMENTS - usedImages)}
+        fileBudget={Math.max(0, MAX_FILE_ATTACHMENTS - usedFiles)}
+        maxImages={MAX_IMAGE_ATTACHMENTS}
+        maxFiles={MAX_FILE_ATTACHMENTS}
         onClose={() => setAttachSheetOpen(false)}
         onPick={addAttachments}
       />

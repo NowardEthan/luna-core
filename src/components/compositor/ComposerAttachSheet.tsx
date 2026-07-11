@@ -40,6 +40,14 @@ import { AttachGalleryPanel } from './AttachGalleryPanel';
 interface Props {
   visible: boolean;
   disabled?: boolean;
+  /** Quantas imagens ainda cabem nesta mensagem (max − já anexadas no composer). */
+  imageBudget?: number;
+  /** Quantos arquivos ainda cabem nesta mensagem. */
+  fileBudget?: number;
+  /** Teto total de imagens por mensagem (para a mensagem de limite). */
+  maxImages?: number;
+  /** Teto total de arquivos por mensagem. */
+  maxFiles?: number;
   onClose: () => void;
   onPick: (attachments: ComposerAttachment[]) => void;
 }
@@ -65,7 +73,16 @@ async function finalizePick(
   onClose();
 }
 
-export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick }: Props) {
+export function ComposerAttachSheet({
+  visible,
+  disabled = false,
+  imageBudget = Infinity,
+  fileBudget = Infinity,
+  maxImages,
+  maxFiles,
+  onClose,
+  onPick,
+}: Props) {
   const { bottom: bottomInset } = useLayoutInsets();
   const { height: windowHeight } = useWindowDimensions();
 
@@ -82,11 +99,18 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
   const [cameraBusy, setCameraBusy] = useState(false);
   const [browseFilesBusy, setBrowseFilesBusy] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<string | null>(null);
   const [filesReloadKey, setFilesReloadKey] = useState(0);
   const [galleryReloadKey] = useState(0);
 
   const sheetHeight = useMemo(() => Math.min(windowHeight * 0.78, 620), [windowHeight]);
   const selectedCount = selectedPhotoUris.size + selectedFileUris.size;
+  const imageLimitMsg = maxImages
+    ? `A Luna analisa até ${maxImages} imagens por mensagem.`
+    : 'Limite de imagens desta mensagem atingido.';
+  const fileLimitMsg = maxFiles
+    ? `A Luna analisa até ${maxFiles} arquivos por mensagem.`
+    : 'Limite de arquivos desta mensagem atingido.';
 
   const resetSelection = useCallback(() => {
     setSelectedPhotoUris(new Set());
@@ -99,6 +123,7 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
     if (visible) return;
     setTab('photos');
     resetSelection();
+    setLimitNotice(null);
   }, [resetSelection, visible]);
 
   useEffect(() => {
@@ -132,6 +157,14 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
   }, [galleryReloadKey, visible]);
 
   const togglePhoto = useCallback((photo: GalleryPhoto) => {
+    // Limita a seleção ao orçamento de imagens da mensagem — feedback ao vivo,
+    // em vez do Alert "o restante não foi anexado" só depois de confirmar.
+    if (!selectedPhotoUris.has(photo.uri) && selectedPhotoUris.size >= imageBudget) {
+      setLimitNotice(imageLimitMsg);
+      hapticListTap();
+      return;
+    }
+    setLimitNotice(null);
     hapticListTap();
     setSelectedPhotoUris((prev) => {
       const next = new Set(prev);
@@ -145,12 +178,18 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
       else next.set(photo.uri, photo);
       return next;
     });
-  }, []);
+  }, [imageBudget, imageLimitMsg, selectedPhotoUris]);
 
   const toggleFile = useCallback((file: ComposerAttachment) => {
     if (!file.uri) return;
-    hapticListTap();
     const uri = file.uri;
+    if (!selectedFileUris.has(uri) && selectedFileUris.size >= fileBudget) {
+      setLimitNotice(fileLimitMsg);
+      hapticListTap();
+      return;
+    }
+    setLimitNotice(null);
+    hapticListTap();
     setSelectedFileUris((prev) => {
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
@@ -163,12 +202,18 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
       else next.set(uri, attachmentFromRecentFile(file));
       return next;
     });
-  }, []);
+  }, [fileBudget, fileLimitMsg, selectedFileUris]);
 
   const toggleBrowserEntry = useCallback((entry: FileBrowserEntry) => {
     if (entry.kind !== 'file') return;
-    hapticListTap();
     const uri = entry.uri;
+    if (!selectedFileUris.has(uri) && selectedFileUris.size >= fileBudget) {
+      setLimitNotice(fileLimitMsg);
+      hapticListTap();
+      return;
+    }
+    setLimitNotice(null);
+    hapticListTap();
     setSelectedFileUris((prev) => {
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
@@ -181,7 +226,7 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
       else next.set(uri, attachmentFromBrowserEntry(entry));
       return next;
     });
-  }, []);
+  }, [fileBudget, fileLimitMsg, selectedFileUris]);
 
   const handleConfirm = async () => {
     if (disabled || confirmBusy || selectedCount === 0) return;
@@ -226,7 +271,12 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
     setBrowseFilesBusy(true);
     try {
       const picked = await pickDocuments();
-      for (const file of picked) {
+      // Respeita o orçamento de arquivos da mensagem — o picker nativo permite
+      // escolher vários, então cortamos o excedente aqui e avisamos.
+      const room = Math.max(0, fileBudget - selectedFileUris.size);
+      const accepted = picked.slice(0, room);
+      if (picked.length > accepted.length) setLimitNotice(fileLimitMsg);
+      for (const file of accepted) {
         if (!file.uri) continue;
         const uri = file.uri;
         setSelectedFileUris((prev) => new Set(prev).add(uri));
@@ -297,6 +347,13 @@ export function ComposerAttachSheet({ visible, disabled = false, onClose, onPick
             )}
           </View>
 
+          {limitNotice ? (
+            <View style={styles.limitBanner}>
+              <Ionicons name="information-circle-outline" size={16} color={tokens.warning} />
+              <Text style={styles.limitText}>{limitNotice}</Text>
+            </View>
+          ) : null}
+
           {selectedCount > 0 ? (
             <Pressable
               style={[styles.confirmBtn, (disabled || confirmBusy) && styles.confirmBtnDisabled]}
@@ -345,6 +402,23 @@ const styles = StyleSheet.create({
   panel: {
     flex: 1,
     minHeight: 120,
+  },
+  limitBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginTop: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: tokens.warningSoft,
+  },
+  limitText: {
+    flex: 1,
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: tokens.warning,
   },
   confirmBtn: {
     flexDirection: 'row',
