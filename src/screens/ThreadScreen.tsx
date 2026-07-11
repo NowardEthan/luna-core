@@ -3,12 +3,15 @@ import {
   FlatList,
   Platform,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useHeaderTopPadding } from '../hooks/useLayoutInsets';
+import { ThreadHeaderMenu, type ThreadMenuItem } from '../components/ThreadHeaderMenu';
+import { formatConversationForExport } from '../lib/exportConversation';
 import { BranchContinuationMarker } from '../components/BranchContinuationMarker';
 import type { BranchNavigatorAction } from '../components/BranchNavigatorSheet';
 import { BranchNavigatorSheet } from '../components/BranchNavigatorSheet';
@@ -98,6 +101,8 @@ interface Props {
   onBack: () => void;
   quickMenuOpen: boolean;
   onQuickMenuToggle: () => void;
+  /** Inicia uma nova conversa (item do menu ⋮ do header). */
+  onNewChat?: () => void;
   onVoiceSend: (clip: VoiceClip) => void;
   onTranscribe: (messageId: string) => void;
   onResend: (messageId: string) => void;
@@ -364,6 +369,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   onBack,
   quickMenuOpen,
   onQuickMenuToggle,
+  onNewChat,
   onVoiceSend,
   onTranscribe,
   onResend,
@@ -412,6 +418,7 @@ export const ThreadScreen = memo(function ThreadScreen({
   const [docPreviewTarget, setDocPreviewTarget] = useState<AttachmentPreviewTarget | null>(null);
   const [docPreviewSourceMessage, setDocPreviewSourceMessage] = useState<ChatMessage | null>(null);
   const [lunaProfileOpen, setLunaProfileOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const referenceHighlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingReferenceScrollId = useRef<string | null>(null);
 
@@ -466,6 +473,33 @@ export const ThreadScreen = memo(function ThreadScreen({
     hapticListTap();
     setLunaProfileOpen(true);
   }, []);
+
+  const handleExportConversation = useCallback(() => {
+    const text = formatConversationForExport(title, messages);
+    // Share nativo do RN — sem dependência nova. No Android compartilha o texto;
+    // no iOS `message` + `title` (assunto no e-mail).
+    void Share.share({ message: text, title: title || 'Conversa' }).catch(() => {});
+  }, [messages, title]);
+
+  const headerMenuItems = useMemo<ThreadMenuItem[]>(() => {
+    const items: ThreadMenuItem[] = [];
+    if (onNewChat) {
+      items.push({
+        key: 'new_chat',
+        label: 'Nova conversa',
+        icon: 'chatbubble-ellipses-outline',
+        onPress: onNewChat,
+      });
+    }
+    items.push({
+      key: 'export',
+      label: 'Exportar conversa',
+      icon: 'share-outline',
+      onPress: handleExportConversation,
+      disabled: messages.length === 0,
+    });
+    return items;
+  }, [handleExportConversation, messages.length, onNewChat]);
 
   const {
     visibleMessages,
@@ -887,14 +921,24 @@ export const ThreadScreen = memo(function ThreadScreen({
         </Pressable>
         <View style={styles.headerSpacer} />
         <Pressable
-          onPress={onQuickMenuToggle}
+          onPress={() => {
+            hapticListTap();
+            setHeaderMenuOpen(true);
+          }}
           hitSlop={12}
           style={[styles.iconBtn, styles.headerAddBtn]}
-          accessibilityLabel={quickMenuOpen ? 'Fechar menu' : 'Abrir menu rápido'}
+          accessibilityLabel="Opções da conversa"
         >
-          <Ionicons name="add" size={22} color={tokens.textMid} />
+          <Ionicons name="ellipsis-vertical" size={20} color={tokens.textMid} />
         </Pressable>
       </View>
+
+      <ThreadHeaderMenu
+        visible={headerMenuOpen}
+        onClose={() => setHeaderMenuOpen(false)}
+        items={headerMenuItems}
+        topOffset={headerTopPad + 46}
+      />
 
       {forkSource ? (
         <ForkSourceBanner parentTitle={forkSource.title} onOpenParent={onOpenForkSource} />

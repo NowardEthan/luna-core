@@ -473,6 +473,7 @@ function OrbitApp() {
               onBack={chat.backToHome}
               quickMenuOpen={quickMenuOpen}
               onQuickMenuToggle={handleQuickMenuToggle}
+              onNewChat={chat.startNewChat}
               onVoiceSend={chat.sendVoiceMessage}
               onTranscribe={chat.requestTranscript}
               onResend={chat.resendMessage}
