@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(229,115,115,0.12)',
   },
-  errorText: { color: '#E57373', fontSize: 13 },
+  errorText: { color: tokens.error, fontSize: 13 },
   googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -7,8 +7,8 @@ import { tokens } from '../../theme/tokens';
 
 const TONE_COLOR: Record<'normal' | 'warn' | 'danger', string> = {
   normal: tokens.textMid,
-  warn: '#FFB74D',
-  danger: '#E57373',
+  warn: tokens.warning,
+  danger: tokens.error,
 };
 
 interface Props {
@@ -88,6 +88,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   labelDanger: {
-    color: '#E57373',
+    color: tokens.error,
   },
 });

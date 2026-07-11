@@ -455,6 +455,6 @@ const styles = StyleSheet.create({
   sendErrorText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#FFB4AB',
+    color: tokens.error,
   },
 });

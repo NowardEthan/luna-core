@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useRef } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -6,8 +6,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Composer } from '../components/Composer';
+import { Ionicons } from '@expo/vector-icons';
+import { Composer, type ComposerHandle } from '../components/Composer';
 import { ComposerDock } from '../components/ComposerDock';
 import { ConversationRow } from '../components/ConversationRow';
 import { ConversationSelectionBar } from '../components/ConversationSelectionBar';
@@ -22,13 +22,12 @@ import { UsageLimitChip } from '../components/billing/UsageLimitChip';
 import { quotaComposerPlaceholder } from '../features/billing/limitsSummary';
 import { tokens } from '../theme/tokens';
 import { layout } from '../theme/layout';
-import { type } from '../theme/typography';
 
 function greeting(): string {
   const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'Bom dia,';
-  if (h >= 12 && h < 19) return 'Boa tarde,';
-  return 'Boa noite,';
+  if (h >= 5 && h < 12) return 'Bom dia';
+  if (h >= 12 && h < 19) return 'Boa tarde';
+  return 'Boa noite';
 }
 
 interface Props {
@@ -67,6 +66,11 @@ export const HomeScreen = memo(function HomeScreen({
   const lunaUsage = useLunaUsageContext();
   const headerTopPad = useHeaderTopPadding(8);
   const selection = useConversationSelection();
+  const composerRef = useRef<ComposerHandle>(null);
+
+  const handleFocusComposer = useCallback(() => {
+    composerRef.current?.focus();
+  }, []);
 
   const handleConfirmDelete = useCallback(() => {
     for (const id of selection.selectedIds) {
@@ -74,6 +78,14 @@ export const HomeScreen = memo(function HomeScreen({
     }
     selection.exit();
   }, [onDeleteSession, selection]);
+
+  const hasRecents = recents.length > 0;
+  const firstName = user.name.trim().split(/\s+/)[0] || user.name;
+  const usageState = lunaUsage.isExceeded
+    ? 'Limite atingido'
+    : lunaUsage.isReducedMode
+      ? 'Modo reduzido'
+      : 'Pronta';
 
   return (
     <View style={styles.container}>
@@ -85,45 +97,96 @@ export const HomeScreen = memo(function HomeScreen({
         keyboardDismissMode="interactive"
       >
         <View style={styles.topBar}>
-          <View style={styles.topBarSide} />
+          <View style={styles.topCopy}>
+            <Text style={styles.eyebrow}>{greeting()}</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {firstName}
+            </Text>
+          </View>
           <UserAvatarButton
             initials={user.initials}
             avatarUrl={avatarUrl}
-            size={42}
+            size={40}
             onPress={onOpenProfile}
           />
         </View>
 
-        <View style={styles.hero}>
-          <View style={styles.heroGlow} pointerEvents="none">
-            <LinearGradient
-              colors={['rgba(75,117,242,0.28)', 'rgba(75,117,242,0)']}
-              style={styles.heroGlowGradient}
-            />
+        <View style={styles.heroPanel}>
+          <View style={styles.heroMain}>
+            <LunaAvatar size={50} zoom={1.12} />
+            <View style={styles.heroCopy}>
+              <View style={styles.statusRow}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    (lunaUsage.isExceeded || lunaUsage.isReducedMode) && styles.statusDotWarn,
+                  ]}
+                />
+                <Text style={styles.statusText}>{usageState}</Text>
+              </View>
+              <Text style={styles.heroTitle}>Converse com a Luna</Text>
+              <Text style={styles.heroSubtitle}>
+                Comece uma pergunta nova ou continue uma conversa recente.
+              </Text>
+            </View>
           </View>
-          <View style={styles.lunaFrame}>
-            <LunaAvatar size={56} zoom={1.12} />
-          </View>
-          <Text style={[type.greeting, styles.heroGreeting]}>{greeting()}</Text>
-          <Text style={[type.displayName, styles.heroName]} numberOfLines={1}>
-            {user.name}
-          </Text>
-          <Text style={[type.tagline, styles.heroTagline]}>O que vamos explorar hoje?</Text>
         </View>
 
-        {recents.length > 0 || selection.active ? (
+        <View style={styles.quickGrid}>
+          <Pressable
+            onPress={handleFocusComposer}
+            style={({ pressed }) => [styles.quickCard, pressed && styles.quickCardPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Começar conversa"
+          >
+            <View style={styles.quickIconPrimary}>
+              <Ionicons name="create-outline" size={18} color={tokens.onAccent} />
+            </View>
+            <Text style={styles.quickTitle}>Começar</Text>
+            <Text style={styles.quickSub} numberOfLines={2}>
+              Escreva ou grave no composer
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onOpenConversas}
+            disabled={!onOpenConversas}
+            style={({ pressed }) => [
+              styles.quickCard,
+              pressed && onOpenConversas && styles.quickCardPressed,
+              !onOpenConversas && styles.disabled,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir conversas"
+          >
+            <View style={styles.quickIcon}>
+              <Ionicons name="chatbubbles-outline" size={18} color={tokens.accentBright} />
+            </View>
+            <Text style={styles.quickTitle}>Conversas</Text>
+            <Text style={styles.quickSub} numberOfLines={2}>
+              {hasRecents ? `${recents.length} no histórico` : 'Histórico vazio'}
+            </Text>
+          </Pressable>
+        </View>
+
+        {hasRecents || selection.active ? (
           <View style={styles.section}>
             {!selection.active ? (
               <View style={styles.sectionHeader}>
-                <Text style={type.section}>Recentes</Text>
-                {recents.length > 0 && onOpenConversas ? (
+                <View>
+                  <Text style={styles.sectionTitle}>Continue</Text>
+                  <Text style={styles.sectionSubtitle}>Últimas conversas</Text>
+                </View>
+                {hasRecents && onOpenConversas ? (
                   <Pressable
                     onPress={onOpenConversas}
                     hitSlop={8}
                     accessibilityRole="button"
                     accessibilityLabel="Ver todas as conversas"
+                    style={({ pressed }) => [styles.sectionActionHit, pressed && styles.sectionActionPressed]}
                   >
                     <Text style={styles.sectionAction}>Ver todas</Text>
+                    <Ionicons name="chevron-forward" size={15} color={tokens.accentBright} />
                   </Pressable>
                 ) : null}
               </View>
@@ -174,7 +237,12 @@ export const HomeScreen = memo(function HomeScreen({
         ) : null}
 
         <View style={styles.section}>
-          <Text style={[type.section, styles.sectionLabel]}>Ferramentas da Luna</Text>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Recursos</Text>
+              <Text style={styles.sectionSubtitle}>O que a Luna entende hoje</Text>
+            </View>
+          </View>
           <HomeFeatureGrid />
         </View>
       </ScrollView>
@@ -197,6 +265,7 @@ export const HomeScreen = memo(function HomeScreen({
             />
           ) : null}
           <Composer
+            ref={composerRef}
             value={draft}
             onChange={onChange}
             onSend={onSend}
@@ -204,7 +273,7 @@ export const HomeScreen = memo(function HomeScreen({
             placeholder={quotaComposerPlaceholder(
               lunaUsage.usage,
               lunaUsage.isExceeded,
-              'Escreva para a Luna…',
+              'Escreva para a Luna...',
               lunaUsage.isReducedMode,
             )}
             editable={!lunaUsage.isExceeded}
@@ -220,57 +289,106 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: layout.screenPaddingX,
-    paddingBottom: 12,
+    paddingBottom: 18,
     flexGrow: 1,
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    minHeight: 44,
-    marginBottom: 4,
-  },
-  topBarSide: { flex: 1 },
-  hero: {
-    alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 22,
-    position: 'relative',
-  },
-  heroGlow: {
-    position: 'absolute',
-    top: -12,
-    width: 220,
-    height: 140,
-    alignSelf: 'center',
-  },
-  heroGlowGradient: {
-    flex: 1,
-    borderRadius: 110,
-  },
-  lunaFrame: {
+    justifyContent: 'space-between',
+    minHeight: 48,
     marginBottom: 14,
-    shadowColor: tokens.accent,
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
   },
-  heroGreeting: {
-    textAlign: 'center',
-    marginBottom: 2,
+  topCopy: { flex: 1, minWidth: 0, paddingRight: 14 },
+  eyebrow: {
+    color: tokens.textLow,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
-  heroName: {
-    textAlign: 'center',
-    maxWidth: '100%',
+  userName: {
+    color: tokens.textHigh,
+    fontSize: 26,
+    lineHeight: 32,
+    fontWeight: '700',
   },
-  heroTagline: {
-    textAlign: 'center',
-    marginTop: 8,
-    maxWidth: 280,
+  heroPanel: {
+    borderRadius: 8,
+    backgroundColor: tokens.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tokens.borderSubtle,
+    padding: 14,
   },
+  heroMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+  },
+  heroCopy: { flex: 1, minWidth: 0 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: tokens.online,
+  },
+  statusDotWarn: { backgroundColor: tokens.warning },
+  statusText: {
+    color: tokens.textMid,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  heroTitle: {
+    color: tokens.textHigh,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  heroSubtitle: {
+    color: tokens.textMid,
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  quickGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    marginBottom: 24,
+  },
+  quickCard: {
+    flex: 1,
+    minHeight: 106,
+    borderRadius: 8,
+    backgroundColor: tokens.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tokens.borderSubtle,
+    padding: 12,
+  },
+  quickCardPressed: { backgroundColor: tokens.surfaceRaised },
+  quickIconPrimary: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.accent,
+    marginBottom: 10,
+  },
+  quickIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.accentSoft,
+    marginBottom: 10,
+  },
+  quickTitle: { color: tokens.textHigh, fontSize: 15, fontWeight: '700' },
+  quickSub: { color: tokens.textMid, fontSize: 12, lineHeight: 16, marginTop: 3 },
+  disabled: { opacity: 0.5 },
   section: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -278,13 +396,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
-  sectionLabel: {
-    marginBottom: 10,
+  sectionTitle: {
+    color: tokens.textHigh,
+    fontSize: 16,
+    fontWeight: '700',
   },
+  sectionSubtitle: {
+    color: tokens.textLow,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  sectionActionHit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 5,
+    paddingLeft: 8,
+  },
+  sectionActionPressed: { opacity: 0.75 },
   sectionAction: {
     color: tokens.accentBright,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   recents: { gap: 8 },
   composerZone: {

@@ -97,7 +97,7 @@ export function VoiceRecordingOverlay({ ui }: Props) {
         <Ionicons
           name="mic"
           size={20}
-          color={ui.willCancel ? '#F87171' : '#EF4444'}
+          color={ui.willCancel ? tokens.error : tokens.error}
         />
         <Text style={[styles.time, ui.willCancel && styles.timeCancel]}>
           {formatVoiceDuration(ui.durationMs)}
@@ -119,7 +119,7 @@ export function VoiceRecordingOverlay({ ui }: Props) {
           <Ionicons
             name="chevron-back"
             size={18}
-            color={ui.willCancel ? '#F87171' : tokens.textLow}
+            color={ui.willCancel ? tokens.error : tokens.textLow}
           />
           <Text style={[styles.hint, ui.willCancel && styles.hintCancel]}>
             {ui.willCancel ? 'Solte para cancelar' : 'Deslize para cancelar'}
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   timeCancel: {
-    color: '#F87171',
+    color: tokens.error,
   },
   center: {
     flex: 1,
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   hintCancel: {
-    color: '#F87171',
+    color: tokens.error,
     fontWeight: '500',
   },
   lockedHint: {

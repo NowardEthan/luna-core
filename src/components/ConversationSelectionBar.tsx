@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(248,113,113,0.12)',
   },
-  deleteLabel: { color: '#F87171', fontSize: 14, fontWeight: '600' },
+  deleteLabel: { color: tokens.error, fontSize: 14, fontWeight: '600' },
   deleteBtnDisabled: { opacity: 0.4 },
   actionDisabled: { opacity: 0.4 },
   trashActionBtn: {

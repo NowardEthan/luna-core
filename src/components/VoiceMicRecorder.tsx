@@ -414,7 +414,7 @@ export const VoiceMicRecorder = forwardRef<VoiceMicRecorderRef, Props>(function 
   const panHandlers = locked ? lockedPan.panHandlers : recordPan.panHandlers;
 
   const buttonColors: [string, string] = willCancel
-    ? ['#F87171', '#DC2626']
+    ? [tokens.error, '#DC2626']
     : locked || recording
       ? [tokens.accentBright, tokens.accent]
       : [tokens.accentMid, tokens.accentDeep];

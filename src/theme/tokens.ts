@@ -38,6 +38,13 @@ export const tokens = {
   online: '#6BC4A0',
   onlineSoft: 'rgba(107, 196, 160, 0.2)',
 
+  /** Cores semânticas de status — usar sempre estas em vez de hex hardcoded. */
+  warning: '#FFB74D',
+  warningSoft: 'rgba(255, 183, 77, 0.16)',
+  error: '#E57373',
+  errorSoft: 'rgba(229, 115, 115, 0.16)',
+  success: '#6BC4A0',
+
   /** Markdown / code blocks (tema Orbit concept) */
   codeBlockBg: '#12151C',
   codeBlockToolbar: '#181C24',

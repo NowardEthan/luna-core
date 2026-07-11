@@ -15,8 +15,8 @@ interface Props {
 }
 
 function barColor(pct: number): string {
-  if (pct >= 90) return '#E57373';
-  if (pct >= 70) return '#FFB74D';
+  if (pct >= 90) return tokens.error;
+  if (pct >= 70) return tokens.warning;
   return tokens.accentBright;
 }
 

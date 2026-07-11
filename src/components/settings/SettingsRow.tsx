@@ -40,17 +40,23 @@ export function SettingsRow({
 }: Props) {
   const content = (
     <>
-      <View style={[styles.iconWrap, { backgroundColor: `${iconColor}22` }]}>
+      <View style={[styles.iconWrap, { backgroundColor: `${iconColor}1F` }]}>
         <Ionicons name={icon} size={18} color={iconColor} />
       </View>
       <View style={styles.main}>
-        <Text style={[styles.label, destructive && styles.destructive]}>{label}</Text>
-        {detail ? <Text style={styles.detail}>{detail}</Text> : null}
+        <Text style={[styles.label, destructive && styles.destructive]} numberOfLines={1}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text style={styles.detail} numberOfLines={2}>
+            {detail}
+          </Text>
+        ) : null}
       </View>
       {loading ? (
         <ActivityIndicator color={tokens.textMid} size="small" />
       ) : value ? (
-        <Text style={styles.value} numberOfLines={1}>
+        <Text style={styles.value} numberOfLines={2}>
           {value}
         </Text>
       ) : null}
@@ -67,11 +73,7 @@ export function SettingsRow({
   );
 
   if (!onPress) {
-    return (
-      <View style={[styles.row, !last && styles.border]}>
-        {content}
-      </View>
-    );
+    return <View style={[styles.row, !last && styles.border]}>{content}</View>;
   }
 
   return (
@@ -90,29 +92,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-    minHeight: 52,
+    paddingVertical: 14,
+    minHeight: 58,
   },
   border: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: tokens.glassBorder,
+    borderBottomColor: tokens.borderSubtle,
   },
-  pressed: { opacity: 0.88 },
+  pressed: { backgroundColor: tokens.surfaceRaised },
   iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  main: { flex: 1, gap: 2 },
-  label: { color: tokens.textHigh, fontSize: 15, fontWeight: '500' },
+  main: { flex: 1, gap: 3, minWidth: 0 },
+  label: { color: tokens.textHigh, fontSize: 15, fontWeight: '600' },
   detail: { color: tokens.textMid, fontSize: 12, lineHeight: 16 },
   value: {
     color: tokens.textMid,
-    fontSize: 13,
-    maxWidth: 120,
+    fontSize: 12,
+    lineHeight: 16,
+    maxWidth: 112,
     textAlign: 'right',
   },
-  destructive: { color: '#E57373' },
+  destructive: { color: tokens.error },
 });

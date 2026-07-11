@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     color: tokens.textHigh,
     fontSize: 16,
   },
-  error: { color: '#E57373', fontSize: 13 },
+  error: { color: tokens.error, fontSize: 13 },
   btn: {
     marginTop: 8,
     paddingVertical: 14,

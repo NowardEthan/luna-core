@@ -352,6 +352,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,200,200,0.95)',
   },
   transcriptErrorLuna: {
-    color: '#F87171',
+    color: tokens.error,
   },
 });

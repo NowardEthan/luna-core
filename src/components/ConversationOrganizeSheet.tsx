@@ -45,7 +45,7 @@ function ActionRow({
         <Ionicons
           name={icon}
           size={20}
-          color={destructive ? '#F87171' : tokens.accentBright}
+          color={destructive ? tokens.error : tokens.accentBright}
         />
       </View>
       <Text style={[styles.rowLabel, destructive && styles.rowLabelDanger]}>{label}</Text>
@@ -203,5 +203,5 @@ const styles = StyleSheet.create({
   },
   iconWrapDanger: { backgroundColor: 'rgba(248,113,113,0.14)' },
   rowLabel: { color: tokens.textHigh, fontSize: 16, fontWeight: '500' },
-  rowLabelDanger: { color: '#F87171' },
+  rowLabelDanger: { color: tokens.error },
 });

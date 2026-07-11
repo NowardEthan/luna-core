@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(248,113,113,0.12)',
   },
-  errorText: { color: '#F87171', fontSize: 13, lineHeight: 18 },
+  errorText: { color: tokens.error, fontSize: 13, lineHeight: 18 },
   empty: { flex: 1, justifyContent: 'center', paddingBottom: 80, gap: 8 },
   emptyTitle: { color: tokens.textHigh, fontSize: 17, fontWeight: '600' },
   emptyHint: { color: tokens.textMid, fontSize: 14, lineHeight: 20 },

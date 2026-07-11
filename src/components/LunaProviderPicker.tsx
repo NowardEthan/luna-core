@@ -21,13 +21,13 @@ interface Props {
   onSelect: (next: LunaProviderSelection) => void;
   disabled?: boolean;
   apiReachable?: boolean;
-  /** Mostra só Orbita + Pulse + Core (modo utilizador). */
+  /** Mostra só os modos de produto que importam para o usuário. */
   compact?: boolean;
-  /** Plano actual — oculta Core no Grátis. */
+  /** Plano atual — oculta Core no Grátis. */
   planId?: LunaPlanId;
 }
 
-const COMPACT_KEYS = new Set(['auto-auto']);
+const COMPACT_KEYS = new Set(['auto-auto', 'groq-default', 'cerebras-glm-47']);
 
 function optionKey(opt: LunaProviderOption): string {
   return `${opt.providerId}-${opt.modelKey}`;
@@ -45,7 +45,13 @@ function friendlyLabel(opt: LunaProviderOption): string {
   return lunaModelBrand(opt.providerId, opt.modelKey).name;
 }
 
-/** Seletor de modo de resposta — copy orientada ao utilizador. */
+function modeIcon(opt: LunaProviderOption): keyof typeof Ionicons.glyphMap {
+  if (opt.modelKey === 'auto') return 'sparkles-outline';
+  if (opt.providerId === 'groq') return 'flash-outline';
+  return 'planet-outline';
+}
+
+/** Seletor de modo de resposta — copy orientada ao usuário. */
 export function LunaProviderPicker({
   options,
   selection,
@@ -86,15 +92,19 @@ export function LunaProviderPicker({
       })
     : options;
 
-  const list = visible.length > 0 ? visible : options.filter((o) => o.modelKey === 'auto' || o.modelKey === 'default');
+  const list =
+    visible.length > 0
+      ? visible
+      : options.filter((o) => o.modelKey === 'auto' || o.modelKey === 'default');
 
   return (
     <View style={styles.list}>
-      {list.map((opt) => {
+      {list.map((opt, index) => {
         const active =
           opt.providerId === selection.providerId && opt.modelKey === selection.modelKey;
         const label = friendlyLabel(opt);
         const description = friendlyDescription(opt, freePlan);
+        const last = index === list.length - 1;
 
         return (
           <Pressable
@@ -103,33 +113,31 @@ export function LunaProviderPicker({
             onPress={() => onSelect({ providerId: opt.providerId, modelKey: opt.modelKey })}
             style={({ pressed }) => [
               styles.row,
+              !last && styles.rowBorder,
               active && styles.rowActive,
               pressed && !disabled && styles.pressed,
               disabled && styles.disabled,
             ]}
           >
+            <View style={[styles.modeIcon, active && styles.modeIconActive]}>
+              <Ionicons
+                name={modeIcon(opt)}
+                size={18}
+                color={active ? tokens.accentBright : tokens.textMid}
+              />
+            </View>
             <View style={styles.rowMain}>
               <View style={styles.labelRow}>
                 <Text style={[styles.label, active && styles.labelActive]}>{label}</Text>
-                <View style={styles.betaBadge}>
-                  <Text style={styles.betaText}>Beta</Text>
-                </View>
+                {opt.modelKey === 'auto' ? <Text style={styles.meta}>recomendado</Text> : null}
               </View>
               <Text style={styles.description}>{description}</Text>
             </View>
-            {active ? (
-              <Ionicons
-                name={opt.modelKey === 'auto' ? 'sparkles' : 'checkmark-circle'}
-                size={22}
-                color={tokens.accentBright}
-              />
-            ) : (
-              <Ionicons
-                name={opt.modelKey === 'auto' ? 'sparkles-outline' : 'ellipse-outline'}
-                size={22}
-                color={tokens.textLow}
-              />
-            )}
+            <Ionicons
+              name={active ? 'checkmark-circle' : 'ellipse-outline'}
+              size={22}
+              color={active ? tokens.accentBright : tokens.textLow}
+            />
           </Pressable>
         );
       })}
@@ -137,7 +145,7 @@ export function LunaProviderPicker({
         <Text style={styles.hint}>
           {isAutoProviderSelection(selection)
             ? lunaModelBrand('auto', 'auto').tagline
-            : `Modo activo: ${providerOptionLabel(selection, options)}.`}
+            : `Modo ativo: ${providerOptionLabel(selection, options)}.`}
         </Text>
       ) : null}
     </View>
@@ -145,50 +153,52 @@ export function LunaProviderPicker({
 }
 
 const styles = StyleSheet.create({
-  list: { gap: 8 },
+  list: { gap: 0 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: tokens.glassStrong,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: tokens.glassBorder,
+    paddingHorizontal: 6,
+    paddingVertical: 12,
+    borderRadius: 6,
+  },
+  rowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: tokens.borderSubtle,
   },
   rowActive: {
-    borderColor: tokens.accent,
     backgroundColor: tokens.accentSoft,
   },
-  rowMain: { flex: 1, gap: 3 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  rowMain: { flex: 1, gap: 3, minWidth: 0 },
+  modeIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.surfaceRaised,
+  },
+  modeIconActive: {
+    backgroundColor: 'rgba(136, 193, 242, 0.14)',
+  },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   label: { color: tokens.textHigh, fontSize: 15, fontWeight: '600' },
   labelActive: { color: tokens.accentBright },
-  betaBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: 'rgba(136, 193, 242, 0.16)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(136, 193, 242, 0.35)',
-  },
-  betaText: {
-    color: '#88C1F2',
-    fontSize: 9,
-    fontWeight: '700',
+  meta: {
+    color: tokens.textLow,
+    fontSize: 11,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   description: { color: tokens.textMid, fontSize: 12, lineHeight: 17 },
-  hint: { color: tokens.textLow, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  hint: { color: tokens.textLow, fontSize: 11, lineHeight: 16, marginTop: 8 },
   empty: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     padding: 14,
-    borderRadius: 14,
-    backgroundColor: tokens.glassStrong,
   },
   emptyText: { flex: 1, color: tokens.textMid, fontSize: 13, lineHeight: 18 },
-  pressed: { opacity: 0.88 },
+  pressed: { backgroundColor: tokens.surfaceRaised },
   disabled: { opacity: 0.55 },
 });

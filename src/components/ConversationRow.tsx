@@ -186,7 +186,7 @@ export const TrashConversationRow = memo(function TrashConversationRow({
 
   const borderColor = selectAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [tokens.glassBorder, '#F87171'],
+    outputRange: [tokens.glassBorder, tokens.error],
   });
 
   const bgTint = selectAnim.interpolate({
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkCircleTrash: {
-    backgroundColor: '#E57373',
+    backgroundColor: tokens.error,
   },
   trashIcon: {
     width: 36,

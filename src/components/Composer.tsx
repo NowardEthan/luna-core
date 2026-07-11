@@ -132,10 +132,20 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
 
   const inputOpacity = useRef(new Animated.Value(1)).current;
   const sendScale = useRef(new Animated.Value(1)).current;
+  // Crossfade suave entre microfone (0) e enviar (1) — evita o "pop" seco ao digitar.
+  const actionMix = useRef(new Animated.Value(0)).current;
 
   const canSend =
     editable && (value.trim().length > 0 || !!messageReference || attachments.length > 0);
   const canRecord = editable && !!onVoiceResult && !canSend;
+
+  useEffect(() => {
+    Animated.timing(actionMix, {
+      toValue: canSend ? 1 : 0,
+      duration: 170,
+      useNativeDriver: true,
+    }).start();
+  }, [canSend, actionMix]);
   const recording = voiceUi.active;
   const expanded = inputHeight > MIN_INPUT_HEIGHT + 2 || value.includes('\n');
   const isScrollClipped = contentHeight > MAX_INPUT_HEIGHT + 1;
@@ -377,8 +387,8 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
         </Glass>
 
         <View style={styles.outerAction}>
-          <View
-            style={[styles.actionLayer, !canSend && styles.actionHidden]}
+          <Animated.View
+            style={[styles.actionLayer, { opacity: actionMix }]}
             pointerEvents={canSend ? 'auto' : 'none'}
           >
             <Pressable
@@ -413,10 +423,13 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
                 </LinearGradient>
               </Animated.View>
             </Pressable>
-          </View>
+          </Animated.View>
 
-          <View
-            style={[styles.actionLayer, canSend && styles.actionHidden]}
+          <Animated.View
+            style={[
+              styles.actionLayer,
+              { opacity: actionMix.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
+            ]}
             pointerEvents={canSend ? 'none' : 'box-none'}
           >
             {onVoiceResult ? (
@@ -430,7 +443,7 @@ export const Composer = memo(forwardRef<ComposerHandle, Props>(function Composer
                 <Ionicons name="mic" size={20} color={tokens.onAccent} />
               </View>
             )}
-          </View>
+          </Animated.View>
         </View>
       </View>
 
@@ -531,6 +544,7 @@ const styles = StyleSheet.create({
   },
   attachBtnPressed: {
     opacity: 0.65,
+    transform: [{ scale: 0.9 }],
   },
   attachIcon: {
     transform: [{ rotate: '-45deg' }],

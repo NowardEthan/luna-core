@@ -1,9 +1,15 @@
-/** Ferramentas reais da Luna — copy para a home (pt-BR). */
+/** Recursos reais da Luna — copy para a home (pt-BR). */
 export type LunaHomeFeature = {
   id: string;
   title: string;
   subtitle: string;
-  icon: 'mic-outline' | 'images-outline' | 'document-text-outline' | 'sparkles-outline' | 'layers-outline' | 'code-slash-outline';
+  icon:
+    | 'mic-outline'
+    | 'images-outline'
+    | 'document-text-outline'
+    | 'sparkles-outline'
+    | 'layers-outline'
+    | 'code-slash-outline';
   accent: string;
 };
 
@@ -11,28 +17,28 @@ export const LUNA_HOME_FEATURES: LunaHomeFeature[] = [
   {
     id: 'voice',
     title: 'Voz',
-    subtitle: 'Grave no composer e transcreva quando quiser',
+    subtitle: 'Grave, envie e transcreva mensagens',
     icon: 'mic-outline',
     accent: '#88C1F2',
   },
   {
     id: 'vision',
     title: 'Imagens',
-    subtitle: 'Anexe fotos — a Luna analisa e responde',
+    subtitle: 'Anexe fotos para análise visual',
     icon: 'images-outline',
     accent: '#C792EA',
   },
   {
     id: 'docs',
-    title: 'Arquivos',
-    subtitle: 'PDF, DOCX, MD e outros documentos',
+    title: 'Documentos',
+    subtitle: 'PDF, DOCX, MD e arquivos de texto',
     icon: 'document-text-outline',
     accent: '#82AAFF',
   },
   {
     id: 'modes',
-    title: 'Modos',
-    subtitle: 'Rápida no dia a dia · Completa no Plus',
+    title: 'Modelos',
+    subtitle: 'Pulse no dia a dia, Core no Plus',
     icon: 'sparkles-outline',
     accent: '#6BC4A0',
   },
@@ -45,8 +51,8 @@ export const LUNA_HOME_FEATURES: LunaHomeFeature[] = [
   },
   {
     id: 'rich',
-    title: 'Respostas ricas',
-    subtitle: 'Código, listas e explicação passo a passo',
+    title: 'Código',
+    subtitle: 'Blocos, listas e respostas estruturadas',
     icon: 'code-slash-outline',
     accent: '#F78C6C',
   },

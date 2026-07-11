@@ -53,8 +53,12 @@ export type LunaAttachmentEnrichment = {
   textByUri?: Readonly<Record<string, string>>;
 };
 
-/** Texto máximo de cada arquivo no prompt enviado à Luna (Groq ~8k TPM). */
-const MAX_LUNA_ATTACHMENT_CHARS = 2_000;
+/**
+ * Texto máximo de cada arquivo no prompt enviado à Luna — corte só de segurança
+ * (payload absurdo). O corte real por provedor acontece no servidor
+ * (pequeno no Groq/Pulse, generoso no DeepSeek/OpenRouter e Cerebras/Core).
+ */
+const MAX_LUNA_ATTACHMENT_CHARS = 100_000;
 
 const LUNA_DOC_TRUNCATE_NOTICE =
   '\n\n[… parte omitida — arquivo longo; referencie um trecho ou pergunte sobre uma seção …]';

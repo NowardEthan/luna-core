@@ -127,5 +127,5 @@ const styles = StyleSheet.create({
   title: { color: tokens.textHigh, fontSize: 16, fontWeight: '700', marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   rowLabel: { color: tokens.textHigh, fontSize: 16, fontWeight: '500' },
-  danger: { color: '#F87171' },
+  danger: { color: tokens.error },
 });

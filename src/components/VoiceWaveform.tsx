@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useMotionProfile } from '../hooks/useMotionProfile';
+import { tokens } from '../theme/tokens';
 
 const BAR_COUNT = 5;
 const BAR_WIDTH = 3;
@@ -82,10 +83,10 @@ const styles = StyleSheet.create({
     width: BAR_WIDTH,
     height: MAX_H,
     borderRadius: BAR_WIDTH,
-    backgroundColor: '#EF4444',
+    backgroundColor: tokens.error,
     opacity: 0.9,
   },
   barCancel: {
-    backgroundColor: '#F87171',
+    backgroundColor: tokens.error,
   },
 });

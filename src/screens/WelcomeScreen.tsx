@@ -187,5 +187,5 @@ const styles = StyleSheet.create({
   },
   btnGoogleText: { color: tokens.textHigh, fontSize: 16, fontWeight: '600' },
   btnDisabled: { opacity: 0.45 },
-  error: { color: '#FFB4AB', textAlign: 'center', fontSize: 14, lineHeight: 20 },
+  error: { color: tokens.error, textAlign: 'center', fontSize: 14, lineHeight: 20 },
 });

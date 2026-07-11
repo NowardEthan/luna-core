@@ -8,7 +8,7 @@ interface Props {
   children: ReactNode;
 }
 
-/** Grupo de definições com título de secção. */
+/** Grupo de definições com superfície sólida do Orbit mobile. */
 export function SettingsSection({ title, footer, children }: Props) {
   return (
     <View style={styles.wrap}>
@@ -20,28 +20,26 @@ export function SettingsSection({ title, footer, children }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginTop: 22 },
+  wrap: { marginTop: 24 },
   title: {
-    color: tokens.textMid,
-    fontSize: 12,
-    fontWeight: '600',
+    color: tokens.textLow,
+    fontSize: 11,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 0.55,
+    letterSpacing: 0.8,
     marginBottom: 8,
-    marginLeft: 4,
   },
   group: {
-    borderRadius: 16,
+    borderRadius: 8,
     overflow: 'hidden',
-    backgroundColor: tokens.glassStrong,
-    borderWidth: StyleSheet.hairlineWidth * 2,
-    borderColor: tokens.glassBorder,
+    backgroundColor: tokens.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: tokens.borderSubtle,
   },
   footer: {
     color: tokens.textLow,
     fontSize: 12,
     lineHeight: 17,
     marginTop: 8,
-    marginHorizontal: 4,
   },
 });

@@ -83,12 +83,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#E57373',
+    backgroundColor: tokens.error,
     marginTop: 5,
   },
   textCol: { flex: 1, gap: 2 },
   label: {
-    color: '#E57373',
+    color: tokens.error,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -102,9 +102,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 183, 77, 0.35)',
   },
   dotReduced: {
-    backgroundColor: '#FFB74D',
+    backgroundColor: tokens.warning,
   },
   labelReduced: {
-    color: '#FFB74D',
+    color: tokens.warning,
   },
 });

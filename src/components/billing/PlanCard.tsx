@@ -24,7 +24,7 @@ function FeatureRow({ label, available, detail, vivid }: FeatureRowProps) {
       : available === 'limited'
         ? vivid
           ? 'rgba(255,255,255,0.75)'
-          : '#FFB74D'
+          : tokens.warning
         : vivid
           ? 'rgba(255,255,255,0.35)'
           : tokens.textLow;

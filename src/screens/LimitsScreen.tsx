@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  heroNumberExceeded: { color: '#E57373' },
+  heroNumberExceeded: { color: tokens.error },
   heroLabel: { color: tokens.textMid, fontSize: 15, fontWeight: '500' },
   heroSub: {
     color: tokens.textLow,

@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingTop: 48,
   },
-  title: { color: '#F87171', fontSize: 20, fontWeight: '700', marginBottom: 12 },
+  title: { color: tokens.error, fontSize: 20, fontWeight: '700', marginBottom: 12 },
   message: { color: tokens.textHigh, fontSize: 15, lineHeight: 22, marginBottom: 16 },
   scroll: { flex: 1, marginBottom: 16 },
   stack: { color: tokens.textMid, fontSize: 11, fontFamily: 'monospace', lineHeight: 16 },
