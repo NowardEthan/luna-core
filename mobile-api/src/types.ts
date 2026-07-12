@@ -117,6 +117,8 @@ export type HealthResponse = {
   llmConfigured: boolean;
   sttConfigured: boolean;
   visionConfigured: boolean;
+  /** Este deploy aceita anexo por URL do Storage (e não só base64). */
+  attachmentUrlSupported?: boolean;
   documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
   firebaseAuthRequired: boolean;

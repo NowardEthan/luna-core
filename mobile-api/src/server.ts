@@ -392,6 +392,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       llmConfigured: isAnyLlmProviderConfigured(),
       sttConfigured: isSttConfigured(),
       visionConfigured: isVisionConfigured(),
+      // O app precisa saber se ESTE servidor já aceita anexo por URL do Storage —
+      // um deploy antigo rejeitaria o pedido (o schema exigia imageBase64).
+      attachmentUrlSupported: true,
       documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,
       firebaseAuthRequired: isFirebaseAuthRequired(),
