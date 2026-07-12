@@ -11,6 +11,7 @@ import {
 } from "./firebaseAdmin.js";
 import { deveUsarPersistenciaFirestore } from "./persistenciaFirestore.js";
 import { persistChatTurn } from "./firestoreChat.js";
+import { notifyLunaReply } from "./pushNotify.js";
 import { buscarTurnoCacheado } from "./idempotenciaChat.js";
 import { executarChatMobile, executarChatMobileStream, type ChatMobileResult } from "./loadCore.js";
 import { isCoreBuilt, resolveLunaCorePath } from "./resolveCorePath.js";
@@ -111,6 +112,9 @@ function corsHeaders(extra?: Record<string, string>): Record<string, string> {
 }
 
 function sendSseEvent(res: ServerResponse, event: string, data: unknown): void {
+  // O usuário pode ter saído do app no meio do stream: escrever num socket morto
+  // dispara erro. A geração continua (e a resposta é salva + notificada por push).
+  if (res.writableEnded || res.destroyed) return;
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
@@ -481,6 +485,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (method === "POST" && url.pathname === "/v1/chat/stream") {
     let sseStarted = false;
+    // O usuário pode sair do app no meio da resposta. Não abortamos a geração —
+    // ela termina, é salva, e avisamos por push (ver notifyLunaReply abaixo).
+    let clientGone = false;
+    req.on("close", () => {
+      clientGone = true;
+    });
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
       if (isFirebaseAuthRequired() && !auth) {
@@ -603,6 +613,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           lunaMessageId: parsed.lunaMessageId,
           humor_atual: result.humor_atual,
         });
+
+        // O usuário saiu do app antes da resposta chegar: avisa por notificação.
+        // (Se ele ainda estiver com o app aberto, não notificamos — seria redundante.)
+        if (clientGone) {
+          void notifyLunaReply(auth.uid, result.sessionId, result.text);
+        }
+
         if (streamQuotaMode === "plan") {
           await chargeTokens(
             auth,
