@@ -150,6 +150,19 @@ export async function responderComoLunaAgentico(
   const mapaImagens = new Map(anexosImagem.map((img) => [img.id, img]));
   const ferramentas = listarFerramentasChat();
 
+  /**
+   * Nome da ferramenta para EXIBIR no app. O modelo continua chamando `ver_imagem`
+   * (uma ferramenta só, mais simples para ele), mas quem está do outro lado precisa
+   * ver "assistindo o vídeo" e não "olhando a imagem" quando o anexo é um vídeo.
+   * Resolvemos o alvo aqui — é o mesmo alvo que o executor vai escolher.
+   */
+  const nomeFerramentaParaUi = (nome: string, argumentos: Record<string, unknown>): string => {
+    if (nome !== "ver_imagem") return nome;
+    const id = typeof argumentos.imagem_id === "string" ? argumentos.imagem_id : undefined;
+    const alvo = id ? mapaImagens.get(id) : anexosImagem[anexosImagem.length - 1];
+    return alvo?.mimeType?.startsWith("video/") ? "ver_video" : nome;
+  };
+
   const systemPrompt = [
     carregarInstrucaoSistema(),
     compilarGuiaFerramentasPrompt(),
@@ -179,7 +192,7 @@ export async function responderComoLunaAgentico(
     onToolCallStart: (nome, argumentos, rodada) => {
       opcoes.onAcao?.({
         tipo: "inicio_ferramenta",
-        ferramenta: nome,
+        ferramenta: nomeFerramentaParaUi(nome, argumentos),
         argumentos,
         rodada,
         maxRodadas: MAX_RODADAS_AGENTICO,
@@ -193,7 +206,7 @@ export async function responderComoLunaAgentico(
           : { ok: passo.sucesso };
       opcoes.onAcao?.({
         tipo: "fim_ferramenta",
-        ferramenta: passo.ferramenta,
+        ferramenta: nomeFerramentaParaUi(passo.ferramenta, passo.argumentos),
         argumentos: passo.argumentos,
         rodada: passo.rodada,
         maxRodadas: MAX_RODADAS_AGENTICO,
