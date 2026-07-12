@@ -27,6 +27,9 @@ function instrucaoBase(ehVideo: boolean): string {
       ? "Descreva o que ACONTECE ao longo do vídeo — a sequência, o que muda, quem faz o quê, e em que momento."
       : "Descreva o que está de facto na imagem — objetos, pessoas, cores, disposição.",
     "NÃO especule nem invente. Se algo estiver ilegível, cortado ou borrado, diga exatamente isso ('o placar no canto está borrado, não consigo ler').",
+    // Números são o ponto fraco: um "2.5.2" mal lido vira "2.5.8" e a Luna repete com
+    // toda a confiança, porque não tem como saber que o dígito foi um chute.
+    "Cuidado redobrado com NÚMEROS (versões, placares, valores, datas, códigos): copie dígito por dígito. Se não tiver certeza de um único dígito, diga que o número não está legível — nunca complete de cabeça.",
     "Admitir que não dá para ver é sempre melhor do que adivinhar.",
     "Responda só com a análise, sem preâmbulo.",
   ].join(" ");

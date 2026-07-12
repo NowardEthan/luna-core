@@ -36,7 +36,7 @@ export function obterOuCriarSessao(id?: string): MemoriaSessao {
 export function prepararContextoRespondedor(sessao: MemoriaSessao): ContextoSessao {
   const recentes = sessao.mensagens.slice(-LIMITE_HISTORICO);
   return {
-    historico: recentes.map(({ papel, conteudo }) => ({ papel, conteudo })),
+    historico: recentes.map(({ papel, conteudo, timestamp }) => ({ papel, conteudo, timestamp })),
     fatos: [...sessao.fatos],
     preferencias: { ...sessao.preferencias },
     pendente_confirmacao: sessao.pendente_confirmacao,

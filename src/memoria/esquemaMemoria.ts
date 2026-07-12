@@ -89,7 +89,13 @@ export type ContextoAcumulado = z.infer<typeof ContextoAcumuladoSchema>;
 
 /** Contexto da sessão injetado no respondedor (modelo grande). */
 export type ContextoSessao = {
-  historico: Array<{ papel: "user" | "assistant"; conteudo: string }>;
+  /**
+   * `timestamp` (ISO) é o que ancora a conversa no tempo. Sem ele a Luna sabe que
+   * horas são AGORA, mas não sabe QUANDO cada mensagem passada aconteceu — uma
+   * conversa que atravessa a madrugada vira um borrão sem relógio, e ela chuta
+   * ("você passou o sábado inteiro codando", num domingo).
+   */
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>;
   fatos: string[];
   preferencias: Record<string, string>;
   pendente_confirmacao?: PendenteConfirmacao;

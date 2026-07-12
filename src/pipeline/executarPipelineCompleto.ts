@@ -657,6 +657,9 @@ export async function executarPipelineCompleto(
         contextoCompilado,
         {
           historico,
+          // Sem o fuso, as marcas de tempo do histórico ("ontem 23:47") sairiam no
+          // relógio do servidor, não no do Ethan.
+          timeZone: opcoes.timeZone,
           anexosImagem,
           raciocinioAtivo,
           raciocinioEffort,

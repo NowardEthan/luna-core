@@ -81,7 +81,9 @@ function analisarResultadoFerramenta(ferramenta: string, resultadoJson: string):
 }
 
 export type OpcoesResponderAgentico = {
-  historico?: Array<{ papel: "user" | "assistant"; conteudo: string }>;
+  historico?: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>;
+  /** Fuso do usuário — usado para datar o histórico ("ontem 23:47"). */
+  timeZone?: string;
   anexosImagem?: EntradaVisaoGemma["imagens"];
   raciocinioAtivo?: boolean;
   raciocinioEffort?: "low" | "medium" | "high";
@@ -91,10 +93,51 @@ export type OpcoesResponderAgentico = {
   visaoDeps?: DependenciasVisaoGemma;
 };
 
-function montarHistoricoPrompt(historico: Array<{ papel: "user" | "assistant"; conteudo: string }>): string {
+/**
+ * Marca de tempo de cada mensagem, em linguagem humana: «ontem 23:47», «hoje 09:12»,
+ * «qui, 09/07 14:03».
+ *
+ * Sem isto, a Luna sabia que horas eram AGORA (bloco de tempo) mas não fazia ideia de
+ * QUANDO cada mensagem do histórico tinha acontecido. Uma conversa que atravessa a
+ * madrugada virava um borrão sem relógio e ela chutava o dia — "você passou o sábado
+ * inteiro codando", num domingo.
+ */
+function marcaDeTempo(iso: string | undefined, agora: Date, timeZone?: string): string {
+  if (!iso) return "";
+  const quando = new Date(iso);
+  if (Number.isNaN(quando.getTime())) return "";
+
+  const opcoesDia: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", ...(timeZone ? { timeZone } : {}) };
+  const opcoesHora: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", ...(timeZone ? { timeZone } : {}) };
+
+  try {
+    const dia = (d: Date) => new Intl.DateTimeFormat("pt-BR", opcoesDia).format(d);
+    const hora = new Intl.DateTimeFormat("pt-BR", opcoesHora).format(quando);
+
+    const ontem = new Date(agora.getTime() - 86_400_000);
+    if (dia(quando) === dia(agora)) return `hoje ${hora}`;
+    if (dia(quando) === dia(ontem)) return `ontem ${hora}`;
+
+    const semana = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "short",
+      ...opcoesDia,
+    }).format(quando);
+    return `${semana} ${hora}`;
+  } catch {
+    return "";
+  }
+}
+
+function montarHistoricoPrompt(
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>,
+  timeZone?: string,
+): string {
   if (!historico.length) return "";
+  const agora = new Date();
   const linhas = historico.slice(-8).map((m) => {
-    const label = m.papel === "user" ? "Usuário" : "Luna";
+    const marca = marcaDeTempo(m.timestamp, agora, timeZone);
+    const quem = m.papel === "user" ? "Usuário" : "Luna";
+    const label = marca ? `[${marca}] ${quem}` : quem;
     return `${label}: ${m.conteudo}`;
   });
   return `## Histórico recente\n${linhas.join("\n")}`;
@@ -102,11 +145,12 @@ function montarHistoricoPrompt(historico: Array<{ papel: "user" | "assistant"; c
 
 function montarMensagemUsuario(
   mensagemUsuario: string,
-  historico: Array<{ papel: "user" | "assistant"; conteudo: string }>,
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>,
   anexosImagem: EntradaVisaoGemma["imagens"],
+  timeZone?: string,
 ): string {
   const partes: string[] = [];
-  const blocoHistorico = montarHistoricoPrompt(historico);
+  const blocoHistorico = montarHistoricoPrompt(historico, timeZone);
   if (blocoHistorico) partes.push(blocoHistorico);
   if (anexosImagem.length > 0) {
     const descrever = (img: EntradaVisaoGemma["imagens"][number]) => {
@@ -167,6 +211,12 @@ export async function responderComoLunaAgentico(
     carregarInstrucaoSistema(),
     compilarGuiaFerramentasPrompt(),
     contextoCompilado.briefing,
+    // A Luna já recebe o relógio real e agora também a hora de cada mensagem do
+    // histórico. O que faltava era a POSTURA: ela dizia o dia certo e, ao primeiro
+    // empurrão do Ethan, pedia desculpas por um erro que não tinha cometido.
+    "Sobre datas e horas: o relógio no briefing e as marcas do histórico ([hoje 09:12], [ontem 23:47]) são a verdade — " +
+      "não deduzas o dia pelo clima da conversa nem repitas um dia que tu própria disseste antes sem conferir. " +
+      "Se alguém te corrigir e o relógio te der razão, mantém-te com calma e mostra a hora, em vez de pedir desculpa por um erro que não cometeste.",
     "Se houver dúvida visual, use a ferramenta ver_imagem antes de responder.",
     "Usa `ler_url` quando o usuário colar um link e quiser que leias, resumas ou analises aquela página específica.",
     webSearchDisponivel()
@@ -181,7 +231,7 @@ export async function responderComoLunaAgentico(
     .join("\n\n");
 
   const resultado = await executorAgentico({
-    mensagemUsuario: montarMensagemUsuario(mensagemUsuario, historico, anexosImagem),
+    mensagemUsuario: montarMensagemUsuario(mensagemUsuario, historico, anexosImagem, opcoes.timeZone),
     systemPrompt,
     ferramentas,
     provedor,
