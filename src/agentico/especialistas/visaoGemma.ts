@@ -1,3 +1,8 @@
+import {
+  descreverImagemOpenRouter,
+  visaoOpenRouterDisponivel,
+} from "./descreverImagemOpenRouter.js";
+
 export type AnexoImagemChat = {
   id: string;
   nome?: string;
@@ -14,19 +19,21 @@ export type DependenciasVisaoGemma = {
   descreverImagem?: (entrada: { imagem: AnexoImagemChat; pergunta?: string }) => Promise<string>;
 };
 
-const MAX_BASE64_PREVIEW = 24;
-
-function resumoFallbackImagem(imagem: AnexoImagemChat): string {
-  const nome = imagem.nome?.trim() || "imagem sem nome";
-  const mime = imagem.mimeType?.trim() || "mime desconhecido";
-  const assinatura = imagem.imageBase64.slice(0, MAX_BASE64_PREVIEW);
-  return `Recebi ${nome} (${mime}). Assinatura base64: ${assinatura}…`;
+/**
+ * Sem olhos, a resposta tem de ser HONESTA. O fallback antigo devolvia o nome do
+ * ficheiro e um pedaço do base64 ("Assinatura base64: /9j/4AAQ…") — e a Luna, sem
+ * saber que aquilo não era uma descrição, chutava o resto ("deve ser um salgadinho").
+ * Agora ela recebe um "não consegui ver" claro e diz isso ao Ethan.
+ */
+function semVisaoDisponivel(imagem: AnexoImagemChat): string {
+  const nome = imagem.nome?.trim() || "a imagem";
+  return `NÃO consegui analisar ${nome}: o modelo de visão não está disponível agora. Diga isso claramente ao usuário e NÃO tente adivinhar o conteúdo da imagem.`;
 }
 
 /**
- * Especialista de visão (stub/mock friendly).
- * - Em produção, injeta `descreverImagem` para ligar em um modelo multimodal.
- * - Em testes, funciona com fallback determinístico.
+ * Especialista de visão.
+ * - Produção: usa o modelo multimodal do OpenRouter (ou o `descreverImagem` injetado).
+ * - Testes: injeta `descreverImagem` e nada sai para a rede.
  */
 export async function visaoGemma(
   entrada: EntradaVisaoGemma,
@@ -36,14 +43,25 @@ export async function visaoGemma(
     return "Nenhuma imagem disponível para análise.";
   }
 
+  const descrever =
+    deps.descreverImagem ??
+    (visaoOpenRouterDisponivel() ? descreverImagemOpenRouter : undefined);
+
   const descricoes: string[] = [];
   for (const imagem of entrada.imagens) {
-    if (deps.descreverImagem) {
-      const texto = await deps.descreverImagem({ imagem, pergunta: entrada.pergunta });
-      descricoes.push(texto.trim() || resumoFallbackImagem(imagem));
+    if (!descrever) {
+      descricoes.push(semVisaoDisponivel(imagem));
       continue;
     }
-    descricoes.push(resumoFallbackImagem(imagem));
+    try {
+      const texto = await descrever({ imagem, pergunta: entrada.pergunta });
+      descricoes.push(texto.trim() || semVisaoDisponivel(imagem));
+    } catch (erro) {
+      const motivo = erro instanceof Error ? erro.message : String(erro);
+      descricoes.push(
+        `NÃO consegui analisar ${imagem.nome?.trim() || "a imagem"} (${motivo}). Diga isso ao usuário e NÃO adivinhe o conteúdo.`,
+      );
+    }
   }
 
   return descricoes.join("\n\n");
