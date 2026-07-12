@@ -6,6 +6,11 @@ export const LlmModelKeySchema = z.enum(["default", "glm-47", "gpt-oss-120b", "q
 
 export const ChatRequestSchema = z.object({
   message: z.string().min(1).max(16_000),
+  /**
+   * Texto LIMPO do usuário (sem o enriquecimento de anexos) para exibir/derivar
+   * título no Firestore. Ausente → cai no `message`.
+   */
+  displayMessage: z.string().max(16_000).optional(),
   sessionId: z.string().min(1).max(128).optional(),
   userMessageId: z.string().min(1).max(128).optional(),
   lunaMessageId: z.string().min(1).max(128).optional(),

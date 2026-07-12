@@ -11,7 +11,13 @@ function deriveTitle(text: string): string {
 export type PersistChatTurnInput = {
   uid: string;
   sessionId: string;
+  /** Mensagem enviada ao modelo (pode conter anexos enriquecidos). */
   userMessage: string;
+  /**
+   * Texto LIMPO do usuário para exibir/derivar título. Quando ausente, cai no
+   * userMessage — evita vazar a análise de imagem/documento na bolha e no título.
+   */
+  userDisplayText?: string;
   lunaReply: string;
   userMessageId?: string;
   lunaMessageId?: string;
@@ -30,9 +36,10 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<bool
   if (!db) return false;
 
   const { uid, sessionId, userMessage, lunaReply } = input;
+  const displayText = (input.userDisplayText ?? userMessage).trim();
   const convRef = db.doc(`users/${uid}/conversations/${sessionId}`);
-  const title = deriveTitle(userMessage);
-  const preview = lunaReply.trim().slice(0, 120) || userMessage.trim().slice(0, 120);
+  const title = deriveTitle(displayText);
+  const preview = lunaReply.trim().slice(0, 120) || displayText.slice(0, 120);
 
   const userMsgId = input.userMessageId ?? `u-${Date.now()}`;
   const lunaMsgId = input.lunaMessageId ?? `l-${Date.now()}`;
@@ -64,7 +71,7 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<bool
     userRef,
     {
       role: "user",
-      text: userMessage.trim(),
+      text: displayText,
       createdAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
