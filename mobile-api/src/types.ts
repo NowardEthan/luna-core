@@ -26,15 +26,27 @@ export const ChatRequestSchema = z.object({
   reasoningEnabled: z.boolean().optional(),
   /** Nível de raciocínio: baixo, médio ou alto. */
   reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
-  /** Anexos de imagem em base64 para visão agêntica no core. */
+  /**
+   * Anexos visuais (imagem/vídeo) do turno, para a visão agêntica no core.
+   *
+   * Preferimos `url` (Firebase Storage): o modelo de visão busca o arquivo direto,
+   * o payload fica leve e não há teto prático de tamanho. `imageBase64` continua
+   * aceito como alternativa (modo offline/sem nuvem) — mas aí o vídeo esbarra no
+   * limite do JSON. Um dos dois é obrigatório.
+   */
   attachments: z
     .array(
-      z.object({
-        id: z.string().min(1).max(128).optional(),
-        name: z.string().min(1).max(256).optional(),
-        mimeType: z.string().min(1).max(64).optional(),
-        imageBase64: z.string().min(32).max(20_000_000),
-      }),
+      z
+        .object({
+          id: z.string().min(1).max(128).optional(),
+          name: z.string().min(1).max(256).optional(),
+          mimeType: z.string().min(1).max(64).optional(),
+          url: z.string().url().max(2_048).optional(),
+          imageBase64: z.string().min(32).max(20_000_000).optional(),
+        })
+        .refine((a) => Boolean(a.url || a.imageBase64), {
+          message: "Anexo precisa de `url` ou `imageBase64`.",
+        }),
     )
     .max(5)
     .optional(),

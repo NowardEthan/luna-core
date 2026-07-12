@@ -177,7 +177,7 @@ function deveUsarModoAgentico(
 }
 
 function mensagemPedeImagem(mensagem: string): boolean {
-  return /\b(ver|veja|olha|analisa|analise|descreve|descrição|ocr|imagem|foto|print|captura)\b/i
+  return /\b(ver|veja|olha|assiste|assista|analisa|analise|descreve|descrição|ocr|imagem|foto|print|captura|v[ií]deo|filmagem)\b/i
     .test(mensagem);
 }
 
@@ -619,7 +619,12 @@ export async function executarPipelineCompleto(
 
     const usarStream = opcoes.stream === true && providerSupportsStream(config.baseUrl);
     const anexosImagem = opcoes.anexosImagem ?? [];
-    const usarModoAgentico = deveUsarModoAgentico(provedor, mensagem, anexosImagem);
+    // Só anexo DESTE turno liga o modo agêntico. Os de turnos anteriores ficam à
+    // disposição dela, mas não podem forçar o modo agêntico em toda mensagem só
+    // porque a conversa teve uma foto lá atrás — quem os invoca é a fala ("olha
+    // aquela foto"), que o `mensagemPedeImagem` já reconhece.
+    const anexosDesteTurno = anexosImagem.filter((a) => !a.deTurnoAnterior);
+    const usarModoAgentico = deveUsarModoAgentico(provedor, mensagem, anexosDesteTurno);
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
     // emocional/técnico continua no modelo grande. Sem custo: usa a análise já feita.

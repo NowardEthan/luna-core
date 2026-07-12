@@ -18,6 +18,7 @@ import {
   deveUsarPersistenciaFirestore,
   executarComPersistenciaFirestore,
 } from "./persistenciaFirestore.js";
+import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
 
 export type ChatStreamCallbacks = {
   onStatus?: (phase: "analysing" | "memory" | "writing") => void;
@@ -55,7 +56,10 @@ export type ChatAttachmentInput = {
   id?: string;
   name?: string;
   mimeType?: string;
-  imageBase64: string;
+  /** URL no Storage — preferida: sem teto de tamanho e o payload fica leve. */
+  url?: string;
+  /** Alternativa sem nuvem. */
+  imageBase64?: string;
 };
 
 export type LunaCoreModule = {
@@ -81,7 +85,11 @@ export type LunaCoreModule = {
         id: string;
         nome?: string;
         mimeType?: string;
-        imageBase64: string;
+        /** URL no Storage (preferida) ou base64 (sem nuvem). */
+        url?: string;
+        imageBase64?: string;
+        /** Anexo de um turno anterior — disponível, mas não força o modo agêntico. */
+        deTurnoAnterior?: boolean;
       }>;
       onAcaoAgentico?: (acao: {
         tipo: "inicio_ferramenta" | "fim_ferramenta";
@@ -286,12 +294,31 @@ async function prepararChatMobile(
 
   const raciocinioSuportado = isCerebras || isOpenrouter;
   const raciocinioAtivo = reasoningEnabled !== false && raciocinioSuportado;
-  const anexosImagem = (attachments ?? []).map((att, index) => ({
+  const anexosDoTurno = (attachments ?? []).map((att, index) => ({
     id: att.id?.trim() || `img-${index + 1}`,
     nome: att.name?.trim() || undefined,
     mimeType: att.mimeType?.trim() || "image/jpeg",
-    imageBase64: att.imageBase64.trim(),
+    url: att.url?.trim() || undefined,
+    imageBase64: att.imageBase64?.trim() || undefined,
   }));
+
+  // Anexos de turnos anteriores: ela pode voltar numa foto antiga da conversa
+  // ("aquela foto que te mandei"). Só entram os que já estão no Storage — e só os
+  // metadados vão no prompt; o arquivo só é buscado se ela decidir olhar.
+  const idsDoTurno = new Set(anexosDoTurno.map((a) => a.id));
+  const anteriores = uid
+    ? (await carregarAnexosVisuaisRecentes(uid, sidPipeline))
+        .filter((a) => !idsDoTurno.has(a.id))
+        .map((a) => ({
+          id: a.id,
+          nome: a.name,
+          mimeType: a.mimeType,
+          url: a.url,
+          deTurnoAnterior: true,
+        }))
+    : [];
+
+  const anexosImagem = [...anexosDoTurno, ...anteriores];
 
   return {
     core,

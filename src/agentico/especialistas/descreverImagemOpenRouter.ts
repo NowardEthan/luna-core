@@ -56,7 +56,15 @@ export async function descreverImagemOpenRouter(entrada: {
   const { imagem, pergunta } = entrada;
   const mime = imagem.mimeType?.trim() || "image/jpeg";
   const ehVideo = mime.startsWith("video/");
-  const dataUrl = `data:${mime};base64,${imagem.imageBase64}`;
+
+  // URL do Storage quando existe: o modelo busca o arquivo direto, sem carregar
+  // megabytes de base64 no pedido. O base64 fica como alternativa (sem nuvem).
+  const fonte = imagem.url?.trim()
+    ? imagem.url.trim()
+    : imagem.imageBase64
+      ? `data:${mime};base64,${imagem.imageBase64}`
+      : null;
+  if (!fonte) throw new Error("Anexo sem url nem base64 — nada para olhar.");
 
   const base = instrucaoBase(ehVideo);
   const instrucao = pergunta?.trim()
@@ -65,8 +73,8 @@ export async function descreverImagemOpenRouter(entrada: {
 
   // O OpenRouter distingue os tipos: vídeo entra como `video_url`, não `image_url`.
   const conteudoMidia = ehVideo
-    ? { type: "video_url", video_url: { url: dataUrl } }
-    : { type: "image_url", image_url: { url: dataUrl } };
+    ? { type: "video_url", video_url: { url: fonte } }
+    : { type: "image_url", image_url: { url: fonte } };
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,

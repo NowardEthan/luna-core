@@ -109,18 +109,29 @@ function montarMensagemUsuario(
   const blocoHistorico = montarHistoricoPrompt(historico);
   if (blocoHistorico) partes.push(blocoHistorico);
   if (anexosImagem.length > 0) {
-    const temVideo = anexosImagem.some((a) => a.mimeType?.startsWith("video/"));
-    partes.push(
-      `## Anexos visuais (${temVideo ? "imagens e/ou vídeos" : "imagens"})\n` +
-        anexosImagem
-          .map((img) => {
-            const tipo = img.mimeType?.startsWith("video/") ? "vídeo" : "imagem";
-            return `- id=${img.id}; tipo=${tipo}; nome=${img.nome ?? "sem_nome"}; mime=${img.mimeType ?? "desconhecido"}`;
-          })
-          .join("\n") +
-        "\n\nVocê NÃO vê estes anexos por conta própria — use `ver_imagem` (com o id e uma pergunta) para olhar. " +
-        "Nunca descreva nem comente o conteúdo deles sem ter chamado a ferramenta.",
+    const descrever = (img: EntradaVisaoGemma["imagens"][number]) => {
+      const tipo = img.mimeType?.startsWith("video/") ? "vídeo" : "imagem";
+      return `- id=${img.id}; tipo=${tipo}; nome=${img.nome ?? "sem_nome"}`;
+    };
+    const agora = anexosImagem.filter((a) => !a.deTurnoAnterior);
+    const antes = anexosImagem.filter((a) => a.deTurnoAnterior);
+
+    const blocos: string[] = [];
+    if (agora.length > 0) {
+      blocos.push(`## Anexos DESTE pedido\n${agora.map(descrever).join("\n")}`);
+    }
+    if (antes.length > 0) {
+      blocos.push(
+        "## Anexos de turnos anteriores desta conversa\n" +
+          antes.map(descrever).join("\n") +
+          "\n(Só olha estes se o Ethan se referir a eles — ex.: «aquela foto que te mandei».)",
+      );
+    }
+    blocos.push(
+      "Você NÃO vê nenhum destes anexos por conta própria: use `ver_imagem` (com o id e uma pergunta focada) para olhar. " +
+        "Nunca descreva nem comente o conteúdo de um anexo sem ter chamado a ferramenta — se não olhaste, não sabes o que lá está.",
     );
+    partes.push(blocos.join("\n\n"));
   }
   partes.push(`## Pedido atual\n${mensagemUsuario}`);
   return partes.join("\n\n");

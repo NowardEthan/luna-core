@@ -30,6 +30,65 @@ export type PersistChatTurnInput = {
   };
 };
 
+export type AnexoVisualHistorico = {
+  id: string;
+  name?: string;
+  mimeType?: string;
+  url: string;
+};
+
+const MIME_VISUAL = /^(image|video)\//;
+
+/**
+ * Anexos visuais de turnos ANTERIORES da conversa.
+ *
+ * Sem isto, uma foto só existe no turno em que foi enviada: três mensagens depois a
+ * Luna não tem como voltar nela ("aquela foto que te mandei"). Aqui devolvemos os
+ * mais recentes para que ela possa chamar `ver_imagem` num anexo antigo quando quiser.
+ *
+ * Custo: só metadados (id/nome) entram no prompt. O arquivo em si só é buscado se ela
+ * decidir olhar — então listar o histórico é barato.
+ */
+export async function carregarAnexosVisuaisRecentes(
+  uid: string,
+  sessionId: string,
+  limite = 8,
+): Promise<AnexoVisualHistorico[]> {
+  const db = getAdminFirestore();
+  if (!db) return [];
+
+  try {
+    const snap = await db
+      .collection(`users/${uid}/conversations/${sessionId}/messages`)
+      .orderBy("createdAt", "desc")
+      .limit(30)
+      .get();
+
+    const anexos: AnexoVisualHistorico[] = [];
+    for (const doc of snap.docs) {
+      const brutos = doc.data()?.attachments;
+      if (!Array.isArray(brutos)) continue;
+      for (const a of brutos) {
+        const url = typeof a?.uri === "string" ? a.uri : "";
+        const mime = typeof a?.mime === "string" ? a.mime : "";
+        // Só o que dá para olhar: imagem/vídeo já no Storage (http). Um `file://`
+        // do aparelho não serve — o servidor não alcança o disco do celular.
+        if (!url.startsWith("http") || !MIME_VISUAL.test(mime)) continue;
+        anexos.push({
+          id: typeof a?.id === "string" ? a.id : `hist-${anexos.length + 1}`,
+          name: typeof a?.name === "string" ? a.name : undefined,
+          mimeType: mime,
+          url,
+        });
+        if (anexos.length >= limite) return anexos;
+      }
+    }
+    return anexos;
+  } catch {
+    return [];
+  }
+}
+
 /** Grava turno de chat no Firestore (Admin SDK — ignora regras). Idempotente pelo lunaMessageId. */
 export async function persistChatTurn(input: PersistChatTurnInput): Promise<boolean> {
   const db = getAdminFirestore();

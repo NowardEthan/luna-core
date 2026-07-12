@@ -7,7 +7,12 @@ export type AnexoImagemChat = {
   id: string;
   nome?: string;
   mimeType?: string;
-  imageBase64: string;
+  /** URL pública (Firebase Storage) — o modelo de visão busca o arquivo direto. */
+  url?: string;
+  /** Alternativa ao `url` quando não há nuvem. Vídeo grande não cabe aqui. */
+  imageBase64?: string;
+  /** Anexo de um turno anterior da conversa — ela pode voltar nele quando quiser. */
+  deTurnoAnterior?: boolean;
 };
 
 export type EntradaVisaoGemma = {
