@@ -11,18 +11,26 @@ import type { AnexoImagemChat } from "./visaoGemma.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-/** Multimodal e gratuito no OpenRouter. Trocável por env. */
-const MODELO_VISAO_PADRAO = "google/gemma-4-26b-a4b-it:free";
+/**
+ * Multimodal (texto + imagem + VÍDEO), 1M de contexto e barato — o `:free` do Gemma
+ * esbarrava no rate limit. Trocável por `OPENROUTER_VISION_MODEL`.
+ */
+const MODELO_VISAO_PADRAO = "qwen/qwen3.5-flash-02-23";
 
-const INSTRUCAO_BASE = [
-  "Você é os olhos de uma pessoa que não pode ver esta imagem.",
-  "Responda em português do Brasil, de forma factual e concreta.",
-  "Transcreva TODO texto legível (OCR): placares, números, rótulos, marcas, o que estiver escrito em canecas, telas, camisas, placas.",
-  "Descreva o que está de facto na imagem — objetos, pessoas, cores, disposição.",
-  "NÃO especule nem invente. Se algo estiver ilegível, cortado ou borrado, diga exatamente isso ('o placar no canto está borrado, não consigo ler').",
-  "Admitir que não dá para ver é sempre melhor do que adivinhar.",
-  "Responda só com a análise, sem preâmbulo.",
-].join(" ");
+function instrucaoBase(ehVideo: boolean): string {
+  const midia = ehVideo ? "este vídeo" : "esta imagem";
+  return [
+    `Você é os olhos de uma pessoa que não pode ver ${midia}.`,
+    "Responda em português do Brasil, de forma factual e concreta.",
+    "Transcreva TODO texto legível (OCR): placares, números, rótulos, marcas, o que estiver escrito em canecas, telas, camisas, placas.",
+    ehVideo
+      ? "Descreva o que ACONTECE ao longo do vídeo — a sequência, o que muda, quem faz o quê, e em que momento."
+      : "Descreva o que está de facto na imagem — objetos, pessoas, cores, disposição.",
+    "NÃO especule nem invente. Se algo estiver ilegível, cortado ou borrado, diga exatamente isso ('o placar no canto está borrado, não consigo ler').",
+    "Admitir que não dá para ver é sempre melhor do que adivinhar.",
+    "Responda só com a análise, sem preâmbulo.",
+  ].join(" ");
+}
 
 function apiKey(): string | undefined {
   return process.env.OPENROUTER_API_KEY?.trim() || undefined;
@@ -47,11 +55,18 @@ export async function descreverImagemOpenRouter(entrada: {
 
   const { imagem, pergunta } = entrada;
   const mime = imagem.mimeType?.trim() || "image/jpeg";
+  const ehVideo = mime.startsWith("video/");
   const dataUrl = `data:${mime};base64,${imagem.imageBase64}`;
 
+  const base = instrucaoBase(ehVideo);
   const instrucao = pergunta?.trim()
-    ? `${INSTRUCAO_BASE}\n\nPergunta específica sobre a imagem: ${pergunta.trim()}\nResponda a essa pergunta primeiro; depois acrescente o que mais for relevante.`
-    : INSTRUCAO_BASE;
+    ? `${base}\n\nPergunta específica sobre ${ehVideo ? "o vídeo" : "a imagem"}: ${pergunta.trim()}\nResponda a essa pergunta primeiro; depois acrescente o que mais for relevante.`
+    : base;
+
+  // O OpenRouter distingue os tipos: vídeo entra como `video_url`, não `image_url`.
+  const conteudoMidia = ehVideo
+    ? { type: "video_url", video_url: { url: dataUrl } }
+    : { type: "image_url", image_url: { url: dataUrl } };
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
@@ -70,10 +85,7 @@ export async function descreverImagemOpenRouter(entrada: {
       messages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: instrucao },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
+          content: [{ type: "text", text: instrucao }, conteudoMidia],
         },
       ],
       temperature: 0.2,

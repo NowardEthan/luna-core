@@ -24,17 +24,19 @@ const FERRAMENTAS_BASE: DefinicaoFerramenta[] = [
   {
     nome: "ver_imagem",
     descricao:
-      "Analisa imagens anexadas para responder perguntas visuais, OCR e contexto visual.",
+      "Olha imagens E vídeos anexados: responde perguntas visuais, lê texto (OCR) e descreve o que acontece num vídeo. " +
+      "Faz uma pergunta focada e recebe a resposta — pode chamar de novo com outra pergunta se precisares de mais detalhe.",
     parametros: {
       type: "object",
       properties: {
         imagem_id: {
           type: "string",
-          description: "ID do anexo. Se omitido, usa a imagem mais recente.",
+          description: "ID do anexo (imagem ou vídeo). Se omitido, usa o mais recente.",
         },
         pergunta: {
           type: "string",
-          description: "Pergunta focada para orientar a análise visual.",
+          description:
+            "Pergunta focada — ex.: «qual o placar no canto superior?», «o que está escrito na caneca?», «o que acontece no vídeo?».",
         },
       },
       required: [],

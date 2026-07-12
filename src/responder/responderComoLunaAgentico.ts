@@ -109,11 +109,17 @@ function montarMensagemUsuario(
   const blocoHistorico = montarHistoricoPrompt(historico);
   if (blocoHistorico) partes.push(blocoHistorico);
   if (anexosImagem.length > 0) {
+    const temVideo = anexosImagem.some((a) => a.mimeType?.startsWith("video/"));
     partes.push(
-      "## Imagens anexadas\n" +
+      `## Anexos visuais (${temVideo ? "imagens e/ou vídeos" : "imagens"})\n` +
         anexosImagem
-          .map((img) => `- id=${img.id}; nome=${img.nome ?? "sem_nome"}; mime=${img.mimeType ?? "desconhecido"}`)
-          .join("\n"),
+          .map((img) => {
+            const tipo = img.mimeType?.startsWith("video/") ? "vídeo" : "imagem";
+            return `- id=${img.id}; tipo=${tipo}; nome=${img.nome ?? "sem_nome"}; mime=${img.mimeType ?? "desconhecido"}`;
+          })
+          .join("\n") +
+        "\n\nVocê NÃO vê estes anexos por conta própria — use `ver_imagem` (com o id e uma pergunta) para olhar. " +
+        "Nunca descreva nem comente o conteúdo deles sem ter chamado a ferramenta.",
     );
   }
   partes.push(`## Pedido atual\n${mensagemUsuario}`);
