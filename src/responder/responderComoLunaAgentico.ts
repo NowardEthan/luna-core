@@ -234,6 +234,20 @@ export async function responderComoLunaAgentico(
   const historico = opcoes.historico ?? [];
   const anexosImagem = opcoes.anexosImagem ?? [];
   const mapaImagens = new Map(anexosImagem.map((img) => [img.id, img]));
+
+  /**
+   * A imagem "mais recente" quando ela não diz qual.
+   *
+   * Era `anexosImagem[length - 1]` — e a lista é montada como
+   * `[...anexosDoTurno, ...anexosDeTurnosAnteriores]`. Ou seja: a ÚLTIMA da lista era uma
+   * foto ANTIGA. O Ethan mandava uma foto nova e ela comentava a de horas atrás, com toda
+   * a confiança. A imagem do turno é sempre a que ele acabou de mandar.
+   */
+  const imagemMaisRecente = (): (typeof anexosImagem)[number] | undefined => {
+    const doTurno = anexosImagem.filter((img) => !img.deTurnoAnterior);
+    const lista = doTurno.length > 0 ? doTurno : anexosImagem;
+    return lista[lista.length - 1];
+  };
   const anexosDocumento = opcoes.anexosDocumento ?? [];
   const mapaDocumentos = new Map(anexosDocumento.map((doc) => [doc.id, doc]));
   const ferramentas = listarFerramentasChat();
@@ -247,7 +261,7 @@ export async function responderComoLunaAgentico(
   const nomeFerramentaParaUi = (nome: string, argumentos: Record<string, unknown>): string => {
     if (nome !== "ver_imagem") return nome;
     const id = typeof argumentos.imagem_id === "string" ? argumentos.imagem_id : undefined;
-    const alvo = id ? mapaImagens.get(id) : anexosImagem[anexosImagem.length - 1];
+    const alvo = id ? mapaImagens.get(id) : imagemMaisRecente();
     return alvo?.mimeType?.startsWith("video/") ? "ver_video" : nome;
   };
 
@@ -369,7 +383,7 @@ export async function responderComoLunaAgentico(
       }
       const imagemId = typeof args.imagem_id === "string" ? args.imagem_id : undefined;
       const pergunta = typeof args.pergunta === "string" ? args.pergunta : undefined;
-      const imagemSelecionada = imagemId ? mapaImagens.get(imagemId) : anexosImagem[anexosImagem.length - 1];
+      const imagemSelecionada = imagemId ? mapaImagens.get(imagemId) : imagemMaisRecente();
       if (!imagemSelecionada) {
         return "Nenhuma imagem disponível no contexto desta conversa.";
       }

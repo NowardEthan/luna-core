@@ -135,7 +135,13 @@ function friendlyErrorMessage(err: unknown): string {
     if (issue?.code === "too_small" && issue.type === "array") {
       return "Envie pelo menos um item.";
     }
-    return "Pedido inválido — confira o que foi enviado.";
+    // Dizer QUAL campo falhou. O «Pedido inválido» genérico escondia a causa: o Ethan
+    // via a mensagem no chat e nós dois ficávamos a adivinhar qual anexo tinha problema.
+    // Só o caminho do campo — nunca o valor (que pode conter conteúdo dele).
+    const campo = issue?.path?.join(".");
+    return campo
+      ? `Pedido inválido em «${campo}» — ${issue.message}`
+      : "Pedido inválido — confira o que foi enviado.";
   }
   return err instanceof Error ? err.message : String(err);
 }
