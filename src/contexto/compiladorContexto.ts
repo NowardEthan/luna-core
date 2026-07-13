@@ -47,7 +47,10 @@ const SECOES: SecaoDef[] = [
   { chave: "humor", titulo: "Estado", prioridade: 3, orcamento: 220 },
   { chave: "ecossistema", titulo: "Ecossistema", prioridade: 5, orcamento: 80 },
   { chave: "presenca", titulo: "Presença", prioridade: 4, orcamento: 200 },
-  { chave: "memorias_longas", titulo: "Memórias", prioridade: 5, orcamento: 300 },
+  // Prioridade 2 e orçamento maior: com prioridade 5 e 300 tokens, a memória chegava
+  // DEPOIS de as protegidas (que sozinhas somam ~1100) esgotarem o orçamento de 1100 do
+  // turno casual — ou seja, era descartada SEMPRE. Não "às vezes": nunca cabia.
+  { chave: "memorias_longas", titulo: "Memórias", prioridade: 2, orcamento: 600 },
   { chave: "sense", titulo: "Sense", prioridade: 6, orcamento: 200 },
   { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 200 },
   { chave: "habitat", titulo: "Habitat", prioridade: 3, orcamento: 140 },
@@ -57,7 +60,14 @@ const SECOES: SecaoDef[] = [
   { chave: "sugestao_memoria", titulo: "Sugestão", prioridade: 10, orcamento: 60 },
 ];
 
-/** Secções do Mundo Interior — nunca cortadas por orçamento. */
+/**
+ * Secções nunca cortadas por orçamento.
+ *
+ * `memorias_longas` entrou aqui (2026-07-12) porque era o que a fazia esquecer: fatos do
+ * usuário e trechos de outras conversas caíam nesta secção, que não era protegida — e o
+ * orçamento acabava antes, sempre. A Luna lembra de quem ela é (identidade, humor, vida)
+ * mas esquecia de quem está falando com ela. Lembrar do outro é parte de estar presente.
+ */
 const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "tempo",
   "identidade",
@@ -65,6 +75,7 @@ const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "humor",
   "vida",
   "habitat",
+  "memorias_longas",
 ]);
 
 /** Orçamento vinculante por profundidade do tálamo (pkg-comp). */

@@ -139,12 +139,21 @@ async function carregarMensagensFirestore(
   return turnos;
 }
 
-async function buscarContextoFirestore(
+type ConversaOutra = {
+  id: string;
+  titulo: string;
+  dataLabel: string;
+  turnos: TurnoRemoto[];
+};
+
+/**
+ * Carrega as OUTRAS conversas do usuário (o trabalho caro: ~12 leituras Firestore).
+ * Não escolhe nada — só traz o material. Quem escolhe é a pergunta, a cada turno.
+ */
+async function carregarOutrasConversas(
   uid: string,
   sessaoAtualId: string,
-  mensagem: string,
-  maxSessoes: number,
-): Promise<string[]> {
+): Promise<ConversaOutra[]> {
   const db = getAdminFirestore();
   if (!db) return [];
 
@@ -154,29 +163,60 @@ async function buscarContextoFirestore(
     .limit(12)
     .get();
 
-  const tokensBusca = tokensRelevantes(mensagem);
-  const resumos: string[] = [];
-
+  const conversas: ConversaOutra[] = [];
   for (const doc of convSnap.docs) {
     if (doc.id === sessaoAtualId) continue;
-    if (resumos.length >= maxSessoes) break;
 
     const data = doc.data();
-    const titulo =
-      typeof data.title === "string" && data.title.trim()
-        ? data.title.trim().slice(0, 60)
-        : doc.id;
-    const dataLabel = timestampIso(data.updatedAt).slice(0, 10);
-
     const turnos = await carregarMensagensFirestore(uid, doc.id);
-    const userCount = turnos.filter((t) => t.papel === "user").length;
-    if (userCount < 1) continue;
+    if (turnos.filter((t) => t.papel === "user").length < 1) continue;
 
-    const resumo = resumirTurnosFirestore(titulo, dataLabel, turnos, tokensBusca);
-    if (resumo) resumos.push(resumo);
+    conversas.push({
+      id: doc.id,
+      titulo:
+        typeof data.title === "string" && data.title.trim()
+          ? data.title.trim().slice(0, 60)
+          : doc.id,
+      dataLabel: timestampIso(data.updatedAt).slice(0, 10),
+      turnos,
+    });
   }
+  return conversas;
+}
 
-  return resumos;
+/** Quantas palavras DESTA pergunta aparecem nesta conversa. */
+function relevancia(conversa: ConversaOutra, tokensBusca: string[]): number {
+  if (tokensBusca.length === 0) return 0;
+  const texto = conversa.turnos.map((t) => t.conteudo).join(" ").toLowerCase();
+  return tokensBusca.filter((t) => texto.includes(t)).length;
+}
+
+/**
+ * Escolhe as conversas relevantes PARA ESTA MENSAGEM.
+ *
+ * Antes, a escolha era feita uma única vez por sessão e cacheada — com as palavras da
+ * PRIMEIRA mensagem, que quase sempre é "oi luna" (só stopwords). Quando o Ethan
+ * perguntava «lembra do que falei sobre X?», a busca por X nunca acontecia: a Luna já
+ * tinha decidido do que lembrar antes de ele perguntar. Agora o material é cacheado (o
+ * caro), mas a SELEÇÃO é refeita a cada turno, com a pergunta da vez.
+ */
+function selecionarRelevantes(
+  conversas: ConversaOutra[],
+  mensagem: string,
+  maxSessoes: number,
+): string[] {
+  const tokensBusca = tokensRelevantes(mensagem);
+
+  const ranqueadas = conversas
+    .map((c) => ({ c, score: relevancia(c, tokensBusca) }))
+    // Empate mantém a ordem original (mais recente primeiro) — sem pergunta útil
+    // ("oi luna"), a conversa mais recente é o melhor palpite.
+    .sort((a, b) => b.score - a.score);
+
+  return ranqueadas
+    .slice(0, maxSessoes)
+    .map(({ c }) => resumirTurnosFirestore(c.titulo, c.dataLabel, c.turnos, tokensBusca))
+    .filter((r) => r.length > 0);
 }
 
 function deduplicarResumos(resumos: string[]): string[] {
@@ -191,6 +231,9 @@ function deduplicarResumos(resumos: string[]): string[] {
   return out;
 }
 
+/** Exposto só para os testes — a seleção é o coração do recall. */
+export const __testes = { selecionarRelevantes };
+
 export type PrepararMemoriaGlobalInput = {
   core: LunaCoreCross;
   uid: string | null;
@@ -203,10 +246,16 @@ export type PrepararMemoriaGlobalResult = {
   contextoCrossSessao: string[];
 };
 
-// Contexto de outras sessões não muda no meio de uma conversa — computa uma
-// vez por sessão (processo vivo) em vez de refazer ~4 leituras Firestore a
-// cada mensagem. Mesmo padrão de cache-em-memória de `roteador.ts:cacheEmbeddings`.
-const cacheContextoCrossSessao = new Map<string, string[]>();
+/**
+ * Cache do MATERIAL, não da escolha.
+ *
+ * As outras conversas do usuário não mudam no meio de um papo — carregá-las uma vez por
+ * sessão evita ~12 leituras Firestore por mensagem. Mas o que se cacheava antes eram os
+ * RESUMOS JÁ ESCOLHIDOS, com as palavras da primeira mensagem: a memória ficava congelada
+ * numa pergunta que ninguém fez. Agora guardamos as conversas cruas e escolhemos de novo
+ * a cada turno — caro uma vez, certo sempre.
+ */
+const cacheOutrasConversas = new Map<string, ConversaOutra[]>();
 
 /**
  * Prepara memória global: hidrata sessão actual a partir do Firestore e
@@ -239,17 +288,16 @@ export async function prepararMemoriaGlobalMobile(
   const resumos: string[] = [];
 
   if (uid) {
-    const cacheado = cacheContextoCrossSessao.get(sessionId);
-    if (cacheado) {
-      resumos.push(...cacheado);
-    } else {
-      try {
-        const firestore = await buscarContextoFirestore(uid, sessionId, mensagem, maxSessoes);
-        resumos.push(...firestore);
-        cacheContextoCrossSessao.set(sessionId, firestore);
-      } catch {
-        /* ignora falha remota */
+    try {
+      let conversas = cacheOutrasConversas.get(sessionId);
+      if (!conversas) {
+        conversas = await carregarOutrasConversas(uid, sessionId);
+        cacheOutrasConversas.set(sessionId, conversas);
       }
+      // A seleção é refeita a cada turno, com a pergunta DESTE turno.
+      resumos.push(...selecionarRelevantes(conversas, mensagem, maxSessoes));
+    } catch {
+      /* ignora falha remota */
     }
   }
 
