@@ -19,6 +19,7 @@ import {
   executarComPersistenciaFirestore,
 } from "./persistenciaFirestore.js";
 import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
+import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
   onStatus?: (phase: "analysing" | "memory" | "writing") => void;
@@ -62,6 +63,14 @@ export type ChatAttachmentInput = {
   imageBase64?: string;
 };
 
+/** Documento do turno — só a URL: o texto é extraído aqui e lido por partes (`ler_arquivo`). */
+export type ChatDocumentInput = {
+  id: string;
+  name?: string;
+  mimeType?: string;
+  url: string;
+};
+
 export type LunaCoreModule = {
   executarPipelineCompleto: (
     mensagem: string,
@@ -90,6 +99,14 @@ export type LunaCoreModule = {
         imageBase64?: string;
         /** Anexo de um turno anterior — disponível, mas não força o modo agêntico. */
         deTurnoAnterior?: boolean;
+      }>;
+      /** Documentos com o texto já extraído — lidos por partes via `ler_arquivo`. */
+      anexosDocumento?: Array<{
+        id: string;
+        nome?: string;
+        mimeType?: string;
+        texto: string;
+        paginas?: number;
       }>;
       onAcaoAgentico?: (acao: {
         tipo: "inicio_ferramenta" | "fim_ferramenta";
@@ -221,6 +238,7 @@ async function prepararChatMobile(
   timeZone?: string,
   reasoningEnabled?: boolean,
   reasoningEffort?: "low" | "medium" | "high",
+  documents?: ChatDocumentInput[],
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -320,6 +338,10 @@ async function prepararChatMobile(
 
   const anexosImagem = [...anexosDoTurno, ...anteriores];
 
+  // Documentos: o app manda só a URL; aqui buscamos e extraímos o texto (com cache). Ele
+  // NÃO entra no prompt — fica à disposição do `ler_arquivo`, para ela ler por partes.
+  const anexosDocumento = await carregarDocumentos(documents);
+
   return {
     core,
     prevCwd,
@@ -335,6 +357,7 @@ async function prepararChatMobile(
     detalheAmbiente,
     interlocutor,
     anexosImagem,
+    anexosDocumento,
     timeZone,
   };
 }
@@ -414,6 +437,7 @@ export async function executarChatMobile(
   timeZone?: string,
   reasoningEnabled?: boolean,
   reasoningEffort?: "low" | "medium" | "high",
+  documents?: ChatDocumentInput[],
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -426,6 +450,7 @@ export async function executarChatMobile(
     timeZone,
     reasoningEnabled,
     reasoningEffort,
+    documents,
   );
 
   const rodarPipeline = async () => {
@@ -441,6 +466,7 @@ export async function executarChatMobile(
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
+      anexosDocumento: prep.anexosDocumento,
       stream: false,
       timeZone: prep.timeZone,
     });
@@ -469,6 +495,7 @@ export async function executarChatMobileStream(
   timeZone?: string,
   reasoningEnabled?: boolean,
   reasoningEffort?: "low" | "medium" | "high",
+  documents?: ChatDocumentInput[],
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -482,6 +509,7 @@ export async function executarChatMobileStream(
       timeZone,
       reasoningEnabled,
       reasoningEffort,
+      documents,
     );
   }
 
@@ -496,6 +524,7 @@ export async function executarChatMobileStream(
     timeZone,
     reasoningEnabled,
     reasoningEffort,
+    documents,
   );
 
   const rodarPipeline = async () => {
@@ -511,6 +540,7 @@ export async function executarChatMobileStream(
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
+      anexosDocumento: prep.anexosDocumento,
       stream: true,
       timeZone: prep.timeZone,
       onStatusHint: (hint) => {

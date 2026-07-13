@@ -64,6 +64,7 @@ import { coletarNeuroniosAtivos } from "../neuronios/roteador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { AnexoImagemChat } from "../agentico/especialistas/visaoGemma.js";
+import type { AnexoDocumentoChat } from "../agentico/especialistas/leitorDocumento.js";
 import { simularVidaInterior } from "../mundo/vida/simuladorVida.js";
 import { inferirEFormatarConhecimento } from "../conhecimento/formatarConhecimento.js";
 
@@ -134,6 +135,8 @@ export type OpcoesPipelineCompleto = {
   onStreamContentDelta?: (delta: string) => void;
   onStreamDone?: (resposta: ResultadoResposta) => void;
   anexosImagem?: AnexoImagemChat[];
+  /** Documentos do turno (texto já extraído) — lidos por partes via `ler_arquivo`. */
+  anexosDocumento?: AnexoDocumentoChat[];
   onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
   /** Fuso IANA do dispositivo do usuário (ex.: "America/Sao_Paulo") — para grounding temporal. */
   timeZone?: string;
@@ -170,13 +173,17 @@ function deveUsarModoAgentico(
   provedor: ProvedorLlm,
   mensagem: string,
   anexosImagem: AnexoImagemChat[],
+  anexosDocumento: AnexoDocumentoChat[] = [],
 ): boolean {
   if (!ehProvedorAgente(provedor)) return false;
   const vision =
     featureFlagAgenticoVisionAtiva() &&
     (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
+  // Documento anexado exige o modo agêntico: é lá que vive o `ler_arquivo`. Sem isto,
+  // ela receberia o cartão do arquivo e não teria como abri-lo.
+  const documento = anexosDocumento.length > 0;
   const web = featureFlagAgenticoWebAtiva() || mensagemContemUrl(mensagem);
-  return vision || web;
+  return vision || documento || web;
 }
 
 function mensagemPedeImagem(mensagem: string): boolean {
@@ -632,7 +639,13 @@ export async function executarPipelineCompleto(
     // porque a conversa teve uma foto lá atrás — quem os invoca é a fala ("olha
     // aquela foto"), que o `mensagemPedeImagem` já reconhece.
     const anexosDesteTurno = anexosImagem.filter((a) => !a.deTurnoAnterior);
-    const usarModoAgentico = deveUsarModoAgentico(provedor, mensagem, anexosDesteTurno);
+    const anexosDocumento = opcoes.anexosDocumento ?? [];
+    const usarModoAgentico = deveUsarModoAgentico(
+      provedor,
+      mensagem,
+      anexosDesteTurno,
+      anexosDocumento,
+    );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
     // emocional/técnico continua no modelo grande. Sem custo: usa a análise já feita.
@@ -679,6 +692,7 @@ export async function executarPipelineCompleto(
           // relógio do servidor, não no do Ethan.
           timeZone: opcoes.timeZone,
           anexosImagem,
+          anexosDocumento,
           raciocinioAtivo,
           raciocinioEffort,
           onAcao: opcoes.onAcaoAgentico,

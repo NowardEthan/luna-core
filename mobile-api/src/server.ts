@@ -292,6 +292,7 @@ async function resolverTurnoChat(params: {
       parsed.timeZone,
       parsed.reasoningEnabled,
       parsed.reasoningEffort,
+      parsed.documents,
     ),
   );
 
@@ -395,6 +396,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // O app precisa saber se ESTE servidor já aceita anexo por URL do Storage —
       // um deploy antigo rejeitaria o pedido (o schema exigia imageBase64).
       attachmentUrlSupported: true,
+      features: {
+        recallEntreConversas: true,
+        diarioSono: true,
+        leitorDeArquivos: true,
+      },
       documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,
       firebaseAuthRequired: isFirebaseAuthRequired(),
@@ -601,6 +607,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.timeZone,
         parsed.reasoningEnabled,
         parsed.reasoningEffort,
+        parsed.documents,
       );
 
       clearTimeout(streamTimeout);

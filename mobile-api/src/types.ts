@@ -60,6 +60,22 @@ export const ChatRequestSchema = z.object({
     )
     .max(5)
     .optional(),
+  /**
+   * Documentos do turno (PDF/DOCX/MD/TXT…). NÃO viajam dentro da `message`: o app manda
+   * a URL do Storage, o servidor extrai o texto e a Luna lê por PARTES, com `ler_arquivo`.
+   * Um PDF de 110 páginas não cabe num prompt — e antes era cortado a meio, sem ela saber.
+   */
+  documents: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(128),
+        name: z.string().min(1).max(256).optional(),
+        mimeType: z.string().min(1).max(128).optional(),
+        url: z.string().url().max(2_048),
+      }),
+    )
+    .max(5)
+    .optional(),
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
@@ -129,6 +145,19 @@ export type HealthResponse = {
   visionConfigured: boolean;
   /** Este deploy aceita anexo por URL do Storage (e não só base64). */
   attachmentUrlSupported?: boolean;
+  /**
+   * O que ESTE deploy sabe fazer. Existe porque `ok: true` não prova nada: um deploy
+   * falhado deixa o ANTERIOR de pé, respondendo ok, e é fácil concluir que a correção
+   * subiu quando não subiu. (Aconteceu: 4 deploys falharam e o /health continuou verde.)
+   */
+  features?: {
+    /** Memória entre conversas protegida no briefing (não é mais descartada). */
+    recallEntreConversas: boolean;
+    /** Diário e sono persistem no Firestore — ela consegue evoluir. */
+    diarioSono: boolean;
+    /** Ferramenta `ler_arquivo`: documentos grandes lidos por partes. */
+    leitorDeArquivos: boolean;
+  };
   documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
   firebaseAuthRequired: boolean;

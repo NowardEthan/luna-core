@@ -42,6 +42,33 @@ const FERRAMENTAS_BASE: DefinicaoFerramenta[] = [
       required: [],
     },
   },
+  {
+    nome: "ler_arquivo",
+    descricao:
+      "Lê documentos anexados (PDF, DOCX, MD, TXT...). Do outro lado há alguém que leu o arquivo inteiro: " +
+      "chama SEM argumentos para receber o mapa (quantas partes, o sumário); com `pergunta` para receber a resposta " +
+      "com a parte citada; com `parte` para ler o texto cru de um pedaço. " +
+      "Um arquivo grande NÃO cabe de uma vez — vais lendo o que precisas, e podes chamar de novo quantas vezes quiseres.",
+    parametros: {
+      type: "object",
+      properties: {
+        arquivo_id: {
+          type: "string",
+          description: "ID do documento. Se omitido, usa o mais recente.",
+        },
+        pergunta: {
+          type: "string",
+          description:
+            "O que queres saber — ex.: «do que trata este documento?», «o que ele diz sobre sentimentos?», «resume o capítulo 3».",
+        },
+        parte: {
+          type: "number",
+          description: "Ler o texto cru de uma parte específica (1, 2, 3...). Vê o mapa primeiro.",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 const FERRAMENTA_WEB_SEARCH: DefinicaoFerramenta = {

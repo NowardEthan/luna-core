@@ -1,6 +1,12 @@
 import { executorAgentico } from "../agente/executorAgentico.js";
 import type { EntradaVisaoGemma, DependenciasVisaoGemma } from "../agentico/especialistas/visaoGemma.js";
 import { visaoGemma } from "../agentico/especialistas/visaoGemma.js";
+import {
+  fatiar,
+  lerDocumento,
+  type AnexoDocumentoChat,
+  type DependenciasLeitorDocumento,
+} from "../agentico/especialistas/leitorDocumento.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
@@ -85,6 +91,9 @@ export type OpcoesResponderAgentico = {
   /** Fuso do usuário — usado para datar o histórico ("ontem 23:47"). */
   timeZone?: string;
   anexosImagem?: EntradaVisaoGemma["imagens"];
+  /** Documentos do turno (PDF/DOCX/MD…) — lidos por partes, via `ler_arquivo`. */
+  anexosDocumento?: AnexoDocumentoChat[];
+  leitorDeps?: DependenciasLeitorDocumento;
   raciocinioAtivo?: boolean;
   raciocinioEffort?: "low" | "medium" | "high";
   onAcao?: (acao: AcaoAgenticoChat) => void;
@@ -143,15 +152,48 @@ function montarHistoricoPrompt(
   return `## Histórico recente\n${linhas.join("\n")}`;
 }
 
+/**
+ * O cartão do documento — nome, tamanho e quantas partes. NÃO o conteúdo.
+ *
+ * Antes, o texto do arquivo inteiro era colado na mensagem: um PDF grande era cortado a
+ * meio e ela respondia com confiança total sobre um documento do qual perdera 90%, sem
+ * saber. Agora ela vê o tamanho real, e vai buscar o que precisa com `ler_arquivo`.
+ */
+function montarBlocoDocumentos(documentos: AnexoDocumentoChat[]): string {
+  const linhas = documentos.map((doc) => {
+    const partes = fatiar(doc.texto).length;
+    const paginas = doc.paginas ? `${doc.paginas} páginas, ` : "";
+    return `- id=${doc.id}; nome=${doc.nome ?? "sem_nome"}; ${paginas}${partes} parte(s) de leitura`;
+  });
+
+  const grande = documentos.some((doc) => fatiar(doc.texto).length > 1);
+
+  return [
+    "## Documentos anexados",
+    ...linhas,
+    "",
+    "Você NÃO leu estes documentos — use `ler_arquivo` para ler. Sem argumentos ela devolve o mapa (sumário e partes); " +
+      "com `pergunta` devolve a resposta com a parte citada; com `parte` devolve o texto cru.",
+    grande
+      ? "Estes arquivos são grandes demais para ler de uma vez. Leia por partes e seja HONESTA sobre isso com a pessoa " +
+        "(«li 1 de 14 — quer que eu continue, ou procuro algo específico?»). Nunca finja ter lido o que não leste."
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function montarMensagemUsuario(
   mensagemUsuario: string,
   historico: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>,
   anexosImagem: EntradaVisaoGemma["imagens"],
+  anexosDocumento: AnexoDocumentoChat[],
   timeZone?: string,
 ): string {
   const partes: string[] = [];
   const blocoHistorico = montarHistoricoPrompt(historico, timeZone);
   if (blocoHistorico) partes.push(blocoHistorico);
+  if (anexosDocumento.length > 0) partes.push(montarBlocoDocumentos(anexosDocumento));
   if (anexosImagem.length > 0) {
     const descrever = (img: EntradaVisaoGemma["imagens"][number]) => {
       const tipo = img.mimeType?.startsWith("video/") ? "vídeo" : "imagem";
@@ -192,6 +234,8 @@ export async function responderComoLunaAgentico(
   const historico = opcoes.historico ?? [];
   const anexosImagem = opcoes.anexosImagem ?? [];
   const mapaImagens = new Map(anexosImagem.map((img) => [img.id, img]));
+  const anexosDocumento = opcoes.anexosDocumento ?? [];
+  const mapaDocumentos = new Map(anexosDocumento.map((doc) => [doc.id, doc]));
   const ferramentas = listarFerramentasChat();
 
   /**
@@ -236,7 +280,13 @@ export async function responderComoLunaAgentico(
     .join("\n\n");
 
   const resultado = await executorAgentico({
-    mensagemUsuario: montarMensagemUsuario(mensagemUsuario, historico, anexosImagem, opcoes.timeZone),
+    mensagemUsuario: montarMensagemUsuario(
+      mensagemUsuario,
+      historico,
+      anexosImagem,
+      anexosDocumento,
+      opcoes.timeZone,
+    ),
     systemPrompt,
     ferramentas,
     provedor,
@@ -297,6 +347,21 @@ export async function responderComoLunaAgentico(
         }
         const resultado = await consultarAtlas(consulta, limiteBruto);
         return JSON.stringify(resultado, null, 2);
+      }
+
+      if (nome === "ler_arquivo") {
+        const arquivoId = typeof args.arquivo_id === "string" ? args.arquivo_id : undefined;
+        const perguntaDoc = typeof args.pergunta === "string" ? args.pergunta : undefined;
+        const parte = typeof args.parte === "number" ? args.parte : undefined;
+
+        const doc = arquivoId
+          ? mapaDocumentos.get(arquivoId)
+          : anexosDocumento[anexosDocumento.length - 1];
+
+        if (!doc) {
+          return "Nenhum documento disponível no contexto desta conversa.";
+        }
+        return lerDocumento({ documento: doc, pergunta: perguntaDoc, parte }, opcoes.leitorDeps);
       }
 
       if (nome !== "ver_imagem") {
