@@ -2,6 +2,22 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { obterDb } from "../../memoria/longa/storeSqlite.js";
 import { SQL_MUNDO_INTERIOR } from "../esquemaMundoInterior.js";
+import { getCacheMundo, type DiarioEntradaCache } from "../../persistencia/contextoMundo.js";
+import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
+
+/**
+ * Diário da Luna — o que aconteceu COM ELA (não fatos sobre o usuário).
+ *
+ * Este ficheiro era SQLite-only. Em produção (`LUNA_STORE=firestore`) o `obterDb()`
+ * lança, o `despertar` engolia o erro num catch («Aviso: falha no despertar») e seguia.
+ * Resultado: **em produção ela nunca escreveu diário e nunca dormiu** — logo, nunca
+ * consolidou nada, e o auto-retrato (quem ela está a tornar-se) nunca mudou. Ela sentia,
+ * tinha gostos e vontade, mas não guardava o que vivia. Um Memento.
+ *
+ * Agora segue o mesmo trem do `storeVida`/`climaHumor`: em modo Firestore, lê e escreve
+ * no cache do mundo (hidratado no início do turno, descarregado no fim), mantendo a API
+ * síncrona. Em dev/CLI continua no SQLite.
+ */
 
 export const DiarioEntradaSchema = z.object({
   id: z.string(),
@@ -22,6 +38,19 @@ export const DiarioEntradaSchema = z.object({
 
 export type DiarioEntrada = z.infer<typeof DiarioEntradaSchema>;
 
+export type AutoRetrato = { texto: string; versao: number; atualizado_em: string };
+
+export type ResumoDiario = {
+  id: string;
+  nivel: "semana" | "mes";
+  periodo_inicio: string;
+  periodo_fim: string;
+  narrativa: string;
+  pendencias: string[];
+  fontes: string[];
+  criado_em: string;
+};
+
 const LEXICO_PROIBIDO_DIARIO =
   /\b(sofri|senti sua falta|te amo|sonhei|doeu|sofrimento|saudade literal)\b/i;
 
@@ -31,6 +60,12 @@ function garantirTabelas(): void {
   if (tabelasInicializadas) return;
   obterDb().exec(SQL_MUNDO_INTERIOR);
   tabelasInicializadas = true;
+}
+
+/** Cache do mundo quando estamos em Firestore; `null` significa «usa o SQLite». */
+function cacheMundo() {
+  if (sqliteFallbackPermitido()) return null;
+  return getCacheMundo() ?? null;
 }
 
 export function validarHonestidadeDiario(texto: string): string {
@@ -45,11 +80,19 @@ export function validarHonestidadeDiario(texto: string): string {
 export function inserirEntradaDiario(
   entrada: Omit<DiarioEntrada, "id"> & { id?: string },
 ): DiarioEntrada {
-  garantirTabelas();
   const id = entrada.id ?? randomUUID();
   const narrativa = validarHonestidadeDiario(entrada.narrativa);
   const agora = new Date().toISOString();
+  const completa = DiarioEntradaSchema.parse({ ...entrada, id, narrativa });
 
+  const cache = cacheMundo();
+  if (cache) {
+    cache.diarioEntradas.set(id, { ...completa, consolidado: false, criado_em: agora });
+    cache.dirty.diarioEntradas.add(id);
+    return completa;
+  }
+
+  garantirTabelas();
   obterDb()
     .prepare(
       `INSERT INTO diario_entradas
@@ -68,15 +111,23 @@ export function inserirEntradaDiario(
       agora,
     );
 
-  return DiarioEntradaSchema.parse({ ...entrada, id, narrativa });
+  return completa;
+}
+
+function entradasDoCache(cache: NonNullable<ReturnType<typeof cacheMundo>>): DiarioEntradaCache[] {
+  return [...cache.diarioEntradas.values()].sort((a, b) => a.quando.localeCompare(b.quando));
 }
 
 export function ultimaEntradaDiario(): DiarioEntrada | null {
+  const cache = cacheMundo();
+  if (cache) {
+    const abertas = entradasDoCache(cache).filter((e) => !e.consolidado);
+    return abertas.length > 0 ? abertas[abertas.length - 1]! : null;
+  }
+
   garantirTabelas();
   const row = obterDb()
-    .prepare(
-      `SELECT * FROM diario_entradas WHERE consolidado = 0 ORDER BY quando DESC LIMIT 1`,
-    )
+    .prepare(`SELECT * FROM diario_entradas WHERE consolidado = 0 ORDER BY quando DESC LIMIT 1`)
     .get() as Record<string, unknown> | undefined;
 
   if (!row) return null;
@@ -84,6 +135,11 @@ export function ultimaEntradaDiario(): DiarioEntrada | null {
 }
 
 export function sessaoJaRefletida(sessaoId: string): boolean {
+  const cache = cacheMundo();
+  if (cache) {
+    return [...cache.diarioEntradas.values()].some((e) => e.sessao_id === sessaoId);
+  }
+
   garantirTabelas();
   const row = obterDb()
     .prepare(`SELECT 1 FROM diario_entradas WHERE sessao_id = ? LIMIT 1`)
@@ -92,6 +148,11 @@ export function sessaoJaRefletida(sessaoId: string): boolean {
 }
 
 export function entradasNaoConsolidadas(): DiarioEntrada[] {
+  const cache = cacheMundo();
+  if (cache) {
+    return entradasDoCache(cache).filter((e) => !e.consolidado);
+  }
+
   garantirTabelas();
   const rows = obterDb()
     .prepare(`SELECT * FROM diario_entradas WHERE consolidado = 0 ORDER BY quando ASC`)
@@ -100,6 +161,11 @@ export function entradasNaoConsolidadas(): DiarioEntrada[] {
 }
 
 export function listarEntradasDiario(limite = 10): DiarioEntrada[] {
+  const cache = cacheMundo();
+  if (cache) {
+    return entradasDoCache(cache).reverse().slice(0, limite);
+  }
+
   garantirTabelas();
   const rows = obterDb()
     .prepare(`SELECT * FROM diario_entradas ORDER BY quando DESC LIMIT ?`)
@@ -122,6 +188,18 @@ export function pendenciasAbertas(): string[] {
 
 export function marcarEntradasConsolidadas(ids: string[]): void {
   if (ids.length === 0) return;
+
+  const cache = cacheMundo();
+  if (cache) {
+    for (const id of ids) {
+      const entrada = cache.diarioEntradas.get(id);
+      if (!entrada) continue;
+      cache.diarioEntradas.set(id, { ...entrada, consolidado: true });
+      cache.dirty.diarioEntradas.add(id);
+    }
+    return;
+  }
+
   garantirTabelas();
   const stmt = obterDb().prepare(`UPDATE diario_entradas SET consolidado = 1 WHERE id = ?`);
   for (const id of ids) stmt.run(id);
@@ -140,7 +218,10 @@ function parseRow(row: Record<string, unknown>): DiarioEntrada {
   });
 }
 
-export function montarKernelDiario(entrada: DiarioEntrada | null, autoRetrato?: string | null): string | null {
+export function montarKernelDiario(
+  entrada: DiarioEntrada | null,
+  autoRetrato?: string | null,
+): string | null {
   const partes: string[] = [];
   if (autoRetrato?.trim()) {
     partes.push(autoRetrato.trim());
@@ -157,23 +238,32 @@ export function montarKernelDiario(entrada: DiarioEntrada | null, autoRetrato?: 
   return partes.length > 0 ? partes.join("\n") : null;
 }
 
-export type AutoRetrato = { texto: string; versao: number; atualizado_em: string };
-
 export function lerAutoRetrato(): AutoRetrato | null {
+  const cache = cacheMundo();
+  if (cache) return cache.autoRetrato ?? null;
+
   garantirTabelas();
   const row = obterDb()
     .prepare(`SELECT texto, versao, atualizado_em FROM auto_retrato WHERE id = 'luna'`)
-    .get() as { texto: string; versao: number; atualizado_em: string } | undefined;
+    .get() as AutoRetrato | undefined;
   return row ?? null;
 }
 
 export function salvarAutoRetrato(texto: string): AutoRetrato {
-  garantirTabelas();
   const atual = lerAutoRetrato();
   const versao = (atual?.versao ?? 0) + 1;
   const agora = new Date().toISOString();
   const limpo = validarHonestidadeDiario(texto);
+  const novo: AutoRetrato = { texto: limpo, versao, atualizado_em: agora };
 
+  const cache = cacheMundo();
+  if (cache) {
+    cache.autoRetrato = novo;
+    cache.dirty.autoRetrato = true;
+    return novo;
+  }
+
+  garantirTabelas();
   if (atual) {
     obterDb()
       .prepare(`INSERT INTO auto_retrato_historico (versao, texto, criado_em) VALUES (?, ?, ?)`)
@@ -187,10 +277,13 @@ export function salvarAutoRetrato(texto: string): AutoRetrato {
     )
     .run(limpo, versao, agora);
 
-  return { texto: limpo, versao, atualizado_em: agora };
+  return novo;
 }
 
 export function lerUltimaConsolidacao(): string | null {
+  const cache = cacheMundo();
+  if (cache) return cache.ultimaConsolidacao ?? null;
+
   garantirTabelas();
   const row = obterDb()
     .prepare(`SELECT ultima_consolidacao FROM sono_controle WHERE id = 'luna'`)
@@ -199,8 +292,16 @@ export function lerUltimaConsolidacao(): string | null {
 }
 
 export function marcarConsolidacaoHoje(): void {
-  garantirTabelas();
   const hoje = new Date().toISOString().slice(0, 10);
+
+  const cache = cacheMundo();
+  if (cache) {
+    cache.ultimaConsolidacao = hoje;
+    cache.dirty.sonoControle = true;
+    return;
+  }
+
+  garantirTabelas();
   obterDb()
     .prepare(
       `INSERT INTO sono_controle (id, ultima_consolidacao) VALUES ('luna', ?)
@@ -217,6 +318,17 @@ export function inserirResumoDiario(resumo: {
   pendencias: string[];
   fontes: string[];
 }): void {
+  const id = randomUUID();
+  const criado_em = new Date().toISOString();
+  const narrativa = validarHonestidadeDiario(resumo.narrativa);
+
+  const cache = cacheMundo();
+  if (cache) {
+    cache.diarioResumos.set(id, { ...resumo, id, narrativa, criado_em });
+    cache.dirty.diarioResumos.add(id);
+    return;
+  }
+
   garantirTabelas();
   obterDb()
     .prepare(
@@ -224,13 +336,13 @@ export function inserirResumoDiario(resumo: {
        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
     )
     .run(
-      randomUUID(),
+      id,
       resumo.nivel,
       resumo.periodo_inicio,
       resumo.periodo_fim,
-      validarHonestidadeDiario(resumo.narrativa),
+      narrativa,
       JSON.stringify(resumo.pendencias),
       JSON.stringify(resumo.fontes),
-      new Date().toISOString(),
+      criado_em,
     );
 }

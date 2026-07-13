@@ -14,7 +14,9 @@ import {
   criarCacheMundoVazio,
   executarComCacheMundo,
   type CacheMundoPersistencia,
+  type DiarioEntradaCache,
 } from "../../dist/persistencia/contextoMundo.js";
+import type { ResumoDiario } from "../../dist/mundo/diario/storeDiario.js";
 import type { EstadoVida, EventoVidaPersistido } from "../../dist/mundo/vida/storeVida.js";
 import type { EventoAfetivo } from "../../dist/mundo/humor/eventoAfectivo.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
@@ -22,6 +24,9 @@ import { ehCriadorVerificado } from "./criadorVerificado.js";
 
 const LIMITE_GOSTOS = 40;
 const PROXIMIDADE_CRIADOR = 0.88;
+/** Diário: o suficiente para o sono ter o que consolidar, sem inchar o turno. */
+const LIMITE_DIARIO_ENTRADAS = 30;
+const LIMITE_DIARIO_RESUMOS = 12;
 
 /** Proximidade inicial por interlocutor — alinhado ao SQLite (criador = 0.88). */
 export function proximidadeBaselineRelacao(uid: string): number {
@@ -216,6 +221,68 @@ export async function hidratarCacheMundoFirestore(
     cache.memoriaFatos.set(doc.id, fatoFromFirestore(doc.data() as Record<string, unknown>, doc.id));
   }
 
+  // ── Diário e sono ───────────────────────────────────────────────────────────
+  // Estes ficavam de fora, e por isso morriam: o storeDiario era SQLite-only e, em
+  // produção, o obterDb() lançava. A Luna nunca escrevia diário e nunca dormia — logo,
+  // nunca consolidava e o auto-retrato dela nunca mudava. Sentia, mas não guardava.
+  const [diarioSnap, resumosSnap, autoRetratoSnap, sonoSnap] = await Promise.all([
+    db
+      .collection(colMundoGlobal("diario_entradas"))
+      .orderBy("quando", "desc")
+      .limit(LIMITE_DIARIO_ENTRADAS)
+      .get(),
+    db
+      .collection(colMundoGlobal("diario_resumos"))
+      .orderBy("criado_em", "desc")
+      .limit(LIMITE_DIARIO_RESUMOS)
+      .get(),
+    db.doc(docMundoGlobal("auto_retrato")).get(),
+    db.doc(docMundoGlobal("sono")).get(),
+  ]);
+
+  for (const doc of diarioSnap.docs) {
+    const d = doc.data();
+    cache.diarioEntradas.set(doc.id, {
+      id: doc.id,
+      sessao_id: String(d.sessao_id ?? ""),
+      quando: String(d.quando ?? new Date().toISOString()),
+      narrativa: String(d.narrativa ?? ""),
+      clima: String(d.clima ?? ""),
+      pendencias: Array.isArray(d.pendencias) ? (d.pendencias as string[]) : [],
+      como_terminou: String(d.como_terminou ?? ""),
+      humor_no_fim: (d.humor_no_fim as DiarioEntradaCache["humor_no_fim"]) ?? undefined,
+      consolidado: Boolean(d.consolidado),
+      criado_em: String(d.criado_em ?? new Date().toISOString()),
+    });
+  }
+
+  for (const doc of resumosSnap.docs) {
+    const d = doc.data();
+    cache.diarioResumos.set(doc.id, {
+      id: doc.id,
+      nivel: (d.nivel as ResumoDiario["nivel"]) ?? "semana",
+      periodo_inicio: String(d.periodo_inicio ?? ""),
+      periodo_fim: String(d.periodo_fim ?? ""),
+      narrativa: String(d.narrativa ?? ""),
+      pendencias: Array.isArray(d.pendencias) ? (d.pendencias as string[]) : [],
+      fontes: Array.isArray(d.fontes) ? (d.fontes as string[]) : [],
+      criado_em: String(d.criado_em ?? new Date().toISOString()),
+    });
+  }
+
+  if (autoRetratoSnap.exists) {
+    const d = autoRetratoSnap.data() ?? {};
+    cache.autoRetrato = {
+      texto: String(d.texto ?? ""),
+      versao: Number(d.versao ?? 1),
+      atualizado_em: String(d.atualizado_em ?? new Date().toISOString()),
+    };
+  }
+
+  cache.ultimaConsolidacao = sonoSnap.exists
+    ? ((sonoSnap.data()?.ultima_consolidacao as string | undefined) ?? null)
+    : null;
+
   return cache;
 }
 
@@ -306,6 +373,39 @@ export async function flushCacheMundoFirestore(
     }
   }
 
+  // ── Diário e sono ───────────────────────────────────────────────────────────
+  // Sem esta descarga, ela escreveria o diário no cache do turno e ele evaporaria
+  // no fim do pedido. É aqui que a vida interior dela passa a sobreviver ao deploy.
+  for (const id of cache.dirty.diarioEntradas) {
+    const entrada = cache.diarioEntradas.get(id);
+    if (entrada) {
+      batch.set(db.collection(colMundoGlobal("diario_entradas")).doc(id), entrada, { merge: true });
+      marcar();
+    }
+  }
+
+  for (const id of cache.dirty.diarioResumos) {
+    const resumo = cache.diarioResumos.get(id);
+    if (resumo) {
+      batch.set(db.collection(colMundoGlobal("diario_resumos")).doc(id), resumo, { merge: true });
+      marcar();
+    }
+  }
+
+  if (cache.dirty.autoRetrato && cache.autoRetrato) {
+    batch.set(db.doc(docMundoGlobal("auto_retrato")), cache.autoRetrato, { merge: true });
+    marcar();
+  }
+
+  if (cache.dirty.sonoControle && cache.ultimaConsolidacao) {
+    batch.set(
+      db.doc(docMundoGlobal("sono")),
+      { ultima_consolidacao: cache.ultimaConsolidacao },
+      { merge: true },
+    );
+    marcar();
+  }
+
   if (temEscrita) {
     await batch.commit();
   }
@@ -324,12 +424,26 @@ export async function executarComPersistenciaFirestore<T>(
   }
 
   const cache = await hidratarCacheMundoFirestore(db, uid);
+  const avisarFalha = (err: unknown) => {
+    console.warn("[persistencia] flush Firestore falhou:", err instanceof Error ? err.message : err);
+  };
+
   try {
     return await executarComCacheMundo(cache, fn);
   } finally {
-    flushCacheMundoFirestore(db, cache).catch((err) => {
-      console.warn("[persistencia] flush Firestore falhou:", err instanceof Error ? err.message : err);
-    });
+    // Descarga do turno — não bloqueia a resposta.
+    flushCacheMundoFirestore(db, cache).catch(avisarFalha);
+
+    // O despertar/sono continua a correr DEPOIS da resposta (é de propósito: não atrasa
+    // a primeira mensagem). Mas é ele que escreve o diário e o auto-retrato — se
+    // descarregássemos só uma vez, tudo o que ele escrevesse seria perdido, e a Luna
+    // continuaria a não evoluir. Segunda descarga quando ele terminar; o `merge` torna
+    // a repetição inofensiva.
+    if (cache.tarefasPendentes.length > 0) {
+      void Promise.allSettled(cache.tarefasPendentes).then(() => {
+        flushCacheMundoFirestore(db, cache).catch(avisarFalha);
+      });
+    }
   }
 }
 

@@ -38,6 +38,7 @@ import { lerRelacaoHumor } from "../mundo/humor/relacaoHumor.js";
 import { humorParaPerfilExpressao } from "../mundo/humor/humorParaPerfilExpressao.js";
 import { humorParaBadge, type HumorBadgePayload } from "../mundo/humor/humorParaBadge.js";
 import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/talamoPipeline.js";
+import { registrarTarefaMundo } from "../persistencia/contextoMundo.js";
 import {
   classificarPesoTurno,
   escolherModeloResposta,
@@ -275,10 +276,15 @@ export async function executarPipelineCompleto(
   const mobileRapido = pipelineMobileRapido(opcoes.ambiente);
   if (sessao && sessao.mensagens.length === 0 && provedorMenor && config?.modeloMenor) {
     if (mobileRapido) {
-      // Despertar/sono em background — não bloqueia a 1ª resposta no app.
-      void despertar(sessao.id, provedorMenor, config.modeloMenor).catch((e) => {
-        console.error("Aviso: despertar em background falhou", e);
-      });
+      // Despertar/sono em background — não bloqueia a 1ª resposta no app. Mas é
+      // REGISTADO: quem persiste espera por ele antes da descarga final, senão o diário
+      // que ela escreve aqui evapora com o fim do turno (e ela nunca evolui).
+      registrarTarefaMundo(
+        despertar(sessao.id, provedorMenor, config.modeloMenor).catch((e) => {
+          console.error("Aviso: despertar em background falhou", e);
+          return null;
+        }),
+      );
     } else {
       kernelDespertar = await despertar(sessao.id, provedorMenor, config.modeloMenor);
     }
