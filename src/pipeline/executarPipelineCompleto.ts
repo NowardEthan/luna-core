@@ -44,6 +44,8 @@ import {
   precisaRigor,
   temperaturaResposta,
   blocoProtocoloRigor,
+  blocoProtocoloDeducao,
+  protocoloDeducaoAtivo,
 } from "../estado/pesoTurno.js";
 import {
   criticarRigor,
@@ -628,7 +630,7 @@ export async function executarPipelineCompleto(
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
     // emocional/técnico continua no modelo grande. Sem custo: usa a análise já feita.
-    const pesoTurno = classificarPesoTurno(analise.analise, profundidade);
+    const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
     const modeloResposta = escolherModeloResposta(pesoTurno, config.modeloMenor, config.modeloMaior);
 
     // P1 camada 3 — rigor: em turno técnico, injeta o protocolo de autocrítica no
@@ -642,6 +644,16 @@ export async function executarPipelineCompleto(
       contextoCompilado = {
         ...contextoCompilado,
         briefing: `${contextoCompilado.briefing}\n\n${blocoProtocoloRigor()}`,
+      };
+    }
+
+    // P2 — dedução: o protocolo de rigor nunca alcança o papo leve, mas é lá que a
+    // charada mora ("4x0, adivinha"). Sob a chave, o turno leve ganha o protocolo de
+    // dedução — sem mudar modelo, temperatura ou o tom dela.
+    if (!rigor && pesoTurno === "leve" && protocoloDeducaoAtivo() && contextoCompilado) {
+      contextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${blocoProtocoloDeducao()}`,
       };
     }
     const configResposta =
