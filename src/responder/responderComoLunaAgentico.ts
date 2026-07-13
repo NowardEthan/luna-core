@@ -217,7 +217,12 @@ export async function responderComoLunaAgentico(
     "Sobre datas e horas: o relógio no briefing e as marcas do histórico ([hoje 09:12], [ontem 23:47]) são a verdade — " +
       "não deduzas o dia pelo clima da conversa nem repitas um dia que tu própria disseste antes sem conferir. " +
       "Se alguém te corrigir e o relógio te der razão, mantém-te com calma e mostra a hora, em vez de pedir desculpa por um erro que não cometeste.",
-    "Se houver dúvida visual, use a ferramenta ver_imagem antes de responder.",
+    // Era "se houver dúvida visual, use ver_imagem" — condicional demais. Na prática ela
+    // recebia um print e respondia "manda aí, tô aqui", com a imagem já na mão, ou pedia
+    // ao Ethan que descrevesse o que ele acabara de lhe mandar. Agora é imperativo.
+    "Se há imagem ou vídeo anexado NESTE turno, use `ver_imagem` ANTES de responder — sempre, mesmo que a pessoa não peça nada. " +
+      "Ela mandou o anexo justamente para que tu visses; pedir que ela descreva o que acabou de te enviar é o oposto de estar presente. " +
+      "E podes olhar mais de uma vez, com perguntas diferentes: é uma conversa com quem vê, não um scanner.",
     "Usa `ler_url` quando o usuário colar um link e quiser que leias, resumas ou analises aquela página específica.",
     webSearchDisponivel()
       ? "Usa `web_search` quando precisares de informação actual da internet por palavras-chave (notícias, preços, eventos) — não para abrir um link específico, aí usa `ler_url`. " +

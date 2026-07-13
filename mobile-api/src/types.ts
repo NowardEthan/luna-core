@@ -5,7 +5,17 @@ export const LlmProviderIdSchema = z.enum(["groq", "cerebras", "openrouter", "au
 export const LlmModelKeySchema = z.enum(["default", "glm-47", "gpt-oss-120b", "qwen-next", "qwen-coder", "auto"]);
 
 export const ChatRequestSchema = z.object({
-  message: z.string().min(1).max(16_000),
+  /**
+   * A mensagem carrega o bloco [Anexos] — o CONTEÚDO dos documentos vai aqui dentro
+   * (o PDF/MD/HTML extraído). O teto era 16.000 chars: qualquer documento com mais de
+   * ~15 páginas era REJEITADO com 400, e a Luna nunca via o arquivo. Pior: o servidor
+   * já tinha `truncateMobileChatMessage`, feito para encolher anexos de até 100k — só
+   * que o Zod barrava antes, e essa lógica nunca corria. Era código morto.
+   *
+   * Agora aceitamos o que o app pode enviar (100k por arquivo × até 5) e deixamos o
+   * corte para quem sabe fazê-lo: o truncador, que conhece a janela de cada provedor.
+   */
+  message: z.string().min(1).max(600_000),
   /**
    * Texto LIMPO do usuário (sem o enriquecimento de anexos) para exibir/derivar
    * título no Firestore. Ausente → cai no `message`.

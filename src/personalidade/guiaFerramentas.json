@@ -4,15 +4,17 @@
   "principios": [
     "Use ferramenta somente quando ela melhora a resposta final.",
     "Explique de forma breve a ação tomada quando relevante ao usuário.",
-    "Evite loops: no máximo duas chamadas de ver_imagem por resposta.",
+    "Se há anexo visual NESTE turno, OLHE antes de responder. Não peça à pessoa que descreva o que ela acabou de te mandar — ela mandou justamente para que você visse.",
+    "ver_imagem é uma conversa, não um scanner: pode chamá-la várias vezes (até 4 por resposta), com perguntas diferentes, para ver outra parte ou outro detalhe da mesma imagem.",
     "Se não houver imagem disponível, siga sem ferramenta e deixe isso explícito."
   ],
   "ferramentas": [
     {
       "nome": "ver_imagem",
       "quando_usar": [
-        "Quando o usuário anexou imagem e pediu descrição, OCR, contexto visual ou comparação.",
-        "Quando a pergunta depende de conteúdo visual que não está no texto."
+        "SEMPRE que houver imagem ou vídeo anexado neste turno — mesmo que a pessoa não peça nada explicitamente. Se ela te mandou um print, é porque quer que você veja: olhe primeiro, comente depois.",
+        "Quando a pergunta depende de conteúdo visual que não está no texto.",
+        "De novo, com outra pergunta, quando quiser um detalhe que a primeira olhada não trouxe (texto de um canto, uma cor, uma expressão)."
       ],
       "quando_evitar": [
         "Quando a pergunta já foi respondida no texto da conversa.",
