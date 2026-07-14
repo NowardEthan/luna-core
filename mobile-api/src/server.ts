@@ -402,10 +402,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // O app precisa saber se ESTE servidor já aceita anexo por URL do Storage —
       // um deploy antigo rejeitaria o pedido (o schema exigia imageBase64).
       attachmentUrlSupported: true,
+      // O marcador existe porque `ok: true` só prova que ALGUM deploy está de pé — e eu já
+      // disse ao Ethan que uma coisa estava no ar quando quatro deploys seguidos tinham
+      // falhado. Cada linha aqui é uma afirmação verificável sobre ESTE binário.
       features: {
         recallEntreConversas: true,
         diarioSono: true,
         leitorDeArquivos: true,
+        linhaDeRevisao: true,
+        neuronioObjecao: true,
+        verificadorPremissa: true,
+        neuronioRotina: true,
       },
       documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,

@@ -157,6 +157,14 @@ export type HealthResponse = {
     diarioSono: boolean;
     /** Ferramenta `ler_arquivo`: documentos grandes lidos por partes. */
     leitorDeArquivos: boolean;
+    /** Detetores + reescritor: ela fala livre e o excesso é cortado depois. */
+    linhaDeRevisao: boolean;
+    /** Um revisor externo procura o furo — ela diz a verdade em vez de agradar. */
+    neuronioObjecao: boolean;
+    /** Não finge lembrar de um passado que nunca houve: o sistema verifica. */
+    verificadorPremissa: boolean;
+    /** Sabe onde ele está («ele está no ônibus, faltam-lhe 20min») e repara quando ele some. */
+    neuronioRotina: boolean;
   };
   documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
