@@ -7,6 +7,12 @@ import {
   type AnexoDocumentoChat,
   type DependenciasLeitorDocumento,
 } from "../agentico/especialistas/leitorDocumento.js";
+import {
+  apagarBlocoRotina,
+  criarBloco,
+  verRotina,
+  type DependenciasRotina,
+} from "../ferramentas/maosDaRotina.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
@@ -94,6 +100,8 @@ export type OpcoesResponderAgentico = {
   /** Documentos do turno (PDF/DOCX/MD…) — lidos por partes, via `ler_arquivo`. */
   anexosDocumento?: AnexoDocumentoChat[];
   leitorDeps?: DependenciasLeitorDocumento;
+  /** As mãos dela na rotina — vêm da API (é lá que vive o Firestore). */
+  rotinaDeps?: DependenciasRotina;
   raciocinioAtivo?: boolean;
   raciocinioEffort?: "low" | "medium" | "high";
   onAcao?: (acao: AcaoAgenticoChat) => void;
@@ -361,6 +369,25 @@ export async function responderComoLunaAgentico(
         }
         const resultado = await consultarAtlas(consulta, limiteBruto);
         return JSON.stringify(resultado, null, 2);
+      }
+
+      // ── As mãos dela na rotina ────────────────────────────────────────────
+      //
+      // Sem isto, quando ele pedisse «monta-me a semana», ela só podia FINGIR que montou.
+      // E a ferramenta devolve ERRO em vez de rebentar: é isso que a impede de mentir por
+      // ignorância — se o bloco não foi criado, ela LÊ que não foi, e diz-lho.
+      if (nome === "ver_rotina" || nome === "criar_bloco" || nome === "apagar_bloco") {
+        if (!opcoes.rotinaDeps) {
+          return "A rotina não está disponível neste ambiente — não consegues vê-la nem mexer nela.";
+        }
+        if (nome === "ver_rotina") {
+          const dia = typeof args.dia === "number" ? args.dia : undefined;
+          return verRotina(opcoes.rotinaDeps, dia);
+        }
+        if (nome === "criar_bloco") {
+          return criarBloco(opcoes.rotinaDeps, args);
+        }
+        return apagarBlocoRotina(opcoes.rotinaDeps, args);
       }
 
       if (nome === "ler_arquivo") {

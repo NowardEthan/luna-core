@@ -20,7 +20,7 @@ import {
 } from "./persistenciaFirestore.js";
 import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
-import { lerRotina, lerRegistosRotina } from "./rotinaFirestore.js";
+import { lerRotina, lerRegistosRotina, maosDaRotina } from "./rotinaFirestore.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
@@ -104,6 +104,20 @@ export type LunaCoreModule = {
         dia: string;
         estado: "feito" | "hoje_nao" | "ignorado";
       }>;
+      rotinaDeps?: {
+        ler: () => Promise<
+          Array<{ id: string; titulo: string; dias: number[]; inicio: number; fim: number; nota?: string; origem?: "ethan" | "luna" }>
+        >;
+        criar: (b: {
+          titulo: string;
+          dias: number[];
+          inicio: number;
+          fim: number;
+          nota?: string;
+          notificar: boolean;
+        }) => Promise<string>;
+        apagar: (id: string) => Promise<void>;
+      };
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;
       onStreamContentDelta?: (delta: string) => void;
@@ -492,6 +506,8 @@ export async function executarChatMobile(
       anexosDocumento: prep.anexosDocumento,
       rotina,
       rotina_registos: rotinaRegistos,
+      // As mãos dela: sem isto, «monta-me a semana» só podia ser encenado.
+      rotinaDeps: uid && db ? maosDaRotina(db, uid) : undefined,
       stream: false,
       timeZone: prep.timeZone,
     });

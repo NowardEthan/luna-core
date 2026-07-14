@@ -51,7 +51,16 @@ export type DefinicaoFerramenta = {
   descricao: string;
   parametros: {
     type: "object";
-    properties: Record<string, { type: string; description: string; enum?: string[] }>;
+    properties: Record<
+      string,
+      {
+        type: string;
+        description: string;
+        enum?: string[];
+        /** Para `type: "array"` — o esquema dos itens (ex.: os dias da semana da rotina). */
+        items?: { type: string };
+      }
+    >;
     required?: string[];
   };
 };

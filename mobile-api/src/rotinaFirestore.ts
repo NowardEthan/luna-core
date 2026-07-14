@@ -71,3 +71,43 @@ export async function lerRegistosRotina(db: Firestore, uid: string): Promise<Reg
     return [];
   }
 }
+
+/**
+ * As mãos dela — ler, criar, apagar.
+ *
+ * Tudo o que ela cria nasce com `origem: "luna"`, e o ecrã mostra «sugerido pela Luna». Ele
+ * apaga com um toque. Uma companheira que mexe na agenda de alguém tem de deixar rasto:
+ * uma alteração invisível na vida de uma pessoa não é ajuda, é intrusão.
+ */
+export function maosDaRotina(db: Firestore, uid: string) {
+  return {
+    ler: () => lerRotina(db, uid),
+
+    criar: async (b: {
+      titulo: string;
+      dias: number[];
+      inicio: number;
+      fim: number;
+      nota?: string;
+      notificar: boolean;
+    }): Promise<string> => {
+      const ref = db.collection(colRotina(uid)).doc();
+      await ref.set({
+        titulo: b.titulo,
+        dias: b.dias,
+        inicio: b.inicio,
+        fim: b.fim,
+        cor: "#9B7DD9", // violeta — a cor dela, para se ver ao longe o que foi ela que pôs
+        notificar: b.notificar,
+        ...(b.nota ? { nota: b.nota } : {}),
+        origem: "luna",
+        criadoEm: new Date(),
+      });
+      return ref.id;
+    },
+
+    apagar: async (id: string): Promise<void> => {
+      await db.collection(colRotina(uid)).doc(id).delete();
+    },
+  };
+}

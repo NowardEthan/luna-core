@@ -41,6 +41,7 @@ import {
   type Objecao,
 } from "../estado/neuronioObjecao.js";
 import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
+import type { DependenciasRotina } from "../ferramentas/maosDaRotina.js";
 import {
   agoraNoFusoDele,
   blocoRotina,
@@ -170,6 +171,8 @@ export type OpcoesPipelineCompleto = {
   rotina?: BlocoRotinaCore[];
   /** O que aconteceu com cada bloco nos últimos dias — é assim que ela repara que ele sumiu. */
   rotina_registos?: RegistoDia[];
+  /** As mãos dela na rotina (ver/criar/apagar). Sem isto ela só pode FINGIR que montou. */
+  rotinaDeps?: DependenciasRotina;
 };
 
 function pipelineMobileRapido(ambiente?: string): boolean {
@@ -908,6 +911,7 @@ export async function executarPipelineCompleto(
           timeZone: opcoes.timeZone,
           anexosImagem,
           anexosDocumento,
+          rotinaDeps: opcoes.rotinaDeps,
           raciocinioAtivo,
           raciocinioEffort,
           onAcao: onAcaoComRegisto,
@@ -989,6 +993,7 @@ export async function executarPipelineCompleto(
               timeZone: opcoes.timeZone,
               anexosImagem,
               anexosDocumento,
+              rotinaDeps: opcoes.rotinaDeps,
               raciocinioAtivo,
               raciocinioEffort,
               onAcao: onAcaoComRegisto,

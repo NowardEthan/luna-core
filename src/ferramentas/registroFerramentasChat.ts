@@ -105,9 +105,99 @@ const FERRAMENTA_LER_URL: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * As mãos dela na rotina.
+ *
+ * Ela já LIA a rotina (sabe onde ele está). Isto dá-lhe a mão para escrever — e a diferença
+ * é enorme: sem isto, quando ele pede «monta-me a semana», ela só pode FINGIR que montou.
+ * Era o mesmo teatro do whitepaper («*abro o ficheiro e leio*» sem abrir nada) — e o Ethan
+ * apanhou o risco antes de acontecer.
+ *
+ * O bloco criado por ela nasce marcado (`origem: luna`) e aparece no ecrã como «sugerido pela
+ * Luna». Ele apaga com um toque. Uma companheira que mexe na agenda de alguém tem de deixar
+ * rasto — o contrário disso não é ajuda, é intrusão.
+ */
+const FERRAMENTA_VER_ROTINA: DefinicaoFerramenta = {
+  nome: "ver_rotina",
+  descricao:
+    "Lê a rotina completa dele (todos os blocos da semana). Já recebes no briefing onde ele está AGORA — " +
+    "usa esta ferramenta só quando precisas da semana inteira: para responder «o que tenho na terça?», " +
+    "para procurar um buraco livre, ou antes de criar um bloco (para não pisares outro).",
+  parametros: {
+    type: "object",
+    properties: {
+      dia: {
+        type: "number",
+        description: "Só um dia (0=domingo … 6=sábado). Se omitido, devolve a semana toda.",
+      },
+    },
+    required: [],
+  },
+};
+
+const FERRAMENTA_CRIAR_BLOCO: DefinicaoFerramenta = {
+  nome: "criar_bloco",
+  descricao:
+    "Cria um bloco na rotina dele — usa quando ele te PEDE («me monta a semana», «marca hebraico na terça») " +
+    "ou quando ele aceita uma sugestão tua. Vê a rotina ANTES (`ver_rotina`) para não pores um bloco em cima de outro. " +
+    "Um bloco por chamada; para montar uma semana, chamas várias vezes. " +
+    "O que criares fica marcado como sugerido por ti, e ele pode apagar com um toque — por isso não tenhas medo de propor, " +
+    "mas também não lhe enchas a agenda sem ele pedir.",
+  parametros: {
+    type: "object",
+    properties: {
+      titulo: {
+        type: "string",
+        description: "Nome curto, como ele diria: «ônibus + duolingo», «academia», «hebraico».",
+      },
+      dias: {
+        type: "array",
+        items: { type: "number" },
+        description: "Dias da semana: 0=domingo, 1=segunda … 6=sábado. Ex.: [1,2,3,4,5] = dias úteis.",
+      },
+      inicio: {
+        type: "string",
+        description: "Hora de início, «HH:MM» (ex.: «07:30»).",
+      },
+      fim: {
+        type: "string",
+        description: "Hora de fim, «HH:MM» (ex.: «09:00»).",
+      },
+      nota: {
+        type: "string",
+        description: "Uma nota curta que TU vais ler depois (ex.: «12 dias de ofensiva»).",
+      },
+      notificar: {
+        type: "boolean",
+        description: "Avisar/cobrar quando começa. Default: sim.",
+      },
+    },
+    required: ["titulo", "dias", "inicio", "fim"],
+  },
+};
+
+const FERRAMENTA_APAGAR_BLOCO: DefinicaoFerramenta = {
+  nome: "apagar_bloco",
+  descricao:
+    "Apaga um bloco da rotina. SÓ quando ele pedir explicitamente. Vê `ver_rotina` primeiro para saber o id certo.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O id do bloco (vem do `ver_rotina`)." },
+    },
+    required: ["bloco_id"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(): DefinicaoFerramenta[] {
-  const ferramentas = [...FERRAMENTAS_BASE, FERRAMENTA_LER_URL];
+  const ferramentas = [
+    ...FERRAMENTAS_BASE,
+    FERRAMENTA_LER_URL,
+    FERRAMENTA_VER_ROTINA,
+    FERRAMENTA_CRIAR_BLOCO,
+    FERRAMENTA_APAGAR_BLOCO,
+  ];
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
   }
