@@ -20,7 +20,7 @@ import {
 } from "./persistenciaFirestore.js";
 import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
-import { lerRotina } from "./rotinaFirestore.js";
+import { lerRotina, lerRegistosRotina } from "./rotinaFirestore.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
@@ -98,6 +98,11 @@ export type LunaCoreModule = {
         fim: number;
         nota?: string;
         origem?: "ethan" | "luna";
+      }>;
+      rotina_registos?: Array<{
+        blocoId: string;
+        dia: string;
+        estado: "feito" | "hoje_nao" | "ignorado";
       }>;
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;
@@ -470,6 +475,7 @@ export async function executarChatMobile(
     // Falhar aqui não pode derrubar a conversa: sem rotina, ela continua a saber as horas.
     const db = getAdminFirestore();
     const rotina = uid && db ? await lerRotina(db, uid) : [];
+    const rotinaRegistos = uid && db && rotina.length ? await lerRegistosRotina(db, uid) : [];
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
@@ -485,6 +491,7 @@ export async function executarChatMobile(
       anexosImagem: prep.anexosImagem,
       anexosDocumento: prep.anexosDocumento,
       rotina,
+      rotina_registos: rotinaRegistos,
       stream: false,
       timeZone: prep.timeZone,
     });

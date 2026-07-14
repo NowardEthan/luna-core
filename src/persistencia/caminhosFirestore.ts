@@ -38,3 +38,8 @@ export function colMemoriaFatos(uid: string): string {
 export function colRotina(uid: string): string {
   return `${FS.users}/${uid}/${FS.routine}`;
 }
+
+/** O registo do dia: o que aconteceu com cada bloco (feito / hoje_nao / ignorado). */
+export function colRotinaLog(uid: string): string {
+  return `${FS.users}/${uid}/routine_log`;
+}

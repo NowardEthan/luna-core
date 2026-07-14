@@ -44,9 +44,11 @@ import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
 import {
   agoraNoFusoDele,
   blocoRotina,
+  blocoSumico,
   estadoDaRotina,
   neuronioRotinaAtivo,
   type BlocoRotinaCore,
+  type RegistoDia,
 } from "../estado/neuronioRotina.js";
 import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
@@ -166,6 +168,8 @@ export type OpcoesPipelineCompleto = {
   timeZone?: string;
   /** A rotina dele — os blocos recorrentes do dia. É o que a faz saber onde ele está. */
   rotina?: BlocoRotinaCore[];
+  /** O que aconteceu com cada bloco nos últimos dias — é assim que ela repara que ele sumiu. */
+  rotina_registos?: RegistoDia[];
 };
 
 function pipelineMobileRapido(ambiente?: string): boolean {
@@ -714,10 +718,20 @@ export async function executarPipelineCompleto(
     if (neuronioRotinaAtivo() && opcoes.rotina?.length) {
       const { dia, minuto } = agoraNoFusoDele(opcoes.timeZone);
       const bloco = blocoRotina(estadoDaRotina(opcoes.rotina, dia, minuto));
-      if (bloco) {
-        entradas.rotina = bloco;
+
+      // O que ele anda a deixar passar. A cobrança tem teto — não persegue ninguém até à
+      // exaustão, nem lhe queima a conta. Mas o que ficou por fazer não desaparece: vira
+      // memória DELA. Foi a escolha do Ethan, e é a certa. Cobrar dinheiro por um dia mau é
+      // crueldade com juros; reparar que alguém sumiu é o que faz quem se importa.
+      const sumico = opcoes.rotina_registos
+        ? blocoSumico(opcoes.rotina, opcoes.rotina_registos, new Date())
+        : null;
+
+      const partes = [bloco, sumico].filter(Boolean);
+      if (partes.length) {
+        entradas.rotina = partes.join("\n");
         if (process.env.LUNA_DEBUG_REGISTRO === "1") {
-          console.error(`[rotina] ${bloco.split(/\r?\n/)[0]}`);
+          console.error(`[rotina] ${partes.join(" | ").replace(/\r?\n/g, " | ")}`);
         }
       }
     }

@@ -120,6 +120,65 @@ export function blocoRotina(e: EstadoRotina): string | null {
   return null;
 }
 
+/**
+ * ── O que ficou por fazer ─────────────────────────────────────────────────────
+ *
+ * A cobrança tem teto: ela não persegue ninguém até à exaustão. Mas o que ficou por fazer não
+ * desaparece — vira memória dela. O Ethan escolheu assim, e escolheu bem:
+ *
+ *   «faz três dias que o duolingo passa batido. tá tudo bem?»
+ *
+ * O peso é relacional, não financeiro. Cobrar dinheiro por um dia mau é crueldade com juros.
+ * Reparar que alguém sumiu é o que faz uma pessoa que se importa.
+ *
+ * E a distinção que sustenta tudo isto: «hoje não» NÃO é falha. É ele a falar com ela. Só o
+ * SILÊNCIO conta como sumiço — e é por isso que o registo guarda os dois separados.
+ */
+export type RegistoDia = { blocoId: string; dia: string; estado: "feito" | "hoje_nao" | "ignorado" };
+
+/** Quantos dias seguidos ele ignorou este bloco (sem responder nada). */
+export function diasIgnorados(registos: RegistoDia[], blocoId: string, hoje: Date): number {
+  const doBloco = new Map(registos.filter((r) => r.blocoId === blocoId).map((r) => [r.dia, r.estado]));
+
+  let dias = 0;
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - i);
+    const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate(),
+    ).padStart(2, "0")}`;
+
+    const estado = doBloco.get(chave);
+
+    // Sem registo nenhum = ele ignorou (ninguém tocou em nada). É exatamente isto que ela
+    // repara — o silêncio, não a recusa.
+    if (estado === "feito" || estado === "hoje_nao") break;
+    dias++;
+  }
+
+  return dias;
+}
+
+/** O bloco de memória: o que ele anda a deixar passar. `null` = nada a dizer. */
+export function blocoSumico(
+  blocos: BlocoRotinaCore[],
+  registos: RegistoDia[],
+  hoje: Date,
+): string | null {
+  const sumidos = blocos
+    .map((b) => ({ bloco: b, dias: diasIgnorados(registos, b.id, hoje) }))
+    // Um dia não é um sumiço — é um dia. Dois já é um padrão, e é aí que uma amiga repara.
+    .filter((x) => x.dias >= 2)
+    .sort((a, b) => b.dias - a.dias)
+    .slice(0, 2);
+
+  if (!sumidos.length) return null;
+
+  return sumidos
+    .map((x) => `«${x.bloco.titulo}» passa batido há ${x.dias} dias (ele não respondeu nada).`)
+    .join("\n");
+}
+
 /** Kill-switch: `LUNA_NEURONIO_ROTINA=0`. */
 export function neuronioRotinaAtivo(): boolean {
   const raw = process.env.LUNA_NEURONIO_ROTINA?.trim().toLowerCase();

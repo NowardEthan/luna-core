@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   agoraNoFusoDele,
   blocoRotina,
+  blocoSumico,
   estadoDaRotina,
   type BlocoRotinaCore,
 } from "./neuronioRotina.js";
@@ -86,5 +87,51 @@ describe("o fuso é o DELE, não o do servidor", () => {
 
     expect(sp.minuto).not.toBe(toquio.minuto);
     expect(sp.minuto).toBeLessThan(24 * 60);
+  });
+});
+
+describe("ela repara quando ele some (peso relacional, não financeiro)", () => {
+  const hoje = new Date("2026-07-14T10:00:00");
+  const dia = (n: number) => {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  it("três dias de silêncio: ela repara", () => {
+    // Sem registo nenhum nos últimos dias = ninguém tocou em nada.
+    const texto = blocoSumico(ROTINA, [], hoje);
+
+    expect(texto).toContain("ônibus + duolingo");
+    expect(texto).toContain("dias");
+  });
+
+  it("«hoje não» NÃO é sumiço — é ele a falar com ela", () => {
+    // A distinção que sustenta a coisa toda. Um sistema que confunde recusa com silêncio ou
+    // o pune por responder, ou deixa de reparar quando ele desaparece de verdade.
+    const respondeu = [
+      { blocoId: "ônibus + duolingo", dia: dia(1), estado: "hoje_nao" as const },
+      { blocoId: "trabalho", dia: dia(1), estado: "hoje_nao" as const },
+      { blocoId: "Luna / código", dia: dia(1), estado: "hoje_nao" as const },
+    ];
+
+    expect(blocoSumico(ROTINA, respondeu, hoje)).toBeNull();
+  });
+
+  it("um dia não é um sumiço — é um dia", () => {
+    const ontemFeito = ROTINA.map((b) => ({
+      blocoId: b.id,
+      dia: dia(2),
+      estado: "feito" as const,
+    }));
+
+    // Ignorou só ontem (dia 1). Não vale a pena mencionar: uma amiga não cobra um dia.
+    expect(blocoSumico(ROTINA, ontemFeito, hoje)).toBeNull();
+  });
+
+  it("a memória é constatação, não cobrança", () => {
+    const texto = blocoSumico(ROTINA, [], hoje) ?? "";
+
+    expect(texto).not.toMatch(/cobra|exige|devia|prometeu|falhou|desistiu|vergonha/i);
   });
 });
