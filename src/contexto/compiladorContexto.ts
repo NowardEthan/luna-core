@@ -17,6 +17,7 @@ export type EntradasCompilador = {
   memorias_longas?: string;
   premissa?: string;
   objecao?: string;
+  rotina?: string;
   sense?: string;
   ambiente?: string;
   preditivo?: string;
@@ -60,6 +61,10 @@ const SECOES: SecaoDef[] = [
   // O furo que um revisor externo encontrou no que ele disse. Protegida: se o orçamento a
   // cortar, ela volta a elogiar e a deixá-lo ir contra a parede sozinho.
   { chave: "objecao", titulo: "Revisão", prioridade: 1, orcamento: 180 },
+  // Onde ele está AGORA. Prioridade 0, ao lado do «Agora» (o relógio): saber as horas sem
+  // saber o dia dele é meio grounding. Só existe quando há algo perto — fora disso, nada é
+  // escrito, e o silêncio sai de graça.
+  { chave: "rotina", titulo: "O dia dele", prioridade: 0, orcamento: 120 },
   { chave: "sense", titulo: "Sense", prioridade: 6, orcamento: 200 },
   { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 200 },
   { chave: "habitat", titulo: "Habitat", prioridade: 3, orcamento: 140 },
@@ -87,6 +92,7 @@ const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "memorias_longas",
   "premissa",
   "objecao",
+  "rotina",
 ]);
 
 /** Orçamento vinculante por profundidade do tálamo (pkg-comp). */

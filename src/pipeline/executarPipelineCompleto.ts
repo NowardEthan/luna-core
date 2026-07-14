@@ -41,6 +41,13 @@ import {
   type Objecao,
 } from "../estado/neuronioObjecao.js";
 import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
+import {
+  agoraNoFusoDele,
+  blocoRotina,
+  estadoDaRotina,
+  neuronioRotinaAtivo,
+  type BlocoRotinaCore,
+} from "../estado/neuronioRotina.js";
 import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
 import { despertar } from "../mundo/despertar.js";
@@ -157,6 +164,8 @@ export type OpcoesPipelineCompleto = {
   onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
   /** Fuso IANA do dispositivo do usuário (ex.: "America/Sao_Paulo") — para grounding temporal. */
   timeZone?: string;
+  /** A rotina dele — os blocos recorrentes do dia. É o que a faz saber onde ele está. */
+  rotina?: BlocoRotinaCore[];
 };
 
 function pipelineMobileRapido(ambiente?: string): boolean {
@@ -690,6 +699,29 @@ export async function executarPipelineCompleto(
       }
     }
 
+    // ── Neurónio de rotina ──────────────────────────────────────────────────────
+    //
+    // Ela já sabia as HORAS. Passa a saber o DIA DELE:
+    //
+    //   antes: «são 8h40 de segunda»
+    //   agora: «são 8h40, e ele está no ônibus a fazer o duolingo — faltam-lhe 20 minutos»
+    //
+    // A primeira é um relógio; a segunda é alguém que sabe onde tu estás.
+    //
+    // É ESTADO, não uma ordem: o briefing diz-lhe onde ele está, e não lhe manda comentar a
+    // agenda. Quando não há nada perto, não se escreve nada — o silêncio sai de graça, e não
+    // se consegue pedindo a ninguém que se cale.
+    if (neuronioRotinaAtivo() && opcoes.rotina?.length) {
+      const { dia, minuto } = agoraNoFusoDele(opcoes.timeZone);
+      const bloco = blocoRotina(estadoDaRotina(opcoes.rotina, dia, minuto));
+      if (bloco) {
+        entradas.rotina = bloco;
+        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+          console.error(`[rotina] ${bloco.split(/\r?\n/)[0]}`);
+        }
+      }
+    }
+
     // ── Neurónio de objeção ─────────────────────────────────────────────────────
     //
     // Ele: «pode ser que eu esteja fazendo muita coisa da forma errada, me fala de verdade».
@@ -749,8 +781,18 @@ export async function executarPipelineCompleto(
     // As ferramentas que correram MESMO neste turno. É com isto que o detetor de encenação
     // sabe que «*abro o whitepaper*» é teatro: marca de ação + zero ferramentas.
     const ferramentasDoTurno: string[] = [];
+
+    // E os URLs que ela FOI MESMO buscar. Sem isto, o detetor de links inventados marcava
+    // como inventado até um link que ela acabara de encontrar na web — a lista de fontes
+    // chegava vazia e tudo caía fora dela. Um verificador com a régua errada não protege:
+    // estraga.
+    const urlsDoTurno: string[] = [];
+
     const onAcaoComRegisto = (acao: AcaoAgenticoChat) => {
       if (acao.tipo === "inicio_ferramenta") ferramentasDoTurno.push(acao.ferramenta);
+      for (const f of acao.fontes ?? []) {
+        if (f.url) urlsDoTurno.push(f.url);
+      }
       opcoes.onAcaoAgentico?.(acao);
     };
 
@@ -1078,7 +1120,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         // a análise pobre é um mecanismo reprovado.
         alvoPalavras: registro?.alvoPalavras ?? 0,
         ferramentasUsadas: ferramentasDoTurno,
-        urlsBuscados: [],
+        urlsBuscados: urlsDoTurno,
         config,
       });
 

@@ -19,6 +19,8 @@ import {
   executarComPersistenciaFirestore,
 } from "./persistenciaFirestore.js";
 import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
+import { getAdminFirestore } from "./firebaseAdmin.js";
+import { lerRotina } from "./rotinaFirestore.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
@@ -87,6 +89,16 @@ export type LunaCoreModule = {
       config?: ConfigLuna;
       stream?: boolean;
       timeZone?: string;
+      /** A rotina dele — os blocos recorrentes. É o que a faz saber onde ele está. */
+      rotina?: Array<{
+        id: string;
+        titulo: string;
+        dias: number[];
+        inicio: number;
+        fim: number;
+        nota?: string;
+        origem?: "ethan" | "luna";
+      }>;
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;
       onStreamContentDelta?: (delta: string) => void;
@@ -454,6 +466,11 @@ export async function executarChatMobile(
   );
 
   const rodarPipeline = async () => {
+    // A rotina dele — é o que a faz saber que ele está no ônibus, e não só que são 8h40.
+    // Falhar aqui não pode derrubar a conversa: sem rotina, ela continua a saber as horas.
+    const db = getAdminFirestore();
+    const rotina = uid && db ? await lerRotina(db, uid) : [];
+
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
@@ -467,6 +484,7 @@ export async function executarChatMobile(
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
       anexosDocumento: prep.anexosDocumento,
+      rotina,
       stream: false,
       timeZone: prep.timeZone,
     });

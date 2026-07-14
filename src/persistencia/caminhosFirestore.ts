@@ -7,6 +7,7 @@ export const FS = {
   memoria: "memoria",
   fatos: "fatos",
   lunaUser: "luna",
+  routine: "routine",
 } as const;
 
 /** Documento global da Luna (clima, habitat, vida_estado). */
@@ -25,4 +26,15 @@ export function docHumorRelacao(uid: string): string {
 
 export function colMemoriaFatos(uid: string): string {
   return `${FS.users}/${uid}/${FS.memoria}`;
+}
+
+/**
+ * A rotina do utilizador — os blocos recorrentes do dia.
+ *
+ * Escrita pelo Orbit (`orbit-mobile/src/lib/firebase/firestoreRoutine.ts`) e LIDA aqui. É
+ * essa partilha que faz a funcionalidade existir: se a rotina vivesse só no telemóvel, a
+ * Luna nunca saberia que ele está no ônibus.
+ */
+export function colRotina(uid: string): string {
+  return `${FS.users}/${uid}/${FS.routine}`;
 }
