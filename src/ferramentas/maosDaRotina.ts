@@ -21,6 +21,8 @@ import type { BlocoRotinaCore } from "../estado/neuronioRotina.js";
  * intencionada que seja.
  */
 
+export type PassoBloco = { id: string; texto: string; feito: boolean };
+
 export type CamposBloco = {
   titulo: string;
   dias: number[];
@@ -28,6 +30,10 @@ export type CamposBloco = {
   fim: number;
   nota?: string;
   notificar: boolean;
+  /** O roteiro dela: COMO fazer a coisa. «Almoço 12h-13h» não arranca ninguém. */
+  roteiro?: string;
+  /** Os passos. Riscar um passo é COMEÇAR — e começar é o que não acontece sozinho. */
+  passos?: PassoBloco[];
 };
 
 export type DependenciasRotina = {
@@ -253,4 +259,62 @@ export async function apagarBlocoRotina(
 
   await deps.apagar(id);
   return `Apagado: «${alvo.titulo}».`;
+}
+
+// ── detalhar_bloco ────────────────────────────────────────────────────────────
+
+/**
+ * O roteiro e os passos — a parte que faz um bloco arrancar.
+ *
+ * ── Porque isto existe ────────────────────────────────────────────────────────
+ * O Ethan tem TDAH. O obstáculo dele não é lembrar-se de que o almoço existe: é por ONDE
+ * COMEÇAR. Um bloco que diz «Almoço · 12h–13h» não arranca ninguém. Um bloco que diz
+ * «descongela o frango (5 min) · arroz na panela · corta o tomate enquanto o arroz cozinha»
+ * arranca.
+ *
+ * Quebrar a tarefa em pedaços pequenos é a intervenção clássica para o TDAH — e riscar um
+ * passo é, ele próprio, um começo.
+ *
+ * ── Um aviso que fica escrito ─────────────────────────────────────────────────
+ * Isto pode virar veneno. Um roteiro de doze passos para «tomar banho» é humilhante e vai ser
+ * apagado no primeiro dia. A ferramenta limita a seis, e a descrição diz-lhe porquê: o
+ * detalhe serve para arrancar, não para tutelar.
+ */
+export const MAX_PASSOS = 6;
+
+export async function detalharBloco(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.bloco_id ?? "").trim();
+  if (!id) return "ERRO: falta o id do bloco (vê `ver_rotina`). Nada foi escrito.";
+
+  const blocos = await deps.ler();
+  const alvo = blocos.find((b) => b.id === id);
+  if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi escrito.`;
+
+  const roteiro = typeof args.roteiro === "string" ? args.roteiro.trim() : undefined;
+
+  const passos: PassoBloco[] = Array.isArray(args.passos)
+    ? args.passos
+        .map((p) => String(p).trim())
+        .filter(Boolean)
+        .slice(0, MAX_PASSOS)
+        .map((texto, i) => ({ id: `p${i}`, texto, feito: false }))
+    : [];
+
+  if (!roteiro && !passos.length) {
+    return "ERRO: não disseste nem roteiro nem passos. Nada foi escrito.";
+  }
+
+  await deps.editar(id, {
+    ...(roteiro ? { roteiro } : {}),
+    ...(passos.length ? { passos } : {}),
+  });
+
+  return (
+    `Escrito em «${alvo.titulo}»: ` +
+    `${roteiro ? "roteiro" : ""}${roteiro && passos.length ? " + " : ""}` +
+    `${passos.length ? `${passos.length} passo(s)` : ""}. Ele vê isto ao tocar no bloco.`
+  );
 }

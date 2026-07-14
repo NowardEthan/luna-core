@@ -122,6 +122,8 @@ export function maosDaRotina(db: Firestore, uid: string) {
         fim: number;
         nota?: string;
         notificar: boolean;
+        roteiro?: string;
+        passos?: Array<{ id: string; texto: string; feito: boolean }>;
       }>,
     ): Promise<void> => {
       const patch: Record<string, unknown> = {};
@@ -130,6 +132,8 @@ export function maosDaRotina(db: Firestore, uid: string) {
       if (campos.inicio !== undefined) patch.inicio = campos.inicio;
       if (campos.fim !== undefined) patch.fim = campos.fim;
       if (campos.notificar !== undefined) patch.notificar = campos.notificar;
+      if (campos.roteiro !== undefined) patch.roteiro = campos.roteiro;
+      if (campos.passos !== undefined) patch.passos = campos.passos;
       // Nota vazia = apagar a nota. `undefined` no Firestore não remove; é preciso ser explícito.
       if ("nota" in campos) patch.nota = campos.nota ?? null;
 

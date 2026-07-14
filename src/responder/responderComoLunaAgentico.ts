@@ -10,6 +10,7 @@ import {
 import {
   apagarBlocoRotina,
   criarBloco,
+  detalharBloco,
   editarBloco,
   verRotina,
   type DependenciasRotina,
@@ -381,6 +382,7 @@ export async function responderComoLunaAgentico(
         nome === "ver_rotina" ||
         nome === "criar_bloco" ||
         nome === "editar_bloco" ||
+        nome === "detalhar_bloco" ||
         nome === "apagar_bloco"
       ) {
         if (!opcoes.rotinaDeps) {
@@ -392,6 +394,7 @@ export async function responderComoLunaAgentico(
         }
         if (nome === "criar_bloco") return criarBloco(opcoes.rotinaDeps, args);
         if (nome === "editar_bloco") return editarBloco(opcoes.rotinaDeps, args);
+        if (nome === "detalhar_bloco") return detalharBloco(opcoes.rotinaDeps, args);
         return apagarBlocoRotina(opcoes.rotinaDeps, args);
       }
 

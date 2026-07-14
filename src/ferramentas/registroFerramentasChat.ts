@@ -202,6 +202,44 @@ const FERRAMENTA_EDITAR_BLOCO: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * O roteiro do bloco — a peça que faz a tarefa ARRANCAR.
+ *
+ * O obstáculo do Ethan não é lembrar-se de que o almoço existe: é por ONDE COMEÇAR. Um bloco
+ * que diz «Almoço · 12h–13h» não arranca ninguém. Com passos, arranca.
+ *
+ * E há um perigo que a descrição diz-lhe à cara: um roteiro de doze passos para «tomar banho»
+ * é humilhante, e vai ser apagado no primeiro dia. O detalhe serve para arrancar, não para
+ * tutelar.
+ */
+const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
+  nome: "detalhar_bloco",
+  descricao:
+    "Escreve o ROTEIRO de um bloco: como fazer a coisa, e os passos para arrancar. " +
+    "Ele tem TDAH — o problema dele não é lembrar-se da tarefa, é COMEÇAR. «Almoço 12h–13h» não " +
+    "arranca ninguém; «descongela o frango (5min) · arroz na panela · corta o tomate enquanto coze» arranca. " +
+    "Usa quando criares um bloco que beneficie disso (almoço, treino, estudo), ou quando ele pedir. " +
+    "NO MÁXIMO 6 passos, e só onde fazem falta: doze passos para «tomar banho» é humilhante e ele vai apagar. " +
+    "O roteiro é teu, na tua voz — não é um manual.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O id do bloco (vem do `ver_rotina`)." },
+      roteiro: {
+        type: "string",
+        description:
+          "Texto curto: como fazer, o que ter em conta, um empurrão. Na tua voz, não um manual.",
+      },
+      passos: {
+        type: "array",
+        items: { type: "string" },
+        description: "Até 6 passos concretos, na ordem. Cada um deve caber numa linha.",
+      },
+    },
+    required: ["bloco_id"],
+  },
+};
+
 const FERRAMENTA_APAGAR_BLOCO: DefinicaoFerramenta = {
   nome: "apagar_bloco",
   descricao:
@@ -223,6 +261,7 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_VER_ROTINA,
     FERRAMENTA_CRIAR_BLOCO,
     FERRAMENTA_EDITAR_BLOCO,
+    FERRAMENTA_DETALHAR_BLOCO,
     FERRAMENTA_APAGAR_BLOCO,
   ];
   if (webSearchDisponivel()) {
