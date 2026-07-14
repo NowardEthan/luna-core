@@ -121,6 +121,10 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       ferramentas,
       raciocinioAtivo,
       raciocinioEffort: opcoes.raciocinioEffort,
+      // O teto do neurónio de registo — igual à temperatura, vem da config do turno.
+      // Ela pode PENSAR à vontade (a reserva de raciocínio está no cálculo); o que o teto
+      // limita é o que ela DIZ.
+      maxTokens: config.maxTokensResposta,
     });
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";

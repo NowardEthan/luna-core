@@ -116,6 +116,7 @@ export async function completarStreamOpenAi(
       content: m.conteudo,
     })),
     temperature: requisicao.temperatura,
+    ...(requisicao.maxTokens ? { max_tokens: requisicao.maxTokens } : {}),
     stream: true,
   };
 

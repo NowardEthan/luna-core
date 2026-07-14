@@ -149,6 +149,7 @@ async function completarUmaVez(
       content: m.conteudo,
     })),
     temperature: requisicao.temperatura,
+    ...(requisicao.maxTokens ? { max_tokens: requisicao.maxTokens } : {}),
   };
 
   if (requisicao.json && jsonEstrito) {
@@ -274,6 +275,7 @@ async function completarComFerramentasUmaVez(
     model: requisicao.modelo,
     messages: requisicao.mensagens.map(serializarMensagemAgente),
     temperature: requisicao.temperatura,
+    ...(requisicao.maxTokens ? { max_tokens: requisicao.maxTokens } : {}),
   };
 
   if (requisicao.ferramentas?.length) {

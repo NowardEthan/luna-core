@@ -40,6 +40,11 @@ import { humorParaBadge, type HumorBadgePayload } from "../mundo/humor/humorPara
 import { classificarProfundidade, type ProfundidadeAnalise } from "../estado/talamoPipeline.js";
 import { registrarTarefaMundo } from "../persistencia/contextoMundo.js";
 import {
+  calcularRegistro,
+  registroConversaAtivo,
+  tetoComRaciocinio,
+} from "../estado/registroConversa.js";
+import {
   classificarPesoTurno,
   escolherModeloResposta,
   precisaRigor,
@@ -617,6 +622,34 @@ export async function executarPipelineCompleto(
       entradas.intencao_luna = formatarBlocoIntencao(intencaoLuna);
     }
 
+    // ── Neurónio de registo: quanto se fala nesta troca ────────────────────────
+    //
+    // Isto ERA um bloco de 378 tokens a pedir «responda em 1 a 3 frases». O Ethan matou a
+    // ideia com uma frase: «um cérebro não negocia consigo mesmo — tudo é arquitetura de
+    // neurónios». E tinha prova: o módulo de intenção JÁ mandava «não eco», e ela ecoava
+    // na mesma. Pedir ao modelo que se contenha é negociar com ele; ele ganha sempre.
+    //
+    // Agora um neurónio lê o turno (intenção, profundidade, tamanho da fala dele) e a
+    // TENDÊNCIA dela (quanto escreveu nas últimas trocas) e devolve ESTADO: um teto
+    // (`max_tokens` — a parede, que não se negocia) e uma diretiva de ~12 tokens que entra
+    // pela secção `formato` — ou seja, DENTRO do orçamento. Nada é colado por fora.
+    const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
+    const registro = registroConversaAtivo()
+      ? calcularRegistro({
+          mensagemUsuario: mensagem,
+          analise: analise.analise,
+          profundidade,
+          peso: pesoTurno,
+          historico: ctxRespondedor?.historico ?? [],
+        })
+      : null;
+
+    if (registro?.diretiva) {
+      entradas.formato = entradas.formato
+        ? `${entradas.formato}\n${registro.diretiva}`
+        : registro.diretiva;
+    }
+
     const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));
     if (profundidade === "simples" && entradas.presenca) {
       const presenca = entradas.presenca;
@@ -648,8 +681,8 @@ export async function executarPipelineCompleto(
     );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
-    // emocional/técnico continua no modelo grande. Sem custo: usa a análise já feita.
-    const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
+    // emocional/técnico continua no modelo grande. (O `pesoTurno` já foi calculado acima,
+    // antes do compilador — o neurónio de registo precisa dele para decidir o teto.)
     const modeloResposta = escolherModeloResposta(pesoTurno, config.modeloMenor, config.modeloMaior);
 
     // P1 camada 3 — rigor: em turno técnico, injeta o protocolo de autocrítica no
@@ -675,10 +708,24 @@ export async function executarPipelineCompleto(
         briefing: `${contextoCompilado.briefing}\n\n${blocoProtocoloDeducao()}`,
       };
     }
-    const configResposta =
-      modeloResposta === config.modeloMaior && tempResposta === config.temperaturaMaior
-        ? config
-        : { ...config, modeloMaior: modeloResposta, temperaturaMaior: tempResposta };
+
+    // O teto do neurónio de registo entra na config do turno, exatamente como a
+    // temperatura já entrava. É a parede: ela não CONSEGUE escrever quatro parágrafos
+    // para um «bom dia» — não é obediência, é física.
+    const configResposta: ConfigLuna = {
+      ...config,
+      modeloMaior: modeloResposta,
+      temperaturaMaior: tempResposta,
+      ...(registro && registro.tetoTokens > 0
+        ? { maxTokensResposta: tetoComRaciocinio(registro.tetoTokens, raciocinioAtivo) }
+        : {}),
+    };
+
+    if (process.env.LUNA_DEBUG_REGISTRO === "1" && registro) {
+      console.error(
+        `[registo] extensao=${registro.extensao} alvo=${registro.alvoPalavras}p teto=${registro.tetoTokens}tk tendencia=${registro.tendencia?.toFixed(1) ?? "—"}x`,
+      );
+    }
 
     if (usarModoAgentico && ehProvedorAgente(provedor)) {
       resposta = await responderComoLunaAgentico(
@@ -729,6 +776,7 @@ export async function executarPipelineCompleto(
         opcoes.interlocutor,
         analise.analise.intencao,
         raciocinioEffort,
+        configResposta.maxTokensResposta,
       );
       opcoes.onStreamDone?.(resposta);
     } else {
@@ -745,6 +793,7 @@ export async function executarPipelineCompleto(
         opcoes.interlocutor,
         analise.analise.intencao,
         raciocinioEffort,
+        configResposta.maxTokensResposta,
       );
     }
 

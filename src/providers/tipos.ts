@@ -12,6 +12,12 @@ export type RequisicaoCompletacao = {
   raciocinioAtivo?: boolean;
   /** low/medium/high — controla profundidade do raciocínio quando suportado. */
   raciocinioEffort?: "low" | "medium" | "high";
+  /**
+   * Teto de saída — a PAREDE. Pedir "seja breve" no prompt é negociar com o modelo, e ele
+   * ganha essa negociação: o módulo de intenção já mandava "não ecoe" e ela ecoava. O teto
+   * não se negocia. Quem o calcula é o neurônio de registro (`estado/registroConversa.ts`).
+   */
+  maxTokens?: number;
 };
 
 export type RespostaCompletacao = {
@@ -77,6 +83,8 @@ export type RequisicaoAgente = {
   raciocinioAtivo?: boolean;
   /** low/medium/high — controla profundidade do raciocínio quando suportado. */
   raciocinioEffort?: "low" | "medium" | "high";
+  /** Teto de saída — ver RequisicaoCompletacao.maxTokens. */
+  maxTokens?: number;
 };
 
 /** Resposta agêntica — texto final OU chamadas de ferramentas a executar. */
@@ -106,6 +114,11 @@ export type ConfigLuna = {
   // Provedor separado para modelos menores (opcional — se ausente, usa o mesmo provedor)
   apiKeyMenor?: string;
   baseUrlMenor?: string;
+  /**
+   * Teto de saída DESTE turno — decidido pelo neurônio de registro, igual à temperatura
+   * (que já varia por turno em `temperaturaResposta`). Ausente = sem teto.
+   */
+  maxTokensResposta?: number;
 };
 
 export function carregarConfig(): ConfigLuna | null {

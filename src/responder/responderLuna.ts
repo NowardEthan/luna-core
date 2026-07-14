@@ -75,6 +75,8 @@ export async function responderComoLuna(
   interlocutor?: InterlocutorPipeline,
   intencao?: AnaliseContexto["intencao"],
   raciocinioEffort?: "low" | "medium" | "high",
+  /** Teto do neurónio de registo — limita o que ela DIZ, não o que pensa. */
+  maxTokens?: number,
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
@@ -94,6 +96,7 @@ export async function responderComoLuna(
     mensagens,
     raciocinioAtivo,
     raciocinioEffort,
+    maxTokens,
   });
 
   return {
@@ -122,6 +125,8 @@ export async function responderComoLunaStream(
   interlocutor?: InterlocutorPipeline,
   intencao?: AnaliseContexto["intencao"],
   raciocinioEffort?: "low" | "medium" | "high",
+  /** Teto do neurónio de registo — limita o que ela DIZ, não o que pensa. */
+  maxTokens?: number,
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
@@ -137,7 +142,7 @@ export async function responderComoLunaStream(
 
   const resposta = await completarStreamOpenAi(
     { apiKey, baseUrl },
-    { modelo, temperatura, mensagens, raciocinioAtivo, raciocinioEffort },
+    { modelo, temperatura, mensagens, raciocinioAtivo, raciocinioEffort, maxTokens },
     callbacks.onChunk,
   );
 

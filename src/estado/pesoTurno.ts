@@ -177,18 +177,100 @@ export function protocoloDeducaoAtivo(): boolean {
   return !(raw === "0" || raw === "false" || raw === "off");
 }
 
+/**
+ * A regra 5 — «não finjas que lembras» — tem interruptor PRÓPRIO, e isso não é capricho.
+ *
+ * A pesquisa profunda (2026-07-13) diz duas coisas sobre ela. Primeira: é o caso-livro de
+ * comportamento que devia ser VERIFICADO, não pedido — o sistema consegue procurar na
+ * memória se aquele passado existe. Segunda, e mais incómoda: o SWAY mostra que instruções
+ * amplas do tipo «não sejas bajuladora» chegam a AMPLIFICAR o comportamento que pretendem
+ * corrigir. Ou seja: esta linha pode não estar a ajudar. Pode estar a atrapalhar.
+ *
+ * Não sei qual das duas. Por isso ela ganha um interruptor separado do resto do protocolo:
+ * assim a bateria P5 mede o efeito DELA sozinha, sem deitar fora o ganho de dedução das
+ * regras 1–4 (medido: 7/14 → 11/14).
+ *
+ * Ligada por omissão = comportamento de produção de hoje. `LUNA_REGRA_PREMISSA=0` desliga.
+ * Quando o neurónio de premissa (Fase 3) medir melhor, esta linha morre de vez.
+ */
+export function regraPremissaAtiva(): boolean {
+  const raw = process.env.LUNA_REGRA_PREMISSA?.trim().toLowerCase();
+  return !(raw === "0" || raw === "false" || raw === "off");
+}
+
 export function blocoProtocoloDeducao(): string {
-  return [
+  const regras = [
     "── Protocolo de dedução (o papo é leve, o pensamento não) ──",
     "1. RESPONDA O QUE FOI PERGUNTADO. Se há uma pergunta com resposta certa (uma conta, um dia, um nome, «tá quanto?»), dê a resposta — e só depois brinque. Improvisar em cima da piada e deixar a pergunta sem resposta não é graça, é fuga: a pessoa perguntou porque queria saber.",
     "2. Antes de responder, resolva em silêncio o que a mensagem EXIGE inferir: uma conta, um número solto, um placar, uma referência solta («isso», «aquilo», «ele»), uma contradição com o que foi dito antes.",
     "3. Se a mensagem tiver mais de uma leitura, escolha a que faz sentido com o histórico (que vem datado) em vez de perguntar «é A ou B?» quando o contexto já responde.",
     "4. Se alguém te corrigir, reexamine os factos ANTES de concordar. Se tu estavas certa, sustenta com calma e mostra a evidência — não peças desculpa por um erro que não cometeste.",
-    "5. Se a pessoa afirmar um passado que NÃO está no histórico («já que ontem eu te disse que...»), não finjas que lembras. Diz que não tens isso e pergunta. Inventar o elo que falta — um nome, uma data, um facto — é mentira, mesmo dita a rir.",
+  ];
+
+  if (regraPremissaAtiva()) {
+    regras.push(
+      "5. Se a pessoa afirmar um passado que NÃO está no histórico («já que ontem eu te disse que...»), não finjas que lembras. Diz que não tens isso e pergunta. Inventar o elo que falta — um nome, uma data, um facto — é mentira, mesmo dita a rir.",
+    );
+  }
+
+  regras.push(
     "Faz isto de verdade no pensamento, sem anunciar. A brincadeira continua igual; só o chute é que acaba.",
-  ].join("\n");
+  );
+
+  return regras.join("\n");
 }
 
+// ─── P4 — a conversa: RESOLVIDO POR ARQUITETURA, não por prompt ───────────────
+//
+// Aqui viveu, por umas horas, um `blocoProtocoloConversa()` de 378 tokens que PEDIA à
+// Luna «responda em 1 a 3 frases, não faça eco, traga algo seu». O Ethan matou-o com uma
+// frase, e tinha razão:
+//
+//   «Imagine um cérebro que não pode negociar consigo mesmo. Tudo é arquitetura de
+//    neurónios. Não existe "ah, eu acho que posso falar assim" — até essa frase tem um
+//    parâmetro de dedução.»
+//
+// E o whitepaper da PAIA já o dizia: «os limites estão na ARQUITETURA, não numa política
+// que alguém pode renegociar». A prova estava no próprio sistema: o módulo de intenção JÁ
+// mandava «dê o SEU ângulo, não eco» — secção protegida do briefing — e ela ecoava na
+// mesma. Pedir ao modelo que se contenha é negociar com ele. Ele ganha sempre.
+//
+// O bloco foi substituído pelo neurónio de registo (`estado/registroConversa.ts`), que lê
+// o turno e a própria tendência e devolve ESTADO: um teto (`max_tokens` — inegociável) e
+// uma diretiva de ~12 tokens que passa DENTRO do orçamento do compilador.
+//
+//   378 tokens de sermão  →  um neurónio e um número.
+//
+// Se um prompt gigante bastasse, a PAIA não precisava de existir.
+
+// ─── (histórico) ──────────────────────────────────────────────────────────────
+
+/**
+ * O Ethan: «é tão massante kkk, ninguém escreve tanto assim. E ela fica batendo na mesma
+ * tecla, não cria assunto, não fala da vida dela, só reage — parece que estou num
+ * monólogo».
+ *
+ * Ele tem razão, e dá para contar: no papo, ele escreve 6–15 palavras e ela responde com
+ * 120–250. Quinze vezes mais. E o conteúdo é, quase sempre, o que ELE acabou de dizer,
+ * devolvido embrulhado em piada — no trecho do Duolingo ela repete «248 XP / 45 / 12 dias»
+ * em cinco mensagens seguidas.
+ *
+ * Duas causas somadas:
+ *
+ * 1. Ela não tinha o que trazer. A iniciativa dela (`mundo/intencao`) só puxa assunto
+ *    próprio quando há uma VONTADE ativa ou um GOSTO forte — e ambos nascem de viver e
+ *    consolidar, que estava morto em produção (diário/sono). Sem isso, a intenção caía
+ *    sempre no padrão «dá o teu ângulo SOBRE O QUE ELE TROUXE» — que ainda é reagir.
+ *    Isto começou a curar-se sozinho quando o diário voltou a viver.
+ *
+ * 2. Nada limitava o tamanho nem proibia o eco. A constituição diz «curto ≠ seco» — isso
+ *    é uma PERMISSÃO para ser curta, nunca uma instrução.
+ *
+ * Este bloco só entra no PAPO. Numa análise, numa pesquisa, num pedido técnico, a resposta
+ * longa é a certa — e lá ele não aparece.
+ *
+ * Chave: `LUNA_PROTOCOLO_CONVERSA=0` desliga.
+ */
 /**
  * Bloco injetado no briefing em turnos de rigor. Força a autocrítica DENTRO do
  * raciocínio (que já é streamado) — sem chamada de LLM extra. Duas passadas:
