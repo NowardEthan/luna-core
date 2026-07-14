@@ -116,6 +116,17 @@ export type LunaCoreModule = {
           nota?: string;
           notificar: boolean;
         }) => Promise<string>;
+        editar: (
+          id: string,
+          campos: Partial<{
+            titulo: string;
+            dias: number[];
+            inicio: number;
+            fim: number;
+            nota?: string;
+            notificar: boolean;
+          }>,
+        ) => Promise<void>;
         apagar: (id: string) => Promise<void>;
       };
       onStatusHint?: (hint: string) => void;

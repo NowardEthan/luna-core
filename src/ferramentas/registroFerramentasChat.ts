@@ -176,6 +176,32 @@ const FERRAMENTA_CRIAR_BLOCO: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_EDITAR_BLOCO: DefinicaoFerramenta = {
+  nome: "editar_bloco",
+  descricao:
+    "Muda um bloco que já existe — a hora, os dias, o nome, a nota, ou se ele cobra. " +
+    "Passas SÓ o que queres mudar: o resto fica como estava. " +
+    "Usa isto (e não apagar+criar) quando ele diz «adianta o duolingo pras 8h» ou «tira a academia do sábado» — " +
+    "apagar e recriar perderia a nota e a cor dele. Vê `ver_rotina` primeiro para saber o id.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O id do bloco (vem do `ver_rotina`)." },
+      titulo: { type: "string", description: "Novo nome (só se for para mudar)." },
+      dias: {
+        type: "array",
+        items: { type: "number" },
+        description: "Novos dias (0=domingo … 6=sábado). Substituem os anteriores.",
+      },
+      inicio: { type: "string", description: "Nova hora de início, «HH:MM»." },
+      fim: { type: "string", description: "Nova hora de fim, «HH:MM»." },
+      nota: { type: "string", description: "Nova nota (string vazia apaga a nota)." },
+      notificar: { type: "boolean", description: "Passar a cobrar, ou deixar de cobrar." },
+    },
+    required: ["bloco_id"],
+  },
+};
+
 const FERRAMENTA_APAGAR_BLOCO: DefinicaoFerramenta = {
   nome: "apagar_bloco",
   descricao:
@@ -196,6 +222,7 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_LER_URL,
     FERRAMENTA_VER_ROTINA,
     FERRAMENTA_CRIAR_BLOCO,
+    FERRAMENTA_EDITAR_BLOCO,
     FERRAMENTA_APAGAR_BLOCO,
   ];
   if (webSearchDisponivel()) {

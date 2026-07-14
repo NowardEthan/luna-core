@@ -21,16 +21,27 @@ import type { BlocoRotinaCore } from "../estado/neuronioRotina.js";
  * intencionada que seja.
  */
 
+export type CamposBloco = {
+  titulo: string;
+  dias: number[];
+  inicio: number;
+  fim: number;
+  nota?: string;
+  notificar: boolean;
+};
+
 export type DependenciasRotina = {
   ler: () => Promise<BlocoRotinaCore[]>;
-  criar: (b: {
-    titulo: string;
-    dias: number[];
-    inicio: number;
-    fim: number;
-    nota?: string;
-    notificar: boolean;
-  }) => Promise<string>;
+  criar: (b: CamposBloco) => Promise<string>;
+  /**
+   * Editar é PARCIAL de propósito.
+   *
+   * Sem isto, mudar a hora de um bloco obrigava-a a apagar e recriar — e nesse caminho
+   * perdia-se a nota que ele tinha escrito, a cor que ele tinha escolhido, e o histórico
+   * ficava com um bloco apagado onde só houve um horário mudado. Um «editar» que é um
+   * «apagar + criar» disfarçado destrói coisas que ninguém lhe pediu para destruir.
+   */
+  editar: (id: string, campos: Partial<CamposBloco>) => Promise<void>;
   apagar: (id: string) => Promise<void>;
 };
 
@@ -136,6 +147,95 @@ export async function criarBloco(
     `Criado: «${titulo}» ${hhmm(inicio)}–${hhmm(fim)}, ` +
     `${dias.map((d) => DIAS[d]).join(", ")}. Aparece na rotina dele marcado como sugerido por ti (id=${id}).`
   );
+}
+
+// ── editar_bloco ──────────────────────────────────────────────────────────────
+
+/**
+ * Editar muda SÓ o que ela mandou mudar.
+ *
+ * Se ela só disser «muda o duolingo para as 8h», o título, os dias, a nota e o aviso ficam
+ * exatamente como estavam. Um editar que substitui o bloco inteiro pelos campos que vieram
+ * apagaria, em silêncio, tudo o que ela não mencionou — e ele descobriria dias depois que a
+ * nota que tinha escrito desapareceu quando pediu para mudar uma hora.
+ */
+export async function editarBloco(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.bloco_id ?? "").trim();
+  if (!id) return "ERRO: falta o id do bloco (vê `ver_rotina` primeiro). Nada foi alterado.";
+
+  const blocos = await deps.ler();
+  const alvo = blocos.find((b) => b.id === id);
+  if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi alterado.`;
+
+  const campos: Partial<CamposBloco> = {};
+  const mudancas: string[] = [];
+
+  if (typeof args.titulo === "string" && args.titulo.trim()) {
+    campos.titulo = args.titulo.trim();
+    mudancas.push(`nome → «${campos.titulo}»`);
+  }
+
+  if (Array.isArray(args.dias)) {
+    const dias = args.dias.map(Number).filter((d) => d >= 0 && d <= 6);
+    if (!dias.length) return "ERRO: os dias têm de ser 0–6 (0=domingo). Nada foi alterado.";
+    campos.dias = dias;
+    mudancas.push(`dias → ${dias.map((d) => DIAS[d]).join(", ")}`);
+  }
+
+  if (args.inicio !== undefined) {
+    const m = horaParaMinuto(String(args.inicio));
+    if (m === null) return "ERRO: hora de início inválida («HH:MM»). Nada foi alterado.";
+    campos.inicio = m;
+  }
+
+  if (args.fim !== undefined) {
+    const m = horaParaMinuto(String(args.fim));
+    if (m === null) return "ERRO: hora de fim inválida («HH:MM»). Nada foi alterado.";
+    campos.fim = m;
+  }
+
+  if (typeof args.nota === "string") {
+    campos.nota = args.nota.trim() || undefined;
+    mudancas.push("nota");
+  }
+
+  if (typeof args.notificar === "boolean") {
+    campos.notificar = args.notificar;
+    mudancas.push(campos.notificar ? "volta a cobrar" : "deixa de cobrar");
+  }
+
+  if (!Object.keys(campos).length) {
+    return "ERRO: não disseste o que mudar. Nada foi alterado.";
+  }
+
+  // O horário resultante é o novo MISTURADO com o antigo — não só o que veio.
+  const inicio = campos.inicio ?? alvo.inicio;
+  const fim = campos.fim ?? alvo.fim;
+  const dias = campos.dias ?? alvo.dias;
+
+  if (fim <= inicio) return "ERRO: o fim ficaria antes do início. Nada foi alterado.";
+
+  if (campos.inicio !== undefined || campos.fim !== undefined) {
+    mudancas.push(`horário → ${hhmm(inicio)}–${hhmm(fim)}`);
+  }
+
+  // O choque ignora o PRÓPRIO bloco — senão ele chocaria sempre consigo mesmo.
+  const choque = blocos.find(
+    (b) => b.id !== id && b.dias.some((d) => dias.includes(d)) && inicio < b.fim && fim > b.inicio,
+  );
+  if (choque) {
+    return (
+      `ERRO: assim choca com «${choque.titulo}» (${hhmm(choque.inicio)}–${hhmm(choque.fim)}). ` +
+      `Nada foi alterado.`
+    );
+  }
+
+  await deps.editar(id, campos);
+
+  return `Alterado «${alvo.titulo}»: ${mudancas.join(", ")}.`;
 }
 
 // ── apagar_bloco ──────────────────────────────────────────────────────────────

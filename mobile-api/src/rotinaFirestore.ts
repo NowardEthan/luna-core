@@ -106,6 +106,37 @@ export function maosDaRotina(db: Firestore, uid: string) {
       return ref.id;
     },
 
+    /**
+     * Edição PARCIAL: `merge: true` muda só os campos que vieram.
+     *
+     * Se ela pedir «adianta o duolingo para as 8h», o `set` sem merge apagaria o título, os
+     * dias, a nota e a cor — tudo o que não veio no pedido. Ele descobriria dias depois que
+     * a nota que escreveu desapareceu porque pediu para mudar uma hora.
+     */
+    editar: async (
+      id: string,
+      campos: Partial<{
+        titulo: string;
+        dias: number[];
+        inicio: number;
+        fim: number;
+        nota?: string;
+        notificar: boolean;
+      }>,
+    ): Promise<void> => {
+      const patch: Record<string, unknown> = {};
+      if (campos.titulo !== undefined) patch.titulo = campos.titulo;
+      if (campos.dias !== undefined) patch.dias = campos.dias;
+      if (campos.inicio !== undefined) patch.inicio = campos.inicio;
+      if (campos.fim !== undefined) patch.fim = campos.fim;
+      if (campos.notificar !== undefined) patch.notificar = campos.notificar;
+      // Nota vazia = apagar a nota. `undefined` no Firestore não remove; é preciso ser explícito.
+      if ("nota" in campos) patch.nota = campos.nota ?? null;
+
+      if (!Object.keys(patch).length) return;
+      await db.collection(colRotina(uid)).doc(id).set(patch, { merge: true });
+    },
+
     apagar: async (id: string): Promise<void> => {
       await db.collection(colRotina(uid)).doc(id).delete();
     },
