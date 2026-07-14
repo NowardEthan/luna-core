@@ -580,6 +580,22 @@ export async function executarChatMobileStream(
   );
 
   const rodarPipeline = async () => {
+    // ── A rotina TAMBÉM aqui ────────────────────────────────────────────────────
+    //
+    // Há DOIS caminhos de resposta: este (streaming, o que o app usa de facto) e o normal.
+    // Liguei a rotina só no outro, e o resultado apareceu em campo na primeira tentativa do
+    // Ethan: ela respondeu-lhe «o módulo de rotina não tá disponível aqui nesse ambiente» —
+    // que é, à letra, a minha própria mensagem de erro para quando as mãos não chegam.
+    //
+    // Ela TENTOU. Não tinha mão. E eu tinha-lhe dito que estava tudo no ar.
+    //
+    // A lição não é «esqueci uma linha»: é que testei o pipeline pelo caminho que EU chamo
+    // nas sondas, e não pelo caminho que o APP chama. Uma sonda que não passa por onde o
+    // utilizador passa mede outra coisa.
+    const db = getAdminFirestore();
+    const rotina = uid && db ? await lerRotina(db, uid) : [];
+    const rotinaRegistos = uid && db && rotina.length ? await lerRegistosRotina(db, uid) : [];
+
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
@@ -593,6 +609,9 @@ export async function executarChatMobileStream(
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
       anexosDocumento: prep.anexosDocumento,
+      rotina,
+      rotina_registos: rotinaRegistos,
+      rotinaDeps: uid && db ? maosDaRotina(db, uid) : undefined,
       stream: true,
       timeZone: prep.timeZone,
       onStatusHint: (hint) => {
