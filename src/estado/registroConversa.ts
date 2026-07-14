@@ -71,15 +71,29 @@ function tokensPara(alvo: number): number {
 }
 
 /**
- * O `max_tokens` conta o RACIOCÍNIO junto com a resposta.
+ * O `max_tokens` conta o RACIOCÍNIO junto com a resposta. Por isso o pensamento tem uma
+ * reserva própria: ela pensa à vontade, e o que o teto limita é o que ela DIZ.
  *
- * Isto quase me fez estragar tudo: com um teto de 80 tokens e o modelo a pensar 200, ela
- * gastaria o teto todo a pensar e não emitiria resposta nenhuma. A parede viraria mordaça.
+ * ── O número já foi 600, e isso tornou a parede DECORATIVA ────────────────────
+ * Escolhi 600 com medo de a amordaçar. Nunca medi. A bateria P7 (`empirico/p7Teto.ts`)
+ * mediu, e o medo era 17× maior que o problema:
  *
- * Por isso o pensamento tem uma reserva PRÓPRIA. Ela pode pensar à vontade — o que o teto
- * limita é o que ela DIZ. É a diferença entre calar alguém e pedir-lhe que seja concisa.
+ *   ela PENSA     35 tk em média (em metade dos turnos casuais, ZERO)
+ *   ela DIZ       63 tk
+ *   a minha parede  656 tk   →  558 tk de folga que nunca foram tocados
+ *
+ * A parede estava a meio quilómetro do corpo. No braço «com neurónio» da P4, quem agia era
+ * a diretiva de 12 tokens no briefing — ou seja, eu tinha voltado ao PROMPT sem dar por
+ * isso. E o resultado piorou (53 → 62 palavras), como o prompt costuma fazer.
+ *
+ * O valor agora vem da medição: o pico observado de raciocínio num turno casual foi 139 tk.
+ * 200 dá margem sem devolver a folga. E a P7 mostra que uma parede que ENCOSTA de verdade
+ * não amordaça — ela responde em 26 palavras, com a voz dela, e ainda faz pergunta.
+ *
+ * (Turnos de análise não têm teto nenhum — `tetoTokens: 0`. Esta reserva só existe para o
+ * papo, onde o raciocínio é curto ou inexistente.)
  */
-export const RESERVA_RACIOCINIO = 600;
+export const RESERVA_RACIOCINIO = 200;
 
 export function tetoComRaciocinio(teto: number, raciocinioAtivo: boolean): number {
   if (teto <= 0) return 0; // sem teto (análise/técnico)
@@ -127,6 +141,24 @@ export function registroConversaAtivo(): boolean {
   return !(raw === "0" || raw === "false" || raw === "off");
 }
 
+/**
+ * A diretiva é a última gota de PROMPT que resta neste neurónio — doze tokens a pedir
+ * concisão. `LUNA_REGISTRO_DIRETIVA=0` cala-a, deixando só a parede.
+ *
+ * O interruptor existe para uma pergunta que a PAIA obriga a fazer: agora que a parede
+ * encosta de verdade (a P7 mostrou que antes ela era decorativa), estes doze tokens ainda
+ * ganham o lugar deles? Se a parede sozinha der o mesmo resultado, a diretiva é gordura —
+ * e gordura, no prompt, não é neutra: compete com o briefing pelo mesmo canal de atenção
+ * (Lost in the Middle) e ainda pode ser a instrução que, ao pedir contenção, provoca o
+ * contrário (SWAY).
+ *
+ * A P4 responde com número. Se a parede sozinha bastar, isto morre.
+ */
+export function diretivaAtiva(): boolean {
+  const raw = process.env.LUNA_REGISTRO_DIRETIVA?.trim().toLowerCase();
+  return !(raw === "0" || raw === "false" || raw === "off");
+}
+
 export function calcularRegistro(e: EntradaRegistro): RegistroConversa {
   const pedeExtensao =
     INTENCOES_QUE_PEDEM_EXTENSAO.has(e.analise.intencao) ||
@@ -165,7 +197,7 @@ export function calcularRegistro(e: EntradaRegistro): RegistroConversa {
     alvoPalavras: alvo,
     tetoTokens: tokensPara(alvo),
     tendencia,
-    diretiva: formatarDiretiva(extensao, alvo, tendencia),
+    diretiva: diretivaAtiva() ? formatarDiretiva(extensao, alvo, tendencia) : "",
   };
 }
 

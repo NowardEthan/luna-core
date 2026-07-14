@@ -56,12 +56,12 @@ function terminaComPergunta(texto: string): boolean {
   return /\?\s*$/.test(texto.trim());
 }
 
-function configCom(protocolo: boolean): ConfigLuna {
+function configCom(braco: Braco): ConfigLuna {
   const orKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!orKey) throw new Error("P4 precisa de OPENROUTER_API_KEY.");
-  // Os braços agora são: SEM o neurónio de registo (o que o Ethan viveu) vs COM ele.
   // O «protocolo» de 378 tokens foi apagado — era negociação, não arquitetura.
-  process.env.LUNA_REGISTRO_CONVERSA = protocolo ? "1" : "0";
+  process.env.LUNA_REGISTRO_CONVERSA = braco.registro ? "1" : "0";
+  process.env.LUNA_REGISTRO_DIRETIVA = braco.diretiva ? "1" : "0";
   return {
     apiKey: orKey,
     baseUrl: "https://openrouter.ai/api/v1",
@@ -88,12 +88,12 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 async function responder(
   mensagem: string,
-  protocolo: boolean,
+  braco: Braco,
   sessaoId: string,
 ): Promise<string> {
   for (let tentativa = 1; tentativa <= 3; tentativa++) {
     try {
-      const config = configCom(protocolo);
+      const config = configCom(braco);
       const r = await executarPipelineCompleto(mensagem, {
         sessaoId,
         ambiente: "orbit_mobile",
@@ -164,7 +164,25 @@ type Resultado = {
   totalPapo: number;
 };
 
-async function medir(protocolo: boolean, rodadas: number): Promise<Resultado> {
+/**
+ * Os três braços. A primeira corrida tinha só dois — e escondia o essencial.
+ *
+ *   SEM          o que o Ethan vive hoje
+ *   PAREDE+DIR   o teto real (P7 corrigiu a reserva de 600 → 200) + a diretiva de 12 tk
+ *   PAREDE SÓ    o teto real e NENHUM texto no prompt
+ *
+ * O terceiro braço é o que a PAIA obriga: se a parede sozinha der o mesmo resultado, os
+ * doze tokens de diretiva são gordura — e saem. Arquitetura pura, zero negociação.
+ */
+type Braco = { rotulo: string; registro: boolean; diretiva: boolean };
+
+const BRACOS: Braco[] = [
+  { rotulo: "SEM", registro: false, diretiva: false },
+  { rotulo: "PAREDE+DIR", registro: true, diretiva: true },
+  { rotulo: "PAREDE SÓ", registro: true, diretiva: false },
+];
+
+async function medir(braco: Braco, rodadas: number): Promise<Resultado> {
   const r: Resultado = {
     palavrasPapo: [],
     palavrasAnalise: [],
@@ -179,7 +197,7 @@ async function medir(protocolo: boolean, rodadas: number): Promise<Resultado> {
     // Uma sessao por volta: a conversa acumula, como na vida real.
     const sessao = randomUUID();
     for (const msg of PAPO) {
-      const texto = await responder(msg, protocolo, sessao);
+      const texto = await responder(msg, braco, sessao);
       if (!texto) continue;
 
       const p = palavras(texto);
@@ -204,7 +222,7 @@ async function medir(protocolo: boolean, rodadas: number): Promise<Resultado> {
 
   for (const msg of ANALISE) {
     for (let i = 0; i < rodadas; i++) {
-      const texto = await responder(msg, protocolo, randomUUID());
+      const texto = await responder(msg, braco, randomUUID());
       if (texto) r.palavrasAnalise.push(palavras(texto));
     }
   }
@@ -219,58 +237,58 @@ async function main(): Promise<void> {
   console.log(`${B}╔═══ P4 · A conversa — tamanho, eco e iniciativa ═══╗${X}`);
   console.log(`${C}Ethan escreve 6–15 palavras. Quanto é que ela devolve?${X}\n`);
 
-  console.log(`${B}${"═".repeat(64)}${X}`);
-  console.log(`${B}SEM protocolo (o que ele viveu hoje)${X}\n`);
-  const antes = await medir(false, rodadas);
+  const resultados = new Map<string, Resultado>();
+  for (const braco of BRACOS) {
+    console.log(`${B}${"═".repeat(70)}${X}`);
+    console.log(`${B}▶ ${braco.rotulo}${X} ${C}(teto ${braco.registro ? "ON" : "off"} · diretiva ${braco.diretiva ? "ON" : "off"})${X}\n`);
+    resultados.set(braco.rotulo, await medir(braco, rodadas));
+  }
 
-  console.log(`${B}${"═".repeat(64)}${X}`);
-  console.log(`${B}COM protocolo de conversa${X}\n`);
-  const depois = await medir(true, rodadas);
-
-  console.log(`${B}${"═".repeat(64)}${X}`);
+  console.log(`${B}${"═".repeat(70)}${X}`);
   console.log(`${B}RESULTADO${X}\n`);
 
-  const linha = (nome: string, a: string, d: string) =>
-    console.log(`${nome.padEnd(28)} ${A}${a.padStart(10)}${X}   →   ${V}${d.padStart(10)}${X}`);
+  const cols = BRACOS.map((b) => b.rotulo.padStart(11)).join("");
+  console.log(`${C}${"".padEnd(28)}${cols}${X}`);
 
-  console.log(`${C}${"".padEnd(28)} ${"sem proto".padStart(10)}       ${"com proto".padStart(10)}${X}`);
-  linha("palavras no PAPO", media(antes.palavrasPapo).toFixed(0), media(depois.palavrasPapo).toFixed(0));
-  linha(
-    "eco (menos é melhor)",
-    `${antes.ecos}/${antes.totalPapo}`,
-    `${depois.ecos}/${depois.totalPapo}`,
-  );
-  linha(
-    "recapitula (menos é melhor)",
-    `${antes.recapitulacoes}/${antes.totalPapo}`,
-    `${depois.recapitulacoes}/${depois.totalPapo}`,
-  );
-  linha(
-    "iniciativa (mais é melhor)",
-    `${antes.iniciativas}/${antes.totalPapo}`,
-    `${depois.iniciativas}/${depois.totalPapo}`,
-  );
-  linha(
-    "acaba a perguntar",
-    `${antes.perguntasNoFim}/${antes.totalPapo}`,
-    `${depois.perguntasNoFim}/${depois.totalPapo}`,
-  );
+  const linha = (nome: string, valor: (r: Resultado) => string) =>
+    console.log(
+      nome.padEnd(28) + BRACOS.map((b) => valor(resultados.get(b.rotulo)!).padStart(11)).join(""),
+    );
+
+  linha("palavras no PAPO", (r) => media(r.palavrasPapo).toFixed(0));
+  linha("eco (menos é melhor)", (r) => `${r.ecos}/${r.totalPapo}`);
+  linha("recapitula (menos é melhor)", (r) => `${r.recapitulacoes}/${r.totalPapo}`);
+  linha("iniciativa (mais é melhor)", (r) => `${r.iniciativas}/${r.totalPapo}`);
+  linha("acaba a perguntar", (r) => `${r.perguntasNoFim}/${r.totalPapo}`);
 
   console.log();
   console.log(`${B}O CONTROLO — a análise NÃO pode encolher:${X}`);
-  linha(
-    "palavras na ANÁLISE",
-    media(antes.palavrasAnalise).toFixed(0),
-    media(depois.palavrasAnalise).toFixed(0),
-  );
+  linha("palavras na ANÁLISE", (r) => media(r.palavrasAnalise).toFixed(0));
 
-  const encolheuAnalise =
-    media(depois.palavrasAnalise) < media(antes.palavrasAnalise) * 0.7;
-  console.log(
-    encolheuAnalise
-      ? `\n${R}${B}✗ REPROVADO: a análise encolheu. O protocolo está a estragar a Luna técnica.${X}\n`
-      : `\n${V}${B}✓ a análise manteve-se — o protocolo só tocou no papo.${X}\n`,
-  );
+  /**
+   * O limiar era 0,7 — e isso deixou passar uma reprovação. Na corrida anterior a análise
+   * caiu de 262 para 189 palavras (−28%) e o teste imprimiu «✓ a análise manteve-se»,
+   * porque 189 ficava um triz acima de 262 × 0,7 = 183.
+   *
+   * Um critério que deixa passar 28% de perda no controlo não é critério, é decoração.
+   * 0,85: perder mais de 15% da análise reprova.
+   */
+  const LIMIAR = 0.85;
+  const base = media(resultados.get("SEM")!.palavrasAnalise);
+
+  console.log();
+  for (const b of BRACOS.slice(1)) {
+    const r = resultados.get(b.rotulo)!;
+    const analise = media(r.palavrasAnalise);
+    const queda = base > 0 ? (1 - analise / base) * 100 : 0;
+    const reprovou = analise < base * LIMIAR;
+    console.log(
+      reprovou
+        ? `${R}${B}✗ ${b.rotulo}: REPROVADO — a análise encolheu ${queda.toFixed(0)}%. Está a estragar a Luna técnica.${X}`
+        : `${V}${B}✓ ${b.rotulo}: a análise aguentou (${queda > 0 ? "−" : "+"}${Math.abs(queda).toFixed(0)}%).${X}`,
+    );
+  }
+  console.log();
 }
 
 main().catch((e) => {

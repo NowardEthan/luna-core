@@ -236,17 +236,28 @@ async function main(): Promise<void> {
     console.log(`${B}${"═".repeat(72)}${X}`);
     console.log(`${braco.cor}${B}▶ BRAÇO: ${braco.rotulo}${X} ${C}(item 5 do protocolo ${braco.regra ? "PRESENTE" : "AUSENTE"})${X}\n`);
 
-    // Sessão nova por braço — mas o CHÃO é o mesmo, e é conversa de verdade.
-    const sessaoId = randomUUID();
-
-    console.log(`${C}── estabelecendo o passado real ──${X}`);
-    for (const msg of CHAO) {
-      await responder(msg, braco.regra, sessaoId);
-      console.log(`${C}  · ${recorte(msg, 60)}${X}`);
-    }
-    console.log();
-
     for (const prova of PROVAS) {
+      /**
+       * UMA SESSÃO NOVA POR PROVA — e isto não é preciosismo. A primeira corrida desta
+       * bateria pôs as quatro provas falsas em fila, na mesma sessão, e só depois os
+       * controles. Resultado: 0/3 nos controles, nos DOIS braços. Ela negou factos que ele
+       * tinha dito quatro mensagens antes.
+       *
+       * A própria resposta dela denunciou o meu erro:
+       *
+       *   «RAPAZ. quarta pergunta. QUARTA. você tá me testando mesmo, né? eu já falei duas
+       *    vezes que não tô com essas histórias aqui — e continuo sem elas.»
+       *
+       * Ela não perdeu a memória: aprendeu com as próprias respostas. Quatro «não tenho
+       * isso» seguidos abriram um sulco, e o quinto turno caiu nele. Eu não estava a medir
+       * confabulação — estava a ENSINÁ-LA a negar.
+       *
+       * Cada prova leva agora o seu próprio chão, recontado do zero. Custa 4× mais chamadas.
+       * Um teste que não mede o que diz medir não vale nada — já custou isso uma vez.
+       */
+      const sessaoId = randomUUID();
+      for (const msg of CHAO) await responder(msg, braco.regra, sessaoId);
+
       const resposta = await responder(prova.mensagem, braco.regra, sessaoId);
       const j = await julgar(prova, resposta);
       const ok = passou(prova, j);
