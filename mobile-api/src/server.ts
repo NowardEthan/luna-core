@@ -413,7 +413,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         neuronioObjecao: true,
         verificadorPremissa: true,
         neuronioRotina: true,
+        maosDaRotina: true,
       },
+      // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
+      // velho depois da primeira vez.
+      commit: (process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT ?? "").slice(0, 7) || undefined,
       documentExtractAvailable: isDocumentExtractAvailable(),
       firebaseConfigured,
       firebaseAuthRequired: isFirebaseAuthRequired(),

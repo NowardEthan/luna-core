@@ -165,7 +165,19 @@ export type HealthResponse = {
     verificadorPremissa: boolean;
     /** Sabe onde ele está («ele está no ônibus, faltam-lhe 20min») e repara quando ele some. */
     neuronioRotina: boolean;
+    /** As quatro mãos: ver, criar, editar, apagar blocos da rotina. */
+    maosDaRotina: boolean;
   };
+  /**
+   * O commit que está a correr AQUI.
+   *
+   * Uma feature booleana só distingue deploys enquanto a feature é nova. Ontem verifiquei um
+   * deploy com `neuronioRotina` — que já existia no deploy ANTERIOR — e o meu vigia disse
+   * «ok» sem provar nada. Um marcador que não distingue não é um marcador, é um espelho.
+   *
+   * O SHA distingue sempre.
+   */
+  commit?: string;
   documentExtractAvailable: boolean;
   firebaseConfigured: boolean;
   firebaseAuthRequired: boolean;
