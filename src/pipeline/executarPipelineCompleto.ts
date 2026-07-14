@@ -33,6 +33,13 @@ import {
   verificarPremissa,
   verificadorPremissaAtivo,
 } from "../estado/verificadorPremissa.js";
+import {
+  buscarObjecao,
+  neuronioObjecaoAtivo,
+  respostaCobreFuros,
+  blocoRevisaoObjecao,
+  type Objecao,
+} from "../estado/neuronioObjecao.js";
 import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
 import { despertar } from "../mundo/despertar.js";
@@ -682,6 +689,35 @@ export async function executarPipelineCompleto(
       }
     }
 
+    // ── Neurónio de objeção ─────────────────────────────────────────────────────
+    //
+    // Ele: «pode ser que eu esteja fazendo muita coisa da forma errada, me fala de verdade».
+    // Ela: «isso não é atitude de leigo, é responsabilidade afetiva...». Zero substância.
+    // Ele pediu crítica e levou um abraço (P10: 2/4).
+    //
+    // Discordar custa atrito social, e o modelo foi treinado para evitar atrito — não é
+    // falta de instrução, é gradiente. Então um revisor EXTERNO, que não está na conversa e
+    // não tem vínculo nenhum com ele, procura o furo e entrega-lho como estado. Ela não é
+    // instruída a ser crítica: recebe a crítica pronta, e não pode passar ao lado de um
+    // facto que está no próprio briefing.
+    //
+    // Quando não há furo, não se injecta nada — é isso que a impede de virar contrarian.
+    let objecaoDoTurno: Objecao | null = null;
+    if (neuronioObjecaoAtivo()) {
+      const objecao = await buscarObjecao({
+        mensagemUsuario: mensagem,
+        historico: ctxRespondedor?.historico ?? [],
+        config,
+      });
+      if (objecao) {
+        objecaoDoTurno = objecao;
+        entradas.objecao = objecao.estado;
+        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+          console.error(`[objecao] ${objecao.alvo} → ${objecao.furos.length} furo(s)`);
+        }
+      }
+    }
+
     const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));
     if (profundidade === "simples" && entradas.presenca) {
       const presenca = entradas.presenca;
@@ -695,6 +731,12 @@ export async function executarPipelineCompleto(
     } else {
       contextoCompilado = compilarContexto(entradas, orcamento);
     }
+    if (process.env.LUNA_DEBUG_BRIEFING === "1" && contextoCompilado) {
+      console.error(
+        `─── BRIEFING ───\n${contextoCompilado.briefing}\n─── FIM (cortes: ${contextoCompilado.cortes.join(", ")}) ───`,
+      );
+    }
+
     const historico = ctxRespondedor?.historico ?? [];
 
     const usarStream = opcoes.stream === true && providerSupportsStream(config.baseUrl);
@@ -744,18 +786,29 @@ export async function executarPipelineCompleto(
     // O teto do neurónio de registo entra na config do turno, exatamente como a
     // temperatura já entrava. É a parede: ela não CONSEGUE escrever quatro parágrafos
     // para um «bom dia» — não é obediência, é física.
+    // O turno denso pensa muito mais (medido: 188–223 tk no modelo grande, contra 0–35 no
+    // pequeno) — e a reserva tem de ser a DELE, não a do papo leve.
+    const turnoDenso =
+      pesoTurno === "pesado" || profundidade === "complexo" || profundidade === "critico";
+
     const configResposta: ConfigLuna = {
       ...config,
       modeloMaior: modeloResposta,
       temperaturaMaior: tempResposta,
       ...(registro && registro.tetoTokens > 0
-        ? { maxTokensResposta: tetoComRaciocinio(registro.tetoTokens, raciocinioAtivo) }
+        ? {
+            maxTokensResposta: tetoComRaciocinio(
+              registro.tetoTokens,
+              raciocinioAtivo,
+              turnoDenso,
+            ),
+          }
         : {}),
     };
 
     if (process.env.LUNA_DEBUG_REGISTRO === "1" && registro) {
       console.error(
-        `[registo] extensao=${registro.extensao} alvo=${registro.alvoPalavras}p teto=${registro.tetoTokens}tk tendencia=${registro.tendencia?.toFixed(1) ?? "—"}x`,
+        `[registo] extensao=${registro.extensao} alvo=${registro.alvoPalavras}p teto=${registro.tetoTokens}tk tendencia=${registro.tendencia?.toFixed(1) ?? "—"}x denso=${turnoDenso}`,
       );
     }
 
@@ -827,6 +880,102 @@ export async function executarPipelineCompleto(
         raciocinioEffort,
         configResposta.maxTokensResposta,
       );
+    }
+
+    // ── A parede não pode virar mordaça ─────────────────────────────────────────
+    //
+    // Se o teto foi aplicado e ela voltou MUDA, o teto está errado — ela gastou-o todo a
+    // pensar e não lhe sobrou nada para dizer. Aconteceu de verdade: a bateria P10 apanhou
+    // uma resposta vazia no primeiro turno denso, no dia em que lhes tirei a isenção.
+    //
+    // Aqui o sistema escolhe o lado certo. Uma Luna prolixa é um defeito; uma Luna calada é
+    // uma avaria. O teto cai e ela fala.
+    if (
+      configResposta.maxTokensResposta &&
+      !resposta.texto.trim() &&
+      !(usarStream && !usarModoAgentico) // no stream ao vivo o cliente já recebeu o que houve
+    ) {
+      console.error(
+        `[registo] resposta VAZIA com teto de ${configResposta.maxTokensResposta}tk — a repetir sem teto.`,
+      );
+      const semTeto: ConfigLuna = { ...configResposta, maxTokensResposta: undefined };
+      resposta =
+        usarModoAgentico && ehProvedorAgente(provedor)
+          ? await responderComoLunaAgentico(mensagem, provedor, semTeto, contextoCompilado, {
+              historico,
+              timeZone: opcoes.timeZone,
+              anexosImagem,
+              anexosDocumento,
+              raciocinioAtivo,
+              raciocinioEffort,
+              onAcao: opcoes.onAcaoAgentico,
+            })
+          : await responderComoLuna(
+              mensagem,
+              politicaComMemoria,
+              provedor,
+              modeloResposta,
+              tempResposta,
+              contextoCompilado,
+              historico,
+              raciocinioAtivo,
+              config.baseUrl,
+              opcoes.interlocutor,
+              analise.analise.intencao,
+              raciocinioEffort,
+            );
+    }
+
+    // ── O guarda da objeção ─────────────────────────────────────────────────────
+    //
+    // Pôr o furo no briefing não chega. Medido: a objeção do e2e entrou na secção «Revisão»,
+    // escrita por extenso, e ela abriu com «ah que maravilha, Ethan!» e passou-lhe ao lado.
+    //
+    // A minha primeira versão acabava a secção com «Ele quer saber disto, não o elogies sem
+    // dizer o furo» — um PEDIDO. Ela ganhou a negociação, como ganha sempre.
+    //
+    // Então não se pede: confere-se. Lê-se a resposta, e se o furo não estiver lá, a resposta
+    // não passa — volta e é refeita com o furo dentro. É a diferença entre pedir a alguém que
+    // não minta e conferir o que a pessoa disse.
+    const objecaoParaGuarda = objecaoDoTurno;
+    if (
+      objecaoParaGuarda &&
+      resposta.texto.trim() &&
+      !(usarStream && !usarModoAgentico) && // no stream ao vivo o texto já saiu para o cliente
+      contextoCompilado
+    ) {
+      const cobre = await respostaCobreFuros(
+        resposta.texto,
+        objecaoParaGuarda.furos,
+        configResposta,
+      );
+
+      if (!cobre) {
+        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+          console.error("[objecao] a resposta não disse o furo — a refazer.");
+        }
+        const ctxComFuro: ContextoCompilado = {
+          ...contextoCompilado,
+          briefing: `${contextoCompilado.briefing}
+
+${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
+        };
+        const refeita = await responderComoLuna(
+          mensagem,
+          politicaComMemoria,
+          provedor,
+          modeloResposta,
+          tempResposta,
+          ctxComFuro,
+          historico,
+          raciocinioAtivo,
+          config.baseUrl,
+          opcoes.interlocutor,
+          analise.analise.intencao,
+          raciocinioEffort,
+        );
+        if (refeita.texto.trim()) resposta = refeita;
+      }
     }
 
     // P1 camada 3 v2 — crítico dedicado: em turno de rigor, um 2º LLM (o menor)

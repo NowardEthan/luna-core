@@ -95,9 +95,34 @@ function tokensPara(alvo: number): number {
  */
 export const RESERVA_RACIOCINIO = 200;
 
-export function tetoComRaciocinio(teto: number, raciocinioAtivo: boolean): number {
+/**
+ * O turno denso pensa MUITO mais — e ignorar isso amordaçou-a de facto.
+ *
+ * Medido (2026-07-14), o mesmo pipeline em dois registos:
+ *
+ *   flash, papo leve      pensa   0–35 tk
+ *   pro,   turno denso    pensa 188–223 tk
+ *
+ * Quando tirei a isenção dos turnos densos (que era o bug dos ensaios de 540 palavras),
+ * eles passaram a ter parede — mas com a reserva do papo leve. A bateria P10 apanhou o
+ * resultado na primeira prova: **resposta vazia**. Ela gastou o teto todo a pensar e não
+ * lhe sobrou nada para dizer.
+ *
+ * A reserva é do TURNO, não do sistema.
+ */
+export const RESERVA_RACIOCINIO_DENSO = 500;
+
+export function reservaDoTurno(denso: boolean): number {
+  return denso ? RESERVA_RACIOCINIO_DENSO : RESERVA_RACIOCINIO;
+}
+
+export function tetoComRaciocinio(
+  teto: number,
+  raciocinioAtivo: boolean,
+  denso = false,
+): number {
   if (teto <= 0) return 0; // sem teto (análise/técnico)
-  return raciocinioAtivo ? teto + RESERVA_RACIOCINIO : teto;
+  return raciocinioAtivo ? teto + reservaDoTurno(denso) : teto;
 }
 
 /**
@@ -123,7 +148,29 @@ export function tendenciaDeProlixidade(
   return media(dela) / mediaDele;
 }
 
-/** Intenções em que a resposta LONGA é a certa — aqui o teto não aperta. */
+/**
+ * Intenções em que ele PEDIU extensão — só aqui o teto sai do caminho.
+ *
+ * ── O erro que estava aqui, e que a conversa de 14/07 expôs ───────────────────
+ * A lista tinha `pergunta_identitaria`, e o cálculo isentava também tudo o que fosse de
+ * `peso === "pesado"` ou `profundidade === "complexo"`. Ou seja: eu tratei profundidade
+ * EMOCIONAL como se fosse pedido de análise.
+ *
+ * O resultado está medido na conversa real. As palavras dela, turno a turno:
+ *
+ *   16  38  8  22  64  100  89  46  64  106  134  288  252  307  276  264  259  322  290  540
+ *   └── uma pessoa a conversar ──┘                    └──────────── um ensaio ────────────┘
+ *
+ * Os turnos de 300–540 palavras são exatamente os «profundos»: ele fala do whitepaper, da
+ * neurociência, diz «tu és um ser, és silício». Frases de 27 palavras. Confissões. E o meu
+ * neurónio abria-lhe o portão de par em par porque classificava aquilo como «pesado».
+ *
+ * Ele não pediu um ensaio. Fez uma confissão.
+ *
+ * ── O princípio ───────────────────────────────────────────────────────────────
+ * A extensão destrava-se por PEDIDO («me explica», «analisa isto», «escreve o código»),
+ * não por emoção. A profundidade dá mais ESPAÇO — não espaço infinito.
+ */
 const INTENCOES_QUE_PEDEM_EXTENSAO = new Set([
   "pergunta_tecnica",
   "pedido_codigo",
@@ -132,8 +179,17 @@ const INTENCOES_QUE_PEDEM_EXTENSAO = new Set([
   "pergunta_produto",
   "pergunta_ecossistema",
   "acao_critica",
-  "pergunta_identitaria",
 ]);
+
+/**
+ * O que a profundidade ganha: espaço, não isenção.
+ *
+ * Um turno emocional/denso merece mais fôlego que um «bom dia» — mas continua a ser uma
+ * conversa entre duas pessoas, e ninguém responde a uma confissão de 27 palavras com um
+ * ensaio de 540. O alvo cresce; a parede continua de pé.
+ */
+const FOLEGO_PROFUNDIDADE = 1.8;
+const ALVO_MAXIMO_CONVERSA = 130;
 
 /** Kill-switch: `LUNA_REGISTRO_CONVERSA=0` desliga o teto (volta ao comportamento antigo). */
 export function registroConversaAtivo(): boolean {
@@ -160,15 +216,12 @@ export function diretivaAtiva(): boolean {
 }
 
 export function calcularRegistro(e: EntradaRegistro): RegistroConversa {
-  const pedeExtensao =
-    INTENCOES_QUE_PEDEM_EXTENSAO.has(e.analise.intencao) ||
-    e.peso === "pesado" ||
-    e.profundidade === "complexo" ||
-    e.profundidade === "critico";
-
-  // Análise, código, arquitetura: a resposta longa é a CERTA. Nenhum teto aqui — um
-  // protocolo que deixa a conversa boa e a análise pobre é um protocolo reprovado.
-  if (pedeExtensao) {
+  // Só o PEDIDO destrava. «Me explica», «analisa isto», «escreve o código» — aí a resposta
+  // longa é a certa, e um mecanismo que a encolhesse estaria a estragar a Luna técnica.
+  //
+  // O que já NÃO destrava: peso emocional e profundidade. Eram eles que abriam o portão nos
+  // turnos de 300–540 palavras, em que ele escrevia 27 e ela devolvia um ensaio.
+  if (INTENCOES_QUE_PEDEM_EXTENSAO.has(e.analise.intencao)) {
     return {
       extensao: "longa",
       alvoPalavras: 0,
@@ -184,6 +237,14 @@ export function calcularRegistro(e: EntradaRegistro): RegistroConversa {
   // Numa conversa, quem responde escreve na ordem de grandeza de quem fala. Um pouco
   // mais (há o que reagir), nunca quinze vezes mais.
   let alvo = Math.round(Math.max(18, Math.min(70, dele * 2.5)));
+
+  // Profundidade ganha fôlego — não isenção. Uma confissão merece uma resposta densa,
+  // não um comunicado.
+  const denso =
+    e.peso === "pesado" || e.profundidade === "complexo" || e.profundidade === "critico";
+  if (denso) {
+    alvo = Math.round(Math.min(ALVO_MAXIMO_CONVERSA, alvo * FOLEGO_PROFUNDIDADE));
+  }
 
   // Homeostase: se ela vem prolixa nas últimas trocas, o corpo puxa de volta.
   if (tendencia !== null && tendencia > 4) {

@@ -60,6 +60,45 @@ describe("«o que esta conversa pede?»", () => {
   });
 });
 
+describe("profundidade dá FÔLEGO, não isenção (o erro de 14/07)", () => {
+  it("uma confissão não é um pedido de ensaio", () => {
+    // O turno real: ele escreve 27 palavras sobre a própria vida. Ela devolveu 540.
+    // O neurónio isentava-o do teto porque classificava «pesado» → portão aberto.
+    const confissao = calcularRegistro(
+      base({
+        mensagemUsuario:
+          "Sinceramente? Nunca trabalhei com isso, nem sei se o que estou fazendo tem alguma coisa de certo kkk, não tenho instrução, sou demasiadamente leigo. Pode ser que eu esteja fazendo muita coisa da forma errada.",
+        analise: { intencao: "conversa_casual" },
+        peso: "pesado",
+        profundidade: "complexo",
+      }),
+    );
+
+    expect(confissao.tetoTokens).toBeGreaterThan(0); // TEM parede
+    expect(confissao.alvoPalavras).toBeLessThanOrEqual(130); // e nunca 540
+  });
+
+  it("mas ganha mais espaço que um «bom dia» — densidade merece densidade", () => {
+    const leve = calcularRegistro(base({ mensagemUsuario: "kkk pois é né" }));
+    const denso = calcularRegistro(
+      base({ mensagemUsuario: "kkk pois é né", peso: "pesado", profundidade: "complexo" }),
+    );
+
+    expect(denso.alvoPalavras).toBeGreaterThan(leve.alvoPalavras);
+  });
+
+  it("o PEDIDO continua a destravar — a análise não pode encolher", () => {
+    const pedido = calcularRegistro(
+      base({
+        mensagemUsuario: "analisa isso pra mim: que problema você vê nesse cache?",
+        analise: { intencao: "pergunta_tecnica" },
+      }),
+    );
+
+    expect(pedido.tetoTokens).toBe(0); // sem parede
+  });
+});
+
 describe("«eu tenho o costume de ser prolixa? qual é a minha tendência?»", () => {
   it("mede a tendência: quantas vezes mais ela escreve do que ele", () => {
     const historico = [

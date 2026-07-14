@@ -16,6 +16,7 @@ export type EntradasCompilador = {
   presenca?: string;
   memorias_longas?: string;
   premissa?: string;
+  objecao?: string;
   sense?: string;
   ambiente?: string;
   preditivo?: string;
@@ -56,6 +57,9 @@ const SECOES: SecaoDef[] = [
   // cortada, ela volta a engolir um passado que não existiu — que é o defeito que o
   // neurónio existe para matar. Só aparece nos turnos em que há algo a verificar.
   { chave: "premissa", titulo: "Verificação", prioridade: 1, orcamento: 120 },
+  // O furo que um revisor externo encontrou no que ele disse. Protegida: se o orçamento a
+  // cortar, ela volta a elogiar e a deixá-lo ir contra a parede sozinho.
+  { chave: "objecao", titulo: "Revisão", prioridade: 1, orcamento: 180 },
   { chave: "sense", titulo: "Sense", prioridade: 6, orcamento: 200 },
   { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 200 },
   { chave: "habitat", titulo: "Habitat", prioridade: 3, orcamento: 140 },
@@ -82,6 +86,7 @@ const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "habitat",
   "memorias_longas",
   "premissa",
+  "objecao",
 ]);
 
 /** Orçamento vinculante por profundidade do tálamo (pkg-comp). */
