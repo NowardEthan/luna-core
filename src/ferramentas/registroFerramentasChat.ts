@@ -233,7 +233,16 @@ const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
       passos: {
         type: "array",
         items: { type: "string" },
-        description: "Até 6 passos concretos, na ordem. Cada um deve caber numa linha.",
+        description: "Até 6 passos concretos, na ordem. Cada um deve caber numa linha. É o ARRANQUE.",
+      },
+      guia: {
+        type: "string",
+        description:
+          "O guia FUNDO — a receita completa com ingredientes e quantidades, o treino inteiro, " +
+          "o plano de estudo detalhado. SEM limite de tamanho, mas SÓ quando ele PEDE («me dá a receita», " +
+          "«detalha mais», «como faço isso direito»). Não escrevas guia sem ele pedir: os passos já " +
+          "chegam para arrancar, e um guia não pedido é a tutela que ele vai apagar. Aqui podes usar " +
+          "linhas e listas (com «- » ou «1. »).",
       },
     },
     required: ["bloco_id"],

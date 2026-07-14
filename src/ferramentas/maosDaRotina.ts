@@ -34,6 +34,14 @@ export type CamposBloco = {
   roteiro?: string;
   /** Os passos. Riscar um passo é COMEÇAR — e começar é o que não acontece sozinho. */
   passos?: PassoBloco[];
+  /**
+   * O guia FUNDO — a receita completa, o treino inteiro, o plano de estudo detalhado.
+   *
+   * Sem limite, e SÓ quando ele pede. É o contrário dos passos: os passos são o empurrão
+   * mínimo para arrancar (por isso capados a 6, para não virar tutela); o guia é a
+   * profundidade que ele foi buscar de propósito. Um só o protege; o outro atende.
+   */
+  guia?: string;
 };
 
 export type DependenciasRotina = {
@@ -294,6 +302,7 @@ export async function detalharBloco(
   if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi escrito.`;
 
   const roteiro = typeof args.roteiro === "string" ? args.roteiro.trim() : undefined;
+  const guia = typeof args.guia === "string" ? args.guia.trim() : undefined;
 
   const passos: PassoBloco[] = Array.isArray(args.passos)
     ? args.passos
@@ -303,18 +312,21 @@ export async function detalharBloco(
         .map((texto, i) => ({ id: `p${i}`, texto, feito: false }))
     : [];
 
-  if (!roteiro && !passos.length) {
-    return "ERRO: não disseste nem roteiro nem passos. Nada foi escrito.";
+  if (!roteiro && !passos.length && !guia) {
+    return "ERRO: não disseste roteiro, passos nem guia. Nada foi escrito.";
   }
 
   await deps.editar(id, {
     ...(roteiro ? { roteiro } : {}),
     ...(passos.length ? { passos } : {}),
+    ...(guia ? { guia } : {}),
   });
 
-  return (
-    `Escrito em «${alvo.titulo}»: ` +
-    `${roteiro ? "roteiro" : ""}${roteiro && passos.length ? " + " : ""}` +
-    `${passos.length ? `${passos.length} passo(s)` : ""}. Ele vê isto ao tocar no bloco.`
-  );
+  const partes = [
+    roteiro ? "roteiro" : "",
+    passos.length ? `${passos.length} passo(s)` : "",
+    guia ? "guia completo" : "",
+  ].filter(Boolean);
+
+  return `Escrito em «${alvo.titulo}»: ${partes.join(" + ")}. Ele vê isto ao tocar no bloco.`;
 }
