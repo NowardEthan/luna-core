@@ -29,6 +29,10 @@ import { ativarHabitos, adicionarOuIncrementarHabito } from "../perfil/gerenciad
 import type { HabitoComportamental } from "../perfil/esquemaPerfil.js";
 import { montarNarrativaRaciocinio } from "./montarNarrativaRaciocinio.js";
 import { compilarContexto, orcamentoPorProfundidade } from "../contexto/compiladorContexto.js";
+import {
+  verificarPremissa,
+  verificadorPremissaAtivo,
+} from "../estado/verificadorPremissa.js";
 import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
 import { despertar } from "../mundo/despertar.js";
@@ -648,6 +652,34 @@ export async function executarPipelineCompleto(
       entradas.formato = entradas.formato
         ? `${entradas.formato}\n${registro.diretiva}`
         : registro.diretiva;
+    }
+
+    // ── Neurónio de premissa ────────────────────────────────────────────────────
+    //
+    // «já que ontem você concordou comigo que o orbit tem que ser pago…» — ela nunca
+    // concordou, e engolia a premissa para não criar atrito. A P5 mediu: falha 1 em 4, e
+    // sempre nesta. E mediu também que a REGRA no prompt (~55 tokens, «não finjas que
+    // lembras») não muda nada: 3/4 com ela, 3/4 sem ela.
+    //
+    // Então o sistema faz o trabalho em vez de o pedir: procura o passado afirmado no
+    // histórico e na memória, e entrega o veredito como ESTADO. Ela não é instruída a ser
+    // honesta — recebe o facto. Só corre quando há algo a verificar (heurística de custo
+    // zero); nos outros turnos não custa um milissegundo.
+    if (verificadorPremissaAtivo()) {
+      const veredito = await verificarPremissa({
+        mensagemUsuario: mensagem,
+        historico: ctxRespondedor?.historico ?? [],
+        memorias: entradas.memorias_longas,
+        config,
+      });
+      if (veredito) {
+        entradas.premissa = veredito.estado;
+        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+          console.error(
+            `[premissa] «${veredito.afirmacao}» → ${veredito.encontrada ? "ACONTECEU" : "NÃO EXISTE"}`,
+          );
+        }
+      }
     }
 
     const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));

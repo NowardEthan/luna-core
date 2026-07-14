@@ -15,6 +15,7 @@ export type EntradasCompilador = {
   humor?: string;
   presenca?: string;
   memorias_longas?: string;
+  premissa?: string;
   sense?: string;
   ambiente?: string;
   preditivo?: string;
@@ -51,6 +52,10 @@ const SECOES: SecaoDef[] = [
   // DEPOIS de as protegidas (que sozinhas somam ~1100) esgotarem o orçamento de 1100 do
   // turno casual — ou seja, era descartada SEMPRE. Não "às vezes": nunca cabia.
   { chave: "memorias_longas", titulo: "Memórias", prioridade: 2, orcamento: 600 },
+  // O veredito do verificador de premissa. Prioridade 1 e protegida: se esta secção for
+  // cortada, ela volta a engolir um passado que não existiu — que é o defeito que o
+  // neurónio existe para matar. Só aparece nos turnos em que há algo a verificar.
+  { chave: "premissa", titulo: "Verificação", prioridade: 1, orcamento: 120 },
   { chave: "sense", titulo: "Sense", prioridade: 6, orcamento: 200 },
   { chave: "ambiente", titulo: "Ambiente", prioridade: 7, orcamento: 200 },
   { chave: "habitat", titulo: "Habitat", prioridade: 3, orcamento: 140 },
@@ -76,6 +81,7 @@ const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "vida",
   "habitat",
   "memorias_longas",
+  "premissa",
 ]);
 
 /** Orçamento vinculante por profundidade do tálamo (pkg-comp). */
