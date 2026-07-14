@@ -40,6 +40,7 @@ import {
   blocoRevisaoObjecao,
   type Objecao,
 } from "../estado/neuronioObjecao.js";
+import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
 import { enxugarContextoParaSimples } from "../contexto/enxugarContexto.js";
 import { montarEntradasCompilador } from "../contexto/montarEntradasCompilador.js";
 import { despertar } from "../mundo/despertar.js";
@@ -745,6 +746,14 @@ export async function executarPipelineCompleto(
     // disposição dela, mas não podem forçar o modo agêntico em toda mensagem só
     // porque a conversa teve uma foto lá atrás — quem os invoca é a fala ("olha
     // aquela foto"), que o `mensagemPedeImagem` já reconhece.
+    // As ferramentas que correram MESMO neste turno. É com isto que o detetor de encenação
+    // sabe que «*abro o whitepaper*» é teatro: marca de ação + zero ferramentas.
+    const ferramentasDoTurno: string[] = [];
+    const onAcaoComRegisto = (acao: AcaoAgenticoChat) => {
+      if (acao.tipo === "inicio_ferramenta") ferramentasDoTurno.push(acao.ferramenta);
+      opcoes.onAcaoAgentico?.(acao);
+    };
+
     const anexosDesteTurno = anexosImagem.filter((a) => !a.deTurnoAnterior);
     const anexosDocumento = opcoes.anexosDocumento ?? [];
     const usarModoAgentico = deveUsarModoAgentico(
@@ -791,11 +800,29 @@ export async function executarPipelineCompleto(
     const turnoDenso =
       pesoTurno === "pesado" || profundidade === "complexo" || profundidade === "critico";
 
+    // ── A parede cega está DESLIGADA por omissão ────────────────────────────────
+    //
+    // O `max_tokens` foi a minha aposta o dia inteiro para conter a prolixidade, e falhou de
+    // três maneiras diferentes:
+    //
+    //   · conta o RACIOCÍNIO junto com a fala — a reserva de 600 tornava-a decorativa (P7),
+    //     e a de 200 amordaçou-a de vez num turno denso (P10 apanhou uma resposta VAZIA);
+    //   · corta a meio da frase, porque não lê o que ela escreveu;
+    //   · e é o mesmo instrumento para uma piada e para uma confissão.
+    //
+    // A linha de revisão faz o trabalho melhor: deixa-a falar livre e corta DEPOIS, com
+    // critério, preservando as palavras dela. *Reason free, constrain late.*
+    //
+    // O código fica, com o interruptor ao contrário: `LUNA_PAREDE_TOKENS=1` ressuscita-a se
+    // algum dia a linha de revisão sair cara de mais. Mas o default é confiar no bisturi, não
+    // na guilhotina.
+    const paredeLigada = process.env.LUNA_PAREDE_TOKENS?.trim() === "1";
+
     const configResposta: ConfigLuna = {
       ...config,
       modeloMaior: modeloResposta,
       temperaturaMaior: tempResposta,
-      ...(registro && registro.tetoTokens > 0
+      ...(paredeLigada && registro && registro.tetoTokens > 0
         ? {
             maxTokensResposta: tetoComRaciocinio(
               registro.tetoTokens,
@@ -827,7 +854,7 @@ export async function executarPipelineCompleto(
           anexosDocumento,
           raciocinioAtivo,
           raciocinioEffort,
-          onAcao: opcoes.onAcaoAgentico,
+          onAcao: onAcaoComRegisto,
           // onRaciocinioRodada dispara 2x por rodada (emProgresso true/false) com o
           // MESMO texto completo — não são deltas incrementais. Repassa só na 1ª,
           // senão o texto duplica na tira de raciocínio do cliente.
@@ -908,7 +935,7 @@ export async function executarPipelineCompleto(
               anexosDocumento,
               raciocinioAtivo,
               raciocinioEffort,
-              onAcao: opcoes.onAcaoAgentico,
+              onAcao: onAcaoComRegisto,
             })
           : await responderComoLuna(
               mensagem,
@@ -1024,6 +1051,39 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
           raciocinioEffort,
         );
         if (revisada.texto.trim()) resposta = revisada;
+      }
+    }
+
+    // ── A LINHA DE REVISÃO ──────────────────────────────────────────────────────
+    //
+    // A ideia é do Ethan: «deixa a Luna responder, e então faríamos uma linha de revisão».
+    // Um detetor e um reescritor — e o detetor é, quase todo, aritmética.
+    //
+    // Andei o dia a tentar controlar o tamanho com `max_tokens`, e essa parede é CEGA: corta
+    // a meio da frase e, quando o raciocínio lhe come o teto, ela vem MUDA. Não sabe onde
+    // cortar porque não lê o que ela escreveu.
+    //
+    // Isto lê. Deixa-a falar à vontade e corta depois, com critério — *reason free, constrain
+    // late*. E o que vai para o reescritor não são REGRAS, são FALHAS MEDIDAS: «escreveu 312
+    // palavras, esta troca pedia 60». Ele corta; não reescreve. A voz dela não se toca —
+    // um editor a «melhorar o tom» devolve texto médio, seguro e morto.
+    //
+    // Num «bom dia» nenhum detetor dispara e isto não custa um milissegundo.
+    if (resposta.texto.trim() && !(usarStream && !usarModoAgentico)) {
+      const revisao = await passarPelaLinha({
+        resposta: resposta.texto,
+        mensagemDele: mensagem,
+        historicoDele: historico.filter((m) => m.papel === "user").map((m) => m.conteudo),
+        // 0 = turno de análise: o editor nem acorda. Um mecanismo que deixa a conversa boa e
+        // a análise pobre é um mecanismo reprovado.
+        alvoPalavras: registro?.alvoPalavras ?? 0,
+        ferramentasUsadas: ferramentasDoTurno,
+        urlsBuscados: [],
+        config,
+      });
+
+      if (revisao.texto !== resposta.texto) {
+        resposta = { ...resposta, texto: revisao.texto };
       }
     }
 

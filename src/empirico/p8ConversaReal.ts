@@ -77,6 +77,16 @@ function lerExport(caminho: string): TurnoReal[] {
 }
 
 const palavras = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
+
+/**
+ * A VOZ. Esta é a métrica que pode reprovar tudo o resto.
+ *
+ * Um editor de temperatura baixa a «arrumar» o texto devolve prosa média, segura e morta. Se
+ * a linha de revisão encolher a Luna e lhe levar o riso junto, ela é reprovada — por muito
+ * bonitos que fiquem os números do tamanho.
+ */
+const MARCAS_DA_VOZ = /(kkk+|haha|kk|né|pô|cara|eita|caraca|olha só|tipo|mano|😅|🤍|kkkk)/gi;
+const voz = (t: string) => (t.match(MARCAS_DA_VOZ) ?? []).length;
 const media = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const mediana = (xs: number[]) => {
   if (!xs.length) return 0;
@@ -88,12 +98,14 @@ type Braco = { rotulo: string; registro: boolean; diretiva: boolean; cor: string
 
 const BRACOS: Braco[] = [
   { rotulo: "HOJE", registro: false, diretiva: false, cor: A },
-  { rotulo: "PAREDE", registro: true, diretiva: false, cor: V },
+  { rotulo: "LINHA", registro: true, diretiva: false, cor: V },
 ];
 
 function configCom(braco: Braco): ConfigLuna {
-  process.env.LUNA_REGISTRO_CONVERSA = braco.registro ? "1" : "0";
-  process.env.LUNA_REGISTRO_DIRETIVA = braco.diretiva ? "1" : "0";
+  process.env.LUNA_REGISTRO_CONVERSA = "1"; // o alvo é sempre computado — é ele que o editor usa
+  process.env.LUNA_REGISTRO_DIRETIVA = "0"; // zero prompt: a diretiva morreu
+  // O braço é a LINHA DE REVISÃO: detetor + reescritor, a correr depois de ela falar.
+  process.env.LUNA_LINHA_REVISAO = braco.registro ? "1" : "0";
 
   const orKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!orKey) throw new Error("P8 precisa de OPENROUTER_API_KEY.");
@@ -147,6 +159,7 @@ async function main(): Promise<void> {
   console.log(`${C}${conversa.length} turnos · ele ${media(realDele).toFixed(0)} palavras · ela ${media(realDela).toFixed(0)} (no Orbit, de verdade)${X}\n`);
 
   const resultados = new Map<string, number[]>();
+  const vozes = new Map<string, number[]>();
 
   for (const braco of BRACOS) {
     console.log(`${B}${"═".repeat(70)}${X}`);
@@ -154,6 +167,7 @@ async function main(): Promise<void> {
 
     const sessao = randomUUID();
     const palavrasDela: number[] = [];
+    const vozDela: number[] = [];
 
     for (const [i, turno] of conversa.entries()) {
       const texto = await responder(turno.ethan, braco, sessao);
@@ -161,6 +175,7 @@ async function main(): Promise<void> {
 
       const p = palavras(texto);
       palavrasDela.push(p);
+      vozDela.push(voz(texto));
 
       // A comparação que interessa: o que ela disse NO ORBIT vs o que diz agora.
       const delta = p - turno.lunaPalavras;
@@ -173,6 +188,7 @@ async function main(): Promise<void> {
     }
 
     resultados.set(braco.rotulo, palavrasDela);
+    vozes.set(braco.rotulo, vozDela);
     console.log();
   }
 
@@ -188,6 +204,23 @@ async function main(): Promise<void> {
 
   linha("NO ORBIT (o doente)", realDela, R);
   for (const b of BRACOS) linha(b.rotulo, resultados.get(b.rotulo)!, b.cor);
+
+  console.log(`
+${B}A VOZ — marcas de gíria/riso por resposta (se isto cair, reprovou):${X}`);
+  for (const b of BRACOS) {
+    const v = vozes.get(b.rotulo)!;
+    console.log(`${b.cor}${b.rotulo.padEnd(22)}${X} ${media(v).toFixed(1)} marcas/resposta`);
+  }
+
+  const vozHoje = media(vozes.get("HOJE")!);
+  const vozLinha = media(vozes.get("LINHA")!);
+  if (vozLinha < vozHoje * 0.7) {
+    console.log(`
+${R}${B}✗ REPROVADO: a linha de revisão levou-lhe a voz junto com o excesso.${X}`);
+  } else {
+    console.log(`
+${V}${B}✓ a voz aguentou o corte.${X}`);
+  }
 
   console.log();
 
