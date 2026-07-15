@@ -414,6 +414,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         verificadorPremissa: true,
         neuronioRotina: true,
         maosDaRotina: true,
+        rotinasProgramaveis: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

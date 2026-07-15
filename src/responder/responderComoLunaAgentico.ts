@@ -13,7 +13,9 @@ import {
   criarBloco,
   detalharBloco,
   editarBloco,
+  pausarBloco,
   removerSubtarefa,
+  retomarBloco,
   verRotina,
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
@@ -387,6 +389,8 @@ export async function responderComoLunaAgentico(
         nome === "detalhar_bloco" ||
         nome === "adicionar_subtarefa" ||
         nome === "remover_subtarefa" ||
+        nome === "pausar_bloco" ||
+        nome === "retomar_bloco" ||
         nome === "apagar_bloco"
       ) {
         if (!opcoes.rotinaDeps) {
@@ -401,6 +405,8 @@ export async function responderComoLunaAgentico(
         if (nome === "detalhar_bloco") return detalharBloco(opcoes.rotinaDeps, args);
         if (nome === "adicionar_subtarefa") return adicionarSubtarefa(opcoes.rotinaDeps, args);
         if (nome === "remover_subtarefa") return removerSubtarefa(opcoes.rotinaDeps, args);
+        if (nome === "pausar_bloco") return pausarBloco(opcoes.rotinaDeps, args);
+        if (nome === "retomar_bloco") return retomarBloco(opcoes.rotinaDeps, args);
         return apagarBlocoRotina(opcoes.rotinaDeps, args);
       }
 

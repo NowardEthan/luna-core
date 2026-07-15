@@ -167,6 +167,8 @@ export type HealthResponse = {
     neuronioRotina: boolean;
     /** As quatro mãos: ver, criar, editar, apagar blocos da rotina. */
     maosDaRotina: boolean;
+    /** A Luna vê só a rotina que vigora hoje (de férias, não cobra o trabalho). */
+    rotinasProgramaveis: boolean;
   };
   /**
    * O commit que está a correr AQUI.

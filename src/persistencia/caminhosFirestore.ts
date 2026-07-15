@@ -43,3 +43,8 @@ export function colRotina(uid: string): string {
 export function colRotinaLog(uid: string): string {
   return `${FS.users}/${uid}/routine_log`;
 }
+
+/** As rotinas alternativas (Férias, Semana de provas…). */
+export function colRotinaSets(uid: string): string {
+  return `${FS.users}/${uid}/routine_sets`;
+}

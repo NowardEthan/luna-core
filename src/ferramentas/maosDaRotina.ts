@@ -64,6 +64,8 @@ export type CamposBloco = {
    * profundidade que ele foi buscar de propósito. Um só o protege; o outro atende.
    */
   guia?: string;
+  /** Pausa com data de volta — `null` retoma. Datas ISO «YYYY-MM-DD». */
+  pausa?: { de?: string; ate: string } | null;
 };
 
 export type DependenciasRotina = {
@@ -435,4 +437,87 @@ export async function removerSubtarefa(
 
   await deps.editar(id, { subtarefas: alvo.subtarefas.filter((t) => t.id !== remover.id) });
   return `Removida de «${alvo.titulo}»: ${remover.texto}.`;
+}
+
+// ── pausar / retomar ──────────────────────────────────────────────────────────
+
+/** Aceita «2026-03-03», e também «03/03» assumindo o próximo ano/mês que faça sentido. */
+function normalizarData(bruto: string): string | null {
+  const t = bruto.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  const br = /^(\d{1,2})[/](\d{1,2})(?:[/](\d{2,4}))?$/.exec(t);
+  if (br) {
+    const dia = br[1].padStart(2, "0");
+    const mes = br[2].padStart(2, "0");
+    const ano = br[3] ? (br[3].length === 2 ? `20${br[3]}` : br[3]) : String(new Date().getFullYear());
+    return `${ano}-${mes}-${dia}`;
+  }
+  return null;
+}
+
+/**
+ * Pausa um bloco (ou todos) até uma data.
+ *
+ * «o curso pegou férias até março», «tô de férias até dia 20 — pausa tudo». Enquanto pausado,
+ * o bloco sai da grade, não cobra, e não conta como sumiço. Volta sozinho na data.
+ */
+export async function pausarBloco(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const ateBruto = String(args.ate ?? "").trim();
+  if (!ateBruto) return "ERRO: falta a data de volta («ate»). Nada foi pausado.";
+
+  const ate = normalizarData(ateBruto);
+  if (!ate) return `ERRO: não entendi a data «${ateBruto}» (usa «YYYY-MM-DD» ou «DD/MM»). Nada foi pausado.`;
+
+  const de = args.de ? normalizarData(String(args.de)) ?? undefined : undefined;
+  const pausa = { ...(de ? { de } : {}), ate };
+
+  const blocos = await deps.ler();
+
+  // «pausa tudo» / férias: sem bloco_id, pausa todos.
+  if (!String(args.bloco_id ?? "").trim()) {
+    if (!blocos.length) return "A rotina está vazia — nada para pausar.";
+    for (const b of blocos) await deps.editar(b.id, { pausa });
+    return `Rotina inteira em pausa até ${ate}. Volta sozinha nesse dia — não vou cobrar nada até lá.`;
+  }
+
+  // Aceita id OU título. Sem o «tem de ver a rotina primeiro para saber o id», ela pausa
+  // numa tacada só — e é isso que corta o ponto de fuga onde ela às vezes parava depois do
+  // ver_rotina e narrava «pausei» sem pausar (medido: 3/4).
+  const chave = String(args.bloco_id).trim();
+  const alvo =
+    blocos.find((b) => b.id === chave) ??
+    blocos.find((b) => b.titulo.toLowerCase().includes(chave.toLowerCase()));
+  if (!alvo) return `ERRO: não encontrei o bloco «${chave}». Nada foi pausado.`;
+
+  await deps.editar(alvo.id, { pausa });
+  return `«${alvo.titulo}» em pausa até ${ate}. Sai da grade e não cobra até lá — volta sozinho.`;
+}
+
+/** Retoma um bloco (ou todos) antes da data. */
+export async function retomarBloco(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const blocos = await deps.ler();
+
+  if (!String(args.bloco_id ?? "").trim()) {
+    const pausados = blocos.filter((b) => b.pausa?.ate);
+    if (!pausados.length) return "Nada está em pausa.";
+    for (const b of pausados) await deps.editar(b.id, { pausa: null });
+    return `Retomei tudo (${pausados.length} bloco(s)). A rotina voltou ao normal.`;
+  }
+
+  const chave = String(args.bloco_id).trim();
+  const alvo =
+    blocos.find((b) => b.id === chave) ??
+    blocos.find((b) => b.titulo.toLowerCase().includes(chave.toLowerCase()));
+  if (!alvo) return `ERRO: não encontrei o bloco «${chave}». Nada mudou.`;
+  if (!alvo.pausa?.ate) return `«${alvo.titulo}» já está ativo.`;
+
+  await deps.editar(alvo.id, { pausa: null });
+  return `«${alvo.titulo}» retomado — voltou à grade.`;
 }

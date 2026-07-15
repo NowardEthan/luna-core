@@ -300,6 +300,40 @@ const FERRAMENTA_REMOVER_SUBTAREFA: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_PAUSAR_BLOCO: DefinicaoFerramenta = {
+  nome: "pausar_bloco",
+  descricao:
+    "Pausa um bloco (ou TODA a rotina) até uma data — para férias, viagens, um curso que fechou. " +
+    "«o curso pegou férias até março» → pausa esse bloco; «tô de férias até dia 20, para tudo» → " +
+    "SEM bloco_id, pausa a rotina inteira. Enquanto pausado, o bloco sai da grade, não cobra, e não " +
+    "conta como sumiço. Volta sozinho na data. Data em «YYYY-MM-DD» ou «DD/MM». " +
+    "NÃO precisas de `ver_rotina` antes — em `bloco_id` podes pôr o TÍTULO («curso», «trabalho»). " +
+    "Se ele pediu para pausar, CHAMA esta ferramenta: dizer «pausei» sem a chamar é mentira.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O bloco a pausar. OMITE para pausar a rotina toda (férias)." },
+      ate: { type: "string", description: "O dia em que VOLTA («2026-03-03» ou «03/03»). Obrigatório." },
+      de: { type: "string", description: "Quando a pausa começa. Opcional — default é já." },
+    },
+    required: ["ate"],
+  },
+};
+
+const FERRAMENTA_RETOMAR_BLOCO: DefinicaoFerramenta = {
+  nome: "retomar_bloco",
+  descricao:
+    "Tira um bloco (ou tudo) da pausa antes da data — «voltei das férias», «o curso recomeçou». " +
+    "SEM bloco_id, retoma a rotina inteira. Em `bloco_id` podes pôr o TÍTULO — não precisas de ver_rotina antes.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O bloco a retomar. OMITE para retomar tudo." },
+    },
+    required: [],
+  },
+};
+
 const FERRAMENTA_APAGAR_BLOCO: DefinicaoFerramenta = {
   nome: "apagar_bloco",
   descricao:
@@ -324,6 +358,8 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_DETALHAR_BLOCO,
     FERRAMENTA_ADICIONAR_SUBTAREFA,
     FERRAMENTA_REMOVER_SUBTAREFA,
+    FERRAMENTA_PAUSAR_BLOCO,
+    FERRAMENTA_RETOMAR_BLOCO,
     FERRAMENTA_APAGAR_BLOCO,
   ];
   if (webSearchDisponivel()) {

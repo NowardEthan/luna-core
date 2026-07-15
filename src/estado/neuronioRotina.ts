@@ -29,7 +29,17 @@ export type BlocoRotinaCore = {
   fim: number;
   nota?: string;
   origem?: "ethan" | "luna";
+  /** A rotina a que pertence. Ausente = rotina Normal. */
+  setId?: string;
   subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
+  /**
+   * Uma pausa com data de VOLTA.
+   *
+   * «no sábado vou ao curso, mas o curso pegou férias — e as férias têm um término». Enquanto
+   * pausado, o bloco não aparece como ativo, não cobra, e não conta como sumiço (ele não está
+   * a ignorar o curso; o curso é que está fechado). Quando chega `ate`, volta sozinho.
+   */
+  pausa?: { de?: string; ate: string }; // datas ISO «YYYY-MM-DD»
 };
 
 export type EstadoRotina = {
@@ -39,6 +49,58 @@ export type EstadoRotina = {
   emMinutos?: number;
   livreMinutos?: number;
 };
+
+/**
+ * As rotinas alternativas — a mesma lógica do app (`types/routineSet.ts`), portada.
+ *
+ * É a mesma dívida que o `estadoDaRotina`: duas cópias da mesma regra. Fica escrito para
+ * quando deixar de compensar — se divergirem, a Luna diz que ele está de férias quando o app
+ * mostra o trabalho, ou o contrário.
+ */
+export const ROTINA_NORMAL_CORE = "normal";
+export type RotinaSetCore = { id: string; nome: string; de?: string; ate?: string };
+
+export function rotinaVigenteCore(sets: RotinaSetCore[], hojeISO: string): string {
+  const aVigorar = sets
+    .filter((s) => s.de && s.ate && hojeISO >= s.de && hojeISO <= s.ate)
+    .sort((a, b) => (a.de ?? "").localeCompare(b.de ?? ""));
+  return aVigorar.length ? aVigorar[aVigorar.length - 1].id : ROTINA_NORMAL_CORE;
+}
+
+/** Os blocos da rotina que vigora hoje — o que a Luna deve ver e cobrar. */
+export function blocosDaRotinaVigente(
+  blocos: BlocoRotinaCore[],
+  sets: RotinaSetCore[],
+  hojeISO: string,
+): BlocoRotinaCore[] {
+  const vigente = rotinaVigenteCore(sets, hojeISO);
+  return blocos.filter((b) => (b.setId ?? ROTINA_NORMAL_CORE) === vigente);
+}
+
+/** Está pausado nesta data? `ate` é o dia em que VOLTA (pausado enquanto hoje < ate). */
+export function estaPausado(
+  pausa: { de?: string; ate: string } | undefined,
+  hojeISO: string,
+): boolean {
+  if (!pausa?.ate) return false;
+  if (pausa.de && hojeISO < pausa.de) return false;
+  return hojeISO < pausa.ate;
+}
+
+/** Os blocos que valem HOJE — os pausados saem daqui, e é isto que limpa a grade. */
+export function blocosAtivos(blocos: BlocoRotinaCore[], hojeISO: string): BlocoRotinaCore[] {
+  return blocos.filter((b) => !estaPausado(b.pausa, hojeISO));
+}
+
+export function hojeISOnoFuso(timeZone?: string): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    ...(timeZone ? { timeZone } : {}),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(new Date()); // en-CA dá «YYYY-MM-DD»
+}
 
 const hora = (m: number) =>
   `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;

@@ -1,7 +1,15 @@
 import type { Firestore } from "firebase-admin/firestore";
 
-import { colRotina, colRotinaLog } from "../../dist/persistencia/caminhosFirestore.js";
-import type { BlocoRotinaCore, RegistoDia } from "../../dist/estado/neuronioRotina.js";
+import {
+  colRotina,
+  colRotinaLog,
+  colRotinaSets,
+} from "../../dist/persistencia/caminhosFirestore.js";
+import type {
+  BlocoRotinaCore,
+  RegistoDia,
+  RotinaSetCore,
+} from "../../dist/estado/neuronioRotina.js";
 
 /**
  * A rotina dele, lida do Firestore.
@@ -31,6 +39,10 @@ export async function lerRotina(db: Firestore, uid: string): Promise<BlocoRotina
         fim: Number(b.fim ?? 0),
         nota: typeof b.nota === "string" ? b.nota : undefined,
         origem: b.origem === "luna" ? "luna" : "ethan",
+        ...(typeof b.setId === "string" ? { setId: b.setId } : {}),
+        ...(b.pausa && typeof b.pausa === "object" && "ate" in b.pausa
+          ? { pausa: b.pausa as { de?: string; ate: string } }
+          : {}),
         subtarefas: Array.isArray(b.subtarefas)
           ? (b.subtarefas as Array<Record<string, unknown>>).map((t) => ({
               id: String(t.id ?? ""),
@@ -45,6 +57,24 @@ export async function lerRotina(db: Firestore, uid: string): Promise<BlocoRotina
   } catch {
     // Sem rotina, ela continua a saber as horas — só não sabe o dia dele. Degradar, nunca
     // falhar: um erro a ler o calendário não pode derrubar a conversa.
+    return [];
+  }
+}
+
+/** As rotinas alternativas — para o servidor saber qual vigora hoje (e ver só ela). */
+export async function lerRotinaSets(db: Firestore, uid: string): Promise<RotinaSetCore[]> {
+  try {
+    const snap = await db.collection(colRotinaSets(uid)).limit(40).get();
+    return snap.docs.map((d) => {
+      const r = d.data() as Record<string, unknown>;
+      return {
+        id: d.id,
+        nome: String(r.nome ?? ""),
+        de: typeof r.de === "string" ? r.de : undefined,
+        ate: typeof r.ate === "string" ? r.ate : undefined,
+      };
+    });
+  } catch {
     return [];
   }
 }
@@ -135,6 +165,7 @@ export function maosDaRotina(db: Firestore, uid: string) {
         passos?: Array<{ id: string; texto: string; feito: boolean }>;
         guia?: string;
         subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
+        pausa?: { de?: string; ate: string } | null;
       }>,
     ): Promise<void> => {
       const patch: Record<string, unknown> = {};
@@ -147,6 +178,8 @@ export function maosDaRotina(db: Firestore, uid: string) {
       if (campos.passos !== undefined) patch.passos = campos.passos;
       if (campos.guia !== undefined) patch.guia = campos.guia;
       if (campos.subtarefas !== undefined) patch.subtarefas = campos.subtarefas;
+      // `null` retoma: no Firestore, apagar é null explícito (undefined não remove).
+      if (campos.pausa !== undefined) patch.pausa = campos.pausa ?? null;
       // Nota vazia = apagar a nota. `undefined` no Firestore não remove; é preciso ser explícito.
       if ("nota" in campos) patch.nota = campos.nota ?? null;
 

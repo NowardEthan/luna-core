@@ -46,7 +46,9 @@ import {
   agoraNoFusoDele,
   blocoRotina,
   blocoSumico,
+  blocosAtivos,
   estadoDaRotina,
+  hojeISOnoFuso,
   neuronioRotinaAtivo,
   type BlocoRotinaCore,
   type RegistoDia,
@@ -720,17 +722,30 @@ export async function executarPipelineCompleto(
     // se consegue pedindo a ninguém que se cale.
     if (neuronioRotinaAtivo() && opcoes.rotina?.length) {
       const { dia, minuto } = agoraNoFusoDele(opcoes.timeZone);
-      const bloco = blocoRotina(estadoDaRotina(opcoes.rotina, dia, minuto));
 
-      // O que ele anda a deixar passar. A cobrança tem teto — não persegue ninguém até à
-      // exaustão, nem lhe queima a conta. Mas o que ficou por fazer não desaparece: vira
-      // memória DELA. Foi a escolha do Ethan, e é a certa. Cobrar dinheiro por um dia mau é
-      // crueldade com juros; reparar que alguém sumiu é o que faz quem se importa.
-      const sumico = opcoes.rotina_registos
-        ? blocoSumico(opcoes.rotina, opcoes.rotina_registos, new Date())
+      // Os pausados saem de cena ANTES de tudo: ela não diz «faltam 20min para o curso»
+      // quando o curso está de férias, e não repara «o curso passou batido» — ele não está
+      // a ignorar o curso; o curso é que está fechado. Um bloco pausado é uma ausência
+      // combinada, não um sumiço.
+      const hojeISO = hojeISOnoFuso(opcoes.timeZone);
+      const ativos = blocosAtivos(opcoes.rotina, hojeISO);
+
+      const bloco = blocoRotina(estadoDaRotina(ativos, dia, minuto));
+
+      // E ela SABE que ele está de férias — para não perguntar «cadê o curso?».
+      const pausados = opcoes.rotina.filter((b) => !ativos.includes(b));
+      const notaPausa = pausados.length
+        ? `Em pausa (ele combinou, não é sumiço): ${pausados
+            .map((b) => `«${b.titulo}» volta ${b.pausa?.ate ?? "?"}`)
+            .join("; ")}.`
         : null;
 
-      const partes = [bloco, sumico].filter(Boolean);
+      // O sumiço olha só para os ATIVOS — um bloco pausado nunca conta como ignorado.
+      const sumico = opcoes.rotina_registos
+        ? blocoSumico(ativos, opcoes.rotina_registos, new Date())
+        : null;
+
+      const partes = [bloco, sumico, notaPausa].filter(Boolean);
       if (partes.length) {
         entradas.rotina = partes.join("\n");
         if (process.env.LUNA_DEBUG_REGISTRO === "1") {

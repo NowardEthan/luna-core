@@ -20,7 +20,8 @@ import {
 } from "./persistenciaFirestore.js";
 import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
-import { lerRotina, lerRegistosRotina, maosDaRotina } from "./rotinaFirestore.js";
+import { lerRotina, lerRegistosRotina, lerRotinaSets, maosDaRotina } from "./rotinaFirestore.js";
+import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronioRotina.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
@@ -499,7 +500,11 @@ export async function executarChatMobile(
     // A rotina dele — é o que a faz saber que ele está no ônibus, e não só que são 8h40.
     // Falhar aqui não pode derrubar a conversa: sem rotina, ela continua a saber as horas.
     const db = getAdminFirestore();
-    const rotina = uid && db ? await lerRotina(db, uid) : [];
+    // Só a rotina que VIGORA hoje: de férias, a Luna vê a rotina de férias — não o trabalho.
+    // Sem isto, ela via todos os blocos misturados e cobrava o que estava «desligado».
+    const rotinaCrua = uid && db ? await lerRotina(db, uid) : [];
+    const rotinaSets = uid && db ? await lerRotinaSets(db, uid) : [];
+    const rotina = blocosDaRotinaVigente(rotinaCrua, rotinaSets, hojeISOnoFuso(timeZone));
     const rotinaRegistos = uid && db && rotina.length ? await lerRegistosRotina(db, uid) : [];
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
@@ -593,7 +598,11 @@ export async function executarChatMobileStream(
     // nas sondas, e não pelo caminho que o APP chama. Uma sonda que não passa por onde o
     // utilizador passa mede outra coisa.
     const db = getAdminFirestore();
-    const rotina = uid && db ? await lerRotina(db, uid) : [];
+    // Só a rotina que VIGORA hoje: de férias, a Luna vê a rotina de férias — não o trabalho.
+    // Sem isto, ela via todos os blocos misturados e cobrava o que estava «desligado».
+    const rotinaCrua = uid && db ? await lerRotina(db, uid) : [];
+    const rotinaSets = uid && db ? await lerRotinaSets(db, uid) : [];
+    const rotina = blocosDaRotinaVigente(rotinaCrua, rotinaSets, hojeISOnoFuso(timeZone));
     const rotinaRegistos = uid && db && rotina.length ? await lerRegistosRotina(db, uid) : [];
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
