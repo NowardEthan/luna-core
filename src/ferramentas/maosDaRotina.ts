@@ -443,27 +443,32 @@ export async function detalharBloco(
   const roteiro = typeof args.roteiro === "string" ? args.roteiro.trim() : undefined;
   const guia = typeof args.guia === "string" ? args.guia.trim() : undefined;
 
-  const passos: PassoBloco[] = Array.isArray(args.passos)
+  // Os «passos» viram TAREFAS. Passo e subtarefa eram a mesma coisa em duas listas — o Ethan
+  // apanhou a estranheza. Agora há uma lista só: as tarefas do bloco. Os passos de arranque
+  // entram nela (sem hora), ACRESCENTANDO — nunca apagam as tarefas que já lá estão.
+  const novas: SubTarefa[] = Array.isArray(args.passos)
     ? args.passos
         .map((p) => String(p).trim())
         .filter(Boolean)
         .slice(0, MAX_PASSOS)
-        .map((texto, i) => ({ id: `p${i}`, texto, feito: false }))
+        .map((texto, i) => ({ id: `st${Date.now().toString(36)}${i}`, texto, feito: false }))
     : [];
 
-  if (!roteiro && !passos.length && !guia) {
-    return "ERRO: não disseste roteiro, passos nem guia. Nada foi escrito.";
+  if (!roteiro && !novas.length && !guia) {
+    return "ERRO: não disseste roteiro, tarefas nem guia. Nada foi escrito.";
   }
+
+  const subtarefas = novas.length ? [...(alvo.subtarefas ?? []), ...novas] : undefined;
 
   await deps.editar(id, {
     ...(roteiro ? { roteiro } : {}),
-    ...(passos.length ? { passos } : {}),
+    ...(subtarefas ? { subtarefas } : {}),
     ...(guia ? { guia } : {}),
   });
 
   const partes = [
     roteiro ? "roteiro" : "",
-    passos.length ? `${passos.length} passo(s)` : "",
+    novas.length ? `${novas.length} tarefa(s)` : "",
     guia ? "guia completo" : "",
   ].filter(Boolean);
 

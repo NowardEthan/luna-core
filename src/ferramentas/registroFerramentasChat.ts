@@ -255,10 +255,10 @@ const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
         type: "array",
         items: { type: "string" },
         description:
-          "Até 6 passos, na ordem — é o ARRANQUE. Escreve com a TUA voz, mas em formato de tarefa: " +
-          "cada passo numa linha, começa com maiúscula, curto e limpo (o app deixa bonitinho). " +
-          "«Descongela o frango», «Corta o tomate enquanto o arroz coze» — pode ter o teu jeito, só " +
-          "não escrevas um parágrafo nem um «kkk» solto no meio da lista.",
+          "Até 6 tarefas de ARRANQUE, na ordem — entram na lista de tarefas do bloco (é a MESMA " +
+          "lista das subtarefas; não há «passos» à parte). Em formato de tarefa: cada uma numa " +
+          "linha, começa com maiúscula, curta e limpa. «Descongela o frango», «Corta o tomate " +
+          "enquanto o arroz coze». Acrescentam às que já existem — não apagam. Sem parágrafo nem «kkk».",
       },
       guia: {
         type: "string",
