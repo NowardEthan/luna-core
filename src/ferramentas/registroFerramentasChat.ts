@@ -300,6 +300,32 @@ const FERRAMENTA_REMOVER_SUBTAREFA: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_VER_ROTINAS: DefinicaoFerramenta = {
+  nome: "ver_rotinas",
+  descricao:
+    "Lista as ROTINAS dele (a Normal + as alternativas: Férias, Semana de provas…). Diferente de " +
+    "`ver_rotina`, que mostra os BLOCOS. Usa antes de criar/aplicar uma rotina, para saber o que já existe.",
+  parametros: { type: "object", properties: {}, required: [] },
+};
+
+const FERRAMENTA_CRIAR_ROTINA: DefinicaoFerramenta = {
+  nome: "criar_rotina",
+  descricao:
+    "Cria uma ROTINA ALTERNATIVA — «cria uma rotina de férias de 20 a 3». Com período, ela assume " +
+    "sozinha na data e a Normal volta no fim; sem período, ele troca à mão. É assim que se faz umas " +
+    "«férias» agora (não se pausa bloco a bloco). Depois de criar, os blocos que ele puser nela só valem " +
+    "no período. Se ele pediu para criar uma rotina, CHAMA esta ferramenta: dizer «criei» sem a chamar é mentira.",
+  parametros: {
+    type: "object",
+    properties: {
+      nome: { type: "string", description: "«Férias», «Semana de provas», «Home-office»…" },
+      de: { type: "string", description: "Início do período («YYYY-MM-DD» ou «DD/MM»). Opcional." },
+      ate: { type: "string", description: "Fim do período. Opcional (sem datas = troca à mão)." },
+    },
+    required: ["nome"],
+  },
+};
+
 const FERRAMENTA_PAUSAR_BLOCO: DefinicaoFerramenta = {
   nome: "pausar_bloco",
   descricao:
@@ -360,6 +386,8 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_REMOVER_SUBTAREFA,
     FERRAMENTA_PAUSAR_BLOCO,
     FERRAMENTA_RETOMAR_BLOCO,
+    FERRAMENTA_VER_ROTINAS,
+    FERRAMENTA_CRIAR_ROTINA,
     FERRAMENTA_APAGAR_BLOCO,
   ];
   if (webSearchDisponivel()) {

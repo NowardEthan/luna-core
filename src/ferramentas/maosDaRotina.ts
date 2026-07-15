@@ -81,6 +81,10 @@ export type DependenciasRotina = {
    */
   editar: (id: string, campos: Partial<CamposBloco>) => Promise<void>;
   apagar: (id: string) => Promise<void>;
+  // ── Rotinas alternativas ──
+  lerRotinas?: () => Promise<Array<{ id: string; nome: string; de?: string; ate?: string }>>;
+  criarRotina?: (r: { nome: string; de?: string; ate?: string }) => Promise<string>;
+  apagarRotina?: (id: string) => Promise<void>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -520,4 +524,47 @@ export async function retomarBloco(
 
   await deps.editar(alvo.id, { pausa: null });
   return `«${alvo.titulo}» retomado — voltou à grade.`;
+}
+
+// ── criar_rotina / ver_rotinas ────────────────────────────────────────────────
+//
+// Substituem a pausa por-bloco (que ela confabulava). «cria uma rotina de férias de 20 a 3»
+// → uma rotina alternativa com período, que assume na data e devolve a Normal no fim. É
+// determinístico: a troca é uma data, não um pedido que ela pode esquecer de cumprir.
+
+export async function verRotinas(deps: DependenciasRotina): Promise<string> {
+  if (!deps.lerRotinas) return "As rotinas alternativas não estão disponíveis aqui.";
+  const sets = await deps.lerRotinas();
+  if (!sets.length) return "Ele só tem a rotina Normal — nenhuma alternativa ainda.";
+  return (
+    "Rotinas dele:\n- Normal (a de sempre)\n" +
+    sets
+      .map(
+        (r) =>
+          `- «${r.nome}»${r.de && r.ate ? ` (${r.de} → ${r.ate})` : " (sem período — trocada à mão)"}  id=${r.id}`,
+      )
+      .join("\n")
+  );
+}
+
+export async function criarRotinaAlternativa(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!deps.criarRotina) return "ERRO: não consigo criar rotinas neste ambiente. Nada foi criado.";
+
+  const nome = String(args.nome ?? "").trim();
+  if (!nome) return "ERRO: a rotina precisa de um nome. Nada foi criado.";
+
+  const de = args.de ? normalizarData(String(args.de)) ?? undefined : undefined;
+  const ate = args.ate ? normalizarData(String(args.ate)) ?? undefined : undefined;
+
+  if ((args.de && !de) || (args.ate && !ate)) {
+    return "ERRO: data inválida (usa «YYYY-MM-DD» ou «DD/MM»). Nada foi criado.";
+  }
+  if (de && ate && ate < de) return "ERRO: o fim tem de ser depois do início. Nada foi criado.";
+
+  const id = await deps.criarRotina({ nome, de, ate });
+  const periodo = de && ate ? `${de} → ${ate}` : "sem período (ele troca à mão)";
+  return `Criei a rotina «${nome}» (${periodo}), id=${id}. Ela aparece na faixa de rotinas dele; os blocos que ele puser lá só valem nesse período.`;
 }

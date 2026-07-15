@@ -190,5 +190,27 @@ export function maosDaRotina(db: Firestore, uid: string) {
     apagar: async (id: string): Promise<void> => {
       await db.collection(colRotina(uid)).doc(id).delete();
     },
+
+    // ── As rotinas alternativas (blocos programáveis) ────────────────────────────
+    // A Normal não é documento nenhum: é a ausência de período. Só as alternativas
+    // (Férias, Provas…) vivem em routine_sets, cada uma com o seu de/até.
+    lerRotinas: () => lerRotinaSets(db, uid),
+
+    criarRotina: async (r: { nome: string; de?: string; ate?: string }): Promise<string> => {
+      const ref = db.collection(colRotinaSets(uid)).doc();
+      await ref.set({
+        nome: r.nome,
+        cor: "#9B7DD9", // violeta — a cor dela, para se ver que foi a Luna que montou
+        ...(r.de ? { de: r.de } : {}),
+        ...(r.ate ? { ate: r.ate } : {}),
+        origem: "luna",
+        criadoEm: new Date(),
+      });
+      return ref.id;
+    },
+
+    apagarRotina: async (id: string): Promise<void> => {
+      await db.collection(colRotinaSets(uid)).doc(id).delete();
+    },
   };
 }

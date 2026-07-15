@@ -41,6 +41,7 @@ import {
   type Objecao,
 } from "../estado/neuronioObjecao.js";
 import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
+import { confabulouAcao, blocoReexecucaoAcao } from "../estado/guardaAcaoRotina.js";
 import type { DependenciasRotina } from "../ferramentas/maosDaRotina.js";
 import {
   agoraNoFusoDele,
@@ -1145,6 +1146,38 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
     // um editor a «melhorar o tom» devolve texto médio, seguro e morto.
     //
     // Num «bom dia» nenhum detetor dispara e isto não custa um milissegundo.
+
+    // ── A guarda da confabulação de ação ────────────────────────────────────────
+    //
+    // Ele pediu para criar/pausar uma rotina, ela disse «pronto, criei» — e não chamou a
+    // ferramenta (P16: 1–3 em 4 vezes). Prompt não corrige (provado três vezes num dia). Aqui
+    // confere-se: pediu ação + alegou ter feito + nenhuma ferramenta de ação correu = mentira.
+    // Se for, refaz-se o turno com o empurrão explícito para ela AGIR desta vez.
+    if (
+      usarModoAgentico &&
+      ehProvedorAgente(provedor) &&
+      confabulouAcao(resposta.texto, ferramentasDoTurno, mensagem)
+    ) {
+      if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+        console.error("[guarda] ela alegou uma ação de rotina sem a fazer — a refazer.");
+      }
+      const ctxEmpurrao: ContextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${blocoReexecucaoAcao()}`,
+      };
+      const refeita = await responderComoLunaAgentico(mensagem, provedor, configResposta, ctxEmpurrao, {
+        historico,
+        timeZone: opcoes.timeZone,
+        anexosImagem,
+        anexosDocumento,
+        rotinaDeps: opcoes.rotinaDeps,
+        raciocinioAtivo,
+        raciocinioEffort,
+        onAcao: onAcaoComRegisto,
+      });
+      if (refeita.texto.trim()) resposta = refeita;
+    }
+
     if (resposta.texto.trim() && !(usarStream && !usarModoAgentico)) {
       const revisao = await passarPelaLinha({
         resposta: resposta.texto,
