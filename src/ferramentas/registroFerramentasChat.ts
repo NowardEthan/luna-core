@@ -120,9 +120,11 @@ const FERRAMENTA_LER_URL: DefinicaoFerramenta = {
 const FERRAMENTA_VER_ROTINA: DefinicaoFerramenta = {
   nome: "ver_rotina",
   descricao:
-    "Lê a rotina completa dele (todos os blocos da semana). Já recebes no briefing onde ele está AGORA — " +
-    "usa esta ferramenta só quando precisas da semana inteira: para responder «o que tenho na terça?», " +
-    "para procurar um buraco livre, ou antes de criar um bloco (para não pisares outro).",
+    "Lê a rotina completa dele, com TUDO: cada bloco com os seus passos, tarefas, alarme, roteiro, e " +
+    "em que rotina está (Normal ou uma alternativa). Já recebes no briefing onde ele está AGORA — usa " +
+    "esta ferramenta quando precisas da semana inteira: para responder «o que tenho na terça?», procurar " +
+    "um buraco livre, antes de criar um bloco (para não pisares outro), e SEMPRE que ele pedir para " +
+    "reorganizar/refazer a rotina — só a vês por inteiro aqui, então lê ANTES de mexer.",
   parametros: {
     type: "object",
     properties: {

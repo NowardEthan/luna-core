@@ -40,9 +40,18 @@ export async function lerRotina(db: Firestore, uid: string): Promise<BlocoRotina
         nota: typeof b.nota === "string" ? b.nota : undefined,
         origem: b.origem === "luna" ? "luna" : "ethan",
         ...(typeof b.setId === "string" ? { setId: b.setId } : {}),
+        ...(b.alarme === true ? { alarme: true } : {}),
+        ...(typeof b.roteiro === "string" && b.roteiro.trim() ? { roteiro: b.roteiro } : {}),
         ...(b.pausa && typeof b.pausa === "object" && "ate" in b.pausa
           ? { pausa: b.pausa as { de?: string; ate: string } }
           : {}),
+        passos: Array.isArray(b.passos)
+          ? (b.passos as Array<Record<string, unknown>>).map((p) => ({
+              id: String(p.id ?? ""),
+              texto: String(p.texto ?? ""),
+              feito: p.feito === true,
+            }))
+          : undefined,
         subtarefas: Array.isArray(b.subtarefas)
           ? (b.subtarefas as Array<Record<string, unknown>>).map((t) => ({
               id: String(t.id ?? ""),

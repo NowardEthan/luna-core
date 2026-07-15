@@ -118,6 +118,48 @@ export function horaParaMinuto(hora: string): number | null {
 
 // ── ver_rotina ────────────────────────────────────────────────────────────────
 
+const DIAS_CURTO = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+
+/**
+ * Descreve um bloco por INTEIRO — e isto é o conserto de um buraco real.
+ *
+ * O Ethan pediu à Luna para refazer a rotina «com as melhorias que fiz». Ela olhou (ver_rotina),
+ * mas o ver_rotina só mostrava título + hora + nota — cego para as subtarefas, os passos, o
+ * alarme e a rotina a que o bloco pertence. Então ela disse, honestamente, que «não via» o que
+ * ele mudou. E era verdade: os olhos dela não alcançavam o detalhe. Sem VER a rotina inteira,
+ * ela não a pode reconstruir. Aqui ela passa a ver tudo.
+ */
+function descreverBloco(b: BlocoRotinaCore, comDias: boolean): string {
+  const linhas = [
+    `  ${hhmm(b.inicio)}–${hhmm(b.fim)}  ${b.titulo}` +
+      `${b.alarme ? " ⏰[alarme]" : ""}` +
+      `${b.origem === "luna" ? " [sugerido por ti]" : ""}  id=${b.id}`,
+  ];
+  if (comDias) linhas.push(`     dias: ${b.dias.map((d) => DIAS_CURTO[d]).join(", ") || "nenhum"}`);
+  if (b.pausa?.ate) linhas.push(`     pausado até ${b.pausa.ate}`);
+  if (b.nota) linhas.push(`     nota: ${b.nota}`);
+  if (b.roteiro) {
+    const r = b.roteiro.trim().replace(/\s+/g, " ");
+    linhas.push(`     roteiro: «${r.length > 160 ? r.slice(0, 160) + "…" : r}»`);
+  }
+  if (b.passos?.length) {
+    linhas.push(`     passos: ${b.passos.map((p) => p.texto).join(" · ")}`);
+  }
+  if (b.subtarefas?.length) {
+    linhas.push(
+      `     tarefas: ` +
+        b.subtarefas
+          .map(
+            (t) =>
+              t.texto +
+              (t.hora !== undefined ? ` (${hhmm(t.hora)}${t.notificar ? ", cobra" : ""})` : ""),
+          )
+          .join(" · "),
+    );
+  }
+  return linhas.join("\n");
+}
+
 export async function verRotina(
   deps: DependenciasRotina,
   dia?: number,
@@ -127,33 +169,34 @@ export async function verRotina(
     return "A rotina dele está vazia — ele ainda não montou nada.";
   }
 
-  const dias = dia !== undefined ? [dia] : [0, 1, 2, 3, 4, 5, 6];
-  const linhas: string[] = [];
-
-  for (const d of dias) {
-    const doDia = blocos
-      .filter((b) => b.dias.includes(d))
-      .sort((a, b) => a.inicio - b.inicio);
-
-    if (!doDia.length) {
-      if (dia !== undefined) linhas.push(`${DIAS[d]}: vazia.`);
-      continue;
-    }
-
-    linhas.push(
-      `${DIAS[d]}:\n` +
-        doDia
-          .map(
-            (b) =>
-              `  ${hhmm(b.inicio)}–${hhmm(b.fim)}  ${b.titulo}` +
-              `${b.nota ? ` (${b.nota})` : ""}` +
-              `${b.origem === "luna" ? " [sugerido por ti]" : ""}  id=${b.id}`,
-          )
-          .join("\n"),
-    );
+  // ── Um dia só: a grade daquele dia, com o detalhe todo ──
+  if (dia !== undefined) {
+    const doDia = blocos.filter((b) => b.dias.includes(dia)).sort((a, b) => a.inicio - b.inicio);
+    if (!doDia.length) return `${DIAS[dia]}: vazia.`;
+    return `${DIAS[dia]}:\n` + doDia.map((b) => descreverBloco(b, false)).join("\n");
   }
 
-  return linhas.length ? linhas.join("\n") : "Nada marcado nesse dia.";
+  // ── A semana inteira: cada bloco UMA vez (não 7×), agrupado por rotina, com tudo. É esta
+  //    visão completa que ela precisa para reconstruir a rotina dele fielmente. ──
+  const nomes = new Map<string, string>();
+  if (deps.lerRotinas) {
+    for (const r of await deps.lerRotinas()) nomes.set(r.id, r.nome);
+  }
+
+  const porRotina = new Map<string, BlocoRotinaCore[]>();
+  for (const b of blocos) {
+    const chave = b.setId ?? "__normal__";
+    (porRotina.get(chave) ?? porRotina.set(chave, []).get(chave)!).push(b);
+  }
+
+  const secoes: string[] = [];
+  for (const [chave, bs] of porRotina) {
+    const titulo = chave === "__normal__" ? "Normal" : `Rotina «${nomes.get(chave) ?? chave}»`;
+    const ordenados = bs.sort((a, b) => a.inicio - b.inicio);
+    secoes.push(`── ${titulo} ──\n` + ordenados.map((b) => descreverBloco(b, true)).join("\n"));
+  }
+
+  return secoes.join("\n\n");
 }
 
 // ── criar_bloco ───────────────────────────────────────────────────────────────

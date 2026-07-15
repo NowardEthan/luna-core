@@ -31,6 +31,12 @@ export type BlocoRotinaCore = {
   origem?: "ethan" | "luna";
   /** A rotina a que pertence. Ausente = rotina Normal. */
   setId?: string;
+  /** Modo alarme: aviso fixo até ele marcar «Comecei». Ela precisa de o VER para o replicar. */
+  alarme?: boolean;
+  /** O roteiro dela: COMO fazer a coisa. Sem o ver, ela não sabe o que já escreveu no bloco. */
+  roteiro?: string;
+  /** Os passos — o arranque. As «dependências» que ele mencionou. */
+  passos?: Array<{ id: string; texto: string; feito: boolean }>;
   subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
   /**
    * Uma pausa com data de VOLTA.
