@@ -129,6 +129,8 @@ export function maosDaRotina(db: Firestore, uid: string) {
       fim: number;
       nota?: string;
       notificar: boolean;
+      setId?: string | null;
+      alarme?: boolean;
     }): Promise<string> => {
       const ref = db.collection(colRotina(uid)).doc();
       await ref.set({
@@ -139,6 +141,10 @@ export function maosDaRotina(db: Firestore, uid: string) {
         cor: "#9B7DD9", // violeta — a cor dela, para se ver ao longe o que foi ela que pôs
         notificar: b.notificar,
         ...(b.nota ? { nota: b.nota } : {}),
+        // Em qual rotina alternativa (Férias…). Ausente = Normal. É o que a deixa montar uma
+        // rotina inteira: sem isto, os blocos caíam todos na Normal, e a «Férias» ficava vazia.
+        ...(b.setId ? { setId: b.setId } : {}),
+        ...(b.alarme === true ? { alarme: true } : {}),
         origem: "luna",
         criadoEm: new Date(),
       });
@@ -166,6 +172,8 @@ export function maosDaRotina(db: Firestore, uid: string) {
         guia?: string;
         subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
         pausa?: { de?: string; ate: string } | null;
+        setId?: string | null;
+        alarme?: boolean;
       }>,
     ): Promise<void> => {
       const patch: Record<string, unknown> = {};
@@ -174,6 +182,9 @@ export function maosDaRotina(db: Firestore, uid: string) {
       if (campos.inicio !== undefined) patch.inicio = campos.inicio;
       if (campos.fim !== undefined) patch.fim = campos.fim;
       if (campos.notificar !== undefined) patch.notificar = campos.notificar;
+      if (campos.alarme !== undefined) patch.alarme = campos.alarme;
+      // `null` devolve à Normal (apagar o campo). No Firestore, undefined não remove — é preciso null.
+      if (campos.setId !== undefined) patch.setId = campos.setId ?? null;
       if (campos.roteiro !== undefined) patch.roteiro = campos.roteiro;
       if (campos.passos !== undefined) patch.passos = campos.passos;
       if (campos.guia !== undefined) patch.guia = campos.guia;
@@ -207,6 +218,19 @@ export function maosDaRotina(db: Firestore, uid: string) {
         criadoEm: new Date(),
       });
       return ref.id;
+    },
+
+    editarRotina: async (
+      id: string,
+      campos: { nome?: string; de?: string | null; ate?: string | null },
+    ): Promise<void> => {
+      const patch: Record<string, unknown> = {};
+      if (campos.nome !== undefined) patch.nome = campos.nome;
+      // `null` tira o período (passa a trocar à mão). undefined não remove no Firestore.
+      if (campos.de !== undefined) patch.de = campos.de ?? null;
+      if (campos.ate !== undefined) patch.ate = campos.ate ?? null;
+      if (!Object.keys(patch).length) return;
+      await db.collection(colRotinaSets(uid)).doc(id).set(patch, { merge: true });
     },
 
     apagarRotina: async (id: string): Promise<void> => {

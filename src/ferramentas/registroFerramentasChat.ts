@@ -171,6 +171,19 @@ const FERRAMENTA_CRIAR_BLOCO: DefinicaoFerramenta = {
         type: "boolean",
         description: "Avisar/cobrar quando começa. Default: sim.",
       },
+      rotina: {
+        type: "string",
+        description:
+          "Em qual rotina pôr o bloco: o NOME de uma alternativa («Férias», «Semana de provas»). " +
+          "Omite para a Normal. É assim que montas uma rotina alternativa inteira — cria a rotina " +
+          "primeiro (criar_rotina) e depois põe os blocos nela com este campo.",
+      },
+      alarme: {
+        type: "boolean",
+        description:
+          "Modo alarme: no início vira um aviso FIXO, com vibração e som forte, que só para quando " +
+          "ele marca «Comecei». Só para o que não pode passar batido (acordar, remédio). Default: não.",
+      },
     },
     required: ["titulo", "dias", "inicio", "fim"],
   },
@@ -197,6 +210,12 @@ const FERRAMENTA_EDITAR_BLOCO: DefinicaoFerramenta = {
       fim: { type: "string", description: "Nova hora de fim, «HH:MM»." },
       nota: { type: "string", description: "Nova nota (string vazia apaga a nota)." },
       notificar: { type: "boolean", description: "Passar a cobrar, ou deixar de cobrar." },
+      alarme: { type: "boolean", description: "Ligar/desligar o modo alarme (aviso fixo até «Comecei»)." },
+      rotina: {
+        type: "string",
+        description:
+          "Mover o bloco para outra rotina: o NOME de uma alternativa, ou «normal» para o devolver à Normal.",
+      },
     },
     required: ["bloco_id"],
   },
@@ -326,6 +345,41 @@ const FERRAMENTA_CRIAR_ROTINA: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_EDITAR_ROTINA: DefinicaoFerramenta = {
+  nome: "editar_rotina",
+  descricao:
+    "Reprograma / APLICA uma rotina alternativa: muda o nome ou o período. Como a rotina vigora " +
+    "por causa da DATA, mexer no período É aplicá-la — «aplica as férias essa semana» = põe de hoje " +
+    "a domingo; «adia as provas pra dia 25» = muda o início; «tira a data» = sem_periodo (passa a " +
+    "trocar à mão). Se ele pediu para aplicar/reprogramar, CHAMA esta ferramenta: dizer «apliquei» " +
+    "sem a chamar é mentira.",
+  parametros: {
+    type: "object",
+    properties: {
+      rotina: { type: "string", description: "Nome (ou id) da rotina a mexer — «Férias», «Semana de provas»." },
+      novo_nome: { type: "string", description: "Renomear (só se for para mudar o nome)." },
+      de: { type: "string", description: "Novo início do período («YYYY-MM-DD» ou «DD/MM»)." },
+      ate: { type: "string", description: "Novo fim do período." },
+      sem_periodo: { type: "boolean", description: "true = tirar o período (passa a trocar à mão)." },
+    },
+    required: ["rotina"],
+  },
+};
+
+const FERRAMENTA_APAGAR_ROTINA: DefinicaoFerramenta = {
+  nome: "apagar_rotina",
+  descricao:
+    "Apaga uma rotina alternativa. SÓ quando ele pedir. Os blocos que estavam nela voltam a contar " +
+    "como Normal (não se perdem). Não apaga a Normal — ela não é um documento.",
+  parametros: {
+    type: "object",
+    properties: {
+      rotina: { type: "string", description: "Nome (ou id) da rotina a apagar." },
+    },
+    required: ["rotina"],
+  },
+};
+
 const FERRAMENTA_PAUSAR_BLOCO: DefinicaoFerramenta = {
   nome: "pausar_bloco",
   descricao:
@@ -388,6 +442,8 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_RETOMAR_BLOCO,
     FERRAMENTA_VER_ROTINAS,
     FERRAMENTA_CRIAR_ROTINA,
+    FERRAMENTA_EDITAR_ROTINA,
+    FERRAMENTA_APAGAR_ROTINA,
     FERRAMENTA_APAGAR_BLOCO,
   ];
   if (webSearchDisponivel()) {

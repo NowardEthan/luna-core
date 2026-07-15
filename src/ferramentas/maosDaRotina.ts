@@ -66,6 +66,14 @@ export type CamposBloco = {
   guia?: string;
   /** Pausa com data de volta — `null` retoma. Datas ISO «YYYY-MM-DD». */
   pausa?: { de?: string; ate: string } | null;
+  /**
+   * A que rotina o bloco pertence. Ausente = Normal. `null` (só no editar) devolve à Normal.
+   * É isto que deixa a Luna montar uma rotina alternativa INTEIRA — sem isto ela criava o
+   * rótulo «Férias» e os blocos caíam todos na Normal.
+   */
+  setId?: string | null;
+  /** Modo alarme: aviso fixo, forte, que só para quando ele marca «Comecei». */
+  alarme?: boolean;
 };
 
 export type DependenciasRotina = {
@@ -84,6 +92,11 @@ export type DependenciasRotina = {
   // ── Rotinas alternativas ──
   lerRotinas?: () => Promise<Array<{ id: string; nome: string; de?: string; ate?: string }>>;
   criarRotina?: (r: { nome: string; de?: string; ate?: string }) => Promise<string>;
+  /** Reprogramar/aplicar: mudar nome ou período. `de:null`/`ate:null` tira o período. */
+  editarRotina?: (
+    id: string,
+    campos: { nome?: string; de?: string | null; ate?: string | null },
+  ) => Promise<void>;
   apagarRotina?: (id: string) => Promise<void>;
 };
 
@@ -176,6 +189,11 @@ export async function criarBloco(
     );
   }
 
+  // Em qual rotina? Se ela deu um nome, resolvemo-lo para o setId. Assim «monta a rotina de
+  // férias com praia e leitura» põe os blocos DENTRO de Férias — não na Normal.
+  const resolvido = await resolverSetId(deps, args.rotina);
+  if (resolvido.erro) return resolvido.erro;
+
   const id = await deps.criar({
     titulo,
     dias,
@@ -183,12 +201,49 @@ export async function criarBloco(
     fim,
     nota: typeof args.nota === "string" && args.nota.trim() ? args.nota.trim() : undefined,
     notificar: args.notificar !== false,
+    ...(resolvido.setId ? { setId: resolvido.setId } : {}),
+    ...(args.alarme === true ? { alarme: true } : {}),
   });
 
   return (
     `Criado: «${titulo}» ${hhmm(inicio)}–${hhmm(fim)}, ` +
-    `${dias.map((d) => DIAS[d]).join(", ")}. Aparece na rotina dele marcado como sugerido por ti (id=${id}).`
+    `${dias.map((d) => DIAS[d]).join(", ")}` +
+    `${resolvido.nome ? `, na rotina «${resolvido.nome}»` : ""}` +
+    `${args.alarme === true ? ", em modo alarme" : ""}. ` +
+    `Aparece na rotina dele marcado como sugerido por ti (id=${id}).`
   );
+}
+
+/**
+ * Resolve o nome de uma rotina (o que a Luna diz — «férias») para o `setId` real.
+ *
+ * `undefined`/vazio = Normal (setId ausente). «normal» explícito = devolver à Normal (setId
+ * null, só faz sentido no editar). Um nome que não existe é ERRO devolvido — nunca criar o
+ * bloco «no escuro» numa rotina inventada.
+ */
+async function resolverSetId(
+  deps: DependenciasRotina,
+  bruto: unknown,
+): Promise<{ setId?: string | null; nome?: string; erro?: string }> {
+  const chave = typeof bruto === "string" ? bruto.trim() : "";
+  if (!chave) return {};
+  if (chave.toLowerCase() === "normal") return { setId: null, nome: "Normal" };
+
+  if (!deps.lerRotinas) return { erro: "ERRO: rotinas alternativas não estão disponíveis aqui. Nada foi feito." };
+  const sets = await deps.lerRotinas();
+  const alvo =
+    sets.find((r) => r.id === chave) ??
+    sets.find((r) => r.nome.toLowerCase() === chave.toLowerCase()) ??
+    sets.find((r) => r.nome.toLowerCase().includes(chave.toLowerCase()));
+
+  if (!alvo) {
+    return {
+      erro:
+        `ERRO: não existe rotina «${chave}». Cria-a primeiro (criar_rotina) ou usa ver_rotinas ` +
+        `para ver os nomes certos. Nada foi feito.`,
+    };
+  }
+  return { setId: alvo.id, nome: alvo.nome };
 }
 
 // ── editar_bloco ──────────────────────────────────────────────────────────────
@@ -247,6 +302,19 @@ export async function editarBloco(
   if (typeof args.notificar === "boolean") {
     campos.notificar = args.notificar;
     mudancas.push(campos.notificar ? "volta a cobrar" : "deixa de cobrar");
+  }
+
+  if (typeof args.alarme === "boolean") {
+    campos.alarme = args.alarme;
+    mudancas.push(campos.alarme ? "modo alarme ligado" : "modo alarme desligado");
+  }
+
+  if (args.rotina !== undefined) {
+    const resolvido = await resolverSetId(deps, args.rotina);
+    if (resolvido.erro) return resolvido.erro;
+    // `null` devolve à Normal; um id move para a alternativa.
+    campos.setId = resolvido.setId ?? null;
+    mudancas.push(`movido para «${resolvido.nome ?? "Normal"}»`);
   }
 
   if (!Object.keys(campos).length) {
@@ -567,4 +635,91 @@ export async function criarRotinaAlternativa(
   const id = await deps.criarRotina({ nome, de, ate });
   const periodo = de && ate ? `${de} → ${ate}` : "sem período (ele troca à mão)";
   return `Criei a rotina «${nome}» (${periodo}), id=${id}. Ela aparece na faixa de rotinas dele; os blocos que ele puser lá só valem nesse período.`;
+}
+
+/** Acha uma rotina alternativa pelo nome ou id (para editar/apagar). */
+async function acharRotina(
+  deps: DependenciasRotina,
+  bruto: unknown,
+): Promise<{ id: string; nome: string; de?: string; ate?: string } | null> {
+  if (!deps.lerRotinas) return null;
+  const chave = typeof bruto === "string" ? bruto.trim().toLowerCase() : "";
+  if (!chave) return null;
+  const sets = await deps.lerRotinas();
+  return (
+    sets.find((r) => r.id.toLowerCase() === chave) ??
+    sets.find((r) => r.nome.toLowerCase() === chave) ??
+    sets.find((r) => r.nome.toLowerCase().includes(chave)) ??
+    null
+  );
+}
+
+/**
+ * Reprogramar/APLICAR uma rotina alternativa — mudar o nome ou o período.
+ *
+ * «aplica as férias essa semana» = pôr o período de hoje a domingo. «adia as férias pra dia
+ * 25» = mudar o `de`. «tira a data das provas» = `sem_periodo`, e passa a trocar à mão. É
+ * aqui que «aplicar» acontece: a rotina vigora por causa do período, então reprogramar o
+ * período É aplicar — determinístico, sem um estado escondido de «ativa» que se perde.
+ */
+export async function editarRotinaAlternativa(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!deps.editarRotina) return "ERRO: não consigo editar rotinas neste ambiente. Nada mudou.";
+
+  const alvo = await acharRotina(deps, args.rotina ?? args.nome);
+  if (!alvo) return `ERRO: não encontrei a rotina «${String(args.rotina ?? args.nome ?? "")}». Nada mudou.`;
+
+  const campos: { nome?: string; de?: string | null; ate?: string | null } = {};
+  const mudancas: string[] = [];
+
+  if (typeof args.novo_nome === "string" && args.novo_nome.trim()) {
+    campos.nome = args.novo_nome.trim();
+    mudancas.push(`nome → «${campos.nome}»`);
+  }
+
+  if (args.sem_periodo === true) {
+    campos.de = null;
+    campos.ate = null;
+    mudancas.push("sem período (passa a trocar à mão)");
+  } else {
+    const de = args.de ? normalizarData(String(args.de)) : undefined;
+    const ate = args.ate ? normalizarData(String(args.ate)) : undefined;
+    if ((args.de && !de) || (args.ate && !ate)) {
+      return "ERRO: data inválida (usa «YYYY-MM-DD» ou «DD/MM»). Nada mudou.";
+    }
+    const deFinal = de ?? alvo.de;
+    const ateFinal = ate ?? alvo.ate;
+    if (deFinal && ateFinal && ateFinal < deFinal) {
+      return "ERRO: o fim ficaria antes do início. Nada mudou.";
+    }
+    if (de) {
+      campos.de = de;
+      mudancas.push(`início → ${de}`);
+    }
+    if (ate) {
+      campos.ate = ate;
+      mudancas.push(`fim → ${ate}`);
+    }
+  }
+
+  if (!Object.keys(campos).length) return "ERRO: não disseste o que mudar na rotina. Nada mudou.";
+
+  await deps.editarRotina(alvo.id, campos);
+  return `Rotina «${alvo.nome}» reprogramada: ${mudancas.join(", ")}.`;
+}
+
+/** Apaga uma rotina alternativa. Os blocos dela ficam órfãos — o app trata-os como Normal. */
+export async function apagarRotinaAlternativa(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!deps.apagarRotina) return "ERRO: não consigo apagar rotinas neste ambiente. Nada foi apagado.";
+
+  const alvo = await acharRotina(deps, args.rotina ?? args.nome);
+  if (!alvo) return `ERRO: não encontrei a rotina «${String(args.rotina ?? args.nome ?? "")}». Nada foi apagado.`;
+
+  await deps.apagarRotina(alvo.id);
+  return `Apaguei a rotina «${alvo.nome}». Os blocos que estavam nela voltam a contar como Normal.`;
 }

@@ -12,6 +12,8 @@ import {
   apagarBlocoRotina,
   criarBloco,
   criarRotinaAlternativa,
+  editarRotinaAlternativa,
+  apagarRotinaAlternativa,
   verRotinas,
   detalharBloco,
   editarBloco,
@@ -395,6 +397,8 @@ export async function responderComoLunaAgentico(
         nome === "retomar_bloco" ||
         nome === "ver_rotinas" ||
         nome === "criar_rotina" ||
+        nome === "editar_rotina" ||
+        nome === "apagar_rotina" ||
         nome === "apagar_bloco"
       ) {
         if (!opcoes.rotinaDeps) {
@@ -413,6 +417,8 @@ export async function responderComoLunaAgentico(
         if (nome === "retomar_bloco") return retomarBloco(opcoes.rotinaDeps, args);
         if (nome === "ver_rotinas") return verRotinas(opcoes.rotinaDeps);
         if (nome === "criar_rotina") return criarRotinaAlternativa(opcoes.rotinaDeps, args);
+        if (nome === "editar_rotina") return editarRotinaAlternativa(opcoes.rotinaDeps, args);
+        if (nome === "apagar_rotina") return apagarRotinaAlternativa(opcoes.rotinaDeps, args);
         return apagarBlocoRotina(opcoes.rotinaDeps, args);
       }
 

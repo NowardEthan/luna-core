@@ -32,6 +32,8 @@ const FERRAMENTAS_DE_ACAO = new Set([
   "pausar_bloco",
   "retomar_bloco",
   "criar_rotina",
+  "editar_rotina",
+  "apagar_rotina",
 ]);
 
 /**
