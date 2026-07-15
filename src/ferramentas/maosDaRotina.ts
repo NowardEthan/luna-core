@@ -23,6 +23,26 @@ import type { BlocoRotinaCore } from "../estado/neuronioRotina.js";
 
 export type PassoBloco = { id: string; texto: string; feito: boolean };
 
+/**
+ * Uma tarefa DENTRO de um bloco.
+ *
+ * «Trabalho · 8h–17h» não é uma coisa: é um recipiente de muitas — responder emails, a
+ * reunião, rever o PR. Cada uma é uma sub-tarefa, que ele risca conforme faz.
+ *
+ * A `hora` NÃO é enfeite (foi o que ele corrigiu): se ele a marcar com `notificar`, ela
+ * cobra-o naquele horário — uma reunião às 10h dá um toque às 10h, dentro do dia de
+ * trabalho. A hora que não cobra é só um lembrete visual; a que cobra é um compromisso.
+ */
+export type SubTarefa = {
+  id: string;
+  texto: string;
+  feito: boolean;
+  /** Minutos desde a meia-noite. Opcional — a maioria é só checklist. */
+  hora?: number;
+  /** Se tiver hora e isto for true, ela avisa/cobra nesse horário. */
+  notificar?: boolean;
+};
+
 export type CamposBloco = {
   titulo: string;
   dias: number[];
@@ -34,6 +54,8 @@ export type CamposBloco = {
   roteiro?: string;
   /** Os passos. Riscar um passo é COMEÇAR — e começar é o que não acontece sozinho. */
   passos?: PassoBloco[];
+  /** As tarefas dentro do bloco (checklist com hora opcional que pode cobrar). */
+  subtarefas?: SubTarefa[];
   /**
    * O guia FUNDO — a receita completa, o treino inteiro, o plano de estudo detalhado.
    *
@@ -329,4 +351,88 @@ export async function detalharBloco(
   ].filter(Boolean);
 
   return `Escrito em «${alvo.titulo}»: ${partes.join(" + ")}. Ele vê isto ao tocar no bloco.`;
+}
+
+// ── sub-tarefas ───────────────────────────────────────────────────────────────
+
+/**
+ * Adiciona UMA tarefa ao bloco — e é ADITIVA de propósito.
+ *
+ * O Ethan pediu isto por palavras: «eu quero mais passos, inclua isso, aí ela vai
+ * adicionando». Ela lê as que já existem e ACRESCENTA — nunca reescreve a lista. Um
+ * «adiciona X» que apagasse as outras seria a mesma traição do editar que apaga a nota:
+ * ele pede para juntar uma coisa e perde três.
+ */
+export const MAX_SUBTAREFAS = 20;
+
+export async function adicionarSubtarefa(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.bloco_id ?? "").trim();
+  const texto = String(args.texto ?? "").trim();
+  if (!id) return "ERRO: falta o id do bloco. Nada foi adicionado.";
+  if (!texto) return "ERRO: a tarefa precisa de um texto. Nada foi adicionado.";
+
+  const blocos = await deps.ler();
+  const alvo = blocos.find((b) => b.id === id);
+  if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi adicionado.`;
+
+  const atuais = alvo.subtarefas ?? [];
+  if (atuais.length >= MAX_SUBTAREFAS) {
+    return `ERRO: este bloco já tem ${MAX_SUBTAREFAS} tarefas — cheio. Nada foi adicionado.`;
+  }
+
+  let hora: number | undefined;
+  if (args.hora !== undefined && String(args.hora).trim()) {
+    const m = horaParaMinuto(String(args.hora));
+    if (m === null) return "ERRO: hora inválida (usa «HH:MM»). Nada foi adicionado.";
+    // A hora da sub-tarefa tem de caber dentro do bloco pai — senão o toque chega quando ele
+    // já saiu do trabalho, e um lembrete fora de hora é ruído que ele desliga.
+    if (m < alvo.inicio || m > alvo.fim) {
+      return `ERRO: ${hhmm(m)} está fora de «${alvo.titulo}» (${hhmm(alvo.inicio)}–${hhmm(alvo.fim)}). Nada foi adicionado.`;
+    }
+    hora = m;
+  }
+
+  const nova: SubTarefa = {
+    id: `st${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`,
+    texto,
+    feito: false,
+    ...(hora !== undefined ? { hora } : {}),
+    ...(hora !== undefined && args.notificar === true ? { notificar: true } : {}),
+  };
+
+  await deps.editar(id, { subtarefas: [...atuais, nova] });
+
+  return (
+    `Adicionada a «${alvo.titulo}»: ${texto}` +
+    `${hora !== undefined ? ` às ${hhmm(hora)}${nova.notificar ? " (vai cobrar)" : ""}` : ""}. ` +
+    `Agora são ${atuais.length + 1} tarefa(s).`
+  );
+}
+
+/** Remove uma tarefa — por id, ou pelo texto que mais se parece. */
+export async function removerSubtarefa(
+  deps: DependenciasRotina,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.bloco_id ?? "").trim();
+  if (!id) return "ERRO: falta o id do bloco. Nada foi removido.";
+
+  const blocos = await deps.ler();
+  const alvo = blocos.find((b) => b.id === id);
+  if (!alvo?.subtarefas?.length) return "ERRO: este bloco não tem tarefas. Nada foi removido.";
+
+  const sub = String(args.sub_id ?? "").trim();
+  const texto = String(args.texto ?? "").trim().toLowerCase();
+
+  const remover = sub
+    ? alvo.subtarefas.find((t) => t.id === sub)
+    : alvo.subtarefas.find((t) => t.texto.toLowerCase().includes(texto));
+
+  if (!remover) return "ERRO: não encontrei essa tarefa. Nada foi removido.";
+
+  await deps.editar(id, { subtarefas: alvo.subtarefas.filter((t) => t.id !== remover.id) });
+  return `Removida de «${alvo.titulo}»: ${remover.texto}.`;
 }

@@ -233,7 +233,11 @@ const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
       passos: {
         type: "array",
         items: { type: "string" },
-        description: "Até 6 passos concretos, na ordem. Cada um deve caber numa linha. É o ARRANQUE.",
+        description:
+          "Até 6 passos, na ordem — é o ARRANQUE. Escreve com a TUA voz, mas em formato de tarefa: " +
+          "cada passo numa linha, começa com maiúscula, curto e limpo (o app deixa bonitinho). " +
+          "«Descongela o frango», «Corta o tomate enquanto o arroz coze» — pode ter o teu jeito, só " +
+          "não escrevas um parágrafo nem um «kkk» solto no meio da lista.",
       },
       guia: {
         type: "string",
@@ -244,6 +248,53 @@ const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
           "chegam para arrancar, e um guia não pedido é a tutela que ele vai apagar. Aqui podes usar " +
           "linhas e listas (com «- » ou «1. »).",
       },
+    },
+    required: ["bloco_id"],
+  },
+};
+
+/**
+ * Adicionar uma tarefa DENTRO de um bloco — e é ADITIVA.
+ *
+ * «Trabalho 8h–17h» contém muitas coisas; cada uma é uma sub-tarefa que ele risca. O Ethan
+ * pediu por palavras: «eu quero mais, inclua isso, aí ela vai adicionando». Ela chama isto
+ * uma vez por tarefa, e cada chamada ACRESCENTA — nunca apaga as que já lá estão.
+ *
+ * A hora NÃO é enfeite: com `notificar`, ela cobra-o nesse horário (uma reunião às 10h dá um
+ * toque às 10h). Mas só põe hora quando faz sentido — a maioria é só checklist.
+ */
+const FERRAMENTA_ADICIONAR_SUBTAREFA: DefinicaoFerramenta = {
+  nome: "adicionar_subtarefa",
+  descricao:
+    "Adiciona UMA tarefa dentro de um bloco (ex.: dentro de «Trabalho», adiciona «Responder emails»). " +
+    "Chama uma vez por tarefa — é aditiva, nunca apaga as outras. " +
+    "Formato de tarefa, com a tua voz: cada uma numa linha, começa com maiúscula, curta e limpa " +
+    "(«Responder emails», «Revisar o PR do cache») — não um parágrafo, não um «kkk» solto. " +
+    "Põe `hora` só quando a tarefa TEM hora certa (uma reunião); com `notificar: true` ela cobra nesse " +
+    "horário. A hora tem de estar dentro do horário do bloco pai.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O id do bloco (do `ver_rotina`)." },
+      texto: { type: "string", description: "A tarefa, em formato de tarefa (Maiúscula, infinitivo, curto)." },
+      hora: { type: "string", description: "«HH:MM», opcional — só se a tarefa tiver hora certa." },
+      notificar: { type: "boolean", description: "Com hora, cobrar nesse horário? Default não." },
+    },
+    required: ["bloco_id", "texto"],
+  },
+};
+
+const FERRAMENTA_REMOVER_SUBTAREFA: DefinicaoFerramenta = {
+  nome: "remover_subtarefa",
+  descricao:
+    "Remove uma tarefa de dentro de um bloco. SÓ quando ele pedir. Usa `sub_id` (do `ver_rotina`) ou " +
+    "`texto` para encontrar pela descrição.",
+  parametros: {
+    type: "object",
+    properties: {
+      bloco_id: { type: "string", description: "O id do bloco." },
+      sub_id: { type: "string", description: "O id da tarefa (sub=... no `ver_rotina`)." },
+      texto: { type: "string", description: "Ou parte do texto da tarefa a remover." },
     },
     required: ["bloco_id"],
   },
@@ -271,6 +322,8 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_CRIAR_BLOCO,
     FERRAMENTA_EDITAR_BLOCO,
     FERRAMENTA_DETALHAR_BLOCO,
+    FERRAMENTA_ADICIONAR_SUBTAREFA,
+    FERRAMENTA_REMOVER_SUBTAREFA,
     FERRAMENTA_APAGAR_BLOCO,
   ];
   if (webSearchDisponivel()) {

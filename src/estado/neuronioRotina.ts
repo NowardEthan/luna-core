@@ -29,6 +29,7 @@ export type BlocoRotinaCore = {
   fim: number;
   nota?: string;
   origem?: "ethan" | "luna";
+  subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
 };
 
 export type EstadoRotina = {

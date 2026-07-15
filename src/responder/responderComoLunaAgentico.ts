@@ -8,10 +8,12 @@ import {
   type DependenciasLeitorDocumento,
 } from "../agentico/especialistas/leitorDocumento.js";
 import {
+  adicionarSubtarefa,
   apagarBlocoRotina,
   criarBloco,
   detalharBloco,
   editarBloco,
+  removerSubtarefa,
   verRotina,
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
@@ -383,6 +385,8 @@ export async function responderComoLunaAgentico(
         nome === "criar_bloco" ||
         nome === "editar_bloco" ||
         nome === "detalhar_bloco" ||
+        nome === "adicionar_subtarefa" ||
+        nome === "remover_subtarefa" ||
         nome === "apagar_bloco"
       ) {
         if (!opcoes.rotinaDeps) {
@@ -395,6 +399,8 @@ export async function responderComoLunaAgentico(
         if (nome === "criar_bloco") return criarBloco(opcoes.rotinaDeps, args);
         if (nome === "editar_bloco") return editarBloco(opcoes.rotinaDeps, args);
         if (nome === "detalhar_bloco") return detalharBloco(opcoes.rotinaDeps, args);
+        if (nome === "adicionar_subtarefa") return adicionarSubtarefa(opcoes.rotinaDeps, args);
+        if (nome === "remover_subtarefa") return removerSubtarefa(opcoes.rotinaDeps, args);
         return apagarBlocoRotina(opcoes.rotinaDeps, args);
       }
 

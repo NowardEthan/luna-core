@@ -31,6 +31,15 @@ export async function lerRotina(db: Firestore, uid: string): Promise<BlocoRotina
         fim: Number(b.fim ?? 0),
         nota: typeof b.nota === "string" ? b.nota : undefined,
         origem: b.origem === "luna" ? "luna" : "ethan",
+        subtarefas: Array.isArray(b.subtarefas)
+          ? (b.subtarefas as Array<Record<string, unknown>>).map((t) => ({
+              id: String(t.id ?? ""),
+              texto: String(t.texto ?? ""),
+              feito: t.feito === true,
+              ...(typeof t.hora === "number" ? { hora: t.hora } : {}),
+              ...(t.notificar === true ? { notificar: true } : {}),
+            }))
+          : undefined,
       };
     });
   } catch {
@@ -125,6 +134,7 @@ export function maosDaRotina(db: Firestore, uid: string) {
         roteiro?: string;
         passos?: Array<{ id: string; texto: string; feito: boolean }>;
         guia?: string;
+        subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
       }>,
     ): Promise<void> => {
       const patch: Record<string, unknown> = {};
@@ -136,6 +146,7 @@ export function maosDaRotina(db: Firestore, uid: string) {
       if (campos.roteiro !== undefined) patch.roteiro = campos.roteiro;
       if (campos.passos !== undefined) patch.passos = campos.passos;
       if (campos.guia !== undefined) patch.guia = campos.guia;
+      if (campos.subtarefas !== undefined) patch.subtarefas = campos.subtarefas;
       // Nota vazia = apagar a nota. `undefined` no Firestore não remove; é preciso ser explícito.
       if ("nota" in campos) patch.nota = campos.nota ?? null;
 
