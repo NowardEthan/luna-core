@@ -9,6 +9,7 @@ import {
   isFirebaseAuthRequired,
   verifyFirebaseBearer,
 } from "./firebaseAdmin.js";
+import { apagarContaDoUsuario } from "./apagarConta.js";
 import { deveUsarPersistenciaFirestore } from "./persistenciaFirestore.js";
 import { persistChatTurn } from "./firestoreChat.js";
 import { notifyLunaReply } from "./pushNotify.js";
@@ -365,6 +366,22 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
   }
 
+  if (method === "POST" && url.pathname === "/v1/account/delete") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      // Apagar é irreversível: exige um token válido SEMPRE, mesmo onde a auth é opcional.
+      if (!auth) {
+        return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
+      }
+      await apagarContaDoUsuario(auth.uid);
+      console.log(`[server] POST /v1/account/delete uid=${auth.uid} CONTA APAGADA`);
+      return sendJson(res, 200, { ok: true, deleted: true });
+    } catch (err) {
+      const message = friendlyErrorMessage(err);
+      return sendJson(res, 500, { ok: false, error: message });
+    }
+  }
+
   if (method === "POST" && url.pathname === "/v1/rosary/reflection") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
@@ -415,6 +432,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         neuronioRotina: true,
         maosDaRotina: true,
         rotinasProgramaveis: true,
+        apagarConta: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

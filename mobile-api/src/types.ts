@@ -169,6 +169,8 @@ export type HealthResponse = {
     maosDaRotina: boolean;
     /** A Luna vê só a rotina que vigora hoje (de férias, não cobra o trabalho). */
     rotinasProgramaveis: boolean;
+    /** Direito de exclusão (LGPD): apaga conta + todos os dados num toque. */
+    apagarConta: boolean;
   };
   /**
    * O commit que está a correr AQUI.
