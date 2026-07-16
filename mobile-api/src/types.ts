@@ -171,6 +171,8 @@ export type HealthResponse = {
     rotinasProgramaveis: boolean;
     /** Direito de exclusão (LGPD): apaga conta + todos os dados num toque. */
     apagarConta: boolean;
+    /** Busca semântica na conversa (a Luna acha pelo significado, não só a palavra). */
+    buscaSemantica: boolean;
   };
   /**
    * O commit que está a correr AQUI.

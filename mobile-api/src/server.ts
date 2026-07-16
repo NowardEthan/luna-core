@@ -10,6 +10,7 @@ import {
   verifyFirebaseBearer,
 } from "./firebaseAdmin.js";
 import { apagarContaDoUsuario } from "./apagarConta.js";
+import { buscarNaConversa } from "./buscarConversa.js";
 import { deveUsarPersistenciaFirestore } from "./persistenciaFirestore.js";
 import { persistChatTurn } from "./firestoreChat.js";
 import { notifyLunaReply } from "./pushNotify.js";
@@ -382,6 +383,25 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
   }
 
+  if (method === "POST" && url.pathname === "/v1/conversa/buscar") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
+      }
+      const body = (await readJson(req)) as {
+        query?: unknown;
+        mensagens?: unknown;
+      };
+      const query = typeof body.query === "string" ? body.query : "";
+      const mensagens = Array.isArray(body.mensagens) ? (body.mensagens as never[]) : [];
+      const resultado = await buscarNaConversa(query, mensagens);
+      return sendJson(res, resultado.ok ? 200 : 400, resultado);
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: friendlyErrorMessage(err) });
+    }
+  }
+
   if (method === "POST" && url.pathname === "/v1/rosary/reflection") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
@@ -433,6 +453,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         maosDaRotina: true,
         rotinasProgramaveis: true,
         apagarConta: true,
+        buscaSemantica: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
