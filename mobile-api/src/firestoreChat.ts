@@ -100,8 +100,13 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<bool
   const title = deriveTitle(displayText);
   const preview = lunaReply.trim().slice(0, 120) || displayText.slice(0, 120);
 
-  const userMsgId = input.userMessageId ?? `u-${Date.now()}`;
-  const lunaMsgId = input.lunaMessageId ?? `l-${Date.now()}`;
+  // O par user+luna vai no MESMO batch, com o MESMO serverTimestamp — empata no `createdAt`.
+  // O Firestore desempata por `__name__` (asc), então o id do «user» TEM de ordenar antes do da
+  // «luna», senão a resposta aparece acima da pergunta (o «l-» antigo vinha antes do «u-»). O
+  // sufixo `-0`/`-1` garante a ordem da troca quando o cliente não manda ids próprios.
+  const baseTs = Date.now();
+  const userMsgId = input.userMessageId ?? `m${baseTs}-0-user`;
+  const lunaMsgId = input.lunaMessageId ?? `m${baseTs}-1-luna`;
 
   const userRef = convRef.collection("messages").doc(userMsgId);
   const lunaRef = convRef.collection("messages").doc(lunaMsgId);
