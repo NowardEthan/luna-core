@@ -292,7 +292,12 @@ const FERRAMENTA_ADICIONAR_SUBTAREFA: DefinicaoFerramenta = {
     "Formato de tarefa, com a tua voz: cada uma numa linha, começa com maiúscula, curta e limpa " +
     "(«Responder emails», «Revisar o PR do cache») — não um parágrafo, não um «kkk» solto. " +
     "Põe `hora` só quando a tarefa TEM hora certa (uma reunião); com `notificar: true` ela cobra nesse " +
-    "horário. A hora tem de estar dentro do horário do bloco pai.",
+    "horário. A hora tem de estar dentro do horário do bloco pai. " +
+    "── DE HOJE ou FIXA (importante) ── Toda tarefa é SÓ DE HOJE por defeito (soma amanhã limpa). " +
+    "Usa `para_sempre: true` só quando é um passo RECORRENTE, parte do molde do bloco — quando ele " +
+    "descreve a rotina («todo dia eu faço X», «no trabalho sempre começo ligando a máquina») ou quando " +
+    "está a MONTAR o bloco do zero. Quando é coisa DO DIA («hoje tenho que cortar 3 peças», «lembra de " +
+    "ligar pro dentista») deixa `para_sempre` de fora. Na dúvida, é de hoje.",
   parametros: {
     type: "object",
     properties: {
