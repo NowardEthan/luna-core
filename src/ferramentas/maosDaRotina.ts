@@ -98,6 +98,7 @@ export type DependenciasRotina = {
     campos: { nome?: string; de?: string | null; ate?: string | null },
   ) => Promise<void>;
   apagarRotina?: (id: string) => Promise<void>;
+  adicionarExtra?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -500,9 +501,10 @@ export async function adicionarSubtarefa(
   const alvo = blocos.find((b) => b.id === id);
   if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi adicionado.`;
 
+  const paraSempre = args.para_sempre === true;
   const atuais = alvo.subtarefas ?? [];
-  if (atuais.length >= MAX_SUBTAREFAS) {
-    return `ERRO: este bloco já tem ${MAX_SUBTAREFAS} tarefas — cheio. Nada foi adicionado.`;
+  if (paraSempre && atuais.length >= MAX_SUBTAREFAS) {
+    return `ERRO: este bloco já tem ${MAX_SUBTAREFAS} tarefas fixas — cheio. Nada foi adicionado.`;
   }
 
   let hora: number | undefined;
@@ -525,12 +527,20 @@ export async function adicionarSubtarefa(
     ...(hora !== undefined && args.notificar === true ? { notificar: true } : {}),
   };
 
+  if (!paraSempre && deps.adicionarExtra) {
+    await deps.adicionarExtra(id, [nova]);
+    return (
+      `Adicionada a «${alvo.titulo}» (apenas para hoje): ${texto}` +
+      `${hora !== undefined ? ` às ${hhmm(hora)}${nova.notificar ? " (vai cobrar)" : ""}` : ""}.`
+    );
+  }
+
   await deps.editar(id, { subtarefas: [...atuais, nova] });
 
   return (
-    `Adicionada a «${alvo.titulo}»: ${texto}` +
+    `Adicionada a «${alvo.titulo}» (fixa): ${texto}` +
     `${hora !== undefined ? ` às ${hhmm(hora)}${nova.notificar ? " (vai cobrar)" : ""}` : ""}. ` +
-    `Agora são ${atuais.length + 1} tarefa(s).`
+    `Agora são ${atuais.length + 1} tarefa(s) fixa(s).`
   );
 }
 

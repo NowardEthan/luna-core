@@ -48,3 +48,8 @@ export function colRotinaLog(uid: string): string {
 export function colRotinaSets(uid: string): string {
   return `${FS.users}/${uid}/routine_sets`;
 }
+
+/** Os itens (subtarefas, tarefasDoDia) marcados/adicionados por dia. */
+export function colRotinaItems(uid: string): string {
+  return `${FS.users}/${uid}/routine_items`;
+}

@@ -129,6 +129,7 @@ export type LunaCoreModule = {
           }>,
         ) => Promise<void>;
         apagar: (id: string) => Promise<void>;
+        adicionarExtra?: (id: string, tarefas: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>) => Promise<void>;
       };
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;
@@ -523,7 +524,7 @@ export async function executarChatMobile(
       rotina,
       rotina_registos: rotinaRegistos,
       // As mãos dela: sem isto, «monta-me a semana» só podia ser encenado.
-      rotinaDeps: uid && db ? maosDaRotina(db, uid) : undefined,
+      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone) : undefined,
       stream: false,
       timeZone: prep.timeZone,
     });
@@ -620,7 +621,7 @@ export async function executarChatMobileStream(
       anexosDocumento: prep.anexosDocumento,
       rotina,
       rotina_registos: rotinaRegistos,
-      rotinaDeps: uid && db ? maosDaRotina(db, uid) : undefined,
+      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone) : undefined,
       stream: true,
       timeZone: prep.timeZone,
       onStatusHint: (hint) => {

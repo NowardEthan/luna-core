@@ -1,14 +1,16 @@
-import type { Firestore } from "firebase-admin/firestore";
+import { FieldValue, type Firestore } from "firebase-admin/firestore";
 
 import {
   colRotina,
   colRotinaLog,
   colRotinaSets,
+  colRotinaItems,
 } from "../../dist/persistencia/caminhosFirestore.js";
-import type {
-  BlocoRotinaCore,
-  RegistoDia,
-  RotinaSetCore,
+import {
+  hojeISOnoFuso,
+  type BlocoRotinaCore,
+  type RegistoDia,
+  type RotinaSetCore,
 } from "../../dist/estado/neuronioRotina.js";
 
 /**
@@ -127,7 +129,7 @@ export async function lerRegistosRotina(db: Firestore, uid: string): Promise<Reg
  * apaga com um toque. Uma companheira que mexe na agenda de alguém tem de deixar rasto:
  * uma alteração invisível na vida de uma pessoa não é ajuda, é intrusão.
  */
-export function maosDaRotina(db: Firestore, uid: string) {
+export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
   return {
     ler: () => lerRotina(db, uid),
 
@@ -209,6 +211,20 @@ export function maosDaRotina(db: Firestore, uid: string) {
 
     apagar: async (id: string): Promise<void> => {
       await db.collection(colRotina(uid)).doc(id).delete();
+    },
+
+    adicionarExtra: async (id: string, tarefas: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>): Promise<void> => {
+      const dia = hojeISOnoFuso(timeZone);
+      const docId = `${id}_${dia}`;
+      const ref = db.collection(colRotinaItems(uid)).doc(docId);
+      await ref.set(
+        {
+          blocoId: id,
+          dia,
+          tarefasDoDia: FieldValue.arrayUnion(...tarefas),
+        },
+        { merge: true }
+      );
     },
 
     // ── As rotinas alternativas (blocos programáveis) ────────────────────────────
