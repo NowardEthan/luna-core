@@ -8,7 +8,6 @@ import {
   type DependenciasLeitorDocumento,
 } from "../agentico/especialistas/leitorDocumento.js";
 import {
-  adicionarSubtarefa,
   apagarBlocoRotina,
   criarBloco,
   criarRotinaAlternativa,
@@ -18,7 +17,7 @@ import {
   detalharBloco,
   editarBloco,
   pausarBloco,
-  removerSubtarefa,
+  organizarTarefas,
   retomarBloco,
   verRotina,
   type DependenciasRotina,
@@ -391,8 +390,7 @@ export async function responderComoLunaAgentico(
         nome === "criar_bloco" ||
         nome === "editar_bloco" ||
         nome === "detalhar_bloco" ||
-        nome === "adicionar_subtarefa" ||
-        nome === "remover_subtarefa" ||
+        nome === "organizar_tarefas" ||
         nome === "pausar_bloco" ||
         nome === "retomar_bloco" ||
         nome === "ver_rotinas" ||
@@ -411,8 +409,7 @@ export async function responderComoLunaAgentico(
         if (nome === "criar_bloco") return criarBloco(opcoes.rotinaDeps, args);
         if (nome === "editar_bloco") return editarBloco(opcoes.rotinaDeps, args);
         if (nome === "detalhar_bloco") return detalharBloco(opcoes.rotinaDeps, args);
-        if (nome === "adicionar_subtarefa") return adicionarSubtarefa(opcoes.rotinaDeps, args);
-        if (nome === "remover_subtarefa") return removerSubtarefa(opcoes.rotinaDeps, args);
+        if (nome === "organizar_tarefas") return organizarTarefas(opcoes.rotinaDeps, args);
         if (nome === "pausar_bloco") return pausarBloco(opcoes.rotinaDeps, args);
         if (nome === "retomar_bloco") return retomarBloco(opcoes.rotinaDeps, args);
         if (nome === "ver_rotinas") return verRotinas(opcoes.rotinaDeps);

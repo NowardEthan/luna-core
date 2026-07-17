@@ -131,6 +131,7 @@ export type LunaCoreModule = {
         apagar: (id: string) => Promise<void>;
         adicionarExtra?: (id: string, tarefas: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>) => Promise<void>;
         removerExtra?: (id: string, taskId: string) => Promise<void>;
+        definirExtras?: (id: string, tarefas: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>) => Promise<void>;
       };
       onStatusHint?: (hint: string) => void;
       onStreamReasoningDelta?: (delta: string) => void;

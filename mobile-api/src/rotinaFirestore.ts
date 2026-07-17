@@ -285,6 +285,31 @@ export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
       );
     },
 
+    /**
+     * DEFINE a lista inteira das tarefas de HOJE (substitui — permite reordenar). Usado pela
+     * conciliação do `organizar_tarefas`: a Luna manda a lista nova, o servidor grava.
+     *
+     * Só poda do `subsFeitas` os ids de HOJE que saíram (as fixas guardam o feito delas no mesmo
+     * array — não podem ser tocadas aqui). Tarefa que já nasce feita entra no subsFeitas.
+     */
+    definirExtras: async (
+      id: string,
+      tarefas: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>,
+    ): Promise<void> => {
+      const dia = hojeISOnoFuso(timeZone);
+      const ref = db.collection(colRotinaItems(uid)).doc(`${id}_${dia}`);
+      const data = (await ref.get()).data() as Record<string, unknown> | undefined;
+      const antigas = Array.isArray(data?.tarefasDoDia) ? (data!.tarefasDoDia as Array<Record<string, unknown>>) : [];
+      const feitas = Array.isArray(data?.subsFeitas) ? (data!.subsFeitas as string[]) : [];
+      const antigasIds = new Set(antigas.map((t) => String(t?.id ?? "")));
+      const novasIds = new Set(tarefas.map((t) => t.id));
+      // Mantém: os feitos que NÃO eram tarefas de hoje (as fixas), + os de hoje que continuam.
+      const feitasMantidas = feitas.filter((f) => !antigasIds.has(f) || novasIds.has(f));
+      const nascemFeitas = tarefas.filter((t) => t.feito).map((t) => t.id);
+      const subsFeitas = Array.from(new Set([...feitasMantidas, ...nascemFeitas]));
+      await ref.set({ blocoId: id, dia, tarefasDoDia: tarefas, subsFeitas }, { merge: true });
+    },
+
     // ── As rotinas alternativas (blocos programáveis) ────────────────────────────
     // A Normal não é documento nenhum: é a ausência de período. Só as alternativas
     // (Férias, Provas…) vivem em routine_sets, cada uma com o seu de/até.

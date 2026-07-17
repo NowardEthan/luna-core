@@ -101,6 +101,8 @@ export type DependenciasRotina = {
   adicionarExtra?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
   /** Remove UMA tarefa de HOJE (por id), não do molde. */
   removerExtra?: (id: string, taskId: string) => Promise<void>;
+  /** DEFINE a lista inteira das tarefas de HOJE (substitui — permite reordenar). */
+  definirExtras?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -148,16 +150,19 @@ function descreverBloco(b: BlocoRotinaCore, comDias: boolean): string {
   if (b.passos?.length) {
     linhas.push(`     passos: ${b.passos.map((p) => p.texto).join(" · ")}`);
   }
-  const descreverTarefa = (t: { texto: string; feito: boolean; hora?: number; notificar?: boolean }) =>
-    `${t.feito ? "✓ " : ""}${t.texto}` +
-    (t.hora !== undefined ? ` (${hhmm(t.hora)}${t.notificar ? ", cobra" : ""})` : "");
+  // O id vai junto (curto): é por ele que o `organizar_tarefas` mantém a tarefa (e o «feito»)
+  // ao reordenar/renomear. Sem id = tarefa nova.
+  const descreverTarefa = (t: { id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }) =>
+    `       - ${t.feito ? "✓ " : ""}${t.texto}` +
+    (t.hora !== undefined ? ` (${hhmm(t.hora)}${t.notificar ? ", cobra" : ""})` : "") +
+    `  [${t.id}]`;
   // As de HOJE (as peças do dia) — o que ela reorganiza quando ele pede das «de hoje».
   if (b.tarefasHoje?.length) {
-    linhas.push(`     tarefas de HOJE: ${b.tarefasHoje.map(descreverTarefa).join(" · ")}`);
+    linhas.push(`     tarefas de HOJE:`, ...b.tarefasHoje.map(descreverTarefa));
   }
   // As FIXAS (o molde que se repete todo dia).
   if (b.subtarefas?.length) {
-    linhas.push(`     tarefas FIXAS (todo dia): ${b.subtarefas.map(descreverTarefa).join(" · ")}`);
+    linhas.push(`     tarefas FIXAS (todo dia):`, ...b.subtarefas.map(descreverTarefa));
   }
   return linhas.join("\n");
 }
@@ -413,24 +418,13 @@ export async function apagarBlocoRotina(
 // ── detalhar_bloco ────────────────────────────────────────────────────────────
 
 /**
- * O roteiro e os passos — a parte que faz um bloco arrancar.
+ * O roteiro e o guia — o texto que ajuda a arrancar/aprofundar. (As TAREFAS saíram daqui: são
+ * do `organizar_tarefas` agora. O Ethan apanhou a estranheza de passo e subtarefa serem a mesma
+ * coisa em duas listas — então há uma via só pras tarefas, e esta ferramenta só escreve texto.)
  *
- * ── Porque isto existe ────────────────────────────────────────────────────────
- * O Ethan tem TDAH. O obstáculo dele não é lembrar-se de que o almoço existe: é por ONDE
- * COMEÇAR. Um bloco que diz «Almoço · 12h–13h» não arranca ninguém. Um bloco que diz
- * «descongela o frango (5 min) · arroz na panela · corta o tomate enquanto o arroz cozinha»
- * arranca.
- *
- * Quebrar a tarefa em pedaços pequenos é a intervenção clássica para o TDAH — e riscar um
- * passo é, ele próprio, um começo.
- *
- * ── Um aviso que fica escrito ─────────────────────────────────────────────────
- * Isto pode virar veneno. Um roteiro de doze passos para «tomar banho» é humilhante e vai ser
- * apagado no primeiro dia. A ferramenta limita a seis, e a descrição diz-lhe porquê: o
- * detalhe serve para arrancar, não para tutelar.
+ * O `roteiro` é o COMO curto (arranca o TDAH: «Almoço 12h-13h» não arranca; «descongela o frango»
+ * arranca). O `guia` é o fundo — a receita/treino inteiro, só quando ele pede.
  */
-export const MAX_PASSOS = 6;
-
 export async function detalharBloco(
   deps: DependenciasRotina,
   args: Record<string, unknown>,
@@ -445,138 +439,163 @@ export async function detalharBloco(
   const roteiro = typeof args.roteiro === "string" ? args.roteiro.trim() : undefined;
   const guia = typeof args.guia === "string" ? args.guia.trim() : undefined;
 
-  // Os «passos» viram TAREFAS. Passo e subtarefa eram a mesma coisa em duas listas — o Ethan
-  // apanhou a estranheza. Agora há uma lista só: as tarefas do bloco. Os passos de arranque
-  // entram nela (sem hora), ACRESCENTANDO — nunca apagam as tarefas que já lá estão.
-  const novas: SubTarefa[] = Array.isArray(args.passos)
-    ? args.passos
-        .map((p) => String(p).trim())
-        .filter(Boolean)
-        .slice(0, MAX_PASSOS)
-        .map((texto, i) => ({ id: `st${Date.now().toString(36)}${i}`, texto, feito: false }))
-    : [];
-
-  if (!roteiro && !novas.length && !guia) {
-    return "ERRO: não disseste roteiro, tarefas nem guia. Nada foi escrito.";
+  if (!roteiro && !guia) {
+    return "ERRO: não disseste roteiro nem guia. (Pra tarefas, usa `organizar_tarefas`.) Nada foi escrito.";
   }
-
-  const subtarefas = novas.length ? [...(alvo.subtarefas ?? []), ...novas] : undefined;
 
   await deps.editar(id, {
     ...(roteiro ? { roteiro } : {}),
-    ...(subtarefas ? { subtarefas } : {}),
     ...(guia ? { guia } : {}),
   });
 
-  const partes = [
-    roteiro ? "roteiro" : "",
-    novas.length ? `${novas.length} tarefa(s)` : "",
-    guia ? "guia completo" : "",
-  ].filter(Boolean);
-
+  const partes = [roteiro ? "roteiro" : "", guia ? "guia completo" : ""].filter(Boolean);
   return `Escrito em «${alvo.titulo}»: ${partes.join(" + ")}. Ele vê isto ao tocar no bloco.`;
 }
 
-// ── sub-tarefas ───────────────────────────────────────────────────────────────
+// ── organizar_tarefas ─────────────────────────────────────────────────────────
 
 /**
- * Adiciona UMA tarefa ao bloco — e é ADITIVA de propósito.
+ * A via ÚNICA pra mexer nas tarefas de um bloco: a Luna DECLARA a lista nova, o servidor CONCILIA.
  *
- * O Ethan pediu isto por palavras: «eu quero mais passos, inclua isso, aí ela vai
- * adicionando». Ela lê as que já existem e ACRESCENTA — nunca reescreve a lista. Um
- * «adiciona X» que apagasse as outras seria a mesma traição do editar que apaga a nota:
- * ele pede para juntar uma coisa e perde três.
+ * ── Porque isto substituiu adicionar/remover_subtarefa ────────────────────────
+ * O Ethan achou o fluxo antigo estranho: pra reorganizar um bloco, ela chamava remover×N +
+ * adicionar×N, rastreando id por id, e NÃO conseguia reordenar. Aqui ela pensa em LISTA — manda
+ * as fixas e/ou as de hoje na ordem que quer, cada item com o `id` (pra manter) ou só texto (nova)
+ * — e o servidor faz o trabalho chato: preserva ids e o «feito», renomeia, reordena, some e cria.
+ *
+ * ── A rede (o risco da lista parcial) ─────────────────────────────────────────
+ * Declarar uma lista PARCIAL apagaria o resto. Contra isso: o resultado RELATA o que somou/tirou/
+ * reordenou (nada silencioso), e a ferramenta RECUSA esvaziar uma lista sem `limpar: true`.
  */
 export const MAX_SUBTAREFAS = 20;
 
-export async function adicionarSubtarefa(
-  deps: DependenciasRotina,
-  args: Record<string, unknown>,
-): Promise<string> {
-  const id = String(args.bloco_id ?? "").trim();
-  const texto = String(args.texto ?? "").trim();
-  if (!id) return "ERRO: falta o id do bloco. Nada foi adicionado.";
-  if (!texto) return "ERRO: a tarefa precisa de um texto. Nada foi adicionado.";
+type ItemDesejado = {
+  id?: string;
+  texto?: string;
+  hora?: string | number;
+  notificar?: boolean;
+  feito?: boolean;
+};
 
-  const blocos = await deps.ler();
-  const alvo = blocos.find((b) => b.id === id);
-  if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi adicionado.`;
+type ResultadoConciliacao = {
+  nova: SubTarefa[];
+  adicionadas: string[];
+  removidas: string[];
+  renomeadas: number;
+  reordenou: boolean;
+};
 
-  const paraSempre = args.para_sempre === true;
-  const atuais = alvo.subtarefas ?? [];
-  if (paraSempre && atuais.length >= MAX_SUBTAREFAS) {
-    return `ERRO: este bloco já tem ${MAX_SUBTAREFAS} tarefas fixas — cheio. Nada foi adicionado.`;
-  }
+/** Concilia a lista desejada com a atual: mantém por id (preserva feito), renomeia, reordena, cria, remove. */
+function conciliarLista(
+  desejadas: ItemDesejado[],
+  atuais: SubTarefa[],
+  bloco: { inicio: number; fim: number },
+): ResultadoConciliacao {
+  const porId = new Map(atuais.map((t) => [t.id, t]));
+  const usados = new Set<string>();
+  const nova: SubTarefa[] = [];
+  const adicionadas: string[] = [];
+  let renomeadas = 0;
 
-  let hora: number | undefined;
-  if (args.hora !== undefined && String(args.hora).trim()) {
-    const m = horaParaMinuto(String(args.hora));
-    if (m === null) return "ERRO: hora inválida (usa «HH:MM»). Nada foi adicionado.";
-    // A hora da sub-tarefa tem de caber dentro do bloco pai — senão o toque chega quando ele
-    // já saiu do trabalho, e um lembrete fora de hora é ruído que ele desliga.
-    if (m < alvo.inicio || m > alvo.fim) {
-      return `ERRO: ${hhmm(m)} está fora de «${alvo.titulo}» (${hhmm(alvo.inicio)}–${hhmm(alvo.fim)}). Nada foi adicionado.`;
+  for (const d of desejadas) {
+    const texto = typeof d.texto === "string" ? d.texto.trim() : "";
+    const existente = d.id ? porId.get(d.id) : undefined;
+
+    // A hora (se veio): só vale dentro do bloco pai — fora dele, um toque chega quando ele já saiu.
+    let hora: number | undefined = existente?.hora;
+    let notificar: boolean | undefined = existente?.notificar;
+    if (d.hora !== undefined && String(d.hora).trim() !== "") {
+      const m = typeof d.hora === "number" ? d.hora : horaParaMinuto(String(d.hora));
+      if (m !== null && m >= bloco.inicio && m <= bloco.fim) {
+        hora = m;
+        notificar = d.notificar === true;
+      }
     }
-    hora = m;
+
+    if (existente) {
+      usados.add(existente.id);
+      if (texto && texto !== existente.texto) renomeadas += 1;
+      nova.push({
+        id: existente.id,
+        texto: texto || existente.texto,
+        feito: d.feito ?? existente.feito,
+        ...(hora !== undefined ? { hora } : {}),
+        ...(hora !== undefined && notificar ? { notificar: true } : {}),
+      });
+    } else if (texto) {
+      nova.push({
+        id: `st${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`,
+        texto,
+        feito: d.feito === true,
+        ...(hora !== undefined ? { hora } : {}),
+        ...(hora !== undefined && d.notificar === true ? { notificar: true } : {}),
+      });
+      adicionadas.push(texto);
+    }
+    // item sem id conhecido e sem texto → ignorado (nada a fazer)
   }
 
-  const nova: SubTarefa = {
-    id: `st${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`,
-    texto,
-    feito: args.feito === true,
-    ...(hora !== undefined ? { hora } : {}),
-    ...(hora !== undefined && args.notificar === true ? { notificar: true } : {}),
-  };
-
-  if (!paraSempre && deps.adicionarExtra) {
-    await deps.adicionarExtra(id, [nova]);
-    return (
-      `Adicionada a «${alvo.titulo}» (apenas para hoje): ${texto}` +
-      `${hora !== undefined ? ` às ${hhmm(hora)}${nova.notificar ? " (vai cobrar)" : ""}` : ""}.`
-    );
-  }
-
-  await deps.editar(id, { subtarefas: [...atuais, nova] });
-
-  return (
-    `Adicionada a «${alvo.titulo}» (fixa): ${texto}` +
-    `${hora !== undefined ? ` às ${hhmm(hora)}${nova.notificar ? " (vai cobrar)" : ""}` : ""}. ` +
-    `Agora são ${atuais.length + 1} tarefa(s) fixa(s).`
-  );
+  const removidas = atuais.filter((t) => !usados.has(t.id)).map((t) => t.texto);
+  const ordemAntes = atuais.filter((t) => usados.has(t.id)).map((t) => t.id).join(",");
+  const ordemDepois = nova.filter((t) => usados.has(t.id)).map((t) => t.id).join(",");
+  return { nova, adicionadas, removidas, renomeadas, reordenou: ordemAntes !== ordemDepois };
 }
 
-/** Remove uma tarefa — por id, ou pelo texto que mais se parece. */
-export async function removerSubtarefa(
+function resumirConciliacao(rotulo: string, r: ResultadoConciliacao): string {
+  const p: string[] = [];
+  if (r.adicionadas.length) p.push(`+${r.adicionadas.length}`);
+  if (r.removidas.length) p.push(`−${r.removidas.length} (${r.removidas.join(", ")})`);
+  if (r.renomeadas) p.push(`${r.renomeadas} renomeada(s)`);
+  if (r.reordenou) p.push("reordenou");
+  return `${rotulo}: ${p.length ? p.join(", ") : "sem mudança"}`;
+}
+
+export async function organizarTarefas(
   deps: DependenciasRotina,
   args: Record<string, unknown>,
 ): Promise<string> {
   const id = String(args.bloco_id ?? "").trim();
-  if (!id) return "ERRO: falta o id do bloco. Nada foi removido.";
+  if (!id) return "ERRO: falta o id do bloco (vê `ver_rotina`). Nada foi mexido.";
 
   const blocos = await deps.ler();
   const alvo = blocos.find((b) => b.id === id);
-  if (!alvo) return "ERRO: não encontrei esse bloco. Nada foi removido.";
+  if (!alvo) return `ERRO: não existe bloco com id «${id}». Nada foi mexido.`;
 
-  const sub = String(args.sub_id ?? "").trim();
-  const texto = String(args.texto ?? "").trim().toLowerCase();
-  const acha = (lista?: SubTarefa[]) =>
-    lista?.find((t) => (sub ? t.id === sub : t.texto.toLowerCase().includes(texto)));
+  const temFixas = Array.isArray(args.fixas);
+  const temHoje = Array.isArray(args.hoje);
+  if (!temFixas && !temHoje) {
+    return "ERRO: diz `fixas` (o molde de todo dia) e/ou `hoje` (só hoje) — cada uma é a LISTA INTEIRA na ordem que queres. Nada foi mexido.";
+  }
+  const limpar = args.limpar === true;
+  const partes: string[] = [];
 
-  // Primeiro nas de HOJE (as peças do dia) — é o que ele costuma pedir pra tirar/reorganizar.
-  const deHoje = acha(alvo.tarefasHoje);
-  if (deHoje && deps.removerExtra) {
-    await deps.removerExtra(id, deHoje.id);
-    return `Removida de «${alvo.titulo}» (de hoje): ${deHoje.texto}.`;
+  if (temFixas) {
+    const desejadas = args.fixas as ItemDesejado[];
+    if (!desejadas.length && !limpar && (alvo.subtarefas?.length ?? 0) > 0) {
+      return "ERRO: a lista `fixas` veio vazia. Se é mesmo pra apagar TODAS as fixas, repete com `limpar: true`. Nada foi mexido.";
+    }
+    if (desejadas.length > MAX_SUBTAREFAS) {
+      return `ERRO: são ${desejadas.length} fixas, o teto é ${MAX_SUBTAREFAS}. Nada foi mexido.`;
+    }
+    const r = conciliarLista(desejadas, alvo.subtarefas ?? [], alvo);
+    await deps.editar(id, { subtarefas: r.nova });
+    partes.push(resumirConciliacao("fixas", r));
   }
 
-  // Depois nas FIXAS (o molde que repete todo dia).
-  const fixa = acha(alvo.subtarefas);
-  if (fixa) {
-    await deps.editar(id, { subtarefas: (alvo.subtarefas ?? []).filter((t) => t.id !== fixa.id) });
-    return `Removida de «${alvo.titulo}» (fixa, repetia todo dia): ${fixa.texto}.`;
+  if (temHoje) {
+    if (!deps.definirExtras) {
+      return "ERRO: não consigo mexer nas tarefas de hoje neste ambiente. Nada foi mexido nas de hoje.";
+    }
+    const desejadas = args.hoje as ItemDesejado[];
+    if (!desejadas.length && !limpar && (alvo.tarefasHoje?.length ?? 0) > 0) {
+      return "ERRO: a lista `hoje` veio vazia. Se é mesmo pra apagar TODAS as de hoje, repete com `limpar: true`. Nada foi mexido.";
+    }
+    const r = conciliarLista(desejadas, alvo.tarefasHoje ?? [], alvo);
+    await deps.definirExtras(id, r.nova);
+    partes.push(resumirConciliacao("hoje", r));
   }
 
-  return "ERRO: não encontrei essa tarefa (nem nas de hoje, nem nas fixas). Nada foi removido.";
+  return `Organizei «${alvo.titulo}» — ${partes.join(" · ")}. Ele vê na hora.`;
 }
 
 // ── pausar / retomar ──────────────────────────────────────────────────────────

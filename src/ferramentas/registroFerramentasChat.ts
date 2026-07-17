@@ -124,12 +124,12 @@ const FERRAMENTA_VER_ROTINA: DefinicaoFerramenta = {
     "em que rotina está (Normal ou uma alternativa). Já recebes no briefing onde ele está AGORA — usa " +
     "esta ferramenta quando precisas da semana inteira: para responder «o que tenho na terça?», procurar " +
     "um buraco livre, antes de criar um bloco (para não pisares outro), e SEMPRE que ele pedir para " +
-    "reorganizar/refazer a rotina — só a vês por inteiro aqui, então lê ANTES de mexer. " +
+    "reorganizar/refazer a rotina — só a vês por inteiro aqui, então lê ANTES de mexer. Cada tarefa vem " +
+    "com um id curto entre colchetes, ex.: [stabc] — é por ele que o `organizar_tarefas` mantém a tarefa. " +
     "── DUAS listas de tarefas ── Cada bloco pode ter «tarefas de HOJE» (as peças que mudam a cada dia, " +
-    "só valem hoje) e «tarefas FIXAS (todo dia)» (o molde recorrente). Quando ele pede pra reorganizar/" +
-    "arrumar as tarefas de HOJE, mexe SÓ nas de hoje: usa `adicionar_subtarefa` (sem `para_sempre`) e " +
-    "`remover_subtarefa` (que também tira as de hoje). NUNCA uses `detalhar_bloco` pra isso — ele escreve " +
-    "o roteiro/passos do molde FIXO (todo dia), e as peças de hoje virariam permanentes.",
+    "só valem hoje) e «tarefas FIXAS (todo dia)» (o molde recorrente). Pra mexer em QUALQUER tarefa " +
+    "(adicionar, tirar, renomear, REORDENAR), usa só `organizar_tarefas`: mandas a lista nova de `fixas` " +
+    "e/ou `hoje` — cada uma separada, então nunca confundas as camadas.",
   parametros: {
     type: "object",
     properties: {
@@ -241,12 +241,11 @@ const FERRAMENTA_EDITAR_BLOCO: DefinicaoFerramenta = {
 const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
   nome: "detalhar_bloco",
   descricao:
-    "Escreve o ROTEIRO de um bloco: como fazer a coisa, e os passos para arrancar. " +
-    "Ele tem TDAH — o problema dele não é lembrar-se da tarefa, é COMEÇAR. «Almoço 12h–13h» não " +
-    "arranca ninguém; «descongela o frango (5min) · arroz na panela · corta o tomate enquanto coze» arranca. " +
-    "Usa quando criares um bloco que beneficie disso (almoço, treino, estudo), ou quando ele pedir. " +
-    "NO MÁXIMO 6 passos, e só onde fazem falta: doze passos para «tomar banho» é humilhante e ele vai apagar. " +
-    "O roteiro é teu, na tua voz — não é um manual.",
+    "Escreve o ROTEIRO ou o GUIA de um bloco (o TEXTO que ajuda — não as tarefas; pra tarefas usa " +
+    "`organizar_tarefas`). O roteiro é o COMO curto: ele tem TDAH, o problema não é lembrar a tarefa, " +
+    "é COMEÇAR. «Almoço 12h–13h» não arranca; «descongela o frango, arroz na panela, corta o tomate " +
+    "enquanto coze» arranca. O guia é o fundo (a receita/treino/plano inteiro), SÓ quando ele pede. " +
+    "Na tua voz, não um manual.",
   parametros: {
     type: "object",
     properties: {
@@ -256,22 +255,12 @@ const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
         description:
           "Texto curto: como fazer, o que ter em conta, um empurrão. Na tua voz, não um manual.",
       },
-      passos: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "Até 6 tarefas de ARRANQUE, na ordem — entram na lista de tarefas do bloco (é a MESMA " +
-          "lista das subtarefas; não há «passos» à parte). Em formato de tarefa: cada uma numa " +
-          "linha, começa com maiúscula, curta e limpa. «Descongela o frango», «Corta o tomate " +
-          "enquanto o arroz coze». Acrescentam às que já existem — não apagam. Sem parágrafo nem «kkk».",
-      },
       guia: {
         type: "string",
         description:
           "O guia FUNDO — a receita completa com ingredientes e quantidades, o treino inteiro, " +
           "o plano de estudo detalhado. SEM limite de tamanho, mas SÓ quando ele PEDE («me dá a receita», " +
-          "«detalha mais», «como faço isso direito»). Não escrevas guia sem ele pedir: os passos já " +
-          "chegam para arrancar, e um guia não pedido é a tutela que ele vai apagar. Aqui podes usar " +
+          "«detalha mais», «como faço isso direito»). Não escrevas guia sem ele pedir. Aqui podes usar " +
           "linhas e listas (com «- » ou «1. »).",
       },
     },
@@ -280,54 +269,58 @@ const FERRAMENTA_DETALHAR_BLOCO: DefinicaoFerramenta = {
 };
 
 /**
- * Adicionar uma tarefa DENTRO de um bloco — e é ADITIVA.
+ * A via ÚNICA pras tarefas de um bloco: a Luna DECLARA a lista nova, o servidor CONCILIA.
  *
- * «Trabalho 8h–17h» contém muitas coisas; cada uma é uma sub-tarefa que ele risca. O Ethan
- * pediu por palavras: «eu quero mais, inclua isso, aí ela vai adicionando». Ela chama isto
- * uma vez por tarefa, e cada chamada ACRESCENTA — nunca apaga as que já lá estão.
- *
- * A hora NÃO é enfeite: com `notificar`, ela cobra-o nesse horário (uma reunião às 10h dá um
- * toque às 10h). Mas só põe hora quando faz sentido — a maioria é só checklist.
+ * Substituiu adicionar/remover_subtarefa: o Ethan achou estranho o fluxo antigo (remover×N +
+ * adicionar×N, rastreando id, sem reordenar). Agora ela pensa em LISTA — manda `fixas` e/ou `hoje`
+ * na ordem que quer, cada item com `id` (mantém) ou só texto (nova); o servidor preserva o «feito»,
+ * renomeia, reordena, cria e remove — e RELATA o que fez.
  */
-const FERRAMENTA_ADICIONAR_SUBTAREFA: DefinicaoFerramenta = {
-  nome: "adicionar_subtarefa",
+const FERRAMENTA_ORGANIZAR_TAREFAS: DefinicaoFerramenta = {
+  nome: "organizar_tarefas",
   descricao:
-    "Adiciona UMA tarefa dentro de um bloco (ex.: dentro de «Trabalho», adiciona «Responder emails»). " +
-    "Chama uma vez por tarefa — é aditiva, nunca apaga as outras. " +
-    "Formato de tarefa, com a tua voz: cada uma numa linha, começa com maiúscula, curta e limpa " +
-    "(«Responder emails», «Revisar o PR do cache») — não um parágrafo, não um «kkk» solto. " +
-    "Põe `hora` só quando a tarefa TEM hora certa (uma reunião); com `notificar: true` ela cobra nesse " +
-    "horário. A hora tem de estar dentro do horário do bloco pai. " +
-    "── DE HOJE ou FIXA (importante) ── Toda tarefa é SÓ DE HOJE por defeito (soma amanhã limpa). " +
-    "Usa `para_sempre: true` só quando é um passo RECORRENTE, parte do molde do bloco — quando ele " +
-    "descreve a rotina («todo dia eu faço X», «no trabalho sempre começo ligando a máquina») ou quando " +
-    "está a MONTAR o bloco do zero. Quando é coisa DO DIA («hoje tenho que cortar 3 peças», «lembra de " +
-    "ligar pro dentista») deixa `para_sempre` de fora. Na dúvida, é de hoje.",
+    "A ferramenta ÚNICA pra mexer nas tarefas de um bloco: adicionar, tirar, renomear e REORDENAR. " +
+    "Tu DECLARAS a lista nova e o servidor concilia. Fluxo: 1) `ver_rotina` (cada tarefa vem com um id " +
+    "curto, ex. [stabc]); 2) chama isto com a lista NOVA. " +
+    "── Como montar cada item ── item com `id` = mantém aquela tarefa (guarda o «feito» dela); com " +
+    "`texto` novo junto = renomeia; item SÓ com `texto` (sem id) = tarefa NOVA. A ORDEM do array é a " +
+    "ordem que fica. Um id que existia e ficou de FORA da lista é REMOVIDO. " +
+    "── DUAS listas separadas ── `fixas` = o molde que repete todo dia; `hoje` = só hoje. Manda a que " +
+    "for mexer (ou as duas). Reorganizar as de HOJE mexe SÓ em `hoje` — nunca vira permanente. " +
+    "── CUIDADO ── cada lista é a INTEIRA: inclui SEMPRE todas as tarefas que devem FICAR, senão o " +
+    "servidor entende que as omitidas foram removidas. Pra esvaziar de propósito, manda a lista vazia " +
+    "com `limpar: true`. Formato de tarefa na tua voz: Maiúscula, curta e limpa.",
   parametros: {
     type: "object",
     properties: {
       bloco_id: { type: "string", description: "O id do bloco (do `ver_rotina`)." },
-      texto: { type: "string", description: "A tarefa, em formato de tarefa (Maiúscula, infinitivo, curto)." },
-      hora: { type: "string", description: "«HH:MM», opcional — só se a tarefa tiver hora certa." },
-      notificar: { type: "boolean", description: "Com hora, cobrar nesse horário? Default não." },
-      para_sempre: { type: "boolean", description: "Se true, salva a tarefa no molde fixo do bloco (todos os dias). Se false ou omitido, salva apenas para hoje. O padrão é salvar apenas para hoje." },
-      feito: { type: "boolean", description: "Se true, a tarefa já nasce marcada como concluída (✓). Usa isso ao reorganizar tarefas que ele já tinha marcado como concluídas." },
-    },
-    required: ["bloco_id", "texto"],
-  },
-};
-
-const FERRAMENTA_REMOVER_SUBTAREFA: DefinicaoFerramenta = {
-  nome: "remover_subtarefa",
-  descricao:
-    "Remove uma tarefa de dentro de um bloco. SÓ quando ele pedir. Usa `sub_id` (do `ver_rotina`) ou " +
-    "`texto` para encontrar pela descrição.",
-  parametros: {
-    type: "object",
-    properties: {
-      bloco_id: { type: "string", description: "O id do bloco." },
-      sub_id: { type: "string", description: "O id da tarefa (sub=... no `ver_rotina`)." },
-      texto: { type: "string", description: "Ou parte do texto da tarefa a remover." },
+      fixas: {
+        type: "array",
+        description: "A lista INTEIRA das tarefas FIXAS (todo dia), na ordem desejada. Omite pra não mexer nelas.",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "O id da tarefa existente a manter ([...] no ver_rotina). Omite se é nova." },
+            texto: { type: "string", description: "O texto da tarefa (obrigatório se é nova; presente = renomeia a existente)." },
+            hora: { type: "string", description: "«HH:MM», opcional — só se a tarefa tem hora certa (dentro do bloco)." },
+            notificar: { type: "boolean", description: "Com hora, cobrar nesse horário? Default não." },
+          },
+        },
+      },
+      hoje: {
+        type: "array",
+        description: "A lista INTEIRA das tarefas de HOJE (só hoje), na ordem desejada. Omite pra não mexer nelas.",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "O id da tarefa existente a manter. Omite se é nova." },
+            texto: { type: "string", description: "O texto (obrigatório se é nova; presente = renomeia)." },
+            hora: { type: "string", description: "«HH:MM», opcional." },
+            notificar: { type: "boolean", description: "Com hora, cobrar? Default não." },
+          },
+        },
+      },
+      limpar: { type: "boolean", description: "Só pra confirmar esvaziar uma lista de propósito (lista vazia). Senão, lista vazia é recusada." },
     },
     required: ["bloco_id"],
   },
@@ -450,8 +443,7 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_CRIAR_BLOCO,
     FERRAMENTA_EDITAR_BLOCO,
     FERRAMENTA_DETALHAR_BLOCO,
-    FERRAMENTA_ADICIONAR_SUBTAREFA,
-    FERRAMENTA_REMOVER_SUBTAREFA,
+    FERRAMENTA_ORGANIZAR_TAREFAS,
     FERRAMENTA_PAUSAR_BLOCO,
     FERRAMENTA_RETOMAR_BLOCO,
     FERRAMENTA_VER_ROTINAS,
