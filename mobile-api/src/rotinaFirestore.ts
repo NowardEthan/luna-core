@@ -344,5 +344,10 @@ export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
     apagarRotina: async (id: string): Promise<void> => {
       await db.collection(colRotinaSets(uid)).doc(id).delete();
     },
+
+    // ── Caixa de Entrada (Ideias) ──
+    criarIdeia: async (texto: string) => {
+      return criarIdeia(uid, texto, "luna");
+    },
   };
 }

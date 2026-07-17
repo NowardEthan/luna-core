@@ -33,6 +33,7 @@ const FERRAMENTAS_DE_ACAO = new Set([
   "criar_rotina",
   "editar_rotina",
   "apagar_rotina",
+  "anotar_ideia",
 ]);
 
 /**
@@ -44,7 +45,7 @@ const FERRAMENTAS_DE_ACAO = new Set([
  * é sobre rotina vem do PEDIDO dele, não da resposta dela.
  */
 const VERBOS_FEITOS =
-  /\b(criei|cri[aá]mos|criad[oa]|pausei|paus[aá]mos|pausad[oa]|apliquei|aplicad[oa]|marquei|marcad[oa]|adicionei|adicionad[oa]|removi|removid[oa]|apaguei|apagad[oa]|montei|montad[oa]|agendei|agendad[oa]|retomei|retomad[oa]|editei|editad[oa]|mudei|alterei|troquei|prontinho|tá feito|ta feito|feito!|já está|ja esta)\b/i;
+  /\b(criei|cri[aá]mos|criad[oa]|pausei|paus[aá]mos|pausad[oa]|apliquei|aplicad[oa]|marquei|marcad[oa]|adicionei|adicionad[oa]|removi|removid[oa]|apaguei|apagad[oa]|montei|montad[oa]|agendei|agendad[oa]|retomei|retomad[oa]|editei|editad[oa]|mudei|alterei|troquei|anotei|anotad[oa]|guardei|guardad[oa]|salvei|salv[oa]|prontinho|tá feito|ta feito|feito!|já está|ja esta)\b/i;
 
 export function respostaAlegaAcaoDeRotina(resposta: string): boolean {
   return VERBOS_FEITOS.test(resposta);
@@ -55,7 +56,7 @@ export function respostaAlegaAcaoDeRotina(resposta: string): boolean {
  * imagem mental» num papo casual dispararia a guarda à toa.
  */
 const PEDE_ACAO_ROTINA =
-  /\b(cria|criar|monta|montar|pausa|pausar|aplica|aplicar|adiciona|adicionar|marca|marcar|remove|remover|apaga|apagar|agenda|agendar|troca|trocar|muda|mudar|edita|editar|bota|põe|poe|coloca)\b.*\b(rotina|bloco|tarefa|f[ée]rias|hor[aá]rio|agenda|passo|lembrete|curso|treino|academia|aula|na (minha|tua) (semana|rotina)|no (meu|teu) dia)\b/i;
+  /\b(cria|criar|monta|montar|pausa|pausar|aplica|aplicar|adiciona|adicionar|marca|marcar|remove|remover|apaga|apagar|agenda|agendar|troca|trocar|muda|mudar|edita|editar|bota|põe|poe|coloca|anota|anotar|guarda|guardar|salva|salvar|lembra|lembrar)\b.*\b(rotina|bloco|tarefa|f[ée]rias|hor[aá]rio|agenda|passo|lembrete|curso|treino|academia|aula|na (minha|tua) (semana|rotina)|no (meu|teu) dia|ideia|ideias|pensamento|inbox|caixa de entrada)\b/i;
 
 export function pediuAcaoDeRotina(mensagemUsuario: string): boolean {
   return PEDE_ACAO_ROTINA.test(mensagemUsuario);

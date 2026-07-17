@@ -101,8 +101,9 @@ export type DependenciasRotina = {
   adicionarExtra?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
   /** Remove UMA tarefa de HOJE (por id), não do molde. */
   removerExtra?: (id: string, taskId: string) => Promise<void>;
-  /** DEFINE a lista inteira das tarefas de HOJE (substitui — permite reordenar). */
   definirExtras?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
+  // ── Caixa de Entrada (Ideias) ──
+  criarIdeia?: (texto: string) => Promise<string>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

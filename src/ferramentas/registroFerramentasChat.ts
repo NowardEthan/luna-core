@@ -436,6 +436,19 @@ const FERRAMENTA_APAGAR_BLOCO: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_ANOTAR_IDEIA: DefinicaoFerramenta = {
+  nome: "anotar_ideia",
+  descricao:
+    "Usa quando ele te pede para anotar, lembrar ou guardar uma ideia, insight, ou tarefa solta que ele não quer esquecer, mas que ainda não tem lugar na rotina. Guarda o texto na 'Caixa de Entrada' dele.",
+  parametros: {
+    type: "object",
+    properties: {
+      texto: { type: "string", description: "O pensamento, ideia ou anotação a ser guardado." },
+    },
+    required: ["texto"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(): DefinicaoFerramenta[] {
   const ferramentas = [

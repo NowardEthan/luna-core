@@ -11,17 +11,18 @@ import {
   apagarBlocoRotina,
   criarBloco,
   criarRotinaAlternativa,
-  editarRotinaAlternativa,
-  apagarRotinaAlternativa,
-  verRotinas,
   detalharBloco,
   editarBloco,
-  pausarBloco,
+  editarRotinaAlternativa,
   organizarTarefas,
+  pausarBloco,
   retomarBloco,
   verRotina,
+  verRotinas,
+  apagarRotinaAlternativa,
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
+import { anotarIdeia } from "../ferramentas/maosDasIdeias.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
@@ -397,10 +398,17 @@ export async function responderComoLunaAgentico(
         nome === "criar_rotina" ||
         nome === "editar_rotina" ||
         nome === "apagar_rotina" ||
-        nome === "apagar_bloco"
+        nome === "apagar_bloco" ||
+        nome === "anotar_ideia"
       ) {
         if (!opcoes.rotinaDeps) {
-          return "A rotina não está disponível neste ambiente — não consegues vê-la nem mexer nela.";
+          return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
+        }
+        if (nome === "anotar_ideia") {
+          if (!opcoes.rotinaDeps.criarIdeia) {
+            return "ERRO FATAL: o método de criar ideias não foi implementado neste ambiente.";
+          }
+          return anotarIdeia({ criarIdeia: opcoes.rotinaDeps.criarIdeia }, args);
         }
         if (nome === "ver_rotina") {
           const dia = typeof args.dia === "number" ? args.dia : undefined;
