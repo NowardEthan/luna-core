@@ -523,7 +523,7 @@ export async function adicionarSubtarefa(
   const nova: SubTarefa = {
     id: `st${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`,
     texto,
-    feito: false,
+    feito: args.feito === true,
     ...(hora !== undefined ? { hora } : {}),
     ...(hora !== undefined && args.notificar === true ? { notificar: true } : {}),
   };

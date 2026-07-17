@@ -311,6 +311,7 @@ const FERRAMENTA_ADICIONAR_SUBTAREFA: DefinicaoFerramenta = {
       hora: { type: "string", description: "«HH:MM», opcional — só se a tarefa tiver hora certa." },
       notificar: { type: "boolean", description: "Com hora, cobrar nesse horário? Default não." },
       para_sempre: { type: "boolean", description: "Se true, salva a tarefa no molde fixo do bloco (todos os dias). Se false ou omitido, salva apenas para hoje. O padrão é salvar apenas para hoje." },
+      feito: { type: "boolean", description: "Se true, a tarefa já nasce marcada como concluída (✓). Usa isso ao reorganizar tarefas que ele já tinha marcado como concluídas." },
     },
     required: ["bloco_id", "texto"],
   },
