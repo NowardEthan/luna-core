@@ -57,7 +57,7 @@ COPY --from=core-builder /build/package.json /app/luna-core/package.json
 # Mobile API
 WORKDIR /app/luna-core/mobile-api
 COPY mobile-api/package.json mobile-api/package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=api-builder /build/mobile-api/node_modules ./node_modules
 COPY --from=api-builder /build/mobile-api/dist ./dist
 
 EXPOSE 7742
