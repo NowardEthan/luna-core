@@ -254,11 +254,16 @@ export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
       const dia = hojeISOnoFuso(timeZone);
       const docId = `${id}_${dia}`;
       const ref = db.collection(colRotinaItems(uid)).doc(docId);
+      // O «concluído» mora no `subsFeitas` (ids), não no campo `feito` do objeto. Então uma
+      // tarefa que já nasce feita (ex.: ao reorganizar uma que ele já tinha marcado) precisa
+      // entrar também no subsFeitas — senão o app a mostra por-fazer.
+      const feitosIds = tarefas.filter((t) => t.feito).map((t) => t.id);
       await ref.set(
         {
           blocoId: id,
           dia,
           tarefasDoDia: FieldValue.arrayUnion(...tarefas),
+          ...(feitosIds.length ? { subsFeitas: FieldValue.arrayUnion(...feitosIds) } : {}),
         },
         { merge: true }
       );
