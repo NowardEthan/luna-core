@@ -287,9 +287,11 @@ const FERRAMENTA_ORGANIZAR_TAREFAS: DefinicaoFerramenta = {
     "ordem que fica. Um id que existia e ficou de FORA da lista é REMOVIDO. " +
     "── DUAS listas separadas ── `fixas` = o molde que repete todo dia; `hoje` = só hoje. Manda a que " +
     "for mexer (ou as duas). Reorganizar as de HOJE mexe SÓ em `hoje` — nunca vira permanente. " +
-    "── CUIDADO ── cada lista é a INTEIRA: inclui SEMPRE todas as tarefas que devem FICAR, senão o " +
-    "servidor entende que as omitidas foram removidas. Pra esvaziar de propósito, manda a lista vazia " +
-    "com `limpar: true`. Formato de tarefa na tua voz: Maiúscula, curta e limpa.",
+    "── NÃO APAGUE TAREFAS FEITAS ── Tu DEVES incluir as tarefas já concluídas (as que têm '✓' no ver_rotina) " +
+    "na tua nova lista, enviando o 'id' original delas. Se tu as omitires, o servidor vai DELETÁ-LAS " +
+    "permanentemente do banco. Omitir significa 'apagar', não 'esconder'. " +
+    "── CUIDADO ── cada lista é a INTEIRA: inclui SEMPRE todas as tarefas que devem FICAR. Pra esvaziar " +
+    "de propósito, manda a lista vazia com `limpar: true`. Formato: Maiúscula, curta e limpa.",
   parametros: {
     type: "object",
     properties: {
