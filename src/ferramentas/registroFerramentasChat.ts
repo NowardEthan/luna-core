@@ -124,7 +124,12 @@ const FERRAMENTA_VER_ROTINA: DefinicaoFerramenta = {
     "em que rotina está (Normal ou uma alternativa). Já recebes no briefing onde ele está AGORA — usa " +
     "esta ferramenta quando precisas da semana inteira: para responder «o que tenho na terça?», procurar " +
     "um buraco livre, antes de criar um bloco (para não pisares outro), e SEMPRE que ele pedir para " +
-    "reorganizar/refazer a rotina — só a vês por inteiro aqui, então lê ANTES de mexer.",
+    "reorganizar/refazer a rotina — só a vês por inteiro aqui, então lê ANTES de mexer. " +
+    "── DUAS listas de tarefas ── Cada bloco pode ter «tarefas de HOJE» (as peças que mudam a cada dia, " +
+    "só valem hoje) e «tarefas FIXAS (todo dia)» (o molde recorrente). Quando ele pede pra reorganizar/" +
+    "arrumar as tarefas de HOJE, mexe SÓ nas de hoje: usa `adicionar_subtarefa` (sem `para_sempre`) e " +
+    "`remover_subtarefa` (que também tira as de hoje). NUNCA uses `detalhar_bloco` pra isso — ele escreve " +
+    "o roteiro/passos do molde FIXO (todo dia), e as peças de hoje virariam permanentes.",
   parametros: {
     type: "object",
     properties: {

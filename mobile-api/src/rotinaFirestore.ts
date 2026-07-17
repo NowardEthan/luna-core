@@ -27,11 +27,15 @@ import {
 /** Um bloco a mais no briefing não mata; uma rotina inteira de 200 blocos, sim. */
 const LIMITE_BLOCOS = 40;
 
-export async function lerRotina(db: Firestore, uid: string): Promise<BlocoRotinaCore[]> {
+export async function lerRotina(
+  db: Firestore,
+  uid: string,
+  timeZone?: string,
+): Promise<BlocoRotinaCore[]> {
   try {
     const snap = await db.collection(colRotina(uid)).limit(LIMITE_BLOCOS).get();
 
-    return snap.docs.map((d) => {
+    const blocos = snap.docs.map((d) => {
       const b = d.data() as Record<string, unknown>;
       return {
         id: d.id,
@@ -63,8 +67,41 @@ export async function lerRotina(db: Firestore, uid: string): Promise<BlocoRotina
               ...(t.notificar === true ? { notificar: true } : {}),
             }))
           : undefined,
-      };
+      } as BlocoRotinaCore;
     });
+
+    // As tarefas SÓ de hoje (as peças do dia) — vivem em routine_items/{bloco}_{dia}, fora do
+    // molde. Sem isto a Luna era cega às peças de hoje e recriava tudo no molde (todo dia). O
+    // `feito` de hoje vem de `subsFeitas` (ids). Uma consulta só (dia == hoje).
+    try {
+      const dia = hojeISOnoFuso(timeZone);
+      const itensSnap = await db.collection(colRotinaItems(uid)).where("dia", "==", dia).get();
+      const porBloco = new Map<string, { tarefas: Array<Record<string, unknown>>; feitas: Set<string> }>();
+      for (const d of itensSnap.docs) {
+        const it = d.data() as Record<string, unknown>;
+        const blocoId = String(it.blocoId ?? "");
+        if (!blocoId) continue;
+        porBloco.set(blocoId, {
+          tarefas: Array.isArray(it.tarefasDoDia) ? (it.tarefasDoDia as Array<Record<string, unknown>>) : [],
+          feitas: new Set(Array.isArray(it.subsFeitas) ? (it.subsFeitas as string[]) : []),
+        });
+      }
+      for (const b of blocos) {
+        const it = porBloco.get(b.id);
+        if (!it?.tarefas.length) continue;
+        b.tarefasHoje = it.tarefas.map((t) => ({
+          id: String(t.id ?? ""),
+          texto: String(t.texto ?? ""),
+          feito: it.feitas.has(String(t.id ?? "")),
+          ...(typeof t.hora === "number" ? { hora: t.hora } : {}),
+          ...(t.notificar === true ? { notificar: true } : {}),
+        }));
+      }
+    } catch {
+      // Sem as de hoje, ela ainda vê o molde — degradar, nunca falhar.
+    }
+
+    return blocos;
   } catch {
     // Sem rotina, ela continua a saber as horas — só não sabe o dia dele. Degradar, nunca
     // falhar: um erro a ler o calendário não pode derrubar a conversa.
@@ -131,7 +168,7 @@ export async function lerRegistosRotina(db: Firestore, uid: string): Promise<Reg
  */
 export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
   return {
-    ler: () => lerRotina(db, uid),
+    ler: () => lerRotina(db, uid, timeZone),
 
     criar: async (b: {
       titulo: string;
@@ -224,6 +261,22 @@ export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
           tarefasDoDia: FieldValue.arrayUnion(...tarefas),
         },
         { merge: true }
+      );
+    },
+
+    /** Remove UMA tarefa de HOJE (e o feito dela) — read-modify-write no doc do dia. */
+    removerExtra: async (id: string, taskId: string): Promise<void> => {
+      const dia = hojeISOnoFuso(timeZone);
+      const ref = db.collection(colRotinaItems(uid)).doc(`${id}_${dia}`);
+      const data = (await ref.get()).data() as Record<string, unknown> | undefined;
+      const tarefas = Array.isArray(data?.tarefasDoDia) ? (data!.tarefasDoDia as Array<Record<string, unknown>>) : [];
+      const feitas = Array.isArray(data?.subsFeitas) ? (data!.subsFeitas as string[]) : [];
+      await ref.set(
+        {
+          tarefasDoDia: tarefas.filter((t) => String(t?.id ?? "") !== taskId),
+          subsFeitas: feitas.filter((f) => f !== taskId),
+        },
+        { merge: true },
       );
     },
 

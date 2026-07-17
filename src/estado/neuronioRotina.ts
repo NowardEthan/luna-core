@@ -38,6 +38,8 @@ export type BlocoRotinaCore = {
   /** Os passos — o arranque. As «dependências» que ele mencionou. */
   passos?: Array<{ id: string; texto: string; feito: boolean }>;
   subtarefas?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
+  /** As tarefas SÓ de hoje (as peças do dia) — vivem no routine_items, não no molde do bloco. */
+  tarefasHoje?: Array<{ id: string; texto: string; feito: boolean; hora?: number; notificar?: boolean }>;
   /**
    * Uma pausa com data de VOLTA.
    *

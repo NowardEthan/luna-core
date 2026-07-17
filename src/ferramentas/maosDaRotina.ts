@@ -99,6 +99,8 @@ export type DependenciasRotina = {
   ) => Promise<void>;
   apagarRotina?: (id: string) => Promise<void>;
   adicionarExtra?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
+  /** Remove UMA tarefa de HOJE (por id), não do molde. */
+  removerExtra?: (id: string, taskId: string) => Promise<void>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -146,17 +148,16 @@ function descreverBloco(b: BlocoRotinaCore, comDias: boolean): string {
   if (b.passos?.length) {
     linhas.push(`     passos: ${b.passos.map((p) => p.texto).join(" · ")}`);
   }
+  const descreverTarefa = (t: { texto: string; feito: boolean; hora?: number; notificar?: boolean }) =>
+    `${t.feito ? "✓ " : ""}${t.texto}` +
+    (t.hora !== undefined ? ` (${hhmm(t.hora)}${t.notificar ? ", cobra" : ""})` : "");
+  // As de HOJE (as peças do dia) — o que ela reorganiza quando ele pede das «de hoje».
+  if (b.tarefasHoje?.length) {
+    linhas.push(`     tarefas de HOJE: ${b.tarefasHoje.map(descreverTarefa).join(" · ")}`);
+  }
+  // As FIXAS (o molde que se repete todo dia).
   if (b.subtarefas?.length) {
-    linhas.push(
-      `     tarefas: ` +
-        b.subtarefas
-          .map(
-            (t) =>
-              t.texto +
-              (t.hora !== undefined ? ` (${hhmm(t.hora)}${t.notificar ? ", cobra" : ""})` : ""),
-          )
-          .join(" · "),
-    );
+    linhas.push(`     tarefas FIXAS (todo dia): ${b.subtarefas.map(descreverTarefa).join(" · ")}`);
   }
   return linhas.join("\n");
 }
@@ -554,19 +555,28 @@ export async function removerSubtarefa(
 
   const blocos = await deps.ler();
   const alvo = blocos.find((b) => b.id === id);
-  if (!alvo?.subtarefas?.length) return "ERRO: este bloco não tem tarefas. Nada foi removido.";
+  if (!alvo) return "ERRO: não encontrei esse bloco. Nada foi removido.";
 
   const sub = String(args.sub_id ?? "").trim();
   const texto = String(args.texto ?? "").trim().toLowerCase();
+  const acha = (lista?: SubTarefa[]) =>
+    lista?.find((t) => (sub ? t.id === sub : t.texto.toLowerCase().includes(texto)));
 
-  const remover = sub
-    ? alvo.subtarefas.find((t) => t.id === sub)
-    : alvo.subtarefas.find((t) => t.texto.toLowerCase().includes(texto));
+  // Primeiro nas de HOJE (as peças do dia) — é o que ele costuma pedir pra tirar/reorganizar.
+  const deHoje = acha(alvo.tarefasHoje);
+  if (deHoje && deps.removerExtra) {
+    await deps.removerExtra(id, deHoje.id);
+    return `Removida de «${alvo.titulo}» (de hoje): ${deHoje.texto}.`;
+  }
 
-  if (!remover) return "ERRO: não encontrei essa tarefa. Nada foi removido.";
+  // Depois nas FIXAS (o molde que repete todo dia).
+  const fixa = acha(alvo.subtarefas);
+  if (fixa) {
+    await deps.editar(id, { subtarefas: (alvo.subtarefas ?? []).filter((t) => t.id !== fixa.id) });
+    return `Removida de «${alvo.titulo}» (fixa, repetia todo dia): ${fixa.texto}.`;
+  }
 
-  await deps.editar(id, { subtarefas: alvo.subtarefas.filter((t) => t.id !== remover.id) });
-  return `Removida de «${alvo.titulo}»: ${remover.texto}.`;
+  return "ERRO: não encontrei essa tarefa (nem nas de hoje, nem nas fixas). Nada foi removido.";
 }
 
 // ── pausar / retomar ──────────────────────────────────────────────────────────
