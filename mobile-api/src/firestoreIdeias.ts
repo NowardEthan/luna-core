@@ -13,6 +13,7 @@ export type Ideia = {
  */
 export async function criarIdeia(uid: string, texto: string, origem: "luna" | "user"): Promise<string> {
   const db = getAdminFirestore();
+  if (!db) throw new Error("Firestore admin indisponível — não consegui guardar a ideia.");
   const ref = db.collection("users").doc(uid).collection("ideias").doc();
   const ideia: Ideia = {
     id: ref.id,

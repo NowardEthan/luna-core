@@ -466,6 +466,7 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_EDITAR_ROTINA,
     FERRAMENTA_APAGAR_ROTINA,
     FERRAMENTA_APAGAR_BLOCO,
+    FERRAMENTA_ANOTAR_IDEIA,
   ];
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
