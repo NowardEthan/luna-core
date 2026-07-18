@@ -25,3 +25,15 @@ export async function criarIdeia(uid: string, texto: string, origem: "luna" | "u
   await ref.set(ideia);
   return ref.id;
 }
+
+/**
+ * Lê todas as ideias (pendentes e arquivadas) do usuário.
+ */
+export async function lerIdeias(uid: string): Promise<Ideia[]> {
+  const db = getAdminFirestore();
+  if (!db) return [];
+  const ref = db.collection("users").doc(uid).collection("ideias");
+  const snap = await ref.orderBy("createdAt", "desc").get();
+  return snap.docs.map((d) => d.data() as Ideia);
+}
+

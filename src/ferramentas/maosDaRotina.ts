@@ -104,6 +104,7 @@ export type DependenciasRotina = {
   definirExtras?: (id: string, tarefas: SubTarefa[]) => Promise<void>;
   // ── Caixa de Entrada (Ideias) ──
   criarIdeia?: (texto: string) => Promise<string>;
+  verIdeias?: () => Promise<any[]>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

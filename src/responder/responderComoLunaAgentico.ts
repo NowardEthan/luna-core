@@ -22,7 +22,7 @@ import {
   apagarRotinaAlternativa,
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
-import { anotarIdeia } from "../ferramentas/maosDasIdeias.js";
+import { anotarIdeia, verIdeias } from "../ferramentas/maosDasIdeias.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
@@ -399,7 +399,8 @@ export async function responderComoLunaAgentico(
         nome === "editar_rotina" ||
         nome === "apagar_rotina" ||
         nome === "apagar_bloco" ||
-        nome === "anotar_ideia"
+        nome === "anotar_ideia" ||
+        nome === "ver_ideias"
       ) {
         if (!opcoes.rotinaDeps) {
           return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
@@ -409,6 +410,12 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: o método de criar ideias não foi implementado neste ambiente.";
           }
           return anotarIdeia({ criarIdeia: opcoes.rotinaDeps.criarIdeia }, args);
+        }
+        if (nome === "ver_ideias") {
+          return verIdeias({
+            criarIdeia: opcoes.rotinaDeps.criarIdeia!,
+            verIdeias: opcoes.rotinaDeps.verIdeias
+          });
         }
         if (nome === "ver_rotina") {
           const dia = typeof args.dia === "number" ? args.dia : undefined;

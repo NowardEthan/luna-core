@@ -12,7 +12,7 @@ import {
   type RegistoDia,
   type RotinaSetCore,
 } from "../../dist/estado/neuronioRotina.js";
-import { criarIdeia as criarIdeiaNaInbox } from "./firestoreIdeias.js";
+import { criarIdeia as criarIdeiaNaInbox, lerIdeias } from "./firestoreIdeias.js";
 
 /**
  * A rotina dele, lida do Firestore.
@@ -349,6 +349,9 @@ export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
     // ── Caixa de Entrada (Ideias) ──
     criarIdeia: async (texto: string) => {
       return criarIdeiaNaInbox(uid, texto, "luna");
+    },
+    verIdeias: async () => {
+      return lerIdeias(uid);
     },
   };
 }

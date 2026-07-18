@@ -449,6 +449,19 @@ const FERRAMENTA_ANOTAR_IDEIA: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_VER_IDEIAS: DefinicaoFerramenta = {
+  nome: "ver_ideias",
+  descricao:
+    "Lê as ideias da Caixa de Entrada do usuário. Retorna tanto as ideias pendentes (que ainda precisam de triagem) " +
+    "quanto as ideias arquivadas (que já viraram tarefa ou foram guardadas). Use isso para ajudar a organizar a mente do usuário, " +
+    "cruzar pensamentos, gerar insights baseados no que ele já anotou ou resgatar coisas antigas.",
+  parametros: {
+    type: "object",
+    properties: {},
+    required: [],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(): DefinicaoFerramenta[] {
   const ferramentas = [
@@ -467,6 +480,7 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
     FERRAMENTA_APAGAR_ROTINA,
     FERRAMENTA_APAGAR_BLOCO,
     FERRAMENTA_ANOTAR_IDEIA,
+    FERRAMENTA_VER_IDEIAS,
   ];
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
