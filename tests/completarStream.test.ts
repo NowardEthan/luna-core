@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { processarLinhasSse } from "../src/providers/completarStream.js";
+import { processarLinhasSse, providerSupportsStream } from "../src/providers/completarStream.js";
 
 describe("processarLinhasSse", () => {
   it("emite chunks de reasoning e content", () => {
@@ -23,5 +23,17 @@ describe("processarLinhasSse", () => {
     const chunks: Array<{ tipo: string; delta: string }> = [];
     processarLinhasSse(["data: not-json", "data: [DONE]", ""], (c) => chunks.push(c));
     expect(chunks).toHaveLength(0);
+  });
+});
+
+describe("providerSupportsStream", () => {
+  it("aceita Cerebras, OpenRouter e Groq", () => {
+    expect(providerSupportsStream("https://api.cerebras.ai/v1")).toBe(true);
+    expect(providerSupportsStream("https://openrouter.ai/api/v1")).toBe(true);
+    expect(providerSupportsStream("https://api.groq.com/openai/v1")).toBe(true);
+  });
+
+  it("rejeita base desconhecida", () => {
+    expect(providerSupportsStream("https://api.openai.com/v1")).toBe(false);
   });
 });

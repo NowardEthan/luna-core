@@ -119,6 +119,9 @@ function sendSseEvent(res: ServerResponse, event: string, data: unknown): void {
   if (res.writableEnded || res.destroyed) return;
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(data)}\n\n`);
+  // Sem flush, proxies/Node podem bufferizar até o fim — TTFT vira ≈ total.
+  const flushable = res as ServerResponse & { flush?: () => void };
+  flushable.flush?.();
 }
 
 function sendMappedSseError(res: ServerResponse, erro: unknown): void {
@@ -640,6 +643,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         ...corsHeaders(),
       });
       sseStarted = true;
+      let contentEnviado = false;
 
       const streamMs = streamTimeoutMs();
       const streamTimeout = setTimeout(() => {
@@ -652,7 +656,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         {
           onStatus: (phase) => sendSseEvent(res, "status", { phase }),
           onReasoningDelta: (delta) => sendSseEvent(res, "reasoning", { delta }),
-          onContentDelta: (delta) => sendSseEvent(res, "content", { delta }),
+          onContentDelta: (delta) => {
+            if (delta) contentEnviado = true;
+            sendSseEvent(res, "content", { delta });
+          },
           onAcao: (acao) => sendSseEvent(res, "acao", acao),
         },
         sessionId,
@@ -699,6 +706,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
             estimarInputTokensChat(parsed.message, streamAttCount),
           );
         }
+      }
+
+      // Rede de segurança: se o provedor não streamou (ex.: flag antiga), ainda
+      // emite um content antes do done — o cliente/harness mede TTFT pelo content.
+      if (!contentEnviado && result.text.trim()) {
+        sendSseEvent(res, "content", { delta: result.text });
       }
 
       sendSseEvent(res, "done", {

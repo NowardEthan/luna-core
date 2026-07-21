@@ -173,6 +173,12 @@ export function lunaStreamEnabled(): boolean {
   return raw !== "0" && raw !== "false";
 }
 
+/**
+ * Provedores OpenAI-compatíveis com SSE (`stream: true`).
+ * Groq (`api.groq.com`) estava de fora — no Railway o Pulse usa Groq, e o
+ * `/v1/chat/stream` só emitia `status` + `done` (sem `content`), fazendo
+ * TTFT ≈ total no harness. Cerebras/OpenRouter já estavam cobertos.
+ */
 export function providerSupportsStream(baseUrl: string): boolean {
-  return /cerebras\.ai|openrouter\.ai/i.test(baseUrl) && lunaStreamEnabled();
+  return /cerebras\.ai|openrouter\.ai|groq\.com/i.test(baseUrl) && lunaStreamEnabled();
 }
