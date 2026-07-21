@@ -28,7 +28,15 @@ const PADROES_CRITICOS: RegExp[] = [
 ];
 
 const PADROES_SIMPLES: RegExp[] = [
+  // Match exato (legado)
   /^(que\s+bo+m|que\s+legal|nossa|sim+|n[aã]o+|awn+|kk+|haha+|legal|boa|entendi|ok+|ah|hum+|oi|ol[aá]|e\s+a[ií]|blz|vlw|tmj|tudo\s+bem\??|t[áa]\s+bom\??)$/i,
+  // Cumprimentos curtos com vocativo/continuação leve
+  // Ex.: "oi luna, tudo bem?" · "boa noite luna" — antes caíam em moderado (LLM)
+  // e inchavam a fase analysing no bench/produto.
+  /^(oi|ol[aá]|opa|hey|e\s+a[ií]|fala|salve)\b[\s,!.?-]*.{0,40}$/i,
+  /^(boa\s+(noite|tarde|dia)|bom\s+dia)\b[\s,!.?-]*.{0,30}$/i,
+  // Risada / ack curto com um pouco de texto
+  /^(kk+|haha+|rs+|blz|vlw|tmj|entendi|ok+)\b[\s,!.?-]*.{0,24}$/i,
 ];
 
 const PADROES_COMPLEXO: RegExp[] = [
