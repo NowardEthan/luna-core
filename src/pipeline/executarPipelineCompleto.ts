@@ -493,12 +493,15 @@ export async function executarPipelineCompleto(
 
   const profundidade = analise.profundidade ?? "moderado";
 
-  // V3.1 — prior preditivo: padrão de intenções recentes → dica para o respondedor
-  const prior = gerarPriorIntencao(sessao, analise.analise);
-
-  // V3.2 — perfil comportamental: carrega hábitos e ativa os relevantes para esta intenção
-  const perfil = carregarPerfil();
-  const habitosAtivos = ativarHabitos(perfil, analise.analise.intencao);
+  // V3.1 / V3.2 — prior e hábitos: saltar em `simples` (dieta L2 / M2).
+  // Neurônios já eram pulados no briefing; o cálculo em si ainda corria em todo turno.
+  const prior =
+    profundidade === "simples" ? null : gerarPriorIntencao(sessao, analise.analise);
+  const perfil = profundidade === "simples" ? null : carregarPerfil();
+  const habitosAtivos =
+    profundidade === "simples" || !perfil
+      ? []
+      : ativarHabitos(perfil, analise.analise.intencao);
 
   const pipeline = gerarPolitica(mensagem, analise.analise, estadoInterno);
 
@@ -1219,14 +1222,15 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
 
   // V3.2 — atualiza perfil comportamental quando uma preferência é confirmada
   if (memoria.decisao.acao === "armazenar" && memoria.decisao.tipo === "preferencia") {
+    const perfilParaHabito = perfil ?? carregarPerfil();
     adicionarOuIncrementarHabito(
-      perfil,
+      perfilParaHabito,
       memoria.decisao.conteudo,
       analise.analise.intencao,
       "pessoal",
     );
     try {
-      salvarPerfil(perfil);
+      salvarPerfil(perfilParaHabito);
     } catch (e) {
       console.error("Aviso: falha ao salvar perfil comportamental", e);
     }
