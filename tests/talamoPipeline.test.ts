@@ -21,6 +21,11 @@ describe("talamoPipeline — simples (sem LLM)", () => {
   it("'blz' → simples", () => expect(simples("blz")).toBe("simples"));
   it("'entendi' → simples", () => expect(simples("entendi")).toBe("simples"));
   it("mensagem de 6 chars → simples", () => expect(simples("td bom")).toBe("simples"));
+  it("'oi luna, tudo bem?' → simples (cumprimento com vocativo)", () => {
+    expect(simples("oi luna, tudo bem?")).toBe("simples");
+  });
+  it("'boa noite luna' → simples", () => expect(simples("boa noite luna")).toBe("simples"));
+  it("'kkk verdade' → simples", () => expect(simples("kkk verdade")).toBe("simples"));
 });
 
 // ─── classificarProfundidade — critico ────────────────────────────────────────
