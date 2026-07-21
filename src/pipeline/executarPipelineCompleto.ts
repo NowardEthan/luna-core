@@ -1222,14 +1222,15 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
 
   // V3.2 — atualiza perfil comportamental quando uma preferência é confirmada
   if (memoria.decisao.acao === "armazenar" && memoria.decisao.tipo === "preferencia") {
+    const perfilParaHabito = perfil ?? carregarPerfil();
     adicionarOuIncrementarHabito(
-      perfil,
+      perfilParaHabito,
       memoria.decisao.conteudo,
       analise.analise.intencao,
       "pessoal",
     );
     try {
-      salvarPerfil(perfil);
+      salvarPerfil(perfilParaHabito);
     } catch (e) {
       console.error("Aviso: falha ao salvar perfil comportamental", e);
     }
