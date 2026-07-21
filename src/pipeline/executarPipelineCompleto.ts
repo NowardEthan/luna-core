@@ -205,6 +205,17 @@ function mensagemContemUrl(mensagem: string): boolean {
   return /https?:\/\/\S+/i.test(mensagem);
 }
 
+/**
+ * Pedidos que pedem busca na web — não todo papo casual.
+ * Antes, `LUNA_AGENTIC_WEB_SEARCH` ligado forçava modo agêntico em **toda** mensagem
+ * (sem stream ao vivo → TTFT ≈ total). Agora só ativa com intenção de pesquisa.
+ */
+export function mensagemSugerePesquisaWeb(mensagem: string): boolean {
+  return /\b(pesquisa|pesquisar|busca|buscar|procure|procura|google|bing|not[ií]cias?|pre[cç]o|cota[cç][aã]o|quem ganhou|resultado do|o que (?:rolou|aconteceu) (?:com|sobre)|atualiza[cç][aã]o sobre|últimas? not[ií]cias)\b/i.test(
+    mensagem,
+  );
+}
+
 function deveUsarModoAgentico(
   provedor: ProvedorLlm,
   mensagem: string,
@@ -218,7 +229,10 @@ function deveUsarModoAgentico(
   // Documento anexado exige o modo agêntico: é lá que vive o `ler_arquivo`. Sem isto,
   // ela receberia o cartão do arquivo e não teria como abri-lo.
   const documento = anexosDocumento.length > 0;
-  const web = featureFlagAgenticoWebAtiva() || mensagemContemUrl(mensagem);
+  // Link colado → `ler_url`. Busca por palavras → só se a flag permitir e o texto pedir.
+  const web =
+    mensagemContemUrl(mensagem) ||
+    (featureFlagAgenticoWebAtiva() && mensagemSugerePesquisaWeb(mensagem));
   return vision || documento || web;
 }
 
