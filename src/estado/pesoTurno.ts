@@ -1,5 +1,5 @@
 import type { AnaliseContexto } from "../analyzers/esquema.js";
-import type { ProfundidadeAnalise } from "./talamoPipeline.js";
+import { temPesoEmocional, type ProfundidadeAnalise } from "./talamoPipeline.js";
 
 /**
  * Peso do turno — P1 (Luna Profunda), camada 1.
@@ -41,6 +41,10 @@ export function classificarPesoTurno(
   if (!RISCOS_LEVES.has(analise.nivel_risco)) return "pesado";
   if (analise.complexidade === "alta") return "pesado";
   if (analise.requer_codigo || analise.envolve_ferramenta) return "pesado";
+  // A3 (Latência com Alma): carga afetiva/relacional → modelo grande, mesmo que a
+  // INTENÇÃO tenha lido "conversa_casual". "gosta de mim?" tem tom casual e é sobre o
+  // vínculo — o modelo barato bajula e rasa aí. Espelha a trava emocional do tálamo (A1).
+  if (mensagem && temPesoEmocional(mensagem).afetivo) return "pesado";
   // O tom é leve, mas há uma dedução a fazer: não é papo, é charada.
   if (mensagem && detectorDeducaoAtivo() && mensagemPedeDeducao(mensagem)) return "pesado";
   return "leve";
