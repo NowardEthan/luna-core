@@ -38,6 +38,56 @@ describe("talamoPipeline — simples (sem LLM)", () => {
   });
 });
 
+// ─── A1 — trava emocional (nunca raso no que tem alma) ────────────────────────
+
+describe("talamoPipeline — A1: trava emocional", () => {
+  const prof = (msg: string) => classificarProfundidade(msg);
+
+  // Vulnerabilidade / amor / notícia pesada → complexo (presença rica)
+  it("'te amo' → complexo (nunca simples)", () => {
+    expect(prof("te amo")).toBe("complexo");
+    expect(prof("te amo")).not.toBe("simples");
+  });
+  it("'tô mal' → complexo", () => expect(prof("tô mal")).toBe("complexo"));
+  it("'oi luna, o exame deu ruim' → complexo (não engole pela cauda .{0,40})", () => {
+    expect(prof("oi luna, o exame deu ruim")).toBe("complexo");
+  });
+  it("'tô meio pra baixo hoje' → complexo", () => {
+    expect(prof("tô meio pra baixo hoje")).toBe("complexo");
+  });
+  it("'oi luna, tô com medo' → não é simples", () => {
+    expect(prof("oi luna, tô com medo")).not.toBe("simples");
+  });
+
+  // Relacional mais leve → nunca simples; moderado basta
+  it("'gosta de mim?' → moderado (nunca simples)", () => {
+    expect(prof("gosta de mim?")).toBe("moderado");
+    expect(prof("gosta de mim?")).not.toBe("simples");
+  });
+  it("'gosta em que sentido?' → moderado", () => {
+    expect(prof("gosta em que sentido?")).toBe("moderado");
+  });
+  it("'não me ama não é?' → não é simples", () => {
+    expect(prof("não me ama não é?")).not.toBe("simples");
+  });
+  it("'senti tua falta esses dias' → não é simples", () => {
+    expect(prof("senti tua falta esses dias")).not.toBe("simples");
+  });
+
+  // Guarda de conteúdo: saudação + tarefa não vira raso
+  it("'oi luna, como resolvo o bug?' → não é simples (conteúdo real)", () => {
+    expect(prof("oi luna, como resolvo o bug?")).not.toBe("simples");
+  });
+
+  // Regressão: o phatic puro continua simples (a trava não pode ser gulosa)
+  it("'oi luna, tudo bem?' continua simples", () => {
+    expect(prof("oi luna, tudo bem?")).toBe("simples");
+  });
+  it("'boa noite luna' continua simples", () => {
+    expect(prof("boa noite luna")).toBe("simples");
+  });
+});
+
 // ─── classificarProfundidade — critico ────────────────────────────────────────
 
 describe("talamoPipeline — critico (segurança máxima)", () => {

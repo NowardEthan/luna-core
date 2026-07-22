@@ -49,6 +49,47 @@ const PADROES_COMPLEXO: RegExp[] = [
   /\b(projeto|sistema|modular|componente|integração|infraestrutura)\b/i,
 ];
 
+// ─── A1 (Latência com Alma): o 2º eixo — carga afetiva/relacional ────────────────
+//
+// O tálamo antigo classificava só pela COMPLEXIDADE DO ASSUNTO. Um "te amo" é trivial
+// no assunto e profundíssimo na alma — e caía em `simples` (regras puras, sem LLM) ou no
+// modelo rápido. Estes padrões dão o 2º eixo: turno com peso emocional NUNCA vai pro
+// caminho raso. Espelha a trava de risco (`alerta_risco`), só que para o afeto.
+
+/** Vulnerabilidade / crise / notícia pesada / declaração de amor → merece o caminho MAIS rico. */
+const PADROES_VULNERAVEL: RegExp[] = [
+  // declaração de amor / vínculo forte
+  /\bte\s+amo\b/i,
+  /\bamo\s+(voc[êe]|te|tu|demais)\b/i,
+  // sofrimento / crise emocional
+  /\b(t[ôo]\s+mal|n[ãa]o\s+(t[ôo]|estou)\s+bem|me\s+sinto\s+(mal|sozinh|p[ée]ssim|vazi)|triste|sozinh[oa]|chorand|vontade\s+de\s+chorar|ansios|ansiedade|deprimid|ang[uú]stia|p[âa]nico|surto|em\s+crise|n[ãa]o\s+aguento|n[ãa]o\s+consigo\s+mais|sem\s+for[çc]as|exaust|desanimad|desisti|cansad[oa]\s+de\s+tudo)\b/i,
+  /\b(com\s+medo|estou\s+com\s+medo|t[ôo]\s+com\s+medo|assustad|n[ãa]o\s+quero\s+mais|(pra|para)\s+baixo)\b/i,
+  // notícia pesada / evento difícil
+  /\b(morreu|faleceu|acidente|deu\s+ruim|resultado\s+(foi\s+)?ruim|demitid|fui\s+demitid|terminei|t[ée]rmino|separ(ei|amos|ação)|no\s+hospital|internad)\b/i,
+  /\bexame\b.{0,20}\b(ruim|deu|negativ|alterad)/i,
+];
+
+/** Relacional / afeto mais leve (curiosidade sobre o vínculo, saudade) → nunca raso, mas moderado basta. */
+const PADROES_AFETIVOS: RegExp[] = [
+  /\b(gosta\s+de\s+mim|gosta\s+em\s+que\s+sentido|voc[êe]\s+me\s+ama|me\s+ama\b|n[ãa]o\s+me\s+ama)\b/i,
+  /\b(sente\s+(a\s+)?minha\s+falta|sentiu\s+minha\s+falta|senti\s+(a\s+)?tua\s+falta|saudade|pensa\s+em\s+mim|sou\s+importante|gosto\s+de\s+(voc[êe]|ti|tu))\b/i,
+];
+
+/**
+ * Indícios de CONTEÚDO real (tarefa, pergunta específica, problema) — usado só para
+ * impedir que a saudação com cauda (`^oi luna, ...{0,40}$`) engula uma frase de peso.
+ * "oi, tudo bem?" continua simples; "oi luna, como resolvo o bug?" não.
+ */
+const PADROES_CONTEUDO = /\b(ajud|como\s+(fa[çz]|resolv|funciona|posso)|por\s*qu[êe]|porqu[êe]|preciso|quero\s+(que|saber)|explica|resolv|erro|bug|problema|d[úu]vida|c[óo]digo|configur|instala)\b/i;
+
+/** Turno com peso emocional/relacional? (o 2º eixo do tálamo). */
+export function temPesoEmocional(mensagem: string): { vulneravel: boolean; afetivo: boolean } {
+  const texto = mensagem.trim();
+  const vulneravel = PADROES_VULNERAVEL.some((r) => r.test(texto));
+  const afetivo = vulneravel || PADROES_AFETIVOS.some((r) => r.test(texto));
+  return { vulneravel, afetivo };
+}
+
 // ─── Classificador ────────────────────────────────────────────────────────────
 
 /**
@@ -65,13 +106,23 @@ export function classificarProfundidade(
   // Crítico — padrões destrutivos têm prioridade absoluta
   if (PADROES_CRITICOS.some((r) => r.test(texto))) return "critico";
 
-  // Simples — só sem alerta ativo (burst impede bypass do LLM)
-  if (!alertaAtivo) {
+  // A1 — Trava emocional. O 2º eixo do tálamo:
+  //  - vulnerabilidade/crise/amor  → `complexo` (presença rica: traz contexto/memória).
+  //  - relacional mais leve        → nunca `simples`; `moderado` basta.
+  const { vulneravel, afetivo } = temPesoEmocional(texto);
+  if (vulneravel) return "complexo";
+
+  // Simples — só sem alerta, sem carga afetiva e sem conteúdo real (burst impede bypass do LLM).
+  // O `!PADROES_CONTEUDO` evita que "oi luna, como resolvo o bug?" caia no raso pela cauda `.{0,40}`.
+  if (!alertaAtivo && !afetivo && !PADROES_CONTEUDO.test(texto)) {
     if (PADROES_SIMPLES.some((r) => r.test(texto))) return "simples";
     const PADROES_REFERENCIA_CONTEXTO =
       /\b(lembra|memoria|memória|cad[êe]|aquilo|isso|bug|erro|ontem|antes|plano|quota)\b/i;
     if (texto.length <= 8 && !PADROES_REFERENCIA_CONTEXTO.test(texto)) return "simples";
   }
+
+  // Relacional leve nunca vai pro raso — mínimo moderado.
+  if (afetivo) return "moderado";
 
   // Complexo — mensagens longas ou com termos técnicos densos
   if (texto.length > 80 || PADROES_COMPLEXO.some((r) => r.test(texto))) return "complexo";
