@@ -107,10 +107,28 @@ async function fetchComRetry(
   const provedorBase = baseUrl ?? url.replace(/\/chat\/completions.*$/i, "");
 
   for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
-    const resposta = await fetch(url, {
-      ...init,
-      signal: signalComTimeout(init, llmFetchTimeoutMs()),
-    });
+    let resposta: Response;
+    try {
+      resposta = await fetch(url, {
+        ...init,
+        signal: signalComTimeout(init, llmFetchTimeoutMs()),
+      });
+    } catch (err) {
+      // A2 (Confiabilidade): falha de REDE/timeout — DNS ("Unable to resolve host"),
+      // ECONNRESET, ou o nosso próprio timeout. Foram estas que engoliram o "te amo".
+      // Uma completação é sem efeito colateral → retentar é seguro e barato (o DNS
+      // costuma falhar rápido). MAS: se quem chamou abortou (client desistiu / timeout
+      // externo), não insiste.
+      if (init.signal?.aborted) throw err;
+      ultimoErro = err instanceof Error ? err.message : String(err);
+      if (tentativa === maxTentativas) {
+        throw new Error(
+          `LLM indisponível (rede/timeout) após ${maxTentativas} tentativas: ${ultimoErro}`,
+        );
+      }
+      await sleep(Math.min(tentativa * 1500, 6000));
+      continue;
+    }
 
     if (resposta.ok) return resposta;
 
@@ -121,12 +139,14 @@ async function fetchComRetry(
       throw new Error(formatarErroLlm(resposta.status, erro, provedorBase));
     }
 
-    const retryavel = resposta.status === 429 || resposta.status === 503;
+    // A2: além de 429/503, os 5xx transitórios (500/502/504) também são retentáveis.
+    const retryavel =
+      resposta.status === 429 || (resposta.status >= 500 && resposta.status <= 504);
     if (!retryavel || tentativa === maxTentativas) {
       throw new Error(formatarErroLlm(resposta.status, erro, provedorBase));
     }
 
-    const espera = extrairEsperaSegundos(erro) ?? tentativa * 5000;
+    const espera = extrairEsperaSegundos(erro) ?? Math.min(tentativa * 2000, 8000);
     await sleep(espera);
   }
 

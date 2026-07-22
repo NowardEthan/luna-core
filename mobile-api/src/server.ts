@@ -210,7 +210,7 @@ async function comTimeoutChat<T>(promise: Promise<T>, ms = chatTimeoutMs()): Pro
           () =>
             reject(
               new Error(
-                "A Luna demorou demais para responder. Tenta de novo — se persistir, verifica CEREBRAS_API_KEY no Railway.",
+                "Demorei mais do que devia pra pensar nessa. Manda de novo? Tô aqui.",
               ),
             ),
           ms,
