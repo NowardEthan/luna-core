@@ -52,6 +52,7 @@ describe("conciliarRevisao", () => {
     );
     expect(r.naoConfirmados).toContain("WJ07UNQ");
     expect(r.naoConfirmados).not.toContain("310"); // 310 os dois leram
-    expect(r.texto).toMatch(/não consegue ler esses com certeza/i);
+    expect(r.texto).toMatch(/incertos/i);
+    expect(r.texto).toMatch(/nunca afirme/i);
   });
 });

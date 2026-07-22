@@ -25,11 +25,15 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  * então mantém-se o multimodal barato com 1M de contexto.
  *
  * REVISOR: um segundo modelo, DIFERENTE do de imagem, para a segunda leitura. Só o que
- * os dois leem igual é afirmado com confiança; o resto vira "não consigo confirmar".
+ * os dois leem igual é afirmado com confiança; o resto vira "não consigo confirmar". Foi
+ * escolhido por ser barato E preciso no texto LEGÍVEL — um revisor que lê mal o legível
+ * marcaria leitura boa como incerta (falso "não confirmo"). No teste da foto do ônibus,
+ * o `mistral-small-3.2` quase não deu falso-positivo e pegou a placa ilegível sempre;
+ * saía mais caro e menos preciso com `gpt-4o-mini`.
  */
 const MODELO_VISAO_IMAGEM_PADRAO = "google/gemini-2.5-flash-lite";
 const MODELO_VISAO_VIDEO_PADRAO = "qwen/qwen3.5-flash-02-23";
-const MODELO_VISAO_REVISOR_PADRAO = "openai/gpt-4o-mini";
+const MODELO_VISAO_REVISOR_PADRAO = "mistralai/mistral-small-3.2-24b-instruct";
 
 function instrucaoBase(ehVideo: boolean): string {
   const midia = ehVideo ? "este vídeo" : "esta imagem";
@@ -190,8 +194,9 @@ export function conciliarRevisao(
   const naoConfirmados = [...tokensDePrecisao(principal)].filter((t) => !daRevisao.has(t));
   if (naoConfirmados.length === 0) return { texto: principal, naoConfirmados };
   const aviso =
-    `\n\n[REVISÃO DA VISÃO: uma segunda leitura NÃO confirmou estes trechos: ${naoConfirmados.join(", ")}. ` +
-    `Isso significa que a leitura deles é INCERTA — diga ao usuário que não consegue ler esses com certeza e NÃO afirme nenhum valor para eles.]`;
+    `\n\n[REVISÃO DA VISÃO: uma segunda leitura NÃO bateu nestes trechos: ${naoConfirmados.join(", ")}. ` +
+    `Trate-os como INCERTOS: no máximo diga que PARECE aquilo, deixando claro que não tem certeza — ` +
+    `nunca afirme um número/placa/código desses como se fosse certo.]`;
   return { texto: `${principal}${aviso}`, naoConfirmados };
 }
 
