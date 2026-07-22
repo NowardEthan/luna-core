@@ -12,10 +12,20 @@ import type { AnexoImagemChat } from "./visaoGemma.js";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /**
- * Multimodal (texto + imagem + VÍDEO), 1M de contexto e barato — o `:free` do Gemma
- * esbarrava no rate limit. Trocável por `OPENROUTER_VISION_MODEL`.
+ * O modelo de visão é escolhido pelo TIPO de mídia — imagem e vídeo têm padrões
+ * diferentes de propósito.
+ *
+ * IMAGEM: um "flash" barato lê o texto grande, mas INVENTA com confiança o que não
+ * dá para ler (placa pequena, número borrado) em vez de admitir — foi o bug do painel
+ * do ônibus. Para OCR preferimos um modelo que, quando não lê, tende a abster-se
+ * ("ILEGÍVEL") em vez de chutar. Não cura 100% (nenhum modelo cura texto ilegível),
+ * mas erra bem menos e é mais rápido.
+ *
+ * VÍDEO: precisa de suporte a `video_url` — nem todo modelo de imagem aceita vídeo —,
+ * então mantém-se o multimodal barato com 1M de contexto.
  */
-const MODELO_VISAO_PADRAO = "qwen/qwen3.5-flash-02-23";
+const MODELO_VISAO_IMAGEM_PADRAO = "openai/gpt-4o";
+const MODELO_VISAO_VIDEO_PADRAO = "qwen/qwen3.5-flash-02-23";
 
 function instrucaoBase(ehVideo: boolean): string {
   const midia = ehVideo ? "este vídeo" : "esta imagem";
@@ -39,9 +49,20 @@ function apiKey(): string | undefined {
   return process.env.OPENROUTER_API_KEY?.trim() || undefined;
 }
 
-/** Env própria — `LUNA_VISION_MODEL` é do descritor antigo (Groq) e apontaria para o modelo errado. */
-function modeloVisao(): string {
-  return process.env.OPENROUTER_VISION_MODEL?.trim() || MODELO_VISAO_PADRAO;
+/**
+ * Modelo de visão para o tipo de mídia.
+ *
+ * Overrides (em ordem de prioridade): o específico do tipo
+ * (`OPENROUTER_VISION_MODEL_IMAGE` / `OPENROUTER_VISION_MODEL_VIDEO`) e depois o global
+ * `OPENROUTER_VISION_MODEL` (retrocompat — antes valia para os dois). `LUNA_VISION_MODEL`
+ * é do descritor antigo (Groq) e apontaria para o modelo errado, por isso não é lido aqui.
+ */
+export function modeloVisao(ehVideo: boolean): string {
+  const especifico = ehVideo
+    ? process.env.OPENROUTER_VISION_MODEL_VIDEO?.trim()
+    : process.env.OPENROUTER_VISION_MODEL_IMAGE?.trim();
+  const padrao = ehVideo ? MODELO_VISAO_VIDEO_PADRAO : MODELO_VISAO_IMAGEM_PADRAO;
+  return especifico || process.env.OPENROUTER_VISION_MODEL?.trim() || padrao;
 }
 
 /** Há chave para ligar os olhos? Se não, o visaoGemma cai no fallback. */
@@ -92,7 +113,7 @@ export async function descreverImagemOpenRouter(entrada: {
     method: "POST",
     headers,
     body: JSON.stringify({
-      model: modeloVisao(),
+      model: modeloVisao(ehVideo),
       messages: [
         {
           role: "user",
