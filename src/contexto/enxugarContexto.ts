@@ -4,13 +4,11 @@ import type { ContextoSessao } from "../memoria/esquemaMemoria.js";
 const MAX_FATOS_SIMPLES = 8;
 
 /**
- * M2 — Dieta do simples: tira os blocos PESADOS (Sense/IDE), mantém presença e memória.
+ * M2 / L2 — Dieta do simples: tira blocos pesados do contexto da sessão.
  *
- * O `fatos: []` que estava aqui contradizia o próprio comentário: no turno simples — que
- * é o papo, onde o Ethan e a Luna realmente vivem — ela perdia TODOS os fatos sobre a
- * pessoa com quem estava falando. Esquecer quem é o outro justamente na conversa não é
- * dieta, é amnésia. Agora os fatos ficam (limitados, para não estourar o orçamento);
- * o que sai é só o que é de facto pesado e raramente relevante no papo.
+ * Mantém `historico` (continuidade) e fatos recentes do usuário.
+ * Zera sense, ambiente e memórias longas — o briefing mínimo
+ * (`entradasCompiladorSimples`) não deve carregá-los.
  */
 export function enxugarContextoParaSimples(contexto: ContextoSessao): ContextoSessao {
   return {
@@ -19,5 +17,6 @@ export function enxugarContextoParaSimples(contexto: ContextoSessao): ContextoSe
     pendente_confirmacao: undefined,
     contexto_ambiente: undefined,
     contexto_sense: undefined,
+    memorias_longas: undefined,
   };
 }

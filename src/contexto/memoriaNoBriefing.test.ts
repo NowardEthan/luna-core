@@ -56,11 +56,12 @@ describe("a memória cabe no briefing (o que a fazia esquecer)", () => {
     expect(compilado.briefing).toContain("Argentina");
   });
 
-  it("a dieta do turno simples NÃO apaga mais os fatos sobre o usuário", () => {
+  it("a dieta do turno simples mantém fatos do usuário e zera memórias longas", () => {
     const contexto: ContextoSessao = {
       historico: [],
       fatos: ["O Ethan não dirige.", "A esposa dele é a Raquel."],
       preferencias: { cafe: "com açúcar" },
+      memorias_longas: ["Trecho de outra conversa"],
     };
 
     const enxuto = enxugarContextoParaSimples(contexto);
@@ -69,5 +70,7 @@ describe("a memória cabe no briefing (o que a fazia esquecer)", () => {
     expect(enxuto.fatos.join(" ")).toContain("Raquel");
     // Preferências também sobrevivem — é sobre o outro, não é peso morto.
     expect(enxuto.preferencias.cafe).toBe("com açúcar");
+    // L2: memórias longas saem do contexto enxuto (briefing mínimo).
+    expect(enxuto.memorias_longas).toBeUndefined();
   });
 });

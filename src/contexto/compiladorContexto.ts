@@ -180,14 +180,20 @@ export function compilarContexto(
   };
 }
 
-/** M2 — entradas mínimas para rota simples. */
+/**
+ * M2 / L2 — entradas mínimas para rota simples (M3 armadilha 4).
+ * Só política (+ kernel/humor/identidade/tempo quando existirem).
+ * Sem sense, ambiente, memorias_longas, prior, hábitos, rotina, etc.
+ */
 export function entradasCompiladorSimples(
   politica: string,
-  extras?: Pick<EntradasCompilador, "kernel" | "humor">,
+  extras?: Pick<EntradasCompilador, "kernel" | "humor" | "identidade" | "tempo">,
 ): EntradasCompilador {
   return {
     politica,
-    kernel: extras?.kernel,
-    humor: extras?.humor,
+    identidade: extras?.identidade?.trim() || undefined,
+    tempo: extras?.tempo?.trim() || undefined,
+    kernel: extras?.kernel?.trim() || undefined,
+    humor: extras?.humor?.trim() || undefined,
   };
 }
