@@ -175,6 +175,8 @@ export type HealthResponse = {
     buscaSemantica: boolean;
     /** L4: turno leve (casual) usa dieta de briefing + sem CoT na voz. */
     dietaWritingLeve: boolean;
+    /** L3: no leve/simples, intenção e memória pré-voz usam regras (sem LLM extra). */
+    gatePrevozLeve: boolean;
   };
   /**
    * O commit que está a correr AQUI.

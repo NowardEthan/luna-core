@@ -306,8 +306,6 @@ export async function executarPipelineCompleto(
   const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
   const raciocinioEffort = opcoes.raciocinioEffort;
 
-  opcoes.onStatusHint?.("Analisando intenção…");
-
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
   let transicaoPresenca: TransicaoPresenca | undefined;
@@ -407,6 +405,9 @@ export async function executarPipelineCompleto(
   const contextoAcumulado = sessao?.contexto_acumulado;
   const estadoInternoAnterior = sessao?.estado_interno;
 
+  // L3 — hint de analysing só na análise (prep acima não conta como «analisando»).
+  opcoes.onStatusHint?.("Analisando intenção…");
+
   const analise = await analisarContexto(
     mensagem,
     provedorMenor,
@@ -429,6 +430,12 @@ export async function executarPipelineCompleto(
     | undefined;
   let intencaoLuna: IntencaoLuna | undefined;
 
+  // L3/L4 — peso e dieta cedo: saltar LLM de intenção/memória no papo leve
+  // (antes só o briefing herdava a dieta; analysing ainda pagava 1–2 LLM).
+  const profundidade = analise.profundidade ?? "moderado";
+  const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
+  const dietaMinima = profundidade === "simples" || pesoTurno === "leve";
+
   try {
     atualizarHumor(
       analise.analise,
@@ -442,22 +449,24 @@ export async function executarPipelineCompleto(
 
   // P1 (Luna Profunda) — memória depende só de `analise`, não de intenção/neurônios.
   // Dispara já, roda concorrente com intenção; awaited abaixo onde é consumida.
+  // L3: no leve/simples, regras bastam (papo sem sinal de memória).
+  const memoriaComLlm = neuronioLlm && !dietaMinima;
   const memoriaPromise = avaliarMemoria(
     mensagem,
     sessao,
-    neuronioLlm ? provedorMenor : undefined,
-    neuronioLlm ? config?.modeloMenor : undefined,
+    memoriaComLlm ? provedorMenor : undefined,
+    memoriaComLlm ? config?.modeloMenor : undefined,
   );
 
   // Intenção própria da Luna: o que ELA quer nesta troca (não só reagir).
-  // Turnos simples usam regras (sem custo de LLM); demais usam o modelo menor (Cerebras).
+  // L3: dieta mínima → regras (sem LLM); demais → modelo menor.
   try {
     const clima = lerClimaGlobal();
     const relacao = lerRelacaoHumor(opcoes.interlocutor?.uid);
     const ultimoAssistant = [...(contextoSessao?.historico ?? [])]
       .reverse()
       .find((m) => m.papel === "assistant")?.conteudo;
-    const usarLlmIntencao = analise.profundidade !== "simples";
+    const usarLlmIntencao = !dietaMinima;
     intencaoLuna = await formarIntencaoLuna(
       {
         mensagem,
@@ -497,11 +506,6 @@ export async function executarPipelineCompleto(
       accessibilityLabel: "Humor da Luna: neutra",
     };
   }
-
-  const profundidade = analise.profundidade ?? "moderado";
-  // L4 — gate de peso cedo: casual `leve` herda a dieta do simples (briefing + prior).
-  const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
-  const dietaMinima = profundidade === "simples" || pesoTurno === "leve";
 
   // V3.1 / V3.2 / L4 — prior e hábitos: saltar em `simples` ou turno leve (dieta L2/M2).
   // Neurônios já eram pulados no briefing; o cálculo em si ainda corria em todo turno.

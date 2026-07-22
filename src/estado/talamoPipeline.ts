@@ -37,6 +37,10 @@ const PADROES_SIMPLES: RegExp[] = [
   /^(boa\s+(noite|tarde|dia)|bom\s+dia)\b[\s,!.?-]*.{0,30}$/i,
   // Risada / ack curto com um pouco de texto
   /^(kk+|haha+|rs+|blz|vlw|tmj|entendi|ok+)\b[\s,!.?-]*.{0,24}$/i,
+  // L3 — papo leve / presença sem carga cognitiva (cortar analysing no casual do bench)
+  /^(nada\s+n[aã]o)\b[\s,!.?-]*.{0,50}$/i,
+  /^(s[oó]\s+(passando|vim)(\s+pra\s+(te\s+)?ver)?)\b[\s,!.?-]*.{0,40}$/i,
+  /^que\s+dia\s+(cansativ|longo|corrido|puxad)\w*\b[\s,!.?-]*.{0,30}$/i,
 ];
 
 const PADROES_COMPLEXO: RegExp[] = [

@@ -458,6 +458,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         apagarConta: true,
         buscaSemantica: true,
         dietaWritingLeve: true,
+        gatePrevozLeve: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
