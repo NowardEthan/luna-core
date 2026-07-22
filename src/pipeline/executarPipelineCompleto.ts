@@ -28,7 +28,14 @@ import { carregarPerfil, salvarPerfil } from "../perfil/storePerfil.js";
 import { ativarHabitos, adicionarOuIncrementarHabito } from "../perfil/gerenciadorPerfil.js";
 import type { HabitoComportamental } from "../perfil/esquemaPerfil.js";
 import { montarNarrativaRaciocinio } from "./montarNarrativaRaciocinio.js";
-import { compilarContexto, orcamentoPorProfundidade } from "../contexto/compiladorContexto.js";
+import {
+  compilarContexto,
+  entradasCompiladorSimples,
+  orcamentoPorProfundidade,
+} from "../contexto/compiladorContexto.js";
+import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
+import { gerarBlocoTempo } from "../contexto/gerarBlocoTempo.js";
+import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
 import {
   verificarPremissa,
   verificadorPremissaAtivo,
@@ -559,7 +566,6 @@ export async function executarPipelineCompleto(
   if (gerarResposta && provedor && config) {
     opcoes.onStatusHint?.("Redigindo resposta…");
 
-    const presencaBruta = contextoSessao?.contexto_presenca?.trim();
     let ctxRespondedor = contextoSessao;
     if (profundidade === "simples" && contextoSessao) {
       ctxRespondedor = enxugarContextoParaSimples(contextoSessao);
@@ -576,111 +582,6 @@ export async function executarPipelineCompleto(
     });
     humorLinha = nucleo.humor;
 
-    const ecossistemaBase = intencaoPedeEcossistema(analise.analise.intencao)
-      ? await inferirEFormatarConhecimento(mensagem, 3, {
-        intencao: analise.analise.intencao,
-        ambiente: opcoes.ambiente,
-      })
-      : null;
-
-    let entradas = montarEntradasCompilador({
-      politica: politicaComMemoria,
-      kernel: kernelDespertar,
-      humor: humorLinha,
-      habitat: nucleo.habitat,
-      mensagemUsuario: mensagem,
-      ecossistema: ecossistemaBase ?? undefined,
-      sugestaoMemoria: memoria.decisao.sugestao_resposta,
-      resumoRolante: sessao?.resumo_rolante,
-      interlocutor: opcoes.interlocutor,
-      intencao: analise.analise.intencao,
-      timeZone: opcoes.timeZone,
-    });
-    entradas = { ...entradas, vida: nucleo.vida };
-
-    const ctxColeta = ctxRespondedor ?? contextoSessao;
-    if (ctxColeta) {
-      try {
-        const sempreAtivos = await coletarNeuroniosSempreAtivos({
-          mensagem,
-          intencao: analise.analise.intencao,
-          contextoSessao: ctxColeta,
-          prior: prior ?? undefined,
-          habitos: habitosAtivos,
-        });
-        entradas = {
-          ...entradas,
-          ...sempreAtivos,
-          identidade: entradas.identidade ?? sempreAtivos.identidade,
-          humor: entradas.humor ?? sempreAtivos.humor,
-          habitat: entradas.habitat ?? sempreAtivos.habitat,
-          vida: entradas.vida ?? sempreAtivos.vida,
-        };
-      } catch (e) {
-        console.error("Aviso: falha ao coletar neurônios sempre ativos", e);
-      }
-    }
-
-    if (profundidade === "simples" && presencaBruta && !entradas.presenca) {
-      entradas.presenca = presencaBruta;
-    }
-
-    if (profundidade !== "simples" && ctxColeta) {
-      try {
-        const { dados: coletado, ativos, scores } = await coletarNeuroniosAtivos({
-          mensagem,
-          intencao: analise.analise.intencao,
-          contextoSessao: ctxColeta,
-          prior: prior ?? undefined,
-          habitos: habitosAtivos,
-        });
-        neuroniosAtivos = ativos;
-        entradas = {
-          ...entradas,
-          ...coletado,
-          identidade: entradas.identidade ?? coletado.identidade,
-          humor: entradas.humor ?? coletado.humor,
-          habitat: entradas.habitat ?? coletado.habitat,
-          vida: entradas.vida ?? coletado.vida,
-        };
-        void scores;
-      } catch (e) {
-        console.error("Aviso: falha no roteador — fallback para coleta completa", e);
-        entradas = montarEntradasCompilador({
-          politica: politicaComMemoria,
-          contextoSessao: ctxColeta,
-          kernel: kernelDespertar,
-          humor: humorLinha,
-          habitat: nucleo.habitat,
-          prior: prior ?? undefined,
-          habitos: habitosAtivos,
-          mensagemUsuario: mensagem,
-          ecossistema: ecossistemaBase ?? undefined,
-          sugestaoMemoria: memoria.decisao.sugestao_resposta,
-          resumoRolante: sessao?.resumo_rolante,
-          interlocutor: opcoes.interlocutor,
-          intencao: analise.analise.intencao,
-          timeZone: opcoes.timeZone,
-        });
-        entradas = { ...entradas, vida: nucleo.vida };
-      }
-    }
-
-    if (intencaoLuna) {
-      entradas.intencao_luna = formatarBlocoIntencao(intencaoLuna);
-    }
-
-    // ── Neurónio de registo: quanto se fala nesta troca ────────────────────────
-    //
-    // Isto ERA um bloco de 378 tokens a pedir «responda em 1 a 3 frases». O Ethan matou a
-    // ideia com uma frase: «um cérebro não negocia consigo mesmo — tudo é arquitetura de
-    // neurónios». E tinha prova: o módulo de intenção JÁ mandava «não eco», e ela ecoava
-    // na mesma. Pedir ao modelo que se contenha é negociar com ele; ele ganha sempre.
-    //
-    // Agora um neurónio lê o turno (intenção, profundidade, tamanho da fala dele) e a
-    // TENDÊNCIA dela (quanto escreveu nas últimas trocas) e devolve ESTADO: um teto
-    // (`max_tokens` — a parede, que não se negocia) e uma diretiva de ~12 tokens que entra
-    // pela secção `formato` — ou seja, DENTRO do orçamento. Nada é colado por fora.
     const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
     const registro = registroConversaAtivo()
       ? calcularRegistro({
@@ -692,128 +593,178 @@ export async function executarPipelineCompleto(
         })
       : null;
 
-    if (registro?.diretiva) {
-      entradas.formato = entradas.formato
-        ? `${entradas.formato}\n${registro.diretiva}`
-        : registro.diretiva;
-    }
-
-    // ── Neurónio de premissa ────────────────────────────────────────────────────
-    //
-    // «já que ontem você concordou comigo que o orbit tem que ser pago…» — ela nunca
-    // concordou, e engolia a premissa para não criar atrito. A P5 mediu: falha 1 em 4, e
-    // sempre nesta. E mediu também que a REGRA no prompt (~55 tokens, «não finjas que
-    // lembras») não muda nada: 3/4 com ela, 3/4 sem ela.
-    //
-    // Então o sistema faz o trabalho em vez de o pedir: procura o passado afirmado no
-    // histórico e na memória, e entrega o veredito como ESTADO. Ela não é instruída a ser
-    // honesta — recebe o facto. Só corre quando há algo a verificar (heurística de custo
-    // zero); nos outros turnos não custa um milissegundo.
-    if (verificadorPremissaAtivo()) {
-      const veredito = await verificarPremissa({
-        mensagemUsuario: mensagem,
-        historico: ctxRespondedor?.historico ?? [],
-        memorias: entradas.memorias_longas,
-        config,
-      });
-      if (veredito) {
-        entradas.premissa = veredito.estado;
-        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
-          console.error(
-            `[premissa] «${veredito.afirmacao}» → ${veredito.encontrada ? "ACONTECEU" : "NÃO EXISTE"}`,
-          );
-        }
-      }
-    }
-
-    // ── Neurónio de rotina ──────────────────────────────────────────────────────
-    //
-    // Ela já sabia as HORAS. Passa a saber o DIA DELE:
-    //
-    //   antes: «são 8h40 de segunda»
-    //   agora: «são 8h40, e ele está no ônibus a fazer o duolingo — faltam-lhe 20 minutos»
-    //
-    // A primeira é um relógio; a segunda é alguém que sabe onde tu estás.
-    //
-    // É ESTADO, não uma ordem: o briefing diz-lhe onde ele está, e não lhe manda comentar a
-    // agenda. Quando não há nada perto, não se escreve nada — o silêncio sai de graça, e não
-    // se consegue pedindo a ninguém que se cale.
-    if (neuronioRotinaAtivo() && opcoes.rotina?.length) {
-      const { dia, minuto } = agoraNoFusoDele(opcoes.timeZone);
-
-      // Os pausados saem de cena ANTES de tudo: ela não diz «faltam 20min para o curso»
-      // quando o curso está de férias, e não repara «o curso passou batido» — ele não está
-      // a ignorar o curso; o curso é que está fechado. Um bloco pausado é uma ausência
-      // combinada, não um sumiço.
-      const hojeISO = hojeISOnoFuso(opcoes.timeZone);
-      const ativos = blocosAtivos(opcoes.rotina, hojeISO);
-
-      const bloco = blocoRotina(estadoDaRotina(ativos, dia, minuto));
-
-      // E ela SABE que ele está de férias — para não perguntar «cadê o curso?».
-      const pausados = opcoes.rotina.filter((b) => !ativos.includes(b));
-      const notaPausa = pausados.length
-        ? `Em pausa (ele combinou, não é sumiço): ${pausados
-            .map((b) => `«${b.titulo}» volta ${b.pausa?.ate ?? "?"}`)
-            .join("; ")}.`
-        : null;
-
-      // O sumiço olha só para os ATIVOS — um bloco pausado nunca conta como ignorado.
-      const sumico = opcoes.rotina_registos
-        ? blocoSumico(ativos, opcoes.rotina_registos, new Date())
-        : null;
-
-      const partes = [bloco, sumico, notaPausa].filter(Boolean);
-      if (partes.length) {
-        entradas.rotina = partes.join("\n");
-        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
-          console.error(`[rotina] ${partes.join(" | ").replace(/\r?\n/g, " | ")}`);
-        }
-      }
-    }
-
-    // ── Neurónio de objeção ─────────────────────────────────────────────────────
-    //
-    // Ele: «pode ser que eu esteja fazendo muita coisa da forma errada, me fala de verdade».
-    // Ela: «isso não é atitude de leigo, é responsabilidade afetiva...». Zero substância.
-    // Ele pediu crítica e levou um abraço (P10: 2/4).
-    //
-    // Discordar custa atrito social, e o modelo foi treinado para evitar atrito — não é
-    // falta de instrução, é gradiente. Então um revisor EXTERNO, que não está na conversa e
-    // não tem vínculo nenhum com ele, procura o furo e entrega-lho como estado. Ela não é
-    // instruída a ser crítica: recebe a crítica pronta, e não pode passar ao lado de um
-    // facto que está no próprio briefing.
-    //
-    // Quando não há furo, não se injecta nada — é isso que a impede de virar contrarian.
+    let entradas;
     let objecaoDoTurno: Objecao | null = null;
-    if (neuronioObjecaoAtivo()) {
-      const objecao = await buscarObjecao({
+
+    if (profundidade === "simples") {
+      // L2 / M2 — briefing mínimo (M3 armadilha 4). Sem sense/ambiente/memorias/prior/hábitos.
+      const identidade = gerarBlocoPersonalidade({
+        interlocutor: opcoes.interlocutor,
+        intencao: analise.analise.intencao,
         mensagemUsuario: mensagem,
-        historico: ctxRespondedor?.historico ?? [],
-        config,
       });
-      if (objecao) {
-        objecaoDoTurno = objecao;
-        entradas.objecao = objecao.estado;
-        if (process.env.LUNA_DEBUG_REGISTRO === "1") {
-          console.error(`[objecao] ${objecao.alvo} → ${objecao.furos.length} furo(s)`);
+      entradas = entradasCompiladorSimples(montarBlocoPoliticaSituacional(politicaComMemoria), {
+        identidade: identidade.trim() || undefined,
+        tempo: gerarBlocoTempo(new Date(), opcoes.timeZone),
+        kernel: kernelDespertar ?? undefined,
+        humor: humorLinha ?? undefined,
+      });
+      if (registro?.diretiva) {
+        entradas.formato = registro.diretiva;
+      }
+    } else {
+      const ecossistemaBase = intencaoPedeEcossistema(analise.analise.intencao)
+        ? await inferirEFormatarConhecimento(mensagem, 3, {
+            intencao: analise.analise.intencao,
+            ambiente: opcoes.ambiente,
+          })
+        : null;
+
+      entradas = montarEntradasCompilador({
+        politica: politicaComMemoria,
+        kernel: kernelDespertar,
+        humor: humorLinha,
+        habitat: nucleo.habitat,
+        mensagemUsuario: mensagem,
+        ecossistema: ecossistemaBase ?? undefined,
+        sugestaoMemoria: memoria.decisao.sugestao_resposta,
+        resumoRolante: sessao?.resumo_rolante,
+        interlocutor: opcoes.interlocutor,
+        intencao: analise.analise.intencao,
+        timeZone: opcoes.timeZone,
+      });
+      entradas = { ...entradas, vida: nucleo.vida };
+
+      const ctxColeta = ctxRespondedor ?? contextoSessao;
+      if (ctxColeta) {
+        try {
+          const sempreAtivos = await coletarNeuroniosSempreAtivos({
+            mensagem,
+            intencao: analise.analise.intencao,
+            contextoSessao: ctxColeta,
+            prior: prior ?? undefined,
+            habitos: habitosAtivos,
+          });
+          entradas = {
+            ...entradas,
+            ...sempreAtivos,
+            identidade: entradas.identidade ?? sempreAtivos.identidade,
+            humor: entradas.humor ?? sempreAtivos.humor,
+            habitat: entradas.habitat ?? sempreAtivos.habitat,
+            vida: entradas.vida ?? sempreAtivos.vida,
+          };
+        } catch (e) {
+          console.error("Aviso: falha ao coletar neurônios sempre ativos", e);
+        }
+
+        try {
+          const { dados: coletado, ativos, scores } = await coletarNeuroniosAtivos({
+            mensagem,
+            intencao: analise.analise.intencao,
+            contextoSessao: ctxColeta,
+            prior: prior ?? undefined,
+            habitos: habitosAtivos,
+          });
+          neuroniosAtivos = ativos;
+          entradas = {
+            ...entradas,
+            ...coletado,
+            identidade: entradas.identidade ?? coletado.identidade,
+            humor: entradas.humor ?? coletado.humor,
+            habitat: entradas.habitat ?? coletado.habitat,
+            vida: entradas.vida ?? coletado.vida,
+          };
+          void scores;
+        } catch (e) {
+          console.error("Aviso: falha no roteador — fallback para coleta completa", e);
+          entradas = montarEntradasCompilador({
+            politica: politicaComMemoria,
+            contextoSessao: ctxColeta,
+            kernel: kernelDespertar,
+            humor: humorLinha,
+            habitat: nucleo.habitat,
+            prior: prior ?? undefined,
+            habitos: habitosAtivos,
+            mensagemUsuario: mensagem,
+            ecossistema: ecossistemaBase ?? undefined,
+            sugestaoMemoria: memoria.decisao.sugestao_resposta,
+            resumoRolante: sessao?.resumo_rolante,
+            interlocutor: opcoes.interlocutor,
+            intencao: analise.analise.intencao,
+            timeZone: opcoes.timeZone,
+          });
+          entradas = { ...entradas, vida: nucleo.vida };
+        }
+      }
+
+      if (intencaoLuna) {
+        entradas.intencao_luna = formatarBlocoIntencao(intencaoLuna);
+      }
+
+      if (registro?.diretiva) {
+        entradas.formato = entradas.formato
+          ? `${entradas.formato}\n${registro.diretiva}`
+          : registro.diretiva;
+      }
+
+      if (verificadorPremissaAtivo()) {
+        const veredito = await verificarPremissa({
+          mensagemUsuario: mensagem,
+          historico: ctxRespondedor?.historico ?? [],
+          memorias: entradas.memorias_longas,
+          config,
+        });
+        if (veredito) {
+          entradas.premissa = veredito.estado;
+          if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+            console.error(
+              `[premissa] «${veredito.afirmacao}» → ${veredito.encontrada ? "ACONTECEU" : "NÃO EXISTE"}`,
+            );
+          }
+        }
+      }
+
+      if (neuronioRotinaAtivo() && opcoes.rotina?.length) {
+        const { dia, minuto } = agoraNoFusoDele(opcoes.timeZone);
+        const hojeISO = hojeISOnoFuso(opcoes.timeZone);
+        const ativos = blocosAtivos(opcoes.rotina, hojeISO);
+        const bloco = blocoRotina(estadoDaRotina(ativos, dia, minuto));
+        const pausados = opcoes.rotina.filter((b) => !ativos.includes(b));
+        const notaPausa = pausados.length
+          ? `Em pausa (ele combinou, não é sumiço): ${pausados
+              .map((b) => `«${b.titulo}» volta ${b.pausa?.ate ?? "?"}`)
+              .join("; ")}.`
+          : null;
+        const sumico = opcoes.rotina_registos
+          ? blocoSumico(ativos, opcoes.rotina_registos, new Date())
+          : null;
+        const partes = [bloco, sumico, notaPausa].filter(Boolean);
+        if (partes.length) {
+          entradas.rotina = partes.join("\n");
+          if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+            console.error(`[rotina] ${partes.join(" | ").replace(/\r?\n/g, " | ")}`);
+          }
+        }
+      }
+
+      if (neuronioObjecaoAtivo()) {
+        const objecao = await buscarObjecao({
+          mensagemUsuario: mensagem,
+          historico: ctxRespondedor?.historico ?? [],
+          config,
+        });
+        if (objecao) {
+          objecaoDoTurno = objecao;
+          entradas.objecao = objecao.estado;
+          if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+            console.error(`[objecao] ${objecao.alvo} → ${objecao.furos.length} furo(s)`);
+          }
         }
       }
     }
 
     const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));
-    if (profundidade === "simples" && entradas.presenca) {
-      const presenca = entradas.presenca;
-      const { presenca: _p, ...semPresenca } = entradas;
-      contextoCompilado = compilarContexto(semPresenca, orcamento);
-      contextoCompilado = {
-        ...contextoCompilado,
-        briefing: `${contextoCompilado.briefing}\n\n── Presença ──\n${presenca}`,
-        tokens_estimados: contextoCompilado.tokens_estimados + Math.ceil(presenca.length / 4),
-      };
-    } else {
-      contextoCompilado = compilarContexto(entradas, orcamento);
-    }
+    contextoCompilado = compilarContexto(entradas, orcamento);
     if (process.env.LUNA_DEBUG_BRIEFING === "1" && contextoCompilado) {
       console.error(
         `─── BRIEFING ───\n${contextoCompilado.briefing}\n─── FIM (cortes: ${contextoCompilado.cortes.join(", ")}) ───`,

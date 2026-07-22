@@ -75,7 +75,7 @@ afterEach(() => {
 });
 
 describe("Presença ponta-a-ponta no pipeline (V2.3)", () => {
-  it("injeta o bloco de presença com a superfície atual no prompt", async () => {
+  it("turno simples («oi») não injeta presença — dieta L2/M2", async () => {
     const { provedor, systemPrompts } = criarProvedorCaptura();
     const r = await executarPipelineCompleto("oi", {
       provedor,
@@ -85,6 +85,25 @@ describe("Presença ponta-a-ponta no pipeline (V2.3)", () => {
     });
     logs.push(r.log_path);
 
+    expect(r.analise.profundidade).toBe("simples");
+    // Seções do compilador (não a palavra «presença» na personalidade base).
+    expect(systemPrompts[0]).not.toMatch(/── Presença ──/);
+    expect(systemPrompts[0]).not.toMatch(/── Sense ──/);
+    expect(systemPrompts[0]).not.toMatch(/── Hábitos/);
+    expect(systemPrompts[0]).not.toMatch(/── Memórias/);
+  });
+
+  it("turno moderado injeta o bloco de presença com a superfície atual", async () => {
+    const { provedor, systemPrompts } = criarProvedorCaptura();
+    const r = await executarPipelineCompleto("como você está se sentindo hoje?", {
+      provedor,
+      config: CONFIG,
+      ambiente: "desktop",
+      sessaoId: "test-presenca-chat",
+    });
+    logs.push(r.log_path);
+
+    expect(r.analise.profundidade).not.toBe("simples");
     expect(systemPrompts[0]).toContain("Luna Chat");
     expect(systemPrompts[0]).toMatch(/Presença|PRESENÇA/);
   });
