@@ -173,6 +173,8 @@ export type HealthResponse = {
     apagarConta: boolean;
     /** Busca semântica na conversa (a Luna acha pelo significado, não só a palavra). */
     buscaSemantica: boolean;
+    /** L4: turno leve (casual) usa dieta de briefing + sem CoT na voz. */
+    dietaWritingLeve: boolean;
   };
   /**
    * O commit que está a correr AQUI.

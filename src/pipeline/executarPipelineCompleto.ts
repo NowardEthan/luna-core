@@ -499,16 +499,16 @@ export async function executarPipelineCompleto(
   }
 
   const profundidade = analise.profundidade ?? "moderado";
+  // L4 — gate de peso cedo: casual `leve` herda a dieta do simples (briefing + prior).
+  const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
+  const dietaMinima = profundidade === "simples" || pesoTurno === "leve";
 
-  // V3.1 / V3.2 — prior e hábitos: saltar em `simples` (dieta L2 / M2).
+  // V3.1 / V3.2 / L4 — prior e hábitos: saltar em `simples` ou turno leve (dieta L2/M2).
   // Neurônios já eram pulados no briefing; o cálculo em si ainda corria em todo turno.
-  const prior =
-    profundidade === "simples" ? null : gerarPriorIntencao(sessao, analise.analise);
-  const perfil = profundidade === "simples" ? null : carregarPerfil();
+  const prior = dietaMinima ? null : gerarPriorIntencao(sessao, analise.analise);
+  const perfil = dietaMinima ? null : carregarPerfil();
   const habitosAtivos =
-    profundidade === "simples" || !perfil
-      ? []
-      : ativarHabitos(perfil, analise.analise.intencao);
+    dietaMinima || !perfil ? [] : ativarHabitos(perfil, analise.analise.intencao);
 
   const pipeline = gerarPolitica(mensagem, analise.analise, estadoInterno);
 
@@ -567,7 +567,7 @@ export async function executarPipelineCompleto(
     opcoes.onStatusHint?.("Redigindo resposta…");
 
     let ctxRespondedor = contextoSessao;
-    if (profundidade === "simples" && contextoSessao) {
+    if (dietaMinima && contextoSessao) {
       ctxRespondedor = enxugarContextoParaSimples(contextoSessao);
     }
 
@@ -582,7 +582,9 @@ export async function executarPipelineCompleto(
     });
     humorLinha = nucleo.humor;
 
-    const pesoTurno = classificarPesoTurno(analise.analise, profundidade, mensagem);
+    // L4 — CoT na voz só em turno pesado (custo alto no Groq/OpenRouter sem ganho no papo).
+    const raciocinioNaVoz = pesoTurno === "leve" ? false : raciocinioAtivo;
+
     const registro = registroConversaAtivo()
       ? calcularRegistro({
           mensagemUsuario: mensagem,
@@ -596,8 +598,9 @@ export async function executarPipelineCompleto(
     let entradas;
     let objecaoDoTurno: Objecao | null = null;
 
-    if (profundidade === "simples") {
-      // L2 / M2 — briefing mínimo (M3 armadilha 4). Sem sense/ambiente/memorias/prior/hábitos.
+    if (dietaMinima) {
+      // L2 / M2 / L4 — briefing mínimo (M3 armadilha 4). Sem sense/ambiente/memorias/prior/hábitos.
+      // Também em `pesoTurno === "leve"` (casual moderado no tálamo, papo leve no gate).
       const identidade = gerarBlocoPersonalidade({
         interlocutor: opcoes.interlocutor,
         intencao: analise.analise.intencao,
@@ -763,7 +766,9 @@ export async function executarPipelineCompleto(
       }
     }
 
-    const orcamento = orcamentoPorProfundidade(mapProfundidadeOrcamento(profundidade));
+    const orcamento = orcamentoPorProfundidade(
+      dietaMinima ? "simples" : mapProfundidadeOrcamento(profundidade),
+    );
     contextoCompilado = compilarContexto(entradas, orcamento);
     if (process.env.LUNA_DEBUG_BRIEFING === "1" && contextoCompilado) {
       console.error(
@@ -869,7 +874,7 @@ export async function executarPipelineCompleto(
         ? {
             maxTokensResposta: tetoComRaciocinio(
               registro.tetoTokens,
-              raciocinioAtivo,
+              raciocinioNaVoz,
               turnoDenso,
             ),
           }
@@ -896,7 +901,7 @@ export async function executarPipelineCompleto(
           anexosImagem,
           anexosDocumento,
           rotinaDeps: opcoes.rotinaDeps,
-          raciocinioAtivo,
+          raciocinioAtivo: raciocinioNaVoz,
           raciocinioEffort,
           onAcao: onAcaoComRegisto,
           // onRaciocinioRodada dispara 2x por rodada (emProgresso true/false) com o
@@ -919,7 +924,7 @@ export async function executarPipelineCompleto(
         tempResposta,
         contextoCompilado,
         historico,
-        raciocinioAtivo,
+        raciocinioNaVoz,
         {
           onChunk: (chunk: ChunkStreamLlm) => {
             if (chunk.tipo === "reasoning") {
@@ -944,7 +949,7 @@ export async function executarPipelineCompleto(
         tempResposta,
         contextoCompilado,
         historico,
-        raciocinioAtivo,
+        raciocinioNaVoz,
         config.baseUrl,
         opcoes.interlocutor,
         analise.analise.intencao,
@@ -978,7 +983,7 @@ export async function executarPipelineCompleto(
               anexosImagem,
               anexosDocumento,
               rotinaDeps: opcoes.rotinaDeps,
-              raciocinioAtivo,
+              raciocinioAtivo: raciocinioNaVoz,
               raciocinioEffort,
               onAcao: onAcaoComRegisto,
             })
@@ -990,7 +995,7 @@ export async function executarPipelineCompleto(
               tempResposta,
               contextoCompilado,
               historico,
-              raciocinioAtivo,
+              raciocinioNaVoz,
               config.baseUrl,
               opcoes.interlocutor,
               analise.analise.intencao,
@@ -1040,7 +1045,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
           tempResposta,
           ctxComFuro,
           historico,
-          raciocinioAtivo,
+          raciocinioNaVoz,
           config.baseUrl,
           opcoes.interlocutor,
           analise.analise.intencao,
@@ -1089,7 +1094,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
           tempResposta,
           ctxRevisao,
           historico,
-          raciocinioAtivo,
+          raciocinioNaVoz,
           config.baseUrl,
           opcoes.interlocutor,
           analise.analise.intencao,
@@ -1139,7 +1144,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         anexosImagem,
         anexosDocumento,
         rotinaDeps: opcoes.rotinaDeps,
-        raciocinioAtivo,
+        raciocinioAtivo: raciocinioNaVoz,
         raciocinioEffort,
         onAcao: onAcaoComRegisto,
       });
@@ -1165,7 +1170,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
     }
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";
-    if (raciocinio && raciocinioAtivo && !usarStream) {
+    if (raciocinio && raciocinioNaVoz && !usarStream) {
       opcoes.onRaciocinioRodada?.(2, raciocinio, true);
       opcoes.onRaciocinioRodada?.(2, raciocinio, false);
     }
