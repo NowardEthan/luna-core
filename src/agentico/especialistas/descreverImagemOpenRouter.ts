@@ -182,22 +182,70 @@ export function tokensDePrecisao(texto: string): Set<string> {
 }
 
 /**
- * Concilia a leitura PRINCIPAL com a da REVISÃO: os tokens de precisão que a principal
- * afirma mas a revisão NÃO confirma (não leu igual) viram "não confirmados". Devolve o
- * texto principal, com um aviso anexado quando houve divergência.
+ * Distância de edição (Damerau-Levenshtein / OSA): quantas trocas de 1 caractere separam
+ * duas strings, contando a TRANSPOSIÇÃO de vizinhos como 1 («WVH»↔«VWH»). Serve para
+ * distinguir «bateu quase» (1 caractere — placa ambígua V/W) de «diverge» (chute).
+ */
+export function distanciaEdicao(a: string, b: string): number {
+  const na = a.length;
+  const nb = b.length;
+  const d: number[][] = Array.from({ length: na + 1 }, () => new Array(nb + 1).fill(0));
+  for (let i = 0; i <= na; i++) d[i][0] = i;
+  for (let j = 0; j <= nb; j++) d[0][j] = j;
+  for (let i = 1; i <= na; i++) {
+    for (let j = 1; j <= nb; j++) {
+      const custo = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + custo);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[na][nb];
+}
+
+/**
+ * Concilia a leitura PRINCIPAL com a da REVISÃO, em três níveis por token de precisão:
+ *
+ *  - as duas leram IGUAL              → confirmado (afirma normal).
+ *  - bateu QUASE (1 caractere)        → «provável»: a Luna pode dizer que PARECE aquilo,
+ *                                        sem cravar. É o caso da placa V/W ambígua, que o
+ *                                        primário leu certo e o revisor errou por um dígito.
+ *  - DIVERGE (2+) ou revisor não leu  → «não confirmado»: trata como ilegível, não afirma.
+ *
+ * Assim uma placa quase-legível deixa de ser escondida (vira «parece X»), sem liberar um
+ * chute em que os dois modelos discordam de verdade.
  */
 export function conciliarRevisao(
   principal: string,
   revisao: string,
-): { texto: string; naoConfirmados: string[] } {
-  const daRevisao = tokensDePrecisao(revisao);
-  const naoConfirmados = [...tokensDePrecisao(principal)].filter((t) => !daRevisao.has(t));
-  if (naoConfirmados.length === 0) return { texto: principal, naoConfirmados };
-  const aviso =
-    `\n\n[REVISÃO DA VISÃO: uma segunda leitura NÃO bateu nestes trechos: ${naoConfirmados.join(", ")}. ` +
-    `Trate-os como INCERTOS: no máximo diga que PARECE aquilo, deixando claro que não tem certeza — ` +
-    `nunca afirme um número/placa/código desses como se fosse certo.]`;
-  return { texto: `${principal}${aviso}`, naoConfirmados };
+): { texto: string; naoConfirmados: string[]; provaveis: string[] } {
+  const daRevisao = [...tokensDePrecisao(revisao)];
+  const revSet = new Set(daRevisao);
+  const naoConfirmados: string[] = [];
+  const provaveis: string[] = [];
+  for (const t of tokensDePrecisao(principal)) {
+    if (revSet.has(t)) continue; // confirmado exato
+    const bateuQuase = daRevisao.some((r) => distanciaEdicao(t, r) <= 1);
+    if (bateuQuase) provaveis.push(t);
+    else naoConfirmados.push(t);
+  }
+  if (naoConfirmados.length === 0 && provaveis.length === 0) {
+    return { texto: principal, naoConfirmados, provaveis };
+  }
+  const partes: string[] = [];
+  if (naoConfirmados.length > 0) {
+    partes.push(
+      `NÃO bateram (a 2ª leitura leu outra coisa) — trate como ILEGÍVEL e NÃO afirme: ${naoConfirmados.join(", ")}`,
+    );
+  }
+  if (provaveis.length > 0) {
+    partes.push(
+      `bateram QUASE (diferença de 1 caractere) — no máximo diga que PARECE, sem cravar: ${provaveis.join(", ")}`,
+    );
+  }
+  const aviso = `\n\n[REVISÃO DA VISÃO: ${partes.join("; ")}.]`;
+  return { texto: `${principal}${aviso}`, naoConfirmados, provaveis };
 }
 
 function revisaoAtiva(): boolean {

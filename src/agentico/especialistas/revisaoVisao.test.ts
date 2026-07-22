@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   conciliarRevisao,
+  distanciaEdicao,
   perguntaPedePrecisao,
   tokensDePrecisao,
 } from "./descreverImagemOpenRouter.js";
@@ -37,22 +38,39 @@ describe("tokensDePrecisao", () => {
   });
 });
 
+describe("distanciaEdicao", () => {
+  it("conta 1 substituição e 1 transposição de vizinhos como 1", () => {
+    expect(distanciaEdicao("YJ56WVH", "YJ56WVH")).toBe(0);
+    expect(distanciaEdicao("YJ56WVH", "YJ56NVH")).toBe(1); // substituição
+    expect(distanciaEdicao("YJ56WVH", "YJ56VWH")).toBe(1); // transposição W↔V
+    expect(distanciaEdicao("MX07JNO", "WJ07UNQ")).toBeGreaterThan(1); // chute divergente
+  });
+});
+
 describe("conciliarRevisao", () => {
   it("não penaliza quando a 2ª leitura confirma tudo", () => {
     const r = conciliarRevisao("Frota 316, placa YJ56WVH.", "Vejo 316 e a placa YJ56 WVH.");
     expect(r.naoConfirmados).toEqual([]);
+    expect(r.provaveis).toEqual([]);
     expect(r.texto).not.toMatch(/REVISÃO DA VISÃO/);
   });
 
-  it("marca como incerto o número/placa que a 2ª leitura não confirmou", () => {
-    // principal chutou WJ07UNQ; a revisão leu outra coisa (não bate) → incerto.
+  it("marca como INCERTO (não afirma) o que a 2ª leitura leu bem diferente", () => {
+    // principal chutou WJ07UNQ; a revisão leu outra coisa (diverge) → incerto.
     const r = conciliarRevisao(
       "Placa do fundo: WJ07UNQ; frota 310.",
       "A placa do fundo está ilegível; frota 310.",
     );
     expect(r.naoConfirmados).toContain("WJ07UNQ");
     expect(r.naoConfirmados).not.toContain("310"); // 310 os dois leram
-    expect(r.texto).toMatch(/incertos/i);
-    expect(r.texto).toMatch(/nunca afirme/i);
+    expect(r.texto).toMatch(/N[ÃA]O afirme/i);
+  });
+
+  it("marca como PROVÁVEL (parece, sem cravar) placa que bateu quase — 1 caractere", () => {
+    // primário leu certo (YJ56WVH); revisor errou por 1 caractere (YJ56NVH) → não esconde.
+    const r = conciliarRevisao("Placa: YJ56WVH; frota 316.", "Placa YJ56 NVH; frota 316.");
+    expect(r.provaveis).toContain("YJ56WVH");
+    expect(r.naoConfirmados).not.toContain("YJ56WVH");
+    expect(r.texto).toMatch(/PARECE/i);
   });
 });
