@@ -127,7 +127,9 @@ describe("L4 writing — dieta + sem CoT em turno leve", () => {
       usarNeuronioMemoriaLlm: false,
     });
 
-    expect(r.analise.profundidade).toBe("moderado");
+    // L3: desabafo leve cai em simples (sem LLM de análise).
+    expect(r.analise.profundidade).toBe("simples");
+    expect(r.analise.fonte).toBe("regras");
     expect(r.resposta?.modelo).toBe("menor");
     expect(r.prior).toBeUndefined();
     expect(r.habitos_ativos).toBeUndefined();
@@ -171,5 +173,82 @@ describe("L4 writing — dieta + sem CoT em turno leve", () => {
     const voz = pedidos.find((p) => p.modelo === "maior");
     expect(voz).toBeTruthy();
     expect(voz!.raciocinioAtivo).not.toBe(false);
+  });
+});
+
+describe("L3 analysing — gate pré-voz no leve", () => {
+  it("casual leve moderado: só 1 LLM de análise (sem intenção/memória LLM)", async () => {
+    const sessaoId = "l3-prevoz-leve";
+    sessoes.push(sessaoId);
+    const pedidos: RequisicaoCompletacao[] = [];
+    const base = criarProvedorMock({
+      menor: analise("conversa_casual"),
+      maior: "resposta",
+    });
+    const provedor: ProvedorLlm = {
+      async completar(req) {
+        pedidos.push(req);
+        return base.completar(req);
+      },
+    };
+
+    // Continua moderado no tálamo, mas peso leve → dietaMinima salta intenção/memória LLM.
+    const r = await executarPipelineCompleto("O que você acha disso?", {
+      sessaoId,
+      provedor,
+      config: CONFIG,
+      usarNeuronioMemoriaLlm: true,
+    });
+
+    expect(r.analise.profundidade).toBe("moderado");
+    expect(r.resposta?.modelo).toBe("menor");
+
+    const ehClassificador = (p: RequisicaoCompletacao) =>
+      p.mensagens.some((m) => m.papel === "system" && /classificador interno/i.test(m.conteudo));
+    const ehIntencao = (p: RequisicaoCompletacao) =>
+      p.mensagens.some(
+        (m) => m.papel === "system" && /formador de inten[cç][aã]o interno/i.test(m.conteudo),
+      );
+    const ehMemoria = (p: RequisicaoCompletacao) =>
+      p.mensagens.some(
+        (m) => m.papel === "system" && /neur[oó]nio de mem[oó]ria/i.test(m.conteudo),
+      );
+
+    expect(pedidos.filter(ehClassificador)).toHaveLength(1);
+    expect(pedidos.filter(ehIntencao)).toHaveLength(0);
+    expect(pedidos.filter(ehMemoria)).toHaveLength(0);
+
+    const voz = [...pedidos].reverse().find((p) => p.modelo === "menor" && !p.json);
+    expect(voz).toBeTruthy();
+    expect(voz!.raciocinioAtivo).toBe(false);
+  });
+
+  it("turno técnico ainda chama LLM de análise (e pode chamar mais)", async () => {
+    const sessaoId = "l3-prevoz-tecnico";
+    sessoes.push(sessaoId);
+    const pedidos: RequisicaoCompletacao[] = [];
+    const base = criarProvedorMock({
+      menor: analise("pergunta_tecnica", "media"),
+      maior: "resposta técnica",
+    });
+    const provedor: ProvedorLlm = {
+      async completar(req) {
+        pedidos.push(req);
+        return base.completar(req);
+      },
+    };
+
+    await executarPipelineCompleto(
+      "me explica a diferença entre índice hash e B-tree num banco de dados",
+      {
+        sessaoId,
+        provedor,
+        config: CONFIG,
+        usarNeuronioMemoriaLlm: true,
+      },
+    );
+
+    const jsonMenor = pedidos.filter((p) => p.modelo === "menor" && p.json);
+    expect(jsonMenor.length).toBeGreaterThanOrEqual(2);
   });
 });

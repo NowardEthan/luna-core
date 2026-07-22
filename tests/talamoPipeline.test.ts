@@ -26,6 +26,16 @@ describe("talamoPipeline — simples (sem LLM)", () => {
   });
   it("'boa noite luna' → simples", () => expect(simples("boa noite luna")).toBe("simples"));
   it("'kkk verdade' → simples", () => expect(simples("kkk verdade")).toBe("simples"));
+  it("'nada não, só passando pra te ver' → simples (presença leve)", () => {
+    expect(simples("nada não, só passando pra te ver")).toBe("simples");
+  });
+  it("'que dia cansativo hoje...' → simples (desabafo leve)", () => {
+    expect(simples("que dia cansativo hoje...")).toBe("simples");
+  });
+  it("'lembra?' NÃO é simples", () => expect(simples("lembra?")).not.toBe("simples"));
+  it("'tô meio pra baixo hoje' NÃO é simples", () => {
+    expect(simples("tô meio pra baixo hoje")).not.toBe("simples");
+  });
 });
 
 // ─── classificarProfundidade — critico ────────────────────────────────────────
