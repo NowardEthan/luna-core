@@ -4,7 +4,7 @@ import { existsSync, rmSync } from "node:fs";
 import { criarProvedorMock } from "../src/providers/mockProvedor.js";
 import { executarPipelineCompleto } from "../src/pipeline/executarPipelineCompleto.js";
 import { caminhoSessao } from "../src/memoria/storeSessao.js";
-import type { ConfigLuna } from "../src/providers/tipos.js";
+import type { ConfigLuna, ProvedorLlm, RequisicaoCompletacao } from "../src/providers/tipos.js";
 
 /**
  * P1 camada 1 — gate de peso, ponta a ponta no pipeline.
@@ -101,5 +101,75 @@ describe("Gate de peso no pipeline (P1 camada 1)", () => {
     const r = await rodar("gate-off", "oi! tudo bem?", "conversa_casual");
     expect(r.resposta?.modelo).toBe("maior");
     delete process.env.LUNA_GATE_PESO;
+  });
+});
+
+describe("L4 writing — dieta + sem CoT em turno leve", () => {
+  it("casual moderado: briefing sem Sense/Memórias e raciocínio desligado na voz", async () => {
+    const sessaoId = "l4-casual-dieta";
+    sessoes.push(sessaoId);
+    const pedidos: RequisicaoCompletacao[] = [];
+    const base = criarProvedorMock({
+      menor: analise("conversa_casual"),
+      maior: "resposta do modelo grande",
+    });
+    const provedor: ProvedorLlm = {
+      async completar(req) {
+        pedidos.push(req);
+        return base.completar(req);
+      },
+    };
+
+    const r = await executarPipelineCompleto("que dia cansativo hoje...", {
+      sessaoId,
+      provedor,
+      config: CONFIG,
+      usarNeuronioMemoriaLlm: false,
+    });
+
+    expect(r.analise.profundidade).toBe("moderado");
+    expect(r.resposta?.modelo).toBe("menor");
+    expect(r.prior).toBeUndefined();
+    expect(r.habitos_ativos).toBeUndefined();
+
+    // A voz é o último pedido ao modelo menor sem JSON (análise/intenção usam json:true).
+    const voz = [...pedidos].reverse().find((p) => p.modelo === "menor" && !p.json);
+    expect(voz).toBeTruthy();
+    const briefing = voz!.mensagens.map((m) => m.conteudo).join("\n");
+    expect(briefing).not.toMatch(/── Sense ──/);
+    expect(briefing).not.toMatch(/── Memórias/);
+    expect(briefing).not.toMatch(/── Hábitos/);
+    expect(briefing).not.toMatch(/── Ambiente/);
+    expect(voz!.raciocinioAtivo).toBe(false);
+  });
+
+  it("turno técnico pesado mantém raciocínio na voz", async () => {
+    const sessaoId = "l4-tecnico-cot";
+    sessoes.push(sessaoId);
+    const pedidos: RequisicaoCompletacao[] = [];
+    const base = criarProvedorMock({
+      menor: analise("pergunta_tecnica", "media"),
+      maior: "resposta técnica",
+    });
+    const provedor: ProvedorLlm = {
+      async completar(req) {
+        pedidos.push(req);
+        return base.completar(req);
+      },
+    };
+
+    await executarPipelineCompleto(
+      "me explica a diferença entre índice hash e B-tree num banco de dados",
+      {
+        sessaoId,
+        provedor,
+        config: CONFIG,
+        usarNeuronioMemoriaLlm: false,
+      },
+    );
+
+    const voz = pedidos.find((p) => p.modelo === "maior");
+    expect(voz).toBeTruthy();
+    expect(voz!.raciocinioAtivo).not.toBe(false);
   });
 });
