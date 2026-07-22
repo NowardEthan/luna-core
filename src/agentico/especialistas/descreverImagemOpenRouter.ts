@@ -15,17 +15,21 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  * O modelo de visão é escolhido pelo TIPO de mídia — imagem e vídeo têm padrões
  * diferentes de propósito.
  *
- * IMAGEM: um "flash" barato lê o texto grande, mas INVENTA com confiança o que não
- * dá para ler (placa pequena, número borrado) em vez de admitir — foi o bug do painel
- * do ônibus. Para OCR preferimos um modelo que, quando não lê, tende a abster-se
- * ("ILEGÍVEL") em vez de chutar. Não cura 100% (nenhum modelo cura texto ilegível),
- * mas erra bem menos e é mais rápido.
+ * IMAGEM: `gemini-2.5-flash-lite` lê o texto legível tão bem quanto o qwen, mas ~10x
+ * mais rápido (≈2,6s vs ≈28s) e com custo parecido — a lentidão do qwen estourava o
+ * tempo de resposta quando chegava foto. Ele ainda CHUTA texto que não dá para ler (a
+ * placa pequena) — nenhum modelo cura isso sozinho —, por isso a leitura de números/
+ * placas passa por uma REVISÃO com um segundo modelo (ver `descreverImagemComRevisao`).
  *
  * VÍDEO: precisa de suporte a `video_url` — nem todo modelo de imagem aceita vídeo —,
  * então mantém-se o multimodal barato com 1M de contexto.
+ *
+ * REVISOR: um segundo modelo, DIFERENTE do de imagem, para a segunda leitura. Só o que
+ * os dois leem igual é afirmado com confiança; o resto vira "não consigo confirmar".
  */
-const MODELO_VISAO_IMAGEM_PADRAO = "openai/gpt-4o";
+const MODELO_VISAO_IMAGEM_PADRAO = "google/gemini-2.5-flash-lite";
 const MODELO_VISAO_VIDEO_PADRAO = "qwen/qwen3.5-flash-02-23";
+const MODELO_VISAO_REVISOR_PADRAO = "openai/gpt-4o-mini";
 
 function instrucaoBase(ehVideo: boolean): string {
   const midia = ehVideo ? "este vídeo" : "esta imagem";
@@ -73,6 +77,8 @@ export function visaoOpenRouterDisponivel(): boolean {
 export async function descreverImagemOpenRouter(entrada: {
   imagem: AnexoImagemChat;
   pergunta?: string;
+  /** Força um modelo específico (usado pela revisão de segunda opinião). */
+  modelo?: string;
 }): Promise<string> {
   const key = apiKey();
   if (!key) throw new Error("OPENROUTER_API_KEY ausente — visão indisponível.");
@@ -113,7 +119,7 @@ export async function descreverImagemOpenRouter(entrada: {
     method: "POST",
     headers,
     body: JSON.stringify({
-      model: modeloVisao(ehVideo),
+      model: entrada.modelo?.trim() || modeloVisao(ehVideo),
       messages: [
         {
           role: "user",
@@ -136,4 +142,94 @@ export async function descreverImagemOpenRouter(entrada: {
   const texto = data.choices?.[0]?.message?.content?.trim();
   if (!texto) throw new Error("O modelo de visão não devolveu descrição.");
   return texto;
+}
+
+// ── Revisão de segunda opinião (anti-confabulação) ──────────────────────────────
+//
+// O modelo de imagem lê o texto grande bem, mas INVENTA com confiança o pequeno (a
+// placa do fundo) — e de forma ESTÁVEL, então reler com o mesmo modelo não pega. A
+// saída é uma SEGUNDA leitura com um modelo DIFERENTE: só o número/placa/código que os
+// dois leem IGUAL é afirmado; o resto é marcado como não confirmado, e a Luna é
+// instruída a dizer que não consegue ler aquilo — em vez de repetir um chute.
+//
+// Custo/latência só entram quando a pergunta é de PRECISÃO (número/placa/código…), que
+// é onde confabular dói; e as duas leituras correm em paralelo.
+
+/** A pergunta pede um dado exato (onde um dígito errado é grave)? */
+export function perguntaPedePrecisao(pergunta?: string): boolean {
+  if (!pergunta?.trim()) return false;
+  return /(n[uú]mero|placa|matr[ií]cula|c[oó]digo|vers[aã]o|placar|pre[çc]o|valor|data|hora|quant[oa]|d[ií]gito|s[ée]rie|cpf|cnpj|telefone|escrit|l[êe]|ler|diz)/i.test(
+    pergunta,
+  );
+}
+
+/**
+ * Tokens "de precisão" numa leitura: sequências alfanuméricas com pelo menos um dígito
+ * (placas, números de frota, versões, valores). Junta placas com espaço no meio
+ * («WJ07 UNQ» → «WJ07UNQ») para comparar leituras que quebram a placa de formas
+ * diferentes.
+ */
+export function tokensDePrecisao(texto: string): Set<string> {
+  const t = texto
+    .toUpperCase()
+    .replace(/\b([A-Z]{1,3}\d{1,4})\s+([A-Z]{2,4})\b/g, "$1$2");
+  const achados = t.match(/[A-Z0-9]{2,}/g) ?? [];
+  return new Set(achados.filter((x) => /\d/.test(x) && x.length >= 2));
+}
+
+/**
+ * Concilia a leitura PRINCIPAL com a da REVISÃO: os tokens de precisão que a principal
+ * afirma mas a revisão NÃO confirma (não leu igual) viram "não confirmados". Devolve o
+ * texto principal, com um aviso anexado quando houve divergência.
+ */
+export function conciliarRevisao(
+  principal: string,
+  revisao: string,
+): { texto: string; naoConfirmados: string[] } {
+  const daRevisao = tokensDePrecisao(revisao);
+  const naoConfirmados = [...tokensDePrecisao(principal)].filter((t) => !daRevisao.has(t));
+  if (naoConfirmados.length === 0) return { texto: principal, naoConfirmados };
+  const aviso =
+    `\n\n[REVISÃO DA VISÃO: uma segunda leitura NÃO confirmou estes trechos: ${naoConfirmados.join(", ")}. ` +
+    `Isso significa que a leitura deles é INCERTA — diga ao usuário que não consegue ler esses com certeza e NÃO afirme nenhum valor para eles.]`;
+  return { texto: `${principal}${aviso}`, naoConfirmados };
+}
+
+function revisaoAtiva(): boolean {
+  const flag = process.env.OPENROUTER_VISION_REVISAO?.trim();
+  return flag !== "0" && flag !== "false";
+}
+
+/**
+ * Leitura de imagem COM revisão de segunda opinião para perguntas de precisão.
+ *
+ * É o `descrever` padrão do `visaoGemma`. Para pergunta de precisão, faz duas leituras
+ * em paralelo (modelo de imagem + revisor) e concilia; caso contrário, uma leitura só.
+ * Vídeo nunca passa pela revisão (é caro e o modelo de vídeo é outro).
+ */
+export async function descreverImagemComRevisao(entrada: {
+  imagem: AnexoImagemChat;
+  pergunta?: string;
+}): Promise<string> {
+  const { imagem, pergunta } = entrada;
+  const ehVideo = (imagem.mimeType?.trim() || "").startsWith("video/");
+
+  if (ehVideo || !revisaoAtiva() || !perguntaPedePrecisao(pergunta)) {
+    return descreverImagemOpenRouter(entrada);
+  }
+
+  const revisor =
+    process.env.OPENROUTER_VISION_MODEL_REVISOR?.trim() || MODELO_VISAO_REVISOR_PADRAO;
+
+  const [principal, revisao] = await Promise.allSettled([
+    descreverImagemOpenRouter({ imagem, pergunta }),
+    descreverImagemOpenRouter({ imagem, pergunta, modelo: revisor }),
+  ]);
+
+  // A leitura principal é obrigatória; se ela falhou, propaga o erro (o visaoGemma trata).
+  if (principal.status !== "fulfilled") throw principal.reason;
+  // Se a revisão falhou, entrega a principal sem penalizar (melhor que não responder).
+  if (revisao.status !== "fulfilled") return principal.value;
+
+  return conciliarRevisao(principal.value, revisao.value).texto;
 }

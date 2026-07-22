@@ -1,5 +1,5 @@
 import {
-  descreverImagemOpenRouter,
+  descreverImagemComRevisao,
   visaoOpenRouterDisponivel,
 } from "./descreverImagemOpenRouter.js";
 
@@ -50,7 +50,7 @@ export async function visaoGemma(
 
   const descrever =
     deps.descreverImagem ??
-    (visaoOpenRouterDisponivel() ? descreverImagemOpenRouter : undefined);
+    (visaoOpenRouterDisponivel() ? descreverImagemComRevisao : undefined);
 
   const descricoes: string[] = [];
   for (const imagem of entrada.imagens) {
