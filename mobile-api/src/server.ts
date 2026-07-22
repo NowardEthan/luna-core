@@ -647,6 +647,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       sseStarted = true;
       let contentEnviado = false;
 
+      // A5 (presença percebida): sinal IMEDIATO de que a Luna está aqui. O cliente mostra
+      // o "pensando" em milissegundos, sem esperar a 1ª fase do pipeline — TTFT sentido ~0,
+      // mesmo no turno fundo. Também força o flush dos headers do SSE por proxies que bufferizam.
+      sendSseEvent(res, "status", { phase: "analysing" });
+
       const streamMs = streamTimeoutMs();
       const streamTimeout = setTimeout(() => {
         sendMappedSseError(res, new Error(`Timeout de streaming (${Math.round(streamMs / 1000)}s).`));
