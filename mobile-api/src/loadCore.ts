@@ -288,21 +288,13 @@ async function prepararChatMobile(
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
-  const config = selection ? resolveLlmConfig(selection) : null;
+  // A0: o plano decide o MODELO dentro do OpenRouter (free = leve, pago = Pro).
+  const config = selection ? resolveLlmConfig(selection, planId) : null;
 
   if (!selection || !config) {
-    const temOpenrouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
-    const temCerebras = Boolean(process.env.CEREBRAS_API_KEY?.trim());
-    const temGroq = Boolean(
-      process.env.LUNA_API_KEY?.trim() || process.env.GROQ_API_KEY?.trim(),
-    );
-    if (!temOpenrouter && !temCerebras && !temGroq) {
-      throw new Error(
-        "Nenhum provedor LLM configurado. Define OPENROUTER_API_KEY, CEREBRAS_API_KEY e/ou LUNA_API_KEY (Groq) no servidor.",
-      );
-    }
+    // A0: um provedor só — se falta a chave, o erro diz exatamente qual.
     throw new Error(
-      "Não foi possível escolher um modelo para este plano. Verifica OPENROUTER_API_KEY (Core), CEREBRAS_API_KEY (Core) ou LUNA_API_KEY (Pulse) no Railway.",
+      "Chat indisponível: OPENROUTER_API_KEY ausente no servidor (Railway). O OpenRouter é o único provedor de chat.",
     );
   }
 

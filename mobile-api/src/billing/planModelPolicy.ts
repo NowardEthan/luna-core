@@ -14,45 +14,39 @@ export function planIdForLlmRouting(uid: string | null | undefined, planId: Plan
   return planId;
 }
 
-/** Nome legado — na prática marca qualquer provedor/modelo pago (GLM, DeepSeek via OpenRouter). */
+/**
+ * A0 (Latência com Alma): o provedor é único (OpenRouter) para TODOS os planos.
+ * O que o plano diferencia é o MODELO (free = leve, pago = Pro), decidido em
+ * `resolveOpenrouterConfig(planId)` — não a disponibilidade do provedor.
+ * Mantido para compat: hoje só marca os modelos pagos legados (não filtra provedor).
+ */
 export function isGlm47Provider(
-  providerId?: string,
+  _providerId?: string,
   modelKey?: string,
 ): boolean {
-  return (
-    providerId === "cerebras" ||
-    providerId === "openrouter" ||
-    modelKey === "glm-47" ||
-    modelKey === "gpt-oss-120b"
-  );
+  return modelKey === "glm-47" || modelKey === "gpt-oss-120b";
 }
 
+/** A0: OpenRouter está disponível em todo plano — sem filtro de provedor. */
 export function filterProviderOptionsForPlan<T extends { providerId: string; modelKey: string }>(
-  planId: PlanId,
+  _planId: PlanId,
   options: T[],
 ): T[] {
-  if (isPremiumModelAllowed(planId)) return options;
-  return options.filter((o) => !isGlm47Provider(o.providerId, o.modelKey));
+  return options;
 }
 
+/** A0: nunca rebaixa de provedor (não há Groq/Cerebras); só normaliza o tipo. */
 export function clampProviderSelectionForPlan(
-  planId: PlanId,
+  _planId: PlanId,
   selection: { providerId: string; modelKey: string },
 ): {
   providerId: "groq" | "cerebras" | "openrouter" | "auto";
   modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto";
 } {
-  type Clamped = {
+  return selection as {
     providerId: "groq" | "cerebras" | "openrouter" | "auto";
     modelKey: "default" | "glm-47" | "gpt-oss-120b" | "auto";
   };
-  if (isPremiumModelAllowed(planId)) {
-    return selection as Clamped;
-  }
-  if (isGlm47Provider(selection.providerId, selection.modelKey)) {
-    return { providerId: "groq", modelKey: "default" };
-  }
-  return selection as Clamped;
 }
 
 export const FREE_PLAN_MODEL_NOTICE = FREE_PLAN_BRAND_NOTICE;
