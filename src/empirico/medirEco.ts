@@ -3,18 +3,26 @@
  *
  *   npx tsx src/empirico/medirEco.ts <conversa.md>
  *
- * O .md é o que o botão "Exportar conversa" do OrbitLab gera. A saída é o número honesto:
- * quanto a Luna ECOA e quanto ela APORTA de próprio, turno a turno.
+ * O .md é o que o botão "Exportar conversa" do OrbitLab gera. Duas medidas:
+ *   1. LÉXICO (grátis, ~0 ms): quanto ela repete as PALAVRAS dele.
+ *   2. STANCE (juiz LLM, se houver OPENROUTER_API_KEY): quanto ela traz de PRÓPRIO —
+ *      o número que bate com o sentimento («ela só decora o meu assunto»).
  */
 import { readFileSync } from "node:fs";
 
+import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 import { medirConversa, parseConversaMd } from "../revisao/indiceEco.js";
+import { julgarConversa } from "../revisao/juizAporte.js";
 
 function pct(x: number): string {
   return `${Math.round(x * 100)}%`;
 }
 
-function main(): void {
+function resumo(texto: string, n = 64): string {
+  return texto.replace(/\s+/g, " ").slice(0, n);
+}
+
+async function main(): Promise<void> {
   const arquivo = process.argv[2];
   if (!arquivo) {
     console.error("uso: npx tsx src/empirico/medirEco.ts <conversa.md>");
@@ -22,7 +30,8 @@ function main(): void {
   }
 
   const md = readFileSync(arquivo, "utf8");
-  const rel = medirConversa(parseConversaMd(md));
+  const turnos = parseConversaMd(md);
+  const rel = medirConversa(turnos);
 
   if (rel.turnosAvaliados === 0) {
     console.error("Nenhum turno da Luna encontrado. É um .md exportado do Orbit?");
@@ -31,19 +40,55 @@ function main(): void {
 
   console.log(`\n── Índice de eco — ${arquivo} ──`);
   console.log(`Turnos da Luna avaliados : ${rel.turnosAvaliados}`);
-  console.log(`Eco médio                : ${pct(rel.ecoMedio)}   (alto = reflete o que ele disse)`);
-  console.log(`Aporte próprio médio     : ${pct(rel.aporteMedio)}   (alto = traz algo dela)`);
-  console.log(`Abre com recap-espelho   : ${pct(rel.fracaoRecapAbertura)} dos turnos`);
+  console.log("");
+  console.log("LÉXICO (repetir as palavras dele):");
+  console.log(`  Eco médio              : ${pct(rel.ecoMedio)}`);
+  console.log(`  Aporte léxico médio    : ${pct(rel.aporteMedio)}   (enganoso: palavra nova ≠ aporte)`);
+  console.log(`  Abre com recap-espelho : ${pct(rel.fracaoRecapAbertura)} dos turnos`);
 
-  console.log(`\nPiores turnos (mais eco):`);
-  [...rel.porTurno]
-    .sort((a, b) => b.eco - a.eco)
-    .slice(0, 5)
+  // ── Juiz de STANCE ──────────────────────────────────────────────────────────
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey) {
+    console.log("\n(Defina OPENROUTER_API_KEY para o juiz de aporte de STANCE — o número que importa.)\n");
+    return;
+  }
+
+  const modelo =
+    process.env.OPENROUTER_MODEL_JUIZ?.trim() ||
+    process.env.OPENROUTER_MODELO_MENOR?.trim() ||
+    "deepseek/deepseek-v4-flash";
+  const provedor = criarProvedorOpenAi({
+    apiKey,
+    baseUrl: process.env.OPENROUTER_API_BASE?.trim() || "https://openrouter.ai/api/v1",
+  });
+
+  console.log(`\nJulgando aporte de STANCE (modelo ${modelo})…`);
+  const j = await julgarConversa(turnos, provedor, modelo);
+  if (j.turnosAvaliados === 0) {
+    console.log("(o juiz não conseguiu avaliar — modelo/chave?)\n");
+    return;
+  }
+
+  console.log("");
+  console.log("STANCE (o que bate com o sentimento):");
+  console.log(`  Aporte de STANCE médio : ${pct(j.aporteMedio)}   (alto = traz o próprio dela)`);
+  const movs = Object.entries(j.distribuicao)
+    .filter(([, n]) => n > 0)
+    .map(([m, n]) => `${m} ${n}`)
+    .join(" · ");
+  console.log(`  Movimentos             : ${movs}`);
+
+  console.log("\n  Piores (menos aporte):");
+  [...j.porTurno]
+    .sort((a, b) => a.aporte - b.aporte)
+    .slice(0, 6)
     .forEach((t) => {
-      const resumo = t.resposta.replace(/\s+/g, " ").slice(0, 72);
-      console.log(`  eco ${pct(t.eco)} · aporte ${pct(t.aporte)}${t.recapAbertura ? " · recap" : ""}  "${resumo}…"`);
+      console.log(`   aporte ${pct(t.aporte)} · ${t.movimento}  "${resumo(t.resposta)}…"  — ${t.motivo}`);
     });
   console.log("");
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
