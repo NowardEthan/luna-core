@@ -15,6 +15,7 @@ import {
   executarComCacheMundo,
   type CacheMundoPersistencia,
   type DiarioEntradaCache,
+  type MomentoCache,
 } from "../../dist/persistencia/contextoMundo.js";
 import type { ResumoDiario } from "../../dist/mundo/diario/storeDiario.js";
 import type { EstadoVida, EventoVidaPersistido } from "../../dist/mundo/vida/storeVida.js";
@@ -27,6 +28,8 @@ const PROXIMIDADE_CRIADOR = 0.88;
 /** Diário: o suficiente para o sono ter o que consolidar, sem inchar o turno. */
 const LIMITE_DIARIO_ENTRADAS = 30;
 const LIMITE_DIARIO_RESUMOS = 12;
+/** Álbum de fotos: as fotos mais recentes que ela pode glançar no turno. */
+const LIMITE_MOMENTOS = 40;
 
 /** Proximidade inicial por interlocutor — alinhado ao SQLite (criador = 0.88). */
 export function proximidadeBaselineRelacao(uid: string): number {
@@ -225,7 +228,7 @@ export async function hidratarCacheMundoFirestore(
   // Estes ficavam de fora, e por isso morriam: o storeDiario era SQLite-only e, em
   // produção, o obterDb() lançava. A Luna nunca escrevia diário e nunca dormia — logo,
   // nunca consolidava e o auto-retrato dela nunca mudava. Sentia, mas não guardava.
-  const [diarioSnap, resumosSnap, autoRetratoSnap, sonoSnap] = await Promise.all([
+  const [diarioSnap, resumosSnap, autoRetratoSnap, sonoSnap, momentosSnap] = await Promise.all([
     db
       .collection(colMundoGlobal("diario_entradas"))
       .orderBy("quando", "desc")
@@ -238,6 +241,11 @@ export async function hidratarCacheMundoFirestore(
       .get(),
     db.doc(docMundoGlobal("auto_retrato")).get(),
     db.doc(docMundoGlobal("sono")).get(),
+    db
+      .collection(colMundoGlobal("momentos"))
+      .orderBy("quando", "desc")
+      .limit(LIMITE_MOMENTOS)
+      .get(),
   ]);
 
   for (const doc of diarioSnap.docs) {
@@ -282,6 +290,21 @@ export async function hidratarCacheMundoFirestore(
   cache.ultimaConsolidacao = sonoSnap.exists
     ? ((sonoSnap.data()?.ultima_consolidacao as string | undefined) ?? null)
     : null;
+
+  // Álbum de fotos — cenas que não se dissolvem no sono.
+  for (const doc of momentosSnap.docs) {
+    const d = doc.data();
+    cache.momentos.set(doc.id, {
+      id: doc.id,
+      sessao_id: String(d.sessao_id ?? ""),
+      quando: String(d.quando ?? new Date().toISOString()),
+      titulo: String(d.titulo ?? ""),
+      narrativa: String(d.narrativa ?? ""),
+      tom: String(d.tom ?? ""),
+      recordado_em: (d.recordado_em as string | null) ?? null,
+      criado_em: String(d.criado_em ?? new Date().toISOString()),
+    } satisfies MomentoCache);
+  }
 
   return cache;
 }
@@ -388,6 +411,14 @@ export async function flushCacheMundoFirestore(
     const resumo = cache.diarioResumos.get(id);
     if (resumo) {
       batch.set(db.collection(colMundoGlobal("diario_resumos")).doc(id), resumo, { merge: true });
+      marcar();
+    }
+  }
+
+  for (const id of cache.dirty.momentos) {
+    const momento = cache.momentos.get(id);
+    if (momento) {
+      batch.set(db.collection(colMundoGlobal("momentos")).doc(id), momento, { merge: true });
       marcar();
     }
   }

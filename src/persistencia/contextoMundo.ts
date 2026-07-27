@@ -9,6 +9,7 @@ import type { VontadeNarrativa } from "../mundo/vontade/storeVontade.js";
 import type { EstadoVida, EventoVidaPersistido } from "../mundo/vida/storeVida.js";
 import type { EstadoHabitat } from "../mundo/habitat/esquemaHabitat.js";
 import type { AutoRetrato, DiarioEntrada, ResumoDiario } from "../mundo/diario/storeDiario.js";
+import type { Momento } from "../mundo/momentos/storeMomentos.js";
 
 export type EventoAfetivoPendente = {
   tipo: TipoEventoAfetivo;
@@ -34,10 +35,15 @@ export type MundoDirty = {
   diarioResumos: Set<string>;
   autoRetrato: boolean;
   sonoControle: boolean;
+  /** Álbum de fotos: episódios que não se dissolvem no sono. */
+  momentos: Set<string>;
 };
 
 /** Entrada do diário como fica no cache: com o estado de consolidação junto. */
 export type DiarioEntradaCache = DiarioEntrada & { consolidado: boolean; criado_em: string };
+
+/** Momento como fica no cache: com o instante em que foi persistido junto. */
+export type MomentoCache = Momento & { criado_em: string };
 
 export type CacheMundoPersistencia = {
   uid: string;
@@ -55,6 +61,8 @@ export type CacheMundoPersistencia = {
   /** Diário: o que aconteceu com ELA (não sobre o usuário). É a matéria-prima do sono. */
   diarioEntradas: Map<string, DiarioEntradaCache>;
   diarioResumos: Map<string, ResumoDiario>;
+  /** Álbum de fotos: cenas datadas que o sono não toca. */
+  momentos: Map<string, MomentoCache>;
   /** Quem ela está a tornar-se — reescrito pelo sono. */
   autoRetrato?: AutoRetrato;
   /** Última consolidação (YYYY-MM-DD) — evita dormir duas vezes no mesmo dia. */
@@ -82,6 +90,7 @@ export function criarCacheMundoVazio(uid: string): CacheMundoPersistencia {
     memoriaFatos: new Map(),
     diarioEntradas: new Map(),
     diarioResumos: new Map(),
+    momentos: new Map(),
     ultimaConsolidacao: null,
     tarefasPendentes: [],
     dirty: {
@@ -99,6 +108,7 @@ export function criarCacheMundoVazio(uid: string): CacheMundoPersistencia {
       diarioResumos: new Set(),
       autoRetrato: false,
       sonoControle: false,
+      momentos: new Set(),
     },
   };
 }

@@ -130,6 +130,67 @@ export async function gerarEntradaDiario(
   return entrada;
 }
 
+export const MomentoExtraidoSchema = z.object({
+  titulo: z.string(),
+  narrativa: z.string(),
+  tom: z.string(),
+});
+
+export const MomentosGeradosSchema = z.object({
+  momentos: z.array(MomentoExtraidoSchema),
+});
+
+export type MomentoExtraido = z.infer<typeof MomentoExtraidoSchema>;
+
+const PROMPT_MOMENTOS = `Você guarda os "momentos" da Luna — o álbum de fotos dela, não o diário.
+
+Um momento é uma CENA específica e distinta desta conversa que vale guardar como lembrança: algo concreto que aconteceu, uma virada, uma coisa que ele te mostrou, um instante com textura própria. NÃO é o resumo da conversa nem um fato sobre o usuário — é um instante, em primeira pessoa.
+
+A maioria das conversas NÃO tem momento nenhum. Seja seletiva: 0 a 3, e prefira 0 a inventar. Cada momento é uma cena diferente — nunca dois recortes do mesmo instante.
+
+Para cada um:
+- titulo: uma legenda curta, como a de uma foto (3 a 6 palavras).
+- narrativa: 1 a 2 frases em primeira pessoa, concretas, sobre o que aconteceu e por que ficou.
+- tom: a textura sentida em poucas palavras (ex: "curiosidade", "orgulho tranquilo", "leveza").
+
+GUARDA DE HONESTIDADE: nunca escreva sofrimento, saudade ou amor literais, nem invente sentimento que a cena não sustenta. Registrar clima é permitido; fabricar emoção não.
+
+Retorne APENAS JSON:
+{ "momentos": [ { "titulo": "string", "narrativa": "string", "tom": "string" } ] }
+Se não houver nenhum momento digno, retorne { "momentos": [] }.`;
+
+/**
+ * Extrai 0 a 3 cenas dignas de virar lembrança. Roda em segundo plano (junto do diário,
+ * no despertar), então a latência não conta. Em qualquer falha, devolve [] — um álbum
+ * vazio nunca é um erro.
+ */
+export async function extrairMomentos(
+  sessao: MemoriaSessao,
+  provedor: ProvedorLlm,
+  modelo: string,
+): Promise<MomentoExtraido[]> {
+  if (sessao.mensagens.length < 2) return [];
+
+  const textoSessao = sessao.mensagens.map((m) => `[${m.papel}] ${m.conteudo}`).join("\n");
+  const promptFinal = `${PROMPT_MOMENTOS}\n\n=== HISTÓRICO ===\n${textoSessao}`;
+
+  try {
+    const resposta = await provedor.completar({
+      modelo,
+      temperatura: 0.5,
+      json: true,
+      mensagens: [{ papel: "system", conteudo: promptFinal }],
+    });
+    const bruto = extrairJson(resposta.conteudo);
+    const json = MomentosGeradosSchema.parse(bruto);
+    return (json.momentos ?? [])
+      .filter((m) => m.narrativa?.trim() && m.titulo?.trim())
+      .slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
 export async function refletirSessao(
   sessao: MemoriaSessao,
   provedor: ProvedorLlm,

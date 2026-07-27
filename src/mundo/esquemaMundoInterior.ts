@@ -28,6 +28,21 @@ CREATE TABLE IF NOT EXISTS diario_resumos (
   criado_em TEXT NOT NULL
 );
 
+-- Álbum de fotos: cenas DISTINTAS, datadas, em 1ª pessoa. Ao contrário do diário,
+-- NÃO têm coluna 'consolidado' — o sono não as toca, elas não se dissolvem.
+CREATE TABLE IF NOT EXISTS momentos (
+  id TEXT PRIMARY KEY,
+  sessao_id TEXT NOT NULL,
+  quando TEXT NOT NULL,
+  titulo TEXT NOT NULL,
+  narrativa TEXT NOT NULL,
+  tom TEXT NOT NULL,
+  recordado_em TEXT,
+  criado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_momentos_quando ON momentos(quando DESC);
+CREATE INDEX IF NOT EXISTS idx_momentos_recordado ON momentos(recordado_em);
+
 CREATE TABLE IF NOT EXISTS auto_retrato (
   id TEXT PRIMARY KEY DEFAULT 'luna',
   texto TEXT NOT NULL,
