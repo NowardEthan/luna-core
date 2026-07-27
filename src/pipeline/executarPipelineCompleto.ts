@@ -151,6 +151,8 @@ export type OpcoesPipelineCompleto = {
   raciocinioAtivo?: boolean;
   /** low/medium/high — controla a profundidade do raciocínio quando suportado. */
   raciocinioEffort?: "low" | "medium" | "high";
+  /** Modo pesquisa profunda (opt-in): libera `verificar_fontes` para cruzar as fontes antes de escrever. */
+  pesquisaProfunda?: boolean;
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -305,6 +307,7 @@ export async function executarPipelineCompleto(
   const neuronioLlm = opcoes.usarNeuronioMemoriaLlm ?? true;
   const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
   const raciocinioEffort = opcoes.raciocinioEffort;
+  const pesquisaProfunda = opcoes.pesquisaProfunda === true;
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -907,6 +910,7 @@ export async function executarPipelineCompleto(
           rotinaDeps: opcoes.rotinaDeps,
           raciocinioAtivo: raciocinioNaVoz,
           raciocinioEffort,
+          pesquisaProfunda,
           onAcao: onAcaoComRegisto,
           // onRaciocinioRodada dispara 2x por rodada (emProgresso true/false) com o
           // MESMO texto completo — não são deltas incrementais. Repassa só na 1ª,
@@ -989,6 +993,7 @@ export async function executarPipelineCompleto(
               rotinaDeps: opcoes.rotinaDeps,
               raciocinioAtivo: raciocinioNaVoz,
               raciocinioEffort,
+              pesquisaProfunda,
               onAcao: onAcaoComRegisto,
             })
           : await responderComoLuna(
@@ -1150,6 +1155,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         rotinaDeps: opcoes.rotinaDeps,
         raciocinioAtivo: raciocinioNaVoz,
         raciocinioEffort,
+        pesquisaProfunda,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;

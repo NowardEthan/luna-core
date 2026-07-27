@@ -36,6 +36,8 @@ export const ChatRequestSchema = z.object({
   reasoningEnabled: z.boolean().optional(),
   /** Nível de raciocínio: baixo, médio ou alto. */
   reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
+  /** Modo pesquisa profunda (opt-in): libera o cruzamento de fontes antes de escrever. */
+  pesquisaProfunda: z.boolean().optional(),
   /**
    * Anexos visuais (imagem/vídeo) do turno, para a visão agêntica no core.
    *

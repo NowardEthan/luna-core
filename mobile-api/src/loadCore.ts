@@ -84,6 +84,7 @@ export type LunaCoreModule = {
       gerarResposta?: boolean;
       raciocinioAtivo?: boolean;
       raciocinioEffort?: "low" | "medium" | "high";
+      pesquisaProfunda?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
       interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
@@ -285,6 +286,7 @@ async function prepararChatMobile(
   reasoningEnabled?: boolean,
   reasoningEffort?: "low" | "medium" | "high",
   documents?: ChatDocumentInput[],
+  pesquisaProfunda?: boolean,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -392,6 +394,7 @@ async function prepararChatMobile(
     usarNeuronioMemoriaLlm,
     raciocinioAtivo,
     raciocinioEffort: reasoningEffort,
+    pesquisaProfunda: pesquisaProfunda === true,
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -476,6 +479,7 @@ export async function executarChatMobile(
   reasoningEnabled?: boolean,
   reasoningEffort?: "low" | "medium" | "high",
   documents?: ChatDocumentInput[],
+  pesquisaProfunda?: boolean,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -489,6 +493,7 @@ export async function executarChatMobile(
     reasoningEnabled,
     reasoningEffort,
     documents,
+    pesquisaProfunda,
   );
 
   const rodarPipeline = async () => {
@@ -511,6 +516,7 @@ export async function executarChatMobile(
       gerarResposta: true,
       raciocinioAtivo: prep.raciocinioAtivo,
       raciocinioEffort: prep.raciocinioEffort,
+      pesquisaProfunda: prep.pesquisaProfunda,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
@@ -548,6 +554,7 @@ export async function executarChatMobileStream(
   reasoningEnabled?: boolean,
   reasoningEffort?: "low" | "medium" | "high",
   documents?: ChatDocumentInput[],
+  pesquisaProfunda?: boolean,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -562,6 +569,7 @@ export async function executarChatMobileStream(
       reasoningEnabled,
       reasoningEffort,
       documents,
+      pesquisaProfunda,
     );
   }
 
@@ -577,6 +585,7 @@ export async function executarChatMobileStream(
     reasoningEnabled,
     reasoningEffort,
     documents,
+    pesquisaProfunda,
   );
 
   const rodarPipeline = async () => {
@@ -609,6 +618,7 @@ export async function executarChatMobileStream(
       gerarResposta: true,
       raciocinioAtivo: prep.raciocinioAtivo,
       raciocinioEffort: prep.raciocinioEffort,
+      pesquisaProfunda: prep.pesquisaProfunda,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,

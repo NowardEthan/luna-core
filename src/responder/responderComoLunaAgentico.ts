@@ -32,6 +32,7 @@ import { listarFerramentasChat } from "../ferramentas/registroFerramentasChat.js
 import { consultarAtlas } from "../atlas/consultarAtlas.js";
 import { pesquisaWeb, webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
 import { lerUrl } from "../ferramentas/lerUrl.js";
+import { verificarFontes, formatarVerificacao, type FonteDossie } from "../ferramentas/verificarFontes.js";
 
 export type FonteAgentico = {
   title?: string;
@@ -114,6 +115,8 @@ export type OpcoesResponderAgentico = {
   rotinaDeps?: DependenciasRotina;
   raciocinioAtivo?: boolean;
   raciocinioEffort?: "low" | "medium" | "high";
+  /** Modo pesquisa profunda (opcional): habilita a ferramenta `verificar_fontes` (cruzar fontes). */
+  pesquisaProfunda?: boolean;
   onAcao?: (acao: AcaoAgenticoChat) => void;
   /** Raciocínio do modelo por rodada (antes de decidir usar ferramentas ou responder). */
   onRaciocinio?: (rodada: number, texto: string, emProgresso: boolean) => void;
@@ -268,7 +271,23 @@ export async function responderComoLunaAgentico(
   };
   const anexosDocumento = opcoes.anexosDocumento ?? [];
   const mapaDocumentos = new Map(anexosDocumento.map((doc) => [doc.id, doc]));
-  const ferramentas = listarFerramentasChat();
+  const ferramentas = listarFerramentasChat({ pesquisaProfunda: opcoes.pesquisaProfunda });
+
+  // Dossiê do turno: os trechos que ela realmente leu (web_search/ler_url). É contra ISTO
+  // que `verificar_fontes` cruza — não contra o palpite do modelo. Só se acumula no modo
+  // profundo; fora dele, fica vazio e a ferramenta nem existe.
+  const dossieFontes: FonteDossie[] = [];
+  const registrarNoDossie = (ferramenta: string, resultadoJson: string) => {
+    if (!opcoes.pesquisaProfunda) return;
+    const analise = analisarResultadoFerramenta(ferramenta, resultadoJson);
+    for (const f of analise.fontes ?? []) {
+      dossieFontes.push({
+        url: f.url,
+        title: f.title,
+        trecho: (f.snippet ?? "").slice(0, 600),
+      });
+    }
+  };
 
   /**
    * Nome da ferramenta para EXIBIR no app. O modelo continua chamando `ver_imagem`
@@ -306,6 +325,10 @@ export async function responderComoLunaAgentico(
         "Na resposta final, estrutura em Markdown com links [nome](url) apenas para fontes que realmente vieram no resultado da ferramenta (campo `results`/`url`). " +
         "Se `web_search` ou `ler_url` devolver `ok: false` ou nenhum resultado, NÃO invente links, nomes de site ou citações. Começa a resposta avisando isso claramente (ex.: \"não encontrei nada na busca sobre X\") antes de qualquer outra coisa — não deixes o aviso escondido no meio ou no fim do texto. " +
         "Nesse caso, se ainda assim quiseres responder com o que sabes do teu próprio treino, deixa isso bem explícito (\"pelo teu treino, sem confirmar agora\") e evita números, datas, versões ou benchmarks específicos que não consegues verificar — não escrevas uma resposta longa e estruturada em tópicos como se fosse pesquisa real; um resumo curto e visivelmente incerto é mais honesto."
+      : null,
+    // Modo pesquisa profunda (opcional): a Luna cruza as fontes antes de escrever.
+    opcoes.pesquisaProfunda && webSearchDisponivel()
+      ? "MODO PESQUISA PROFUNDA ligado: quando usares `web_search`/`ler_url` e fores fazer afirmações factuais (números, datas, versões, alegações), chama `verificar_fontes` UMA vez ANTES de escrever a resposta final — passa as afirmações que pretendes dizer. Um segundo par de olhos cruza-as com o que leste e devolve o que está sustentado, parcial ou sem apoio. Depois escreve reconciliando: mantém o sustentado, põe ressalva no parcial, corrige/tira o resto. Não chames antes de ter fontes, nem mais de uma vez sem necessidade."
       : null,
   ]
     .filter(Boolean)
@@ -359,7 +382,9 @@ export async function responderComoLunaAgentico(
           return JSON.stringify({ ok: false, error: "Parâmetro query é obrigatório para web_search." });
         }
         const resultado = await pesquisaWeb(query);
-        return JSON.stringify(resultado);
+        const json = JSON.stringify(resultado);
+        registrarNoDossie("web_search", json);
+        return json;
       }
 
       if (nome === "ler_url") {
@@ -368,7 +393,21 @@ export async function responderComoLunaAgentico(
           return JSON.stringify({ ok: false, error: "Parâmetro url é obrigatório para ler_url." });
         }
         const resultado = await lerUrl(url);
-        return JSON.stringify(resultado);
+        const json = JSON.stringify(resultado);
+        registrarNoDossie("ler_url", json);
+        return json;
+      }
+
+      if (nome === "verificar_fontes") {
+        const afirmacoes = Array.isArray(args.afirmacoes)
+          ? args.afirmacoes.filter((a): a is string => typeof a === "string" && a.trim().length > 0).map((a) => a.trim())
+          : [];
+        const foco = typeof args.foco === "string" ? args.foco.trim() : undefined;
+        if (afirmacoes.length === 0) {
+          return "Passa em `afirmacoes` o que pretendes dizer (uma por item) para eu cruzar com as fontes.";
+        }
+        const veredictos = await verificarFontes(provedor, config, afirmacoes, dossieFontes, foco);
+        return formatarVerificacao(veredictos);
       }
 
       if (nome === "consultar_atlas") {

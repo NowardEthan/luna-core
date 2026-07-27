@@ -88,6 +88,34 @@ const FERRAMENTA_WEB_SEARCH: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * Cruzar fontes — só aparece no modo pesquisa profunda (opcional). Sem ela registrada,
+ * o modelo nem sabe que existe, e o chat comum não paga a chamada extra.
+ */
+const FERRAMENTA_VERIFICAR_FONTES: DefinicaoFerramenta = {
+  nome: "verificar_fontes",
+  descricao:
+    "Cruza as afirmações que vais dizer contra as fontes que JÁ leste neste turno (web_search/ler_url). " +
+    "Um segundo par de olhos cético julga cada afirmação só pelo que está nas fontes e devolve o que está " +
+    "sustentado, o que é parcial e o que não se encontra. Chama UMA vez, DEPOIS de pesquisar e ANTES de " +
+    "escrever a resposta final — nunca antes de ter fontes. Depois escreve reconciliando o que voltar.",
+  parametros: {
+    type: "object",
+    properties: {
+      afirmacoes: {
+        type: "array",
+        items: { type: "string" },
+        description: "As afirmações concretas que pretendes dizer (uma por item) — as que valem verificar.",
+      },
+      foco: {
+        type: "string",
+        description: "A pergunta/assunto em foco, para orientar o cruzamento. Opcional.",
+      },
+    },
+    required: ["afirmacoes"],
+  },
+};
+
 const FERRAMENTA_LER_URL: DefinicaoFerramenta = {
   nome: "ler_url",
   descricao:
@@ -463,7 +491,9 @@ const FERRAMENTA_VER_IDEIAS: DefinicaoFerramenta = {
 };
 
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
-export function listarFerramentasChat(): DefinicaoFerramenta[] {
+export function listarFerramentasChat(
+  opcoes: { pesquisaProfunda?: boolean } = {},
+): DefinicaoFerramenta[] {
   const ferramentas = [
     ...FERRAMENTAS_BASE,
     FERRAMENTA_LER_URL,
@@ -484,6 +514,10 @@ export function listarFerramentasChat(): DefinicaoFerramenta[] {
   ];
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
+    // Cruzar fontes só faz sentido havendo busca — e só no modo opcional.
+    if (opcoes.pesquisaProfunda) {
+      ferramentas.push(FERRAMENTA_VERIFICAR_FONTES);
+    }
   }
   return ferramentas;
 }

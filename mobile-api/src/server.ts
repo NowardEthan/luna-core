@@ -304,6 +304,7 @@ async function resolverTurnoChat(params: {
       parsed.reasoningEnabled,
       parsed.reasoningEffort,
       parsed.documents,
+      parsed.pesquisaProfunda,
     ),
   );
 
@@ -679,6 +680,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.reasoningEnabled,
         parsed.reasoningEffort,
         parsed.documents,
+        parsed.pesquisaProfunda,
       );
 
       clearTimeout(streamTimeout);
