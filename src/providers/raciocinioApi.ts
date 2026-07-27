@@ -150,10 +150,16 @@ export function resolverRaciocinioResposta(
   conteudo: string,
 ): { conteudo: string; raciocinio?: string } {
   const daApi = extrairRaciocinioDeMensagem(mensagem);
-  if (daApi) {
-    return { conteudo, raciocinio: sanitizarRaciocinioParaCliente(daApi) };
-  }
+  // Sempre extraímos as tags inline do CONTEÚDO — mesmo quando a API já devolveu um
+  // campo de raciocínio próprio. Antes o curto-circuito devolvia o conteúdo INTACTO
+  // quando `daApi` existia, e aí um <think>…</think> deixado no meio da resposta
+  // (o modelo às vezes faz as duas coisas) escapava pro texto visível. Era o modo
+  // do vazamento de 3ª pessoa no modo pesquisa. O strip inline só corta blocos
+  // DELIMITADOS, então é seguro rodar sempre.
   const inline = extrairRaciocinioInline(conteudo);
+  if (daApi) {
+    return { conteudo: inline.conteudo, raciocinio: sanitizarRaciocinioParaCliente(daApi) };
+  }
   return {
     conteudo: inline.conteudo,
     raciocinio: sanitizarRaciocinioParaCliente(inline.raciocinio),

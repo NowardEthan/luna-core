@@ -912,14 +912,16 @@ export async function executarPipelineCompleto(
           raciocinioEffort,
           pesquisaProfunda,
           onAcao: onAcaoComRegisto,
-          // onRaciocinioRodada dispara 2x por rodada (emProgresso true/false) com o
-          // MESMO texto completo — não são deltas incrementais. Repassa só na 1ª,
-          // senão o texto duplica na tira de raciocínio do cliente.
-          onRaciocinio: opcoes.onStreamReasoningDelta
-            ? (_rodada, texto, emProgresso) => {
-                if (emProgresso) opcoes.onStreamReasoningDelta!(texto);
-              }
-            : undefined,
+          // HÍBRIDO: no caminho agêntico NÃO transmitimos o raciocínio cru.
+          //
+          // O executor agêntico devolve a resposta INTEIRA (não há streaming de
+          // conteúdo token-a-token aqui) e o "raciocínio" chega como blocões
+          // completos, 2x por rodada — o que fazia a tira pensar-travar-repensar,
+          // parecer que ela "refez" a resposta e ficar laggada, nada liso como o
+          // caminho normal. A vivacidade do modo pesquisa vem da linha do tempo de
+          // passos (onAcao: Pesquisando → Cruzou as fontes → …), não do pensamento
+          // bruto. Deixamos o pensamento morrer aqui de propósito.
+          onRaciocinio: undefined,
         },
       );
     } else if (usarStream) {

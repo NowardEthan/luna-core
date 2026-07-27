@@ -306,6 +306,15 @@ export async function responderComoLunaAgentico(
     carregarInstrucaoSistema(),
     compilarGuiaFerramentasPrompt(),
     contextoCompilado.briefing,
+    // Trava anti-vazamento: a resposta é só a FALA, na 2ª pessoa.
+    //
+    // No modo pesquisa a Luna despejava o rascunho no texto visível — falava DELE em 3ª
+    // pessoa ("ele perguntou", "o tom aqui é de admiração", "vou puxar esse fio"), como se
+    // narrasse o próprio plano em voz alta. O usuário lia o plano e depois a resposta, e
+    // parecia que ela tinha respondido duas vezes. Aqui separamos os dois:
+    "A tua RESPOSTA visível é só o que dizes À PESSOA, falando COM ela na 2ª pessoa (você/tu) — nunca SOBRE ela em 3ª pessoa (\"ele\", \"ele perguntou\", \"ele quer\"). " +
+      "Se precisares planear o tom, decidir o que perguntar ou pensar em voz alta antes de responder, faz isso DENTRO de um bloco <think>…</think> logo no início; a resposta final vem DEPOIS do </think> e a pessoa nunca vê o que está dentro dele. " +
+      "Nunca narres o teu próprio plano nem o teu tom no texto visível (nada de \"o tom é de admiração\", \"vou validar e puxar o fio\", \"aqui ele está a pedir X\"): ou é fala direta com a pessoa, ou vai pra dentro do <think>.",
     // A Luna já recebe o relógio real e agora também a hora de cada mensagem do
     // histórico. O que faltava era a POSTURA: ela dizia o dia certo e, ao primeiro
     // empurrão do Ethan, pedia desculpas por um erro que não tinha cometido.
