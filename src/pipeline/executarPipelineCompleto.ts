@@ -35,6 +35,7 @@ import {
 } from "../contexto/compiladorContexto.js";
 import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
 import { gerarBlocoTempo } from "../contexto/gerarBlocoTempo.js";
+import { gerarBlocoTempoComLocal, type LocalClima } from "../contexto/gerarBlocoLocalClima.js";
 import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
 import {
   verificarPremissa,
@@ -179,6 +180,8 @@ export type OpcoesPipelineCompleto = {
   onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
   /** Fuso IANA do dispositivo do usuário (ex.: "America/Sao_Paulo") — para grounding temporal. */
   timeZone?: string;
+  /** Localização + clima atuais do dispositivo — grounding espacial (opt-in). */
+  local?: LocalClima;
   /** A rotina dele — os blocos recorrentes do dia. É o que a faz saber onde ele está. */
   rotina?: BlocoRotinaCore[];
   /** O que aconteceu com cada bloco nos últimos dias — é assim que ela repara que ele sumiu. */
@@ -615,7 +618,7 @@ export async function executarPipelineCompleto(
       });
       entradas = entradasCompiladorSimples(montarBlocoPoliticaSituacional(politicaComMemoria), {
         identidade: identidade.trim() || undefined,
-        tempo: gerarBlocoTempo(new Date(), opcoes.timeZone),
+        tempo: gerarBlocoTempoComLocal(gerarBlocoTempo(new Date(), opcoes.timeZone), opcoes.local),
         kernel: kernelDespertar ?? undefined,
         humor: humorLinha ?? undefined,
       });
@@ -642,6 +645,7 @@ export async function executarPipelineCompleto(
         interlocutor: opcoes.interlocutor,
         intencao: analise.analise.intencao,
         timeZone: opcoes.timeZone,
+        local: opcoes.local,
       });
       entradas = { ...entradas, vida: nucleo.vida };
 
@@ -702,6 +706,7 @@ export async function executarPipelineCompleto(
             interlocutor: opcoes.interlocutor,
             intencao: analise.analise.intencao,
             timeZone: opcoes.timeZone,
+            local: opcoes.local,
           });
           entradas = { ...entradas, vida: nucleo.vida };
         }

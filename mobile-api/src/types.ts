@@ -32,6 +32,34 @@ export const ChatRequestSchema = z.object({
   userDisplayName: z.string().min(1).max(64).optional(),
   /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal. */
   timeZone: z.string().min(1).max(64).optional(),
+  /**
+   * Localização + clima atuais do dispositivo — grounding ESPACIAL (opt-in por
+   * permissão). O app capta o GPS, resolve cidade/uf pelo Geocoder e busca o clima
+   * no Open-Meteo; o servidor só formata. Ausente → a Luna segue só com o relógio.
+   */
+  local: z
+    .object({
+      lat: z.number().min(-90).max(90).optional(),
+      lon: z.number().min(-180).max(180).optional(),
+      cidade: z.string().min(1).max(120).optional(),
+      uf: z.string().min(1).max(80).optional(),
+      pais: z.string().min(1).max(80).optional(),
+      clima: z
+        .object({
+          tempC: z.number().min(-90).max(60).optional(),
+          sensacaoC: z.number().min(-90).max(70).optional(),
+          umidade: z.number().min(0).max(100).optional(),
+          ventoKmh: z.number().min(0).max(500).optional(),
+          codigo: z.number().int().min(0).max(99).optional(),
+          descricao: z.string().min(1).max(120).optional(),
+          maxC: z.number().min(-90).max(60).optional(),
+          minC: z.number().min(-90).max(60).optional(),
+          chuvaProb: z.number().min(0).max(100).optional(),
+          chuvaMm: z.number().min(0).max(1000).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
   /** Ativa/desativa o bloco de raciocínio visível. */
   reasoningEnabled: z.boolean().optional(),
   /** Nível de raciocínio: baixo, médio ou alto. */

@@ -74,6 +74,27 @@ export type ChatDocumentInput = {
   url: string;
 };
 
+/** Localização + clima do dispositivo — grounding espacial (opt-in por permissão). */
+export type LocalClimaMobile = {
+  lat?: number;
+  lon?: number;
+  cidade?: string;
+  uf?: string;
+  pais?: string;
+  clima?: {
+    tempC?: number;
+    sensacaoC?: number;
+    umidade?: number;
+    ventoKmh?: number;
+    codigo?: number;
+    descricao?: string;
+    maxC?: number;
+    minC?: number;
+    chuvaProb?: number;
+    chuvaMm?: number;
+  };
+};
+
 export type LunaCoreModule = {
   executarPipelineCompleto: (
     mensagem: string,
@@ -91,6 +112,7 @@ export type LunaCoreModule = {
       config?: ConfigLuna;
       stream?: boolean;
       timeZone?: string;
+      local?: LocalClimaMobile;
       /** A rotina dele — os blocos recorrentes. É o que a faz saber onde ele está. */
       rotina?: Array<{
         id: string;
@@ -287,6 +309,7 @@ async function prepararChatMobile(
   reasoningEffort?: "low" | "medium" | "high",
   documents?: ChatDocumentInput[],
   pesquisaProfunda?: boolean,
+  local?: LocalClimaMobile,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -400,6 +423,7 @@ async function prepararChatMobile(
     anexosImagem,
     anexosDocumento,
     timeZone,
+    local,
   };
 }
 
@@ -480,6 +504,7 @@ export async function executarChatMobile(
   reasoningEffort?: "low" | "medium" | "high",
   documents?: ChatDocumentInput[],
   pesquisaProfunda?: boolean,
+  local?: LocalClimaMobile,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -494,6 +519,7 @@ export async function executarChatMobile(
     reasoningEffort,
     documents,
     pesquisaProfunda,
+    local,
   );
 
   const rodarPipeline = async () => {
@@ -527,6 +553,7 @@ export async function executarChatMobile(
       rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone) : undefined,
       stream: false,
       timeZone: prep.timeZone,
+      local: prep.local,
     });
     return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
   };
@@ -555,6 +582,7 @@ export async function executarChatMobileStream(
   reasoningEffort?: "low" | "medium" | "high",
   documents?: ChatDocumentInput[],
   pesquisaProfunda?: boolean,
+  local?: LocalClimaMobile,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -570,6 +598,7 @@ export async function executarChatMobileStream(
       reasoningEffort,
       documents,
       pesquisaProfunda,
+      local,
     );
   }
 
@@ -586,6 +615,7 @@ export async function executarChatMobileStream(
     reasoningEffort,
     documents,
     pesquisaProfunda,
+    local,
   );
 
   const rodarPipeline = async () => {
@@ -628,6 +658,7 @@ export async function executarChatMobileStream(
       rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone) : undefined,
       stream: true,
       timeZone: prep.timeZone,
+      local: prep.local,
       onStatusHint: (hint) => {
         const phase = mapStatusHint(hint);
         if (phase) callbacks.onStatus?.(phase);
