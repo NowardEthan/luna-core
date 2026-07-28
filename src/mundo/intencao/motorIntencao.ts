@@ -10,6 +10,7 @@ import {
   TIPOS_INTENCAO_LUNA,
 } from "./esquemaIntencao.js";
 import { climaExigeRecuo, intencaoDeterministica } from "./intencaoDeterministica.js";
+import { medidaDeContagens, registrarFome } from "./medirFome.js";
 
 export const PROMPT_MOTOR_INTENCAO = `Você é o formador de intenção interno da Luna. NÃO responde ao usuário — só decide o que a LUNA quer fazer nesta troca, como uma pessoa que tem vida própria, curiosidade e vontade, não uma assistente que só reage.
 
@@ -54,14 +55,21 @@ function resumirEstadoParaPrompt(entrada: EntradaIntencao): string {
     linhas.push(`Último fio da conversa: "${entrada.ultimoFio.slice(0, 200)}"`);
   }
 
+  // Contagens do que ela trouxe de PRÓPRIO — reusadas pelo medidor de fome (C1) para
+  // provar, turno a turno, se a despensa veio cheia ou vazia. Zero = motor faminto → eco.
+  let nVontades = 0;
+  let nGostos = 0;
+  let nEventos = 0;
   try {
     const vontades = listarVontadesAtivas(3).map((v) => v.vontade);
+    nVontades = vontades.length;
     if (vontades.length > 0) linhas.push(`Vontades ativas dela: ${vontades.join(" | ")}`);
   } catch {
     /* opcional */
   }
   try {
     const gostos = listarGostosLuna(4).map((g) => `${g.topico} (${g.afinidade.toFixed(2)})`);
+    nGostos = gostos.length;
     if (gostos.length > 0) linhas.push(`Gostos dela: ${gostos.join(", ")}`);
   } catch {
     /* opcional */
@@ -70,10 +78,17 @@ function resumirEstadoParaPrompt(entrada: EntradaIntencao): string {
     const eventos = listarEventosAfetivosRecentes(3).map(
       (ev) => `${ev.tipo}: ${ev.narrativa_interna}`,
     );
+    nEventos = eventos.length;
     if (eventos.length > 0) linhas.push(`Eventos afetivos recentes: ${eventos.join(" | ")}`);
   } catch {
     /* opcional */
   }
+
+  // Medidor de fome (C1): no-op enquanto LUNA_MEDIR_FOME estiver desligado.
+  registrarFome(
+    medidaDeContagens(nVontades, nGostos, nEventos, Boolean(entrada.ultimoFio?.trim())),
+    { criador: Boolean(entrada.criador_verificado), climaValencia: entrada.clima.valencia },
+  );
 
   return linhas.join("\n");
 }
