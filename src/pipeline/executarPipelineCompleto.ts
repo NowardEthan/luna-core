@@ -958,6 +958,7 @@ export async function executarPipelineCompleto(
         analise.analise.intencao,
         raciocinioEffort,
         configResposta.maxTokensResposta,
+        modoTecnico,
       );
       opcoes.onStreamDone?.(resposta);
     } else {
@@ -975,6 +976,7 @@ export async function executarPipelineCompleto(
         analise.analise.intencao,
         raciocinioEffort,
         configResposta.maxTokensResposta,
+        modoTecnico,
       );
     }
 
@@ -1022,6 +1024,8 @@ export async function executarPipelineCompleto(
               opcoes.interlocutor,
               analise.analise.intencao,
               raciocinioEffort,
+              undefined, // maxTokens: retry sem teto
+              modoTecnico,
             );
     }
 

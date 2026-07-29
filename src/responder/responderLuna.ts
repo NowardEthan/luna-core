@@ -1,5 +1,6 @@
 import type { PoliticaDecisao, AnaliseContexto } from "../analyzers/esquema.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
+import { DIRETRIZ_MODO_TECNICO } from "./diretrizModoTecnico.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { MensagemChat, ProvedorLlm } from "../providers/tipos.js";
@@ -29,6 +30,8 @@ export type OpcoesMensagensRespondedor = {
   baseUrl?: string;
   interlocutor?: InterlocutorPipeline;
   intencao?: AnaliseContexto["intencao"];
+  /** Modo técnico (opt-in): injeta a diretriz de profundidade/rigor/registro formal no system. */
+  modoTecnico?: boolean;
 };
 
 /** Monta mensagens OpenAI — M3: instrução constitucional + briefing compilado (identidade incluída). */
@@ -40,11 +43,17 @@ export function montarMensagensRespondedor(opcoes: OpcoesMensagensRespondedor): 
     raciocinioAtivo = true,
     modelo,
     baseUrl = "",
+    modoTecnico = false,
   } = opcoes;
 
   const instrucaoBase = carregarInstrucaoSistema();
 
   const partesSystem = [instrucaoBase, contextoCompilado.briefing];
+  // Modo técnico: a diretriz entra no MESMO nível da constituição (não como pedido gentil).
+  // Este é o caminho que o app usa de facto (stream), então é aqui que o técnico ganha vida.
+  if (modoTecnico) {
+    partesSystem.push(DIRETRIZ_MODO_TECNICO);
+  }
   if (precisaRaciocinioPorPrompt(modelo, baseUrl, raciocinioAtivo)) {
     partesSystem.push(blocoPromptRaciocinioInline());
   }
@@ -77,6 +86,7 @@ export async function responderComoLuna(
   raciocinioEffort?: "low" | "medium" | "high",
   /** Teto do neurónio de registo — limita o que ela DIZ, não o que pensa. */
   maxTokens?: number,
+  modoTecnico?: boolean,
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
@@ -88,6 +98,7 @@ export async function responderComoLuna(
     baseUrl,
     interlocutor,
     intencao,
+    modoTecnico,
   });
 
   const resposta = await provedor.completar({
@@ -127,6 +138,7 @@ export async function responderComoLunaStream(
   raciocinioEffort?: "low" | "medium" | "high",
   /** Teto do neurónio de registo — limita o que ela DIZ, não o que pensa. */
   maxTokens?: number,
+  modoTecnico?: boolean,
 ): Promise<ResultadoResposta> {
   const mensagens = montarMensagensRespondedor({
     mensagemUsuario,
@@ -138,6 +150,7 @@ export async function responderComoLunaStream(
     baseUrl,
     interlocutor,
     intencao,
+    modoTecnico,
   });
 
   const resposta = await completarStreamOpenAi(
