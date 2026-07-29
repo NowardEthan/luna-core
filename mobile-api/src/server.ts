@@ -306,6 +306,7 @@ async function resolverTurnoChat(params: {
       parsed.documents,
       parsed.pesquisaProfunda,
       parsed.local,
+      parsed.modoTecnico,
     ),
   );
 
@@ -683,6 +684,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.documents,
         parsed.pesquisaProfunda,
         parsed.local,
+        parsed.modoTecnico,
       );
 
       clearTimeout(streamTimeout);

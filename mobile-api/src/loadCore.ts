@@ -114,6 +114,7 @@ export type LunaCoreModule = {
       raciocinioAtivo?: boolean;
       raciocinioEffort?: "low" | "medium" | "high";
       pesquisaProfunda?: boolean;
+      modoTecnico?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
       interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
@@ -318,6 +319,7 @@ async function prepararChatMobile(
   documents?: ChatDocumentInput[],
   pesquisaProfunda?: boolean,
   local?: LocalClimaMobile,
+  modoTecnico?: boolean,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -426,6 +428,7 @@ async function prepararChatMobile(
     raciocinioAtivo,
     raciocinioEffort: reasoningEffort,
     pesquisaProfunda: pesquisaProfunda === true,
+    modoTecnico: modoTecnico === true,
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -513,6 +516,7 @@ export async function executarChatMobile(
   documents?: ChatDocumentInput[],
   pesquisaProfunda?: boolean,
   local?: LocalClimaMobile,
+  modoTecnico?: boolean,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -528,6 +532,7 @@ export async function executarChatMobile(
     documents,
     pesquisaProfunda,
     local,
+    modoTecnico,
   );
 
   const rodarPipeline = async () => {
@@ -551,6 +556,7 @@ export async function executarChatMobile(
       raciocinioAtivo: prep.raciocinioAtivo,
       raciocinioEffort: prep.raciocinioEffort,
       pesquisaProfunda: prep.pesquisaProfunda,
+      modoTecnico: prep.modoTecnico,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
@@ -591,6 +597,7 @@ export async function executarChatMobileStream(
   documents?: ChatDocumentInput[],
   pesquisaProfunda?: boolean,
   local?: LocalClimaMobile,
+  modoTecnico?: boolean,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -607,6 +614,7 @@ export async function executarChatMobileStream(
       documents,
       pesquisaProfunda,
       local,
+      modoTecnico,
     );
   }
 
@@ -624,6 +632,7 @@ export async function executarChatMobileStream(
     documents,
     pesquisaProfunda,
     local,
+    modoTecnico,
   );
 
   const rodarPipeline = async () => {
@@ -657,6 +666,7 @@ export async function executarChatMobileStream(
       raciocinioAtivo: prep.raciocinioAtivo,
       raciocinioEffort: prep.raciocinioEffort,
       pesquisaProfunda: prep.pesquisaProfunda,
+      modoTecnico: prep.modoTecnico,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,

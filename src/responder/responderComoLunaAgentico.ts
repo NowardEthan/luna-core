@@ -117,6 +117,8 @@ export type OpcoesResponderAgentico = {
   raciocinioEffort?: "low" | "medium" | "high";
   /** Modo pesquisa profunda (opcional): habilita a ferramenta `verificar_fontes` (cruzar fontes). */
   pesquisaProfunda?: boolean;
+  /** Modo técnico (opcional): troca a voz calorosa de sempre por um registro detalhista e rigoroso. */
+  modoTecnico?: boolean;
   onAcao?: (acao: AcaoAgenticoChat) => void;
   /** Raciocínio do modelo por rodada (antes de decidir usar ferramentas ou responder). */
   onRaciocinio?: (rodada: number, texto: string, emProgresso: boolean) => void;
@@ -338,6 +340,13 @@ export async function responderComoLunaAgentico(
     // Modo pesquisa profunda (opcional): a Luna cruza as fontes antes de escrever.
     opcoes.pesquisaProfunda && webSearchDisponivel()
       ? "MODO PESQUISA PROFUNDA ligado: quando usares `web_search`/`ler_url` e fores fazer afirmações factuais (números, datas, versões, alegações), chama `verificar_fontes` UMA vez ANTES de escrever a resposta final — passa as afirmações que pretendes dizer. Um segundo par de olhos cruza-as com o que leste e devolve o que está sustentado, parcial ou sem apoio. Depois escreve reconciliando: mantém o sustentado, põe ressalva no parcial, corrige/tira o resto. Não chames antes de ter fontes, nem mais de uma vez sem necessidade."
+      : null,
+    // MODO TÉCNICO (opt-in do usuário): ele PEDIU profundidade, então não esperes o segundo
+    // empurrão. A voz calorosa e concisa de sempre continua a ser tu — mas aqui o rigor vem à frente.
+    opcoes.modoTecnico
+      ? "MODO TÉCNICO ligado: a pessoa escolheu profundidade e rigor, não a tua concisão calorosa de sempre — atende isso de primeira, sem que ela precise insistir. " +
+        "Vai a fundo por escolha dela: não resumas por educação nem cortes detalhe para poupar texto. Sê técnica e específica — usa os termos exatos, dá números e critérios, explicita as tuas premissas, mostra os trade-offs e os casos de borda, e estrutura em títulos/listas/passos sempre que isso tornar a resposta mais precisa e navegável. " +
+        "Continuas a ser tu: a tua identidade e o teu cuidado não desaparecem, apenas o rigor lidera e o afeto vai no banco de trás. Nunca troques profundidade por invenção — se não sabes ou não verificaste, diz; é completude honesta, não fachada de rigor."
       : null,
   ]
     .filter(Boolean)

@@ -154,6 +154,8 @@ export type OpcoesPipelineCompleto = {
   raciocinioEffort?: "low" | "medium" | "high";
   /** Modo pesquisa profunda (opt-in): libera `verificar_fontes` para cruzar as fontes antes de escrever. */
   pesquisaProfunda?: boolean;
+  /** Modo técnico (opt-in): registro detalhista/rigoroso, com o rigor à frente do afeto. */
+  modoTecnico?: boolean;
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -311,6 +313,7 @@ export async function executarPipelineCompleto(
   const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
   const raciocinioEffort = opcoes.raciocinioEffort;
   const pesquisaProfunda = opcoes.pesquisaProfunda === true;
+  const modoTecnico = opcoes.modoTecnico === true;
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -917,6 +920,7 @@ export async function executarPipelineCompleto(
           raciocinioAtivo: raciocinioNaVoz,
           raciocinioEffort,
           pesquisaProfunda,
+          modoTecnico,
           onAcao: onAcaoComRegisto,
           // HÍBRIDO: no caminho agêntico NÃO transmitimos o raciocínio cru.
           //
@@ -1002,6 +1006,7 @@ export async function executarPipelineCompleto(
               raciocinioAtivo: raciocinioNaVoz,
               raciocinioEffort,
               pesquisaProfunda,
+              modoTecnico,
               onAcao: onAcaoComRegisto,
             })
           : await responderComoLuna(
@@ -1164,6 +1169,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         raciocinioAtivo: raciocinioNaVoz,
         raciocinioEffort,
         pesquisaProfunda,
+        modoTecnico,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;
