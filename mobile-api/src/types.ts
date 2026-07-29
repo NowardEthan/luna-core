@@ -56,6 +56,19 @@ export const ChatRequestSchema = z.object({
           minC: z.number().min(-90).max(60).optional(),
           chuvaProb: z.number().min(0).max(100).optional(),
           chuvaMm: z.number().min(0).max(1000).optional(),
+          previsao: z
+            .array(
+              z.object({
+                rotulo: z.string().min(1).max(24).optional(),
+                maxC: z.number().min(-90).max(60).optional(),
+                minC: z.number().min(-90).max(60).optional(),
+                chuvaProb: z.number().min(0).max(100).optional(),
+                codigo: z.number().int().min(0).max(99).optional(),
+                descricao: z.string().min(1).max(120).optional(),
+              }),
+            )
+            .max(7)
+            .optional(),
         })
         .optional(),
     })

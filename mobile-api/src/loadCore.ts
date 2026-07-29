@@ -92,6 +92,14 @@ export type LocalClimaMobile = {
     minC?: number;
     chuvaProb?: number;
     chuvaMm?: number;
+    previsao?: Array<{
+      rotulo?: string;
+      maxC?: number;
+      minC?: number;
+      chuvaProb?: number;
+      codigo?: number;
+      descricao?: string;
+    }>;
   };
 };
 

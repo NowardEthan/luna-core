@@ -30,6 +30,24 @@ export type ClimaAtual = {
   chuvaProb?: number;
   /** Chuva acumulada prevista para hoje (mm). */
   chuvaMm?: number;
+  /** Próximos dias (amanhã em diante), pra ela poder responder "vai chover amanhã?". */
+  previsao?: DiaPrevisao[];
+};
+
+/** Um dia da previsão adiante (amanhã, depois...). O rótulo vem pronto do app (que sabe o dia local). */
+export type DiaPrevisao = {
+  /** "amanhã", "sábado"… — já no fuso da pessoa (o app calcula). */
+  rotulo?: string;
+  /** Máxima prevista (°C). */
+  maxC?: number;
+  /** Mínima prevista (°C). */
+  minC?: number;
+  /** Probabilidade de chuva (%). */
+  chuvaProb?: number;
+  /** Código WMO do tempo predominante do dia. */
+  codigo?: number;
+  /** Descrição pronta em pt-BR (senão derivamos do código). */
+  descricao?: string;
 };
 
 /** Onde a pessoa está + o tempo lá, do ponto de vista do dispositivo dela. */
@@ -126,7 +144,29 @@ function formatarClima(clima: ClimaAtual): string | undefined {
   const linhas: string[] = [];
   if (agora.length) linhas.push(`Tempo agora: ${agora.join(", ")}.`);
   if (previsao.length) linhas.push(`Previsão de hoje: ${previsao.join(", ")}.`);
+
+  if (clima.previsao?.length) {
+    const dias = clima.previsao.map(formatarDia).filter(Boolean);
+    if (dias.length) linhas.push(`Próximos dias — ${dias.join(" ")}`);
+  }
+
   return linhas.length ? linhas.join(" ") : undefined;
+}
+
+/** Formata um dia adiante: "Amanhã: pancadas de chuva, 70% de chance, máx 28°C / mín 19°C." */
+function formatarDia(dia: DiaPrevisao): string | undefined {
+  const partes: string[] = [];
+  const desc = dia.descricao?.trim() || descricaoWMO(dia.codigo);
+  if (desc) partes.push(desc);
+  if (dia.chuvaProb != null) partes.push(`${Math.round(dia.chuvaProb)}% de chance de chuva`);
+  const max = dia.maxC != null ? `máx ${Math.round(dia.maxC)}°C` : null;
+  const min = dia.minC != null ? `mín ${Math.round(dia.minC)}°C` : null;
+  const faixa = [max, min].filter(Boolean).join(" / ");
+  if (faixa) partes.push(faixa);
+  if (!partes.length) return undefined;
+  const rotulo = dia.rotulo?.trim();
+  const label = rotulo ? rotulo.charAt(0).toUpperCase() + rotulo.slice(1) : "Próximo dia";
+  return `${label}: ${partes.join(", ")}.`;
 }
 
 /**
