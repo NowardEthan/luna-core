@@ -6,6 +6,7 @@
 export type EntradasCompilador = {
   politica: string;
   tempo?: string;
+  local_clima?: string;
   identidade?: string;
   agentico?: string;
   formato?: string;
@@ -41,7 +42,14 @@ type SecaoDef = {
 };
 
 const SECOES: SecaoDef[] = [
-  { chave: "tempo", titulo: "Agora", prioridade: 0, orcamento: 80 },
+  // O relógio sozinho já passava dos 80 tokens antigos (≈430 chars) — vinha truncado no
+  // meio da própria instrução. 120 tokens deixam o «Agora» inteiro.
+  { chave: "tempo", titulo: "Agora", prioridade: 0, orcamento: 120 },
+  // Onde a pessoa está + o tempo lá (localização/clima/previsão). Slot PRÓPRIO: antes ia
+  // de carona no `tempo`, que já estourava — então localização, clima e o «amanhã» eram
+  // decapitados e NUNCA chegavam à voz. Prioridade 0 e protegido, ao lado do relógio: o
+  // «onde» é grounding tanto quanto o «quando». Só existe quando o app manda o `local`.
+  { chave: "local_clima", titulo: "Aqui", prioridade: 0, orcamento: 200 },
   { chave: "identidade", titulo: "Identidade", prioridade: 1, orcamento: 320 },
   { chave: "agentico", titulo: "Ferramentas", prioridade: 2, orcamento: 60 },
   { chave: "formato", titulo: "Formato", prioridade: 2, orcamento: 80 },
@@ -84,6 +92,7 @@ const SECOES: SecaoDef[] = [
  */
 const CHAVES_PROTEGIDAS = new Set<keyof Omit<EntradasCompilador, "politica">>([
   "tempo",
+  "local_clima",
   "identidade",
   "intencao_luna",
   "humor",
@@ -187,12 +196,13 @@ export function compilarContexto(
  */
 export function entradasCompiladorSimples(
   politica: string,
-  extras?: Pick<EntradasCompilador, "kernel" | "humor" | "identidade" | "tempo">,
+  extras?: Pick<EntradasCompilador, "kernel" | "humor" | "identidade" | "tempo" | "local_clima">,
 ): EntradasCompilador {
   return {
     politica,
     identidade: extras?.identidade?.trim() || undefined,
     tempo: extras?.tempo?.trim() || undefined,
+    local_clima: extras?.local_clima?.trim() || undefined,
     kernel: extras?.kernel?.trim() || undefined,
     humor: extras?.humor?.trim() || undefined,
   };

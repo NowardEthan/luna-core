@@ -196,9 +196,3 @@ export function gerarBlocoLocalClima(local?: LocalClima): string | undefined {
   }
   return linhas.join(" ");
 }
-
-/** Combina o bloco temporal com o de local/clima numa string só (o slot `tempo`). */
-export function gerarBlocoTempoComLocal(blocoTempo: string, local?: LocalClima): string {
-  const localBloco = gerarBlocoLocalClima(local);
-  return [blocoTempo, localBloco].filter(Boolean).join("\n\n");
-}

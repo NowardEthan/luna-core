@@ -10,7 +10,7 @@ import { gerarBlocoContextoPreditivo } from "../preditivo/analisadorPreditivo.js
 import type { PriorIntencao } from "../preditivo/esquemaPreditivo.js";
 import type { EntradasCompilador } from "./compiladorContexto.js";
 import { gerarBlocoTempo } from "./gerarBlocoTempo.js";
-import { gerarBlocoTempoComLocal, type LocalClima } from "./gerarBlocoLocalClima.js";
+import { gerarBlocoLocalClima, type LocalClima } from "./gerarBlocoLocalClima.js";
 import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
 import {
   extrairDadosAmbiente,
@@ -77,7 +77,8 @@ export function montarEntradasCompilador(opcoes: OpcoesMontarEntradas): Entradas
 
   return {
     politica: montarBlocoPoliticaSituacional(politica),
-    tempo: gerarBlocoTempoComLocal(gerarBlocoTempo(new Date(), timeZone), local),
+    tempo: gerarBlocoTempo(new Date(), timeZone),
+    local_clima: gerarBlocoLocalClima(local),
     identidade: identidade.trim() || undefined,
     formato: montarSliceFormato(politica),
     ecossistema: ecossistema?.trim() || undefined,

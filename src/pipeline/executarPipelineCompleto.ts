@@ -35,7 +35,7 @@ import {
 } from "../contexto/compiladorContexto.js";
 import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
 import { gerarBlocoTempo } from "../contexto/gerarBlocoTempo.js";
-import { gerarBlocoTempoComLocal, type LocalClima } from "../contexto/gerarBlocoLocalClima.js";
+import { gerarBlocoLocalClima, type LocalClima } from "../contexto/gerarBlocoLocalClima.js";
 import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
 import {
   verificarPremissa,
@@ -618,7 +618,8 @@ export async function executarPipelineCompleto(
       });
       entradas = entradasCompiladorSimples(montarBlocoPoliticaSituacional(politicaComMemoria), {
         identidade: identidade.trim() || undefined,
-        tempo: gerarBlocoTempoComLocal(gerarBlocoTempo(new Date(), opcoes.timeZone), opcoes.local),
+        tempo: gerarBlocoTempo(new Date(), opcoes.timeZone),
+        local_clima: gerarBlocoLocalClima(opcoes.local),
         kernel: kernelDespertar ?? undefined,
         humor: humorLinha ?? undefined,
       });
