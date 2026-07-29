@@ -1186,7 +1186,9 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         historicoDele: historico.filter((m) => m.papel === "user").map((m) => m.conteudo),
         // 0 = turno de análise: o editor nem acorda. Um mecanismo que deixa a conversa boa e
         // a análise pobre é um mecanismo reprovado.
-        alvoPalavras: registro?.alvoPalavras ?? 0,
+        // No MODO TÉCNICO a pessoa PEDIU profundidade: «escreveu muito» deixa de ser defeito —
+        // o alvo casual não se aplica, então zeramos para o detector de extensão não a cortar.
+        alvoPalavras: modoTecnico ? 0 : (registro?.alvoPalavras ?? 0),
         ferramentasUsadas: ferramentasDoTurno,
         urlsBuscados: urlsDoTurno,
         config,
