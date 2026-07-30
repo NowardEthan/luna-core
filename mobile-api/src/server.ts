@@ -124,6 +124,14 @@ function sendSseEvent(res: ServerResponse, event: string, data: unknown): void {
   flushable.flush?.();
 }
 
+/** Comentário SSE cru (linha começando com `:`) — o cliente ignora, o proxy vê byte na linha. */
+function sendSseHeartbeat(res: ServerResponse): void {
+  if (res.writableEnded || res.destroyed) return;
+  res.write(": ka\n\n");
+  const flushable = res as ServerResponse & { flush?: () => void };
+  flushable.flush?.();
+}
+
 function sendMappedSseError(res: ServerResponse, erro: unknown): void {
   const detalhe = erro instanceof Error ? erro.stack ?? erro.message : String(erro);
   console.error("[server] SSE error mapped:", detalhe);
@@ -560,6 +568,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (method === "POST" && url.pathname === "/v1/chat/stream") {
     let sseStarted = false;
+    // Heartbeat: um comentário SSE inócuo a cada ~10s. Durante a geração de um argumento
+    // grande de tool-call (ex.: o `conteudo` de criar_documento), NENHUM byte visível flui —
+    // o `onContentDelta` só dispara pra conteúdo, não pros argumentos da ferramenta. Sem isso,
+    // o proxy da Railway acha a conexão ociosa e manda RST_STREAM (o "stream was reset: cancel").
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
     // O usuário pode sair do app no meio da resposta. Não abortamos a geração —
     // ela termina, é salva, e avisamos por push (ver notifyLunaReply abaixo).
     let clientGone = false;
@@ -658,9 +671,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       const streamMs = streamTimeoutMs();
       const streamTimeout = setTimeout(() => {
+        clearInterval(heartbeat);
         sendMappedSseError(res, new Error(`Timeout de streaming (${Math.round(streamMs / 1000)}s).`));
         res.end();
       }, streamMs);
+
+      // Mantém a linha viva mesmo nos silêncios (geração de argumento de tool grande).
+      heartbeat = setInterval(() => sendSseHeartbeat(res), 10_000);
 
       const result = await executarChatMobileStream(
         parsed.message,
@@ -690,6 +707,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       );
 
       clearTimeout(streamTimeout);
+      clearInterval(heartbeat);
 
       if (auth) {
         await persistChatTurn({
@@ -744,6 +762,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       });
       res.end();
     } catch (err) {
+      clearInterval(heartbeat);
       const message = err instanceof Error ? err.stack ?? err.message : String(err);
       console.error("[server] /v1/chat/stream error:", message);
       if (sseStarted) {
