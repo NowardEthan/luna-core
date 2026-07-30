@@ -85,6 +85,23 @@ export async function lerDocumentosDaConversa(
 }
 
 /**
+ * Esta conversa já tem ALGUM documento na estante? Checagem barata (`limit(1)`) para o pipeline
+ * decidir baixar a régua do modo agêntico: numa conversa que já pariu um documento, um follow-up
+ * como «escreve mais narrativo» É pedido de edição — mas não cita a palavra «documento», então o
+ * detector estrito não o apanha e a Luna voltava a narrar «editei» sem chamar a ferramenta.
+ */
+export async function conversaTemDocumentos(
+  uid: string,
+  conversaId: string,
+): Promise<boolean> {
+  const db = getAdminFirestore();
+  if (!db) return false;
+  const ref = db.collection("users").doc(uid).collection("documentos");
+  const snap = await ref.where("conversaId", "==", conversaId).limit(1).get();
+  return !snap.empty;
+}
+
+/**
  * Lê um documento pelo id. `null` se não existe (id inventado / apagado).
  */
 export async function lerDocumento(uid: string, id: string): Promise<Documento | null> {

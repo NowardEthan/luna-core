@@ -20,6 +20,7 @@ import {
 } from "./persistenciaFirestore.js";
 import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
+import { conversaTemDocumentos } from "./firestoreDocumentos.js";
 import { lerRotina, lerRegistosRotina, lerRotinaSets, maosDaRotina } from "./rotinaFirestore.js";
 import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronioRotina.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
@@ -116,6 +117,7 @@ export type LunaCoreModule = {
       pesquisaProfunda?: boolean;
       modoTecnico?: boolean;
       documentosAtivo?: boolean;
+      conversaTemDocumentos?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
       interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
@@ -581,6 +583,12 @@ export async function executarChatMobile(
     const rotinaSets = uid && db ? await lerRotinaSets(db, uid) : [];
     const rotina = blocosDaRotinaVigente(rotinaCrua, rotinaSets, hojeISOnoFuso(timeZone));
     const rotinaRegistos = uid && db && rotina.length ? await lerRegistosRotina(db, uid) : [];
+    // Esta conversa já pariu algum documento? Se sim, o pipeline baixa a régua do agêntico:
+    // um «escreve mais narrativo» vira edição do documento, mesmo sem citar a palavra.
+    const temDocumentos =
+      prep.documentosAtivo && uid && db && sessionId
+        ? await conversaTemDocumentos(uid, sessionId)
+        : false;
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
@@ -594,6 +602,7 @@ export async function executarChatMobile(
       pesquisaProfunda: prep.pesquisaProfunda,
       modoTecnico: prep.modoTecnico,
       documentosAtivo: prep.documentosAtivo,
+      conversaTemDocumentos: temDocumentos,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
@@ -695,6 +704,12 @@ export async function executarChatMobileStream(
     const rotinaSets = uid && db ? await lerRotinaSets(db, uid) : [];
     const rotina = blocosDaRotinaVigente(rotinaCrua, rotinaSets, hojeISOnoFuso(timeZone));
     const rotinaRegistos = uid && db && rotina.length ? await lerRegistosRotina(db, uid) : [];
+    // Esta conversa já pariu algum documento? Se sim, o pipeline baixa a régua do agêntico:
+    // um «escreve mais narrativo» vira edição do documento, mesmo sem citar a palavra.
+    const temDocumentos =
+      prep.documentosAtivo && uid && db && sessionId
+        ? await conversaTemDocumentos(uid, sessionId)
+        : false;
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
@@ -708,6 +723,7 @@ export async function executarChatMobileStream(
       pesquisaProfunda: prep.pesquisaProfunda,
       modoTecnico: prep.modoTecnico,
       documentosAtivo: prep.documentosAtivo,
+      conversaTemDocumentos: temDocumentos,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,

@@ -158,6 +158,12 @@ export type OpcoesPipelineCompleto = {
   modoTecnico?: boolean;
   /** Documentos ativos (opt-in): libera `criar_documento`. Só o OrbitLab liga, por ora. */
   documentosAtivo?: boolean;
+  /**
+   * Esta conversa já tem documento na estante (checado pelo servidor). Quando `true`, o gate do
+   * agêntico baixa a régua: um follow-up de edição («escreve mais narrativo», «menos tópicos»)
+   * abre a ferramenta mesmo sem citar a palavra «documento».
+   */
+  conversaTemDocumentos?: boolean;
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -238,6 +244,7 @@ function deveUsarModoAgentico(
   anexosImagem: AnexoImagemChat[],
   anexosDocumento: AnexoDocumentoChat[] = [],
   documentosAtivo = false,
+  conversaTemDocumentos = false,
 ): boolean {
   if (!ehProvedorAgente(provedor)) return false;
   const vision =
@@ -256,7 +263,14 @@ function deveUsarModoAgentico(
   // narrava «documento criado» sem criar nada. Reconhecemos a intenção e abrimos o agêntico
   // para a ferramenta estar na mão. Custo de latência só nestes turnos, não em toda conversa.
   const pedeDocumento = documentosAtivo && mensagemPedeDocumento(mensagem);
-  return vision || documento || web || pedeDocumento;
+  // EDIÇÃO DE DOCUMENTO EXISTENTE. Quando a conversa já tem documento, um follow-up de revisão
+  // («escreve mais narrativo», «tira os tópicos», «reescreve isso») É pedido de edição — mas não
+  // cita «documento», então `mensagemPedeDocumento` não o apanha e ela voltava a narrar «editei»
+  // sem chamar a `editar_documento`. Aqui a régua baixa: já existe estante nesta conversa, então
+  // um verbo de edição/estilo basta para pôr a ferramenta na mão.
+  const editaDocumento =
+    documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);
+  return vision || documento || web || pedeDocumento || editaDocumento;
 }
 
 /**
@@ -269,6 +283,27 @@ function deveUsarModoAgentico(
 export function mensagemPedeDocumento(mensagem: string): boolean {
   if (/\b(documento|documentos|artifact|artefato)\b/i.test(mensagem)) return true;
   return /\b(escrev\w+|redij\w+|redig\w+|faz|faça|faca|cria\w*|crie|monta\w*|monte|gera\w*|gere|guarda\w*|guarde|salva\w*|salve|reescrev\w+|revis\w+)\b[^.?!\n]{0,40}\b(texto|carta|plano|planos|rascunho|resumo|relat[óo]rio|ensaio|ata|roteiro|documento)\b/i.test(
+    mensagem,
+  );
+}
+
+/**
+ * Pedido de EDIÇÃO/estilo de um documento que já existe — o sinal para reabrir o agêntico num
+ * follow-up. Só entra em jogo quando a conversa JÁ TEM documento (`conversaTemDocumentos`), então
+ * pode ser generoso sem custar latência ao papo normal: verbo de reescrita/ajuste OU um pedido de
+ * forma («mais narrativo», «menos tópicos», «em prosa»). Fora de uma conversa com estante, isto
+ * nunca dispara — quem manda lá é o detector estrito `mensagemPedeDocumento`.
+ */
+export function mensagemPareceEdicaoDocumento(mensagem: string): boolean {
+  if (
+    /\b(revis\w+|reescrev\w+|refaz|refaça|refaca|reformul\w+|ajust\w+|corrig\w+|corrija|melhor\w+|aprimor\w+|expand\w+|amplia\w+|encurt\w+|resum\w+|detalh\w+|acrescent\w+|adicion\w+|remov\w+|tir(?:a|e|ar)|troc\w+|substitu\w+|transform\w+|muda|mude|mudar|alter\w+|edita\w*|edite)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  // Pedidos de forma/estilo: «mais narrativo», «menos bullet points», «em tópicos», «em prosa».
+  return /\b(narrativ\w+|bullet\s*points?|t[óo]picos?|par[áa]grafos?|prosa|mais\s+formal|menos\s+formal|mais\s+curto|mais\s+longo|mais\s+direto)\b/i.test(
     mensagem,
   );
 }
@@ -338,6 +373,7 @@ export async function executarPipelineCompleto(
   const pesquisaProfunda = opcoes.pesquisaProfunda === true;
   const modoTecnico = opcoes.modoTecnico === true;
   const documentosAtivo = opcoes.documentosAtivo === true;
+  const conversaTemDocumentos = opcoes.conversaTemDocumentos === true;
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -850,6 +886,7 @@ export async function executarPipelineCompleto(
       anexosDesteTurno,
       anexosDocumento,
       documentosAtivo,
+      conversaTemDocumentos,
     );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
