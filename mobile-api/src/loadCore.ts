@@ -118,6 +118,7 @@ export type LunaCoreModule = {
       pesquisaProfunda?: boolean;
       modoTecnico?: boolean;
       documentosAtivo?: boolean;
+      forcarAgentico?: boolean;
       conversaTemDocumentos?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
@@ -357,6 +358,7 @@ async function prepararChatMobile(
   local?: LocalClimaMobile,
   modoTecnico?: boolean,
   documentosAtivo?: boolean,
+  modoAgentico?: boolean,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -466,7 +468,10 @@ async function prepararChatMobile(
     raciocinioEffort: reasoningEffort,
     pesquisaProfunda: pesquisaProfunda === true,
     modoTecnico: modoTecnico === true,
-    documentosAtivo: documentosAtivo === true,
+    // "Mãos à obra" força o agêntico; ele também precisa das ferramentas de documento/planejamento
+    // à disposição, então liga o documentosAtivo junto (o OrbitLab já manda os dois, mas garantimos).
+    documentosAtivo: documentosAtivo === true || modoAgentico === true,
+    forcarAgentico: modoAgentico === true,
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -556,6 +561,7 @@ export async function executarChatMobile(
   local?: LocalClimaMobile,
   modoTecnico?: boolean,
   documentosAtivo?: boolean,
+  modoAgentico?: boolean,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -573,6 +579,7 @@ export async function executarChatMobile(
     local,
     modoTecnico,
     documentosAtivo,
+    modoAgentico,
   );
 
   const rodarPipeline = async () => {
@@ -604,6 +611,7 @@ export async function executarChatMobile(
       pesquisaProfunda: prep.pesquisaProfunda,
       modoTecnico: prep.modoTecnico,
       documentosAtivo: prep.documentosAtivo,
+      forcarAgentico: prep.forcarAgentico,
       conversaTemDocumentos: temDocumentos,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
@@ -647,6 +655,7 @@ export async function executarChatMobileStream(
   local?: LocalClimaMobile,
   modoTecnico?: boolean,
   documentosAtivo?: boolean,
+  modoAgentico?: boolean,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -665,6 +674,7 @@ export async function executarChatMobileStream(
       local,
       modoTecnico,
       documentosAtivo,
+      modoAgentico,
     );
   }
 
@@ -684,6 +694,7 @@ export async function executarChatMobileStream(
     local,
     modoTecnico,
     documentosAtivo,
+    modoAgentico,
   );
 
   const rodarPipeline = async () => {
@@ -725,6 +736,7 @@ export async function executarChatMobileStream(
       pesquisaProfunda: prep.pesquisaProfunda,
       modoTecnico: prep.modoTecnico,
       documentosAtivo: prep.documentosAtivo,
+      forcarAgentico: prep.forcarAgentico,
       conversaTemDocumentos: temDocumentos,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,

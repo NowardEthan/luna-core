@@ -164,6 +164,12 @@ export type OpcoesPipelineCompleto = {
    * abre a ferramenta mesmo sem citar a palavra «documento».
    */
   conversaTemDocumentos?: boolean;
+  /**
+   * Modo "Mãos à obra" (opt-in): força o caminho agêntico em TODO turno, sem depender do detector
+   * adivinhar pela mensagem. É o interruptor manual do modo ferramenta/planejamento — quando aceso,
+   * a Luna já entra com as mãos à disposição (planejar, documentos, etc.). Só o OrbitLab liga.
+   */
+  forcarAgentico?: boolean;
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -245,8 +251,11 @@ function deveUsarModoAgentico(
   anexosDocumento: AnexoDocumentoChat[] = [],
   documentosAtivo = false,
   conversaTemDocumentos = false,
+  forcarAgentico = false,
 ): boolean {
   if (!ehProvedorAgente(provedor)) return false;
+  // "Mãos à obra": o interruptor manual vence o detector — ela entra no agêntico sempre.
+  if (forcarAgentico) return true;
   const vision =
     featureFlagAgenticoVisionAtiva() &&
     (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
@@ -374,6 +383,7 @@ export async function executarPipelineCompleto(
   const modoTecnico = opcoes.modoTecnico === true;
   const documentosAtivo = opcoes.documentosAtivo === true;
   const conversaTemDocumentos = opcoes.conversaTemDocumentos === true;
+  const forcarAgentico = opcoes.forcarAgentico === true;
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -887,6 +897,7 @@ export async function executarPipelineCompleto(
       anexosDocumento,
       documentosAtivo,
       conversaTemDocumentos,
+      forcarAgentico,
     );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso

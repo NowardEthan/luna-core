@@ -316,6 +316,7 @@ async function resolverTurnoChat(params: {
       parsed.local,
       parsed.modoTecnico,
       parsed.documentosAtivo,
+      parsed.modoAgentico,
     ),
   );
 
@@ -704,6 +705,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.local,
         parsed.modoTecnico,
         parsed.documentosAtivo,
+        parsed.modoAgentico,
       );
 
       clearTimeout(streamTimeout);
