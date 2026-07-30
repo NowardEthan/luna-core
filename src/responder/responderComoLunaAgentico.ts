@@ -329,6 +329,36 @@ export async function responderComoLunaAgentico(
     return alvo?.mimeType?.startsWith("video/") ? "ver_video" : nome;
   };
 
+  // Pré-carrega os documentos DESTA conversa (id + título + corpo atual) direto no contexto.
+  // Sem isto, EDITAR exige uma cadeia listar→ler→editar que o deepseek abandona no meio: faz UMA
+  // chamada (o `ler`), "vê" o corpo, sente-se pronto e escreve a revisão NA BOLHA em vez de gravar.
+  // Com o corpo já à frente, editar vira UM passo só (`editar_documento`) — a mesma ergonomia da
+  // criação, que já funciona. Só no OrbitLab (documentosAtivo) e só quando a conversa tem estante.
+  let blocoDocumentosDaConversa: string | null = null;
+  if (
+    opcoes.documentosAtivo &&
+    opcoes.rotinaDeps?.listarDocumentos &&
+    opcoes.rotinaDeps?.lerDocumento
+  ) {
+    try {
+      const lista = await opcoes.rotinaDeps.listarDocumentos();
+      if (lista.length > 0) {
+        const corpos: string[] = [];
+        for (const d of lista.slice(0, 3)) {
+          const doc = await opcoes.rotinaDeps.lerDocumento(d.id);
+          corpos.push(`— id: ${d.id} · «${d.titulo}»\n\n${doc?.conteudo?.trim() || "(vazio)"}`);
+        }
+        blocoDocumentosDaConversa =
+          "DOCUMENTOS JÁ NA ESTANTE DESTA CONVERSA — o corpo atual de cada um está abaixo. NÃO precisas de `listar_documentos` nem `ler_documento`: já tens o id e o texto aqui. " +
+          "Quando ele pedir para MUDAR um (revisar, «mais narrativo», «tira os tópicos», «reescreve», «encurta») chama `editar_documento` UMA vez, com o MESMO id e o corpo INTEIRO já reescrito em `conteudo`. É um passo só. " +
+          "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_documento` — se não chamaste, o documento continua igual e ele reabre e nada mudou.\n\n" +
+          corpos.join("\n\n---\n\n");
+      }
+    } catch {
+      // Silencioso: sem o bloco, ela cai no fluxo normal listar→ler→editar.
+    }
+  }
+
   const systemPrompt = [
     carregarInstrucaoSistema(),
     compilarGuiaFerramentasPrompt(),
@@ -371,6 +401,9 @@ export async function responderComoLunaAgentico(
     opcoes.modoTecnico ? DIRETRIZ_MODO_TECNICO : null,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
+    // O corpo dos documentos desta conversa, já à frente dela (como a rotina já está sempre).
+    // É isto que faz editar virar um passo só, em vez de uma caça listar→ler→editar.
+    blocoDocumentosDaConversa,
   ]
     .filter(Boolean)
     .join("\n\n");
