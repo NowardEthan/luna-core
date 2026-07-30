@@ -682,7 +682,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const result = await executarChatMobileStream(
         parsed.message,
         {
-          onStatus: (phase) => sendSseEvent(res, "status", { phase }),
+          onStatus: (phase, label) => sendSseEvent(res, "status", { phase, label }),
           onReasoningDelta: (delta) => sendSseEvent(res, "reasoning", { delta }),
           onContentDelta: (delta) => {
             if (delta) contentEnviado = true;

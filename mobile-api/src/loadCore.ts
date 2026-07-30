@@ -25,7 +25,7 @@ import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronio
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
-  onStatus?: (phase: "analysing" | "memory" | "writing") => void;
+  onStatus?: (phase: "analysing" | "memory" | "writing", label?: string) => void;
   onReasoningDelta?: (delta: string) => void;
   onContentDelta?: (delta: string) => void;
   onAcao?: (acao: {
@@ -295,7 +295,38 @@ function mapStatusHint(hint: string): "analysing" | "memory" | "writing" | null 
   if (h.includes("analisar") || h.includes("inten")) return "analysing";
   if (h.includes("memória") || h.includes("memoria")) return "memory";
   if (h.includes("redigir") || h.includes("resposta")) return "writing";
+  // Execução de ferramenta cai em "writing" — fase que o app já conhece (mostra "Escrevendo…"),
+  // então nenhum valor novo de fase vaza pro app público; o rótulo rico (abaixo) é que enriquece.
+  if (h.includes("execut")) return "writing";
   return null;
+}
+
+/** Nomes internos de ferramenta (snake_case) → o que a Luna está fazendo, em pt-BR. */
+const ROTULO_FERRAMENTA: Record<string, string> = {
+  criar_documento: "Escrevendo o documento…",
+  editar_documento: "Revisando o documento…",
+  ler_documento: "Relendo o documento…",
+  listar_documentos: "Procurando na estante…",
+  organizar_tarefas: "Organizando as tarefas…",
+  criar_rotina: "Montando a rotina…",
+  gerir_rotina: "Ajustando a rotina…",
+  ver_rotina: "Olhando a rotina…",
+};
+
+/**
+ * O rótulo premium que chega à tela — o passo real, não a gaveta grosseira. O core já conta a
+ * história em detalhe (a fase apenas agrupa pra compatibilidade); aqui a vestimos em pt-BR calmo.
+ * "Redigindo resposta…" vira "Aguardando o provedor…": é HONESTO — dispara antes do 1º token, e
+ * o app troca pra "Escrevendo…" no instante em que o texto começa a sair.
+ */
+function rotuloAmigavel(hint: string): string {
+  const exec = /^Executando\s+(\w+)/.exec(hint);
+  if (exec) return ROTULO_FERRAMENTA[exec[1]] ?? "Trabalhando nisso…";
+  const h = hint.toLowerCase();
+  if (h.includes("inten") || h.includes("analis")) return "Entendendo o pedido…";
+  if (h.includes("memória") || h.includes("memoria")) return "Consultando a memória…";
+  if (h.includes("redigir") || h.includes("resposta")) return "Aguardando o provedor…";
+  return hint;
 }
 
 function isCerebrasConfig(config: ConfigLuna): boolean {
@@ -689,7 +720,7 @@ export async function executarChatMobileStream(
       local: prep.local,
       onStatusHint: (hint) => {
         const phase = mapStatusHint(hint);
-        if (phase) callbacks.onStatus?.(phase);
+        if (phase) callbacks.onStatus?.(phase, rotuloAmigavel(hint));
       },
       onStreamReasoningDelta: callbacks.onReasoningDelta,
       onStreamContentDelta: callbacks.onContentDelta,
