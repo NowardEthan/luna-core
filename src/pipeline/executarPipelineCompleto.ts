@@ -237,6 +237,7 @@ function deveUsarModoAgentico(
   mensagem: string,
   anexosImagem: AnexoImagemChat[],
   anexosDocumento: AnexoDocumentoChat[] = [],
+  documentosAtivo = false,
 ): boolean {
   if (!ehProvedorAgente(provedor)) return false;
   const vision =
@@ -249,7 +250,27 @@ function deveUsarModoAgentico(
   const web =
     mensagemContemUrl(mensagem) ||
     (featureFlagAgenticoWebAtiva() && mensagemSugerePesquisaWeb(mensagem));
-  return vision || documento || web;
+  // PEDIDO DE DOCUMENTO (só OrbitLab, via `documentosAtivo`). A ferramenta `criar_documento`
+  // vive no modo agêntico; a campanha de latência estreitou o gatilho para imagem/anexo/web,
+  // e um "escreve isso num documento" (texto puro) caía no caminho de stream SEM mãos — ela
+  // narrava «documento criado» sem criar nada. Reconhecemos a intenção e abrimos o agêntico
+  // para a ferramenta estar na mão. Custo de latência só nestes turnos, não em toda conversa.
+  const pedeDocumento = documentosAtivo && mensagemPedeDocumento(mensagem);
+  return vision || documento || web || pedeDocumento;
+}
+
+/**
+ * Pedido explícito de DOCUMENTO/artefato — o sinal para abrir o modo agêntico no OrbitLab.
+ * Deliberadamente ancorado no substantivo ("documento", "artifact") OU num verbo de criar/reescrever
+ * perto de um tipo de texto que vale guardar (texto, carta, plano, rascunho, resumo, relatório…).
+ * Fica focado de propósito: alargar demais traria de volta a regressão de latência que a campanha
+ * cortou. Uma vez no agêntico, quem decide de facto é a `DIRETRIZ_DOCUMENTOS` + a própria ferramenta.
+ */
+export function mensagemPedeDocumento(mensagem: string): boolean {
+  if (/\b(documento|documentos|artifact|artefato)\b/i.test(mensagem)) return true;
+  return /\b(escrev\w+|redij\w+|redig\w+|faz|faça|faca|cria\w*|crie|monta\w*|monte|gera\w*|gere|guarda\w*|guarde|salva\w*|salve|reescrev\w+|revis\w+)\b[^.?!\n]{0,40}\b(texto|carta|plano|planos|rascunho|resumo|relat[óo]rio|ensaio|ata|roteiro|documento)\b/i.test(
+    mensagem,
+  );
 }
 
 function mensagemPedeImagem(mensagem: string): boolean {
@@ -828,6 +849,7 @@ export async function executarPipelineCompleto(
       mensagem,
       anexosDesteTurno,
       anexosDocumento,
+      documentosAtivo,
     );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso

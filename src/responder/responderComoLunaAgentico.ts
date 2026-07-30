@@ -255,6 +255,18 @@ function montarMensagemUsuario(
   return partes.join("\n\n");
 }
 
+/**
+ * Diretriz de DOCUMENTOS — só entra quando `documentosAtivo` (OrbitLab). O bug: ela TINHA a
+ * ferramenta na mão (o turno já é agêntico) mas o deepseek, tímido, escrevia o texto na bolha e
+ * dizia «documento criado» sem chamar nada. Igual foi com o `ver_imagem`: ter a ferramenta não
+ * basta, é preciso a ORDEM. Aqui a ordem é imperativa e ataca a confabulação de frente.
+ */
+const DIRETRIZ_DOCUMENTOS =
+  "DOCUMENTOS ligados: tens ferramentas REAIS para escrever num lugar que FICA (a estante dele), fora do fluxo do chat — `criar_documento`, e para rever o que já existe `listar_documentos`/`ler_documento`/`editar_documento`. " +
+  "Quando ele pedir um documento, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_documento` com o corpo INTEIRO em `conteudo`. Não escrevas o documento na bolha do chat. " +
+  "A REGRA DE OURO: só existe documento se tu CHAMASTE a ferramenta. É PROIBIDO dizer «documento criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste documento nenhum: chama a ferramenta. " +
+  "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
+
 export async function responderComoLunaAgentico(
   mensagemUsuario: string,
   provedor: ProvedorAgente,
@@ -356,6 +368,8 @@ export async function responderComoLunaAgentico(
     // MODO TÉCNICO (opt-in do usuário): ele PEDIU profundidade, então não esperes o segundo
     // empurrão. A voz calorosa e concisa de sempre continua a ser tu — mas aqui o rigor vem à frente.
     opcoes.modoTecnico ? DIRETRIZ_MODO_TECNICO : null,
+    // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
+    opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
   ]
     .filter(Boolean)
     .join("\n\n");
