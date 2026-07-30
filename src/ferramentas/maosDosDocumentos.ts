@@ -1,12 +1,16 @@
 /**
- * As mãos dela nos documentos.
+ * As mãos dela nos artefatos.
  *
  * A Luna já sabe conversar; isto dá-lhe a mão para TRANSFORMAR a conversa em algo que fica.
- * Sem isto, quando ele diz «escreve isso num documento», ela só podia despejar o texto no chat
+ * Sem isto, quando ele diz «escreve isso num artefato», ela só podia despejar o texto no chat
  * — onde ele se dilui no fluxo e some. Com a mão, o texto nasce da conversa e vai para a estante,
  * com um lugar próprio para ser reaberto e (depois) editado.
  *
- * O documento nasce marcado (`origem: luna`) e preso à conversa de onde saiu — é isso que faz o
+ * (Nota de nome: internamente a coleção Firestore ainda se chama `documentos` e os símbolos aqui
+ * mantêm «Documento» — o que mudou foi o nome VISÍVEL, «artefato», pra a Luna não confundir com os
+ * ARQUIVOS/PDFs que o usuário anexa. Sem migração de dados.)
+ *
+ * O artefato nasce marcado (`origem: luna`) e preso à conversa de onde saiu — é isso que faz o
  * cartão aparecer no chat certo. A ferramenta devolve ERRO em vez de rebentar: se não gravou, ela
  * LÊ que não gravou, e não finge que criou.
  */
@@ -38,21 +42,21 @@ export async function criarDocumento(
   const conteudo = String(args.conteudo ?? "").trim();
 
   if (!titulo) {
-    return "ERRO: o documento precisa de um título curto.";
+    return "ERRO: o artefato precisa de um título curto.";
   }
   if (!conteudo) {
-    return "ERRO: o documento não pode ficar vazio — escreve o corpo em Markdown.";
+    return "ERRO: o artefato não pode ficar vazio — escreve o corpo em Markdown.";
   }
 
   try {
     const { id } = await deps.criarDocumento({ titulo, conteudo });
     return (
-      `Documento «${titulo}» criado e guardado na estante (id: ${id}). ` +
+      `Artefato «${titulo}» criado e guardado na estante (id: ${id}). ` +
       `Ele aparece como um cartão nesta conversa; o Ethan pode abrir e ler. ` +
       `Diz-lhe, na tua voz, que ficou guardado — não repitas o texto inteiro aqui.`
     );
   } catch (error) {
-    return `ERRO ao criar documento: ${error instanceof Error ? error.message : String(error)}`;
+    return `ERRO ao criar artefato: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -63,15 +67,15 @@ export async function listarDocumentos(
   try {
     const docs = await deps.listarDocumentos();
     if (docs.length === 0) {
-      return "Nenhum documento nesta conversa ainda. Use criar_documento para começar um.";
+      return "Nenhum artefato nesta conversa ainda. Use criar_artefato para começar um.";
     }
     const linhas = docs.map((d) => `- id: ${d.id} — «${d.titulo}»`).join("\n");
     return (
-      `Documentos desta conversa:\n${linhas}\n\n` +
-      `Para ler o corpo de um, use ler_documento com o id. Para revisá-lo, use editar_documento.`
+      `Artefatos desta conversa:\n${linhas}\n\n` +
+      `Para ler o corpo de um, use ler_artefato com o id. Para revisá-lo, use editar_artefato.`
     );
   } catch (error) {
-    return `ERRO ao listar documentos: ${error instanceof Error ? error.message : String(error)}`;
+    return `ERRO ao listar artefatos: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -81,20 +85,20 @@ export async function lerDocumento(
 ): Promise<string> {
   const id = String(args.id ?? "").trim();
   if (!id) {
-    return "ERRO: preciso do id do documento. Se não souber, chame listar_documentos primeiro.";
+    return "ERRO: preciso do id do artefato. Se não souber, chame listar_artefatos primeiro.";
   }
   try {
     const doc = await deps.lerDocumento(id);
     if (!doc) {
-      return `ERRO: não achei documento com id ${id}. Confira em listar_documentos.`;
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
     }
     return (
-      `Documento «${doc.titulo}» (id: ${doc.id}). Corpo atual em Markdown abaixo — ` +
-      `leia para auditar/revisar; para salvar mudanças use editar_documento com este id.\n\n` +
+      `Artefato «${doc.titulo}» (id: ${doc.id}). Corpo atual em Markdown abaixo — ` +
+      `leia para auditar/revisar; para salvar mudanças use editar_artefato com este id.\n\n` +
       `${doc.conteudo}`
     );
   } catch (error) {
-    return `ERRO ao ler documento: ${error instanceof Error ? error.message : String(error)}`;
+    return `ERRO ao ler artefato: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -109,26 +113,26 @@ export async function editarDocumento(
   const conteudo = temConteudo ? String(args.conteudo) : undefined;
 
   if (!id) {
-    return "ERRO: preciso do id do documento a editar. Chame listar_documentos se não souber.";
+    return "ERRO: preciso do id do artefato a editar. Chame listar_artefatos se não souber.";
   }
   if (!temTitulo && !temConteudo) {
     return "ERRO: nada para mudar — passe o novo conteudo (corpo completo reescrito) e/ou um novo titulo.";
   }
   if (temConteudo && conteudo!.trim().length === 0) {
-    return "ERRO: o documento não pode ficar vazio. Reescreva o corpo em Markdown.";
+    return "ERRO: o artefato não pode ficar vazio. Reescreva o corpo em Markdown.";
   }
 
   try {
     const resultado = await deps.editarDocumento({ id, titulo, conteudo });
     if (!resultado) {
-      return `ERRO: não achei documento com id ${id}. Confira em listar_documentos.`;
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
     }
     return (
-      `Documento «${resultado.titulo}» atualizado na estante (id: ${resultado.id}). ` +
+      `Artefato «${resultado.titulo}» atualizado na estante (id: ${resultado.id}). ` +
       `O cartão nesta conversa já mostra a versão nova. ` +
       `Conte ao Ethan, na sua voz, o que você mudou — não repita o texto inteiro aqui.`
     );
   } catch (error) {
-    return `ERRO ao editar documento: ${error instanceof Error ? error.message : String(error)}`;
+    return `ERRO ao editar artefato: ${error instanceof Error ? error.message : String(error)}`;
   }
 }

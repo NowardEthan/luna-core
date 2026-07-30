@@ -308,10 +308,10 @@ function mapStatusHint(hint: string): "analysing" | "memory" | "writing" | null 
 
 /** Nomes internos de ferramenta (snake_case) → o que a Luna está fazendo, em pt-BR. */
 const ROTULO_FERRAMENTA: Record<string, string> = {
-  criar_documento: "Escrevendo o documento…",
-  editar_documento: "Revisando o documento…",
-  ler_documento: "Relendo o documento…",
-  listar_documentos: "Procurando na estante…",
+  criar_artefato: "Escrevendo o artefato…",
+  editar_artefato: "Revisando o artefato…",
+  ler_artefato: "Relendo o artefato…",
+  listar_artefatos: "Procurando na estante…",
   organizar_tarefas: "Organizando as tarefas…",
   criar_rotina: "Montando a rotina…",
   gerir_rotina: "Ajustando a rotina…",

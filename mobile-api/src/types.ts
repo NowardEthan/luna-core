@@ -81,7 +81,7 @@ export const ChatRequestSchema = z.object({
   pesquisaProfunda: z.boolean().optional(),
   /** Modo técnico (opt-in): registro detalhista/rigoroso em vez da voz calorosa de sempre. */
   modoTecnico: z.boolean().optional(),
-  /** Documentos ativos (opt-in): libera a ferramenta `criar_documento`. Só o OrbitLab liga, por ora. */
+  /** Artefatos ativos (opt-in): libera a ferramenta `criar_artefato`. Só o OrbitLab liga, por ora. */
   documentosAtivo: z.boolean().optional(),
   /** Modo "Mãos à obra" (opt-in): força o caminho agêntico em todo turno. Só o OrbitLab liga. */
   modoAgentico: z.boolean().optional(),

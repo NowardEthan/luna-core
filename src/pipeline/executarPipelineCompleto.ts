@@ -266,16 +266,16 @@ function deveUsarModoAgentico(
   const web =
     mensagemContemUrl(mensagem) ||
     (featureFlagAgenticoWebAtiva() && mensagemSugerePesquisaWeb(mensagem));
-  // PEDIDO DE DOCUMENTO (só OrbitLab, via `documentosAtivo`). A ferramenta `criar_documento`
+  // PEDIDO DE ARTEFATO (só OrbitLab, via `documentosAtivo`). A ferramenta `criar_artefato`
   // vive no modo agêntico; a campanha de latência estreitou o gatilho para imagem/anexo/web,
-  // e um "escreve isso num documento" (texto puro) caía no caminho de stream SEM mãos — ela
-  // narrava «documento criado» sem criar nada. Reconhecemos a intenção e abrimos o agêntico
+  // e um "escreve isso num artefato" (texto puro) caía no caminho de stream SEM mãos — ela
+  // narrava «artefato criado» sem criar nada. Reconhecemos a intenção e abrimos o agêntico
   // para a ferramenta estar na mão. Custo de latência só nestes turnos, não em toda conversa.
   const pedeDocumento = documentosAtivo && mensagemPedeDocumento(mensagem);
-  // EDIÇÃO DE DOCUMENTO EXISTENTE. Quando a conversa já tem documento, um follow-up de revisão
+  // EDIÇÃO DE ARTEFATO EXISTENTE. Quando a conversa já tem artefato, um follow-up de revisão
   // («escreve mais narrativo», «tira os tópicos», «reescreve isso») É pedido de edição — mas não
-  // cita «documento», então `mensagemPedeDocumento` não o apanha e ela voltava a narrar «editei»
-  // sem chamar a `editar_documento`. Aqui a régua baixa: já existe estante nesta conversa, então
+  // cita «artefato», então `mensagemPedeDocumento` não o apanha e ela voltava a narrar «editei»
+  // sem chamar a `editar_artefato`. Aqui a régua baixa: já existe estante nesta conversa, então
   // um verbo de edição/estilo basta para pôr a ferramenta na mão.
   const editaDocumento =
     documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);

@@ -133,7 +133,7 @@ export type OpcoesResponderAgentico = {
   raciocinioEffort?: "low" | "medium" | "high";
   /** Modo pesquisa profunda (opcional): habilita a ferramenta `verificar_fontes` (cruzar fontes). */
   pesquisaProfunda?: boolean;
-  /** Documentos ativos (opcional): habilita a ferramenta `criar_documento`. Só o OrbitLab liga, por ora. */
+  /** Artefatos ativos (opcional): habilita a ferramenta `criar_artefato`. Só o OrbitLab liga, por ora. */
   documentosAtivo?: boolean;
   /** Modo técnico (opcional): troca a voz calorosa/casual de sempre por um registro detalhista, rigoroso e formal (maiúsculas, pontuação, seções). */
   modoTecnico?: boolean;
@@ -271,11 +271,11 @@ function montarMensagemUsuario(
  * basta, é preciso a ORDEM. Aqui a ordem é imperativa e ataca a confabulação de frente.
  */
 const DIRETRIZ_DOCUMENTOS =
-  "DOCUMENTOS ligados: tens ferramentas REAIS para escrever num lugar que FICA (a estante dele), fora do fluxo do chat — `criar_documento`, e para rever o que já existe `listar_documentos`/`ler_documento`/`editar_documento`. " +
-  "Quando ele pedir um documento, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_documento` com o corpo INTEIRO em `conteudo`. Não escrevas o documento na bolha do chat. " +
-  "A REGRA DE OURO: só existe documento se tu CHAMASTE a ferramenta. É PROIBIDO dizer «documento criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste documento nenhum: chama a ferramenta. " +
-  "EDITAR conta a mesma regra: quando ele pedir para MEXER num documento que já existe («revisa», «reescreve mais narrativo», «tira os tópicos», «deixa em prosa») — primeiro `listar_documentos`/`ler_documento` para pegar o corpo atual, depois `editar_documento` com o corpo INTEIRO já reescrito em `conteudo`. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_documento` — se não chamaste, o documento continua igual e ele reabre e não mudou nada. " +
-  "COMO ESCREVER o corpo (isto importa — um documento não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
+  "ARTEFATOS ligados: tens ferramentas REAIS para escrever num lugar que FICA (a estante dele), fora do fluxo do chat — `criar_artefato`, e para rever o que já existe `listar_artefatos`/`ler_artefato`/`editar_artefato`. Um ARTEFATO é algo que TU crias e guardas (texto, plano, carta, resumo); não confundas com `ler_arquivo`, que é para os ARQUIVOS/PDFs que ELE anexou. Ele pode dizer «documento» à toa — trata como artefato na mesma. " +
+  "Quando ele pedir um artefato, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_artefato` com o corpo INTEIRO em `conteudo`. Não escrevas o artefato na bolha do chat. " +
+  "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
+  "EDITAR conta a mesma regra: quando ele pedir para MEXER num artefato que já existe («revisa», «reescreve mais narrativo», «tira os tópicos», «deixa em prosa») — primeiro `listar_artefatos`/`ler_artefato` para pegar o corpo atual, depois `editar_artefato` com o corpo INTEIRO já reescrito em `conteudo`. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_artefato` — se não chamaste, o artefato continua igual e ele reabre e não mudou nada. " +
+  "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
 
 /**
@@ -397,9 +397,9 @@ export async function responderComoLunaAgentico(
           corpos.push(`— id: ${d.id} · «${d.titulo}»\n\n${doc?.conteudo?.trim() || "(vazio)"}`);
         }
         blocoDocumentosDaConversa =
-          "DOCUMENTOS JÁ NA ESTANTE DESTA CONVERSA — o corpo atual de cada um está abaixo. NÃO precisas de `listar_documentos` nem `ler_documento`: já tens o id e o texto aqui. " +
-          "Quando ele pedir para MUDAR um (revisar, «mais narrativo», «tira os tópicos», «reescreve», «encurta») chama `editar_documento` UMA vez, com o MESMO id e o corpo INTEIRO já reescrito em `conteudo`. É um passo só. " +
-          "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_documento` — se não chamaste, o documento continua igual e ele reabre e nada mudou.\n\n" +
+          "ARTEFATOS JÁ NA ESTANTE DESTA CONVERSA — o corpo atual de cada um está abaixo. NÃO precisas de `listar_artefatos` nem `ler_artefato`: já tens o id e o texto aqui. " +
+          "Quando ele pedir para MUDAR um (revisar, «mais narrativo», «tira os tópicos», «reescreve», «encurta») chama `editar_artefato` UMA vez, com o MESMO id e o corpo INTEIRO já reescrito em `conteudo`. É um passo só. " +
+          "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_artefato` — se não chamaste, o artefato continua igual e ele reabre e nada mudou.\n\n" +
           corpos.join("\n\n---\n\n");
       }
     } catch {
@@ -611,35 +611,35 @@ export async function responderComoLunaAgentico(
         nome === "apagar_bloco" ||
         nome === "anotar_ideia" ||
         nome === "ver_ideias" ||
-        nome === "criar_documento" ||
-        nome === "listar_documentos" ||
-        nome === "ler_documento" ||
-        nome === "editar_documento"
+        nome === "criar_artefato" ||
+        nome === "listar_artefatos" ||
+        nome === "ler_artefato" ||
+        nome === "editar_artefato"
       ) {
         if (!opcoes.rotinaDeps) {
           return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
         }
-        if (nome === "criar_documento") {
+        if (nome === "criar_artefato") {
           if (!opcoes.rotinaDeps.criarDocumento) {
-            return "ERRO FATAL: o método de criar documentos não foi implementado neste ambiente.";
+            return "ERRO FATAL: o método de criar artefatos não foi implementado neste ambiente.";
           }
           return criarDocumentoFerramenta({ criarDocumento: opcoes.rotinaDeps.criarDocumento }, args);
         }
-        if (nome === "listar_documentos") {
+        if (nome === "listar_artefatos") {
           if (!opcoes.rotinaDeps.listarDocumentos) {
-            return "ERRO FATAL: o método de listar documentos não foi implementado neste ambiente.";
+            return "ERRO FATAL: o método de listar artefatos não foi implementado neste ambiente.";
           }
           return listarDocumentosFerramenta({ listarDocumentos: opcoes.rotinaDeps.listarDocumentos }, args);
         }
-        if (nome === "ler_documento") {
+        if (nome === "ler_artefato") {
           if (!opcoes.rotinaDeps.lerDocumento) {
-            return "ERRO FATAL: o método de ler documento não foi implementado neste ambiente.";
+            return "ERRO FATAL: o método de ler artefato não foi implementado neste ambiente.";
           }
           return lerDocumentoFerramenta({ lerDocumento: opcoes.rotinaDeps.lerDocumento }, args);
         }
-        if (nome === "editar_documento") {
+        if (nome === "editar_artefato") {
           if (!opcoes.rotinaDeps.editarDocumento) {
-            return "ERRO FATAL: o método de editar documento não foi implementado neste ambiente.";
+            return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
           }
           return editarDocumentoFerramenta({ editarDocumento: opcoes.rotinaDeps.editarDocumento }, args);
         }

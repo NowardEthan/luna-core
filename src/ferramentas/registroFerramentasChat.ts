@@ -491,23 +491,26 @@ const FERRAMENTA_VER_IDEIAS: DefinicaoFerramenta = {
 };
 
 /**
- * Criar documento — só aparece quando o ambiente liga `documentosAtivo` (por ora, só o OrbitLab).
+ * Criar artefato — só aparece quando o ambiente liga `documentosAtivo` (por ora, só o OrbitLab).
  *
  * É a mão que transforma a conversa em algo que FICA: um texto, um plano, um rascunho, uma
- * auditoria — coisa que vale guardar num lugar próprio, fora do fluxo do chat. Trancada por
- * flag porque o core é partilhado com o app estável que gente real usa; sem a flag, o modelo
- * nem sabe que existe.
+ * auditoria — coisa que vale guardar num lugar próprio, fora do fluxo do chat. Chama-se «artefato»
+ * (não «documento/arquivo») de propósito, pra a Luna não o confundir com os PDFs que o usuário
+ * anexa (`ler_arquivo`). Trancada por flag porque o core é partilhado com o app estável que gente
+ * real usa; sem a flag, o modelo nem sabe que existe.
  */
 const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
-  nome: "criar_documento",
+  nome: "criar_artefato",
   descricao:
-    "Cria um DOCUMENTO que fica guardado na estante dele (não é uma mensagem de chat, que se " +
-    "dilui no fluxo). Usa quando ele PEDE («escreve isso num documento», «me faz um texto sobre…», " +
-    "«guarda isso como documento») OU quando o que vocês construíram na conversa é substancial e " +
-    "vale ter um lugar próprio: um texto, um plano, um rascunho, um resumo, uma auditoria. NÃO uses " +
-    "para respostas curtas de conversa — só quando há corpo que vale reabrir depois. O documento " +
-    "nasce desta conversa (aparece como cartão aqui) e ele poderá abrir, ler e editar. Depois de " +
-    "criar, confirma na tua voz que ficou guardado — NÃO repitas o texto inteiro no chat.",
+    "Cria um ARTEFATO que fica guardado na estante dele (não é uma mensagem de chat, que se " +
+    "dilui no fluxo). Um artefato é algo que TU escreves e que fica: um texto, um plano, um " +
+    "rascunho, um resumo, uma auditoria, uma carta. (Não confundas com `ler_arquivo`, que é para " +
+    "os ARQUIVOS/PDFs que ELE anexou — isso ele subiu, o artefato tu crias.) Usa quando ele PEDE " +
+    "(«escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») OU quando o " +
+    "que vocês construíram na conversa é substancial e vale ter um lugar próprio. NÃO uses para " +
+    "respostas curtas de conversa — só quando há corpo que vale reabrir depois. O artefato nasce " +
+    "desta conversa (aparece como cartão aqui) e ele poderá abrir, ler e editar. Depois de criar, " +
+    "confirma na tua voz que ficou guardado — NÃO repitas o texto inteiro no chat.",
   parametros: {
     type: "object",
     properties: {
@@ -518,8 +521,8 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
       conteudo: {
         type: "string",
         description:
-          "O corpo do documento, em Markdown (títulos com #, listas com «- », **negrito**). " +
-          "Escreve o documento INTEIRO aqui — é isto que fica guardado.",
+          "O corpo do artefato, em Markdown (títulos com #, listas com «- », **negrito**). " +
+          "Escreve o artefato INTEIRO aqui — é isto que fica guardado.",
       },
     },
     required: ["titulo", "conteudo"],
@@ -527,45 +530,45 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
 };
 
 /**
- * Listar / ler / editar documentos — o resto da mão, para a Luna AUDITAR e REVISAR o que já
+ * Listar / ler / editar artefatos — o resto da mão, para a Luna AUDITAR e REVISAR o que já
  * existe, não só criar. Mesma trava (`documentosAtivo`): fora do OrbitLab, nem existem.
  */
 const FERRAMENTA_LISTAR_DOCUMENTOS: DefinicaoFerramenta = {
-  nome: "listar_documentos",
+  nome: "listar_artefatos",
   descricao:
-    "Lista os documentos desta conversa (id + título). Usa para saber o que já existe antes de " +
-    "ler ou editar — ex.: quando ele diz «revisa aquele documento» e tu precisas do id. Não repete " +
-    "o corpo; para o texto, usa ler_documento com o id.",
+    "Lista os artefatos desta conversa (id + título). Usa para saber o que já existe antes de " +
+    "ler ou editar — ex.: quando ele diz «revisa aquele artefato» e tu precisas do id. Não repete " +
+    "o corpo; para o texto, usa ler_artefato com o id.",
   parametros: { type: "object", properties: {}, required: [] },
 };
 
 const FERRAMENTA_LER_DOCUMENTO: DefinicaoFerramenta = {
-  nome: "ler_documento",
+  nome: "ler_artefato",
   descricao:
-    "Lê o corpo atual de um documento pelo id (Markdown). Usa ANTES de auditar ou reescrever — " +
+    "Lê o corpo atual de um artefato pelo id (Markdown). Usa ANTES de auditar ou reescrever — " +
     "para reagir ao que ESTÁ lá, não ao que tu achas que está. Se não souberes o id, chama " +
-    "listar_documentos primeiro.",
+    "listar_artefatos primeiro.",
   parametros: {
     type: "object",
     properties: {
-      id: { type: "string", description: "O id do documento (vem do listar_documentos ou de quando o criaste)." },
+      id: { type: "string", description: "O id do artefato (vem do listar_artefatos ou de quando o criaste)." },
     },
     required: ["id"],
   },
 };
 
 const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
-  nome: "editar_documento",
+  nome: "editar_artefato",
   descricao:
-    "Reescreve um documento que já existe — a mão da revisão/auditoria. Usa quando ele pede " +
-    "«ajusta isso», «reescreve o parágrafo tal», «corrige o documento». LÊ o documento antes " +
-    "(ler_documento) e manda o CORPO INTEIRO reescrito em `conteudo` (não um trecho — o conteudo " +
+    "Reescreve um artefato que já existe — a mão da revisão/auditoria. Usa quando ele pede " +
+    "«ajusta isso», «reescreve o parágrafo tal», «corrige o artefato». LÊ o artefato antes " +
+    "(ler_artefato) e manda o CORPO INTEIRO reescrito em `conteudo` (não um trecho — o conteudo " +
     "substitui o texto todo). Opcionalmente muda o `titulo`. Depois, na tua voz, conta o que mudaste " +
     "— NÃO repitas o texto inteiro no chat.",
   parametros: {
     type: "object",
     properties: {
-      id: { type: "string", description: "O id do documento a editar (de listar_documentos)." },
+      id: { type: "string", description: "O id do artefato a editar (de listar_artefatos)." },
       titulo: { type: "string", description: "Novo título (só se for para mudar)." },
       conteudo: {
         type: "string",
