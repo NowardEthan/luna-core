@@ -30,13 +30,14 @@ export type ChatStreamCallbacks = {
   onReasoningDelta?: (delta: string) => void;
   onContentDelta?: (delta: string) => void;
   onAcao?: (acao: {
-    tipo: "inicio_ferramenta" | "fim_ferramenta";
+    tipo: "inicio_ferramenta" | "fim_ferramenta" | "plano";
     ferramenta: string;
     argumentos: Record<string, unknown>;
     rodada: number;
     maxRodadas: number;
     sucesso?: boolean;
     fontes?: Array<{ title?: string; url: string }>;
+    plano?: Array<{ texto: string; feito: boolean }>;
   }) => void;
 };
 
@@ -190,13 +191,14 @@ export type LunaCoreModule = {
         paginas?: number;
       }>;
       onAcaoAgentico?: (acao: {
-        tipo: "inicio_ferramenta" | "fim_ferramenta";
+        tipo: "inicio_ferramenta" | "fim_ferramenta" | "plano";
         ferramenta: string;
         argumentos: Record<string, unknown>;
         rodada: number;
         maxRodadas: number;
         sucesso?: boolean;
         fontes?: Array<{ title?: string; url: string }>;
+        plano?: Array<{ texto: string; feito: boolean }>;
       }) => void;
     },
   ) => Promise<{

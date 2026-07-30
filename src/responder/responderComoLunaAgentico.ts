@@ -50,15 +50,24 @@ export type FonteAgentico = {
 };
 
 const MAX_RODADAS_AGENTICO = 4;
+// Com o plano em passos ligado, uma tarefa legítima gasta rodadas de sobra: `planejar` +
+// (executar+`concluir_passo`) por passo. Um teto de 4 estrangularia a cadeia logo no 2º passo.
+// Só sobe quando o planejamento está ativo (OrbitLab); o chat comum continua enxuto em 4.
+const MAX_RODADAS_PLANEJAMENTO = 12;
+
+/** Um passo do plano do turno: o texto e se já foi marcado como feito. */
+export type PassoPlano = { texto: string; feito: boolean };
 
 export type AcaoAgenticoChat = {
-  tipo: "inicio_ferramenta" | "fim_ferramenta";
+  tipo: "inicio_ferramenta" | "fim_ferramenta" | "plano";
   ferramenta: string;
   argumentos: Record<string, unknown>;
   rodada: number;
   maxRodadas: number;
   sucesso?: boolean;
   fontes?: FonteAgentico[];
+  /** Snapshot da lista de passos — presente só quando `tipo: "plano"`. */
+  plano?: PassoPlano[];
 };
 
 type ResultadoFerramentaAnalisado = { ok: boolean; fontes?: FonteAgentico[] };
@@ -268,6 +277,19 @@ const DIRETRIZ_DOCUMENTOS =
   "EDITAR conta a mesma regra: quando ele pedir para MEXER num documento que já existe («revisa», «reescreve mais narrativo», «tira os tópicos», «deixa em prosa») — primeiro `listar_documentos`/`ler_documento` para pegar o corpo atual, depois `editar_documento` com o corpo INTEIRO já reescrito em `conteudo`. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_documento` — se não chamaste, o documento continua igual e ele reabre e não mudou nada. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
 
+/**
+ * Diretriz do PLANO EM PASSOS — a coleira que segura um modelo one-shot na cadeia. Só entra com
+ * `planejamentoAtivo`. A última frase é deliberada: uma edição de documento que ela JÁ tem à frente
+ * (pré-carregado) é UM salto — não deve virar plano, senão o plano só acrescenta latência ao caso comum.
+ */
+const DIRETRIZ_PLANO =
+  "TAREFA EM PASSOS: se o pedido exigir MAIS DE UMA ação encadeada (ler um documento e depois reescrevê-lo; " +
+  "montar vários blocos; pesquisar e depois cruzar as fontes), começa por `planejar` com 2 a 5 passos curtos — a " +
+  "lista fica visível pra ele conferir o teu caminho. Depois executa UM passo de cada vez e, a cada passo realmente " +
+  "feito, chama `concluir_passo(nº)`; se descobrires que falta algo, `adicionar_passo`. Enquanto houver passo por " +
+  "marcar, NÃO escrevas a resposta final — o teu trabalho não acabou. Para um pedido de UMA ação só (uma pergunta, " +
+  "uma criação simples, uma edição de um documento que já tens à frente), NÃO uses o plano: vai direto, é mais rápido.";
+
 export async function responderComoLunaAgentico(
   mensagemUsuario: string,
   provedor: ProvedorAgente,
@@ -295,10 +317,35 @@ export async function responderComoLunaAgentico(
   };
   const anexosDocumento = opcoes.anexosDocumento ?? [];
   const mapaDocumentos = new Map(anexosDocumento.map((doc) => [doc.id, doc]));
+  // Planejamento em passos: por ora anda junto com os documentos (só o OrbitLab liga). Quando o
+  // seletor de modos chegar ao app, é este flag que o modo agêntico vai acender por conta própria.
+  const planejamentoAtivo = opcoes.documentosAtivo === true;
+  const maxRodadas = planejamentoAtivo ? MAX_RODADAS_PLANEJAMENTO : MAX_RODADAS_AGENTICO;
   const ferramentas = listarFerramentasChat({
     pesquisaProfunda: opcoes.pesquisaProfunda,
     documentosAtivo: opcoes.documentosAtivo,
+    planejamentoAtivo,
   });
+
+  // ── O plano em passos deste turno (estado vivo, morre com o turno) ────────────
+  // A Luna DECLARA os passos (`planejar`), marca um a um (`concluir_passo`), pode acrescentar
+  // (`adicionar_passo`). Cada marca devolve o próximo passo e re-injeta a ordem de continuar —
+  // é isso que traz o modelo tímido de volta ao loop em vez de largar tudo na bolha.
+  const plano: PassoPlano[] = [];
+  const emitirPlano = () => {
+    opcoes.onAcao?.({
+      tipo: "plano",
+      ferramenta: "plano",
+      argumentos: {},
+      rodada: 0,
+      maxRodadas,
+      plano: plano.map((p) => ({ ...p })),
+    });
+  };
+  const renderPlano = (): string =>
+    plano.length === 0
+      ? "(plano vazio)"
+      : "PLANO:\n" + plano.map((p, i) => `${p.feito ? "☑" : "☐"} ${i + 1}. ${p.texto}`).join("\n");
 
   // Dossiê do turno: os trechos que ela realmente leu (web_search/ler_url). É contra ISTO
   // que `verificar_fontes` cruza — não contra o palpite do modelo. Só se acumula no modo
@@ -399,6 +446,8 @@ export async function responderComoLunaAgentico(
     // MODO TÉCNICO (opt-in do usuário): ele PEDIU profundidade, então não esperes o segundo
     // empurrão. A voz calorosa e concisa de sempre continua a ser tu — mas aqui o rigor vem à frente.
     opcoes.modoTecnico ? DIRETRIZ_MODO_TECNICO : null,
+    // A coleira do plano — antes da diretriz de documentos, porque rege COMO ela encadeia as mãos.
+    planejamentoAtivo ? DIRETRIZ_PLANO : null,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
     // O corpo dos documentos desta conversa, já à frente dela (como a rotina já está sempre).
@@ -422,14 +471,14 @@ export async function responderComoLunaAgentico(
     config,
     raciocinioAtivo: opcoes.raciocinioAtivo !== false,
     raciocinioEffort: opcoes.raciocinioEffort,
-    maxRodadas: MAX_RODADAS_AGENTICO,
+    maxRodadas,
     onToolCallStart: (nome, argumentos, rodada) => {
       opcoes.onAcao?.({
         tipo: "inicio_ferramenta",
         ferramenta: nomeFerramentaParaUi(nome, argumentos),
         argumentos,
         rodada,
-        maxRodadas: MAX_RODADAS_AGENTICO,
+        maxRodadas,
       });
     },
     onToolCallComplete: (passo) => {
@@ -443,13 +492,60 @@ export async function responderComoLunaAgentico(
         ferramenta: nomeFerramentaParaUi(passo.ferramenta, passo.argumentos),
         argumentos: passo.argumentos,
         rodada: passo.rodada,
-        maxRodadas: MAX_RODADAS_AGENTICO,
+        maxRodadas,
         sucesso: analise.ok,
         fontes: analise.fontes,
       });
     },
     onRaciocinioRodada: opcoes.onRaciocinio,
     toolExecutor: async (nome, args) => {
+      // ── O plano em passos (a coleira) ───────────────────────────────────────
+      if (nome === "planejar") {
+        const passos = Array.isArray(args.passos)
+          ? args.passos.filter((p): p is string => typeof p === "string" && p.trim().length > 0).map((p) => p.trim())
+          : [];
+        if (passos.length === 0) {
+          return "Passa em `passos` a lista de passos curtos que vais seguir (2 a 5).";
+        }
+        plano.length = 0;
+        for (const texto of passos) plano.push({ texto, feito: false });
+        emitirPlano();
+        return (
+          renderPlano() +
+          "\n\nPlano registrado. Executa AGORA o passo 1 (chama a ferramenta que ele pede) e depois marca com " +
+          "`concluir_passo(1)`. Não escrevas a resposta final enquanto houver ☐."
+        );
+      }
+
+      if (nome === "concluir_passo") {
+        const numero = typeof args.numero === "number" ? Math.trunc(args.numero) : NaN;
+        if (plano.length === 0) {
+          return "Ainda não há plano. Se a tarefa tem vários passos, chama `planejar` primeiro; se não, ignora isto.";
+        }
+        if (!Number.isFinite(numero) || numero < 1 || numero > plano.length) {
+          return `Número inválido — o plano tem ${plano.length} passo(s). ${renderPlano()}`;
+        }
+        plano[numero - 1].feito = true;
+        emitirPlano();
+        const idxRestante = plano.findIndex((p) => !p.feito);
+        if (idxRestante === -1) {
+          return renderPlano() + "\n\nTodos os passos feitos ✓. Agora escreve a resposta final, na tua voz.";
+        }
+        return (
+          renderPlano() +
+          `\n\nAgora o passo ${idxRestante + 1}: ${plano[idxRestante].texto}. Executa-o e marca com ` +
+          `\`concluir_passo(${idxRestante + 1})\`.`
+        );
+      }
+
+      if (nome === "adicionar_passo") {
+        const texto = typeof args.texto === "string" ? args.texto.trim() : "";
+        if (!texto) return "Passa o `texto` do passo a acrescentar.";
+        plano.push({ texto, feito: false });
+        emitirPlano();
+        return renderPlano() + `\n\nPasso acrescentado (nº ${plano.length}).`;
+      }
+
       if (nome === "web_search") {
         const query = typeof args.query === "string" ? args.query.trim() : "";
         if (!query) {

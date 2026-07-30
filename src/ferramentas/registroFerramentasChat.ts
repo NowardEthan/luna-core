@@ -578,9 +578,70 @@ const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * O plano em passos — a coleira que segura um modelo one-shot na cadeia.
+ *
+ * O deepseek-v4-pro dá UMA chamada de ferramenta e sai: criar (1 salto) funciona, mas uma
+ * tarefa de 3 saltos (ler → reescrever → conferir) é abandonada no meio — ele "vê" o resultado
+ * do primeiro, sente-se pronto e escreve a resposta na bolha em vez de continuar. A lista visível
+ * resolve como o Cursor/Antigravity: ele DECLARA os passos, marca um a um, e cada marca devolve
+ * «próximo passo» que o traz de volta ao loop. Um modelo fraco COM lista encadeia como um forte
+ * sem ela. Só aparece com `planejamentoAtivo` (por ora, só o OrbitLab).
+ */
+const FERRAMENTA_PLANEJAR: DefinicaoFerramenta = {
+  nome: "planejar",
+  descricao:
+    "Cria uma LISTA DE PASSOS visível para uma tarefa que precisa de MAIS DE UMA ação encadeada " +
+    "(ex.: ler um documento e depois reescrevê-lo; montar vários blocos; pesquisar e depois cruzar as fontes). " +
+    "Chama isto PRIMEIRO, antes de agir, com 2 a 5 passos curtos e concretos (cada um uma ação). A lista " +
+    "fica à vista dele, para conferir o teu caminho. Depois executa um passo de cada vez e marca com " +
+    "`concluir_passo`. NÃO uses para um pedido de uma ação só — aí vai direto.",
+  parametros: {
+    type: "object",
+    properties: {
+      passos: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Os passos, curtos e na ordem — ex.: [«ler o documento atual», «reescrever em prosa», «conferir o resultado»].",
+      },
+    },
+    required: ["passos"],
+  },
+};
+
+const FERRAMENTA_CONCLUIR_PASSO: DefinicaoFerramenta = {
+  nome: "concluir_passo",
+  descricao:
+    "Marca um passo do plano como FEITO, pelo número (1, 2, 3…). Chama DEPOIS de realmente executar aquele " +
+    "passo. Recebes de volta a lista atualizada e qual é o próximo. Enquanto houver passo por marcar, NÃO " +
+    "escrevas a resposta final — o trabalho não acabou.",
+  parametros: {
+    type: "object",
+    properties: {
+      numero: { type: "number", description: "O número do passo que acabaste de concluir (1 = o primeiro)." },
+    },
+    required: ["numero"],
+  },
+};
+
+const FERRAMENTA_ADICIONAR_PASSO: DefinicaoFerramenta = {
+  nome: "adicionar_passo",
+  descricao:
+    "Acrescenta um passo ao plano quando descobres, no meio do caminho, que falta uma ação. Entra no fim da " +
+    "lista (ainda por fazer). Usa com parcimónia — só quando é mesmo preciso.",
+  parametros: {
+    type: "object",
+    properties: {
+      texto: { type: "string", description: "O passo novo, curto e concreto." },
+    },
+    required: ["texto"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(
-  opcoes: { pesquisaProfunda?: boolean; documentosAtivo?: boolean } = {},
+  opcoes: { pesquisaProfunda?: boolean; documentosAtivo?: boolean; planejamentoAtivo?: boolean } = {},
 ): DefinicaoFerramenta[] {
   const ferramentas = [
     ...FERRAMENTAS_BASE,
@@ -606,6 +667,12 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_LISTAR_DOCUMENTOS);
     ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
+  }
+  // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.
+  if (opcoes.planejamentoAtivo) {
+    ferramentas.push(FERRAMENTA_PLANEJAR);
+    ferramentas.push(FERRAMENTA_CONCLUIR_PASSO);
+    ferramentas.push(FERRAMENTA_ADICIONAR_PASSO);
   }
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
