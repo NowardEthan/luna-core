@@ -24,6 +24,7 @@ import {
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
 import { anotarIdeia, verIdeias } from "../ferramentas/maosDasIdeias.js";
+import { criarDocumento as criarDocumentoFerramenta } from "../ferramentas/maosDosDocumentos.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
@@ -118,6 +119,8 @@ export type OpcoesResponderAgentico = {
   raciocinioEffort?: "low" | "medium" | "high";
   /** Modo pesquisa profunda (opcional): habilita a ferramenta `verificar_fontes` (cruzar fontes). */
   pesquisaProfunda?: boolean;
+  /** Documentos ativos (opcional): habilita a ferramenta `criar_documento`. Só o OrbitLab liga, por ora. */
+  documentosAtivo?: boolean;
   /** Modo técnico (opcional): troca a voz calorosa/casual de sempre por um registro detalhista, rigoroso e formal (maiúsculas, pontuação, seções). */
   modoTecnico?: boolean;
   onAcao?: (acao: AcaoAgenticoChat) => void;
@@ -274,7 +277,10 @@ export async function responderComoLunaAgentico(
   };
   const anexosDocumento = opcoes.anexosDocumento ?? [];
   const mapaDocumentos = new Map(anexosDocumento.map((doc) => [doc.id, doc]));
-  const ferramentas = listarFerramentasChat({ pesquisaProfunda: opcoes.pesquisaProfunda });
+  const ferramentas = listarFerramentasChat({
+    pesquisaProfunda: opcoes.pesquisaProfunda,
+    documentosAtivo: opcoes.documentosAtivo,
+  });
 
   // Dossiê do turno: os trechos que ela realmente leu (web_search/ler_url). É contra ISTO
   // que `verificar_fontes` cruza — não contra o palpite do modelo. Só se acumula no modo
@@ -454,10 +460,17 @@ export async function responderComoLunaAgentico(
         nome === "apagar_rotina" ||
         nome === "apagar_bloco" ||
         nome === "anotar_ideia" ||
-        nome === "ver_ideias"
+        nome === "ver_ideias" ||
+        nome === "criar_documento"
       ) {
         if (!opcoes.rotinaDeps) {
           return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
+        }
+        if (nome === "criar_documento") {
+          if (!opcoes.rotinaDeps.criarDocumento) {
+            return "ERRO FATAL: o método de criar documentos não foi implementado neste ambiente.";
+          }
+          return criarDocumentoFerramenta({ criarDocumento: opcoes.rotinaDeps.criarDocumento }, args);
         }
         if (nome === "anotar_ideia") {
           if (!opcoes.rotinaDeps.criarIdeia) {

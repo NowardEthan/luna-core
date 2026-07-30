@@ -490,9 +490,45 @@ const FERRAMENTA_VER_IDEIAS: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * Criar documento — só aparece quando o ambiente liga `documentosAtivo` (por ora, só o OrbitLab).
+ *
+ * É a mão que transforma a conversa em algo que FICA: um texto, um plano, um rascunho, uma
+ * auditoria — coisa que vale guardar num lugar próprio, fora do fluxo do chat. Trancada por
+ * flag porque o core é partilhado com o app estável que gente real usa; sem a flag, o modelo
+ * nem sabe que existe.
+ */
+const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
+  nome: "criar_documento",
+  descricao:
+    "Cria um DOCUMENTO que fica guardado na estante dele (não é uma mensagem de chat, que se " +
+    "dilui no fluxo). Usa quando ele PEDE («escreve isso num documento», «me faz um texto sobre…», " +
+    "«guarda isso como documento») OU quando o que vocês construíram na conversa é substancial e " +
+    "vale ter um lugar próprio: um texto, um plano, um rascunho, um resumo, uma auditoria. NÃO uses " +
+    "para respostas curtas de conversa — só quando há corpo que vale reabrir depois. O documento " +
+    "nasce desta conversa (aparece como cartão aqui) e ele poderá abrir, ler e editar. Depois de " +
+    "criar, confirma na tua voz que ficou guardado — NÃO repitas o texto inteiro no chat.",
+  parametros: {
+    type: "object",
+    properties: {
+      titulo: {
+        type: "string",
+        description: "Um título curto e claro, como ele o chamaria — ex.: «Política de privacidade», «Plano da semana».",
+      },
+      conteudo: {
+        type: "string",
+        description:
+          "O corpo do documento, em Markdown (títulos com #, listas com «- », **negrito**). " +
+          "Escreve o documento INTEIRO aqui — é isto que fica guardado.",
+      },
+    },
+    required: ["titulo", "conteudo"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(
-  opcoes: { pesquisaProfunda?: boolean } = {},
+  opcoes: { pesquisaProfunda?: boolean; documentosAtivo?: boolean } = {},
 ): DefinicaoFerramenta[] {
   const ferramentas = [
     ...FERRAMENTAS_BASE,
@@ -512,6 +548,10 @@ export function listarFerramentasChat(
     FERRAMENTA_ANOTAR_IDEIA,
     FERRAMENTA_VER_IDEIAS,
   ];
+  // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, a ferramenta nem existe.
+  if (opcoes.documentosAtivo) {
+    ferramentas.push(FERRAMENTA_CRIAR_DOCUMENTO);
+  }
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);
     // Cruzar fontes só faz sentido havendo busca — e só no modo opcional.

@@ -115,6 +115,7 @@ export type LunaCoreModule = {
       raciocinioEffort?: "low" | "medium" | "high";
       pesquisaProfunda?: boolean;
       modoTecnico?: boolean;
+      documentosAtivo?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
       interlocutor?: { uid: string; criador_verificado: boolean; display_name?: string };
@@ -320,6 +321,7 @@ async function prepararChatMobile(
   pesquisaProfunda?: boolean,
   local?: LocalClimaMobile,
   modoTecnico?: boolean,
+  documentosAtivo?: boolean,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -429,6 +431,7 @@ async function prepararChatMobile(
     raciocinioEffort: reasoningEffort,
     pesquisaProfunda: pesquisaProfunda === true,
     modoTecnico: modoTecnico === true,
+    documentosAtivo: documentosAtivo === true,
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -517,6 +520,7 @@ export async function executarChatMobile(
   pesquisaProfunda?: boolean,
   local?: LocalClimaMobile,
   modoTecnico?: boolean,
+  documentosAtivo?: boolean,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -533,6 +537,7 @@ export async function executarChatMobile(
     pesquisaProfunda,
     local,
     modoTecnico,
+    documentosAtivo,
   );
 
   const rodarPipeline = async () => {
@@ -557,6 +562,7 @@ export async function executarChatMobile(
       raciocinioEffort: prep.raciocinioEffort,
       pesquisaProfunda: prep.pesquisaProfunda,
       modoTecnico: prep.modoTecnico,
+      documentosAtivo: prep.documentosAtivo,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
@@ -564,7 +570,7 @@ export async function executarChatMobile(
       rotina,
       rotina_registos: rotinaRegistos,
       // As mãos dela: sem isto, «monta-me a semana» só podia ser encenado.
-      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone) : undefined,
+      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone, sessionId ?? null) : undefined,
       stream: false,
       timeZone: prep.timeZone,
       local: prep.local,
@@ -598,6 +604,7 @@ export async function executarChatMobileStream(
   pesquisaProfunda?: boolean,
   local?: LocalClimaMobile,
   modoTecnico?: boolean,
+  documentosAtivo?: boolean,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -615,6 +622,7 @@ export async function executarChatMobileStream(
       pesquisaProfunda,
       local,
       modoTecnico,
+      documentosAtivo,
     );
   }
 
@@ -633,6 +641,7 @@ export async function executarChatMobileStream(
     pesquisaProfunda,
     local,
     modoTecnico,
+    documentosAtivo,
   );
 
   const rodarPipeline = async () => {
@@ -667,13 +676,14 @@ export async function executarChatMobileStream(
       raciocinioEffort: prep.raciocinioEffort,
       pesquisaProfunda: prep.pesquisaProfunda,
       modoTecnico: prep.modoTecnico,
+      documentosAtivo: prep.documentosAtivo,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
       anexosDocumento: prep.anexosDocumento,
       rotina,
       rotina_registos: rotinaRegistos,
-      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone) : undefined,
+      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone, sessionId ?? null) : undefined,
       stream: true,
       timeZone: prep.timeZone,
       local: prep.local,

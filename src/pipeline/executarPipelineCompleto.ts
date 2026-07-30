@@ -156,6 +156,8 @@ export type OpcoesPipelineCompleto = {
   pesquisaProfunda?: boolean;
   /** Modo técnico (opt-in): registro detalhista/rigoroso, com o rigor à frente do afeto. */
   modoTecnico?: boolean;
+  /** Documentos ativos (opt-in): libera `criar_documento`. Só o OrbitLab liga, por ora. */
+  documentosAtivo?: boolean;
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -314,6 +316,7 @@ export async function executarPipelineCompleto(
   const raciocinioEffort = opcoes.raciocinioEffort;
   const pesquisaProfunda = opcoes.pesquisaProfunda === true;
   const modoTecnico = opcoes.modoTecnico === true;
+  const documentosAtivo = opcoes.documentosAtivo === true;
 
   // V2.3 — atualiza presença: entra no ambiente (detectando transição) e marca conversa ativa
   let estadoPresenca: EstadoPresenca | undefined;
@@ -834,6 +837,11 @@ export async function executarPipelineCompleto(
 
     // P1 camada 3 — rigor: em turno técnico, injeta o protocolo de autocrítica no
     // briefing e baixa a temperatura (consistência > flair). Sem chamada de LLM extra.
+    //
+    // NÃO acoplar o MODO TÉCNICO a isto: medido no p20Tecnico que baixar a temperatura para
+    // 0.35 PIOROU o registo (contraste caiu para −0.67). Temperatura baixa colapsa o modelo
+    // para a voz DOMINANTE — que na Luna é a casual («boa!», «kk») — logo mata a diretriz em
+    // vez de a reforçar. O registo é problema de instrução (a abertura), não de amostragem.
     const rigor = precisaRigor(analise.analise);
     if (process.env.LUNA_DEBUG_CRITICO === "1") {
       console.error(`[rigor] intent=${analise.analise.intencao} rigor=${rigor}`);
@@ -921,6 +929,7 @@ export async function executarPipelineCompleto(
           raciocinioEffort,
           pesquisaProfunda,
           modoTecnico,
+          documentosAtivo,
           onAcao: onAcaoComRegisto,
           // HÍBRIDO: no caminho agêntico NÃO transmitimos o raciocínio cru.
           //
@@ -1009,6 +1018,7 @@ export async function executarPipelineCompleto(
               raciocinioEffort,
               pesquisaProfunda,
               modoTecnico,
+              documentosAtivo,
               onAcao: onAcaoComRegisto,
             })
           : await responderComoLuna(
@@ -1174,6 +1184,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         raciocinioEffort,
         pesquisaProfunda,
         modoTecnico,
+        documentosAtivo,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;

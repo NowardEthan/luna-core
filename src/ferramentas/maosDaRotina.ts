@@ -105,6 +105,9 @@ export type DependenciasRotina = {
   // ── Caixa de Entrada (Ideias) ──
   criarIdeia?: (texto: string) => Promise<string>;
   verIdeias?: () => Promise<any[]>;
+  // ── Estante de Documentos ──
+  // Nasce da conversa: a conversaId já vem presa na closure (montada em maosDaRotina).
+  criarDocumento?: (dados: { titulo: string; conteudo: string }) => Promise<{ id: string; titulo: string }>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

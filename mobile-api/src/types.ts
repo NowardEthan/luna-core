@@ -81,6 +81,8 @@ export const ChatRequestSchema = z.object({
   pesquisaProfunda: z.boolean().optional(),
   /** Modo técnico (opt-in): registro detalhista/rigoroso em vez da voz calorosa de sempre. */
   modoTecnico: z.boolean().optional(),
+  /** Documentos ativos (opt-in): libera a ferramenta `criar_documento`. Só o OrbitLab liga, por ora. */
+  documentosAtivo: z.boolean().optional(),
   /**
    * Anexos visuais (imagem/vídeo) do turno, para a visão agêntica no core.
    *

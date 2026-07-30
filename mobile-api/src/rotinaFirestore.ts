@@ -13,6 +13,7 @@ import {
   type RotinaSetCore,
 } from "../../dist/estado/neuronioRotina.js";
 import { criarIdeia as criarIdeiaNaInbox, lerIdeias } from "./firestoreIdeias.js";
+import { criarDocumento as criarDocumentoNaEstante } from "./firestoreDocumentos.js";
 
 /**
  * A rotina dele, lida do Firestore.
@@ -167,7 +168,12 @@ export async function lerRegistosRotina(db: Firestore, uid: string): Promise<Reg
  * apaga com um toque. Uma companheira que mexe na agenda de alguém tem de deixar rasto:
  * uma alteração invisível na vida de uma pessoa não é ajuda, é intrusão.
  */
-export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
+export function maosDaRotina(
+  db: Firestore,
+  uid: string,
+  timeZone?: string,
+  conversaId?: string | null,
+) {
   return {
     ler: () => lerRotina(db, uid, timeZone),
 
@@ -352,6 +358,17 @@ export function maosDaRotina(db: Firestore, uid: string, timeZone?: string) {
     },
     verIdeias: async () => {
       return lerIdeias(uid);
+    },
+
+    // ── Estante de Documentos ──
+    // Nasce da conversa: o documento já sai preso ao `conversaId` deste turno.
+    criarDocumento: async (dados: { titulo: string; conteudo: string }) => {
+      return criarDocumentoNaEstante(uid, {
+        titulo: dados.titulo,
+        conteudo: dados.conteudo,
+        conversaId: conversaId ?? null,
+        origem: "luna",
+      });
     },
   };
 }
