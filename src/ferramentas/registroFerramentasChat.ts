@@ -526,6 +526,58 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * Listar / ler / editar documentos — o resto da mão, para a Luna AUDITAR e REVISAR o que já
+ * existe, não só criar. Mesma trava (`documentosAtivo`): fora do OrbitLab, nem existem.
+ */
+const FERRAMENTA_LISTAR_DOCUMENTOS: DefinicaoFerramenta = {
+  nome: "listar_documentos",
+  descricao:
+    "Lista os documentos desta conversa (id + título). Usa para saber o que já existe antes de " +
+    "ler ou editar — ex.: quando ele diz «revisa aquele documento» e tu precisas do id. Não repete " +
+    "o corpo; para o texto, usa ler_documento com o id.",
+  parametros: { type: "object", properties: {}, required: [] },
+};
+
+const FERRAMENTA_LER_DOCUMENTO: DefinicaoFerramenta = {
+  nome: "ler_documento",
+  descricao:
+    "Lê o corpo atual de um documento pelo id (Markdown). Usa ANTES de auditar ou reescrever — " +
+    "para reagir ao que ESTÁ lá, não ao que tu achas que está. Se não souberes o id, chama " +
+    "listar_documentos primeiro.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do documento (vem do listar_documentos ou de quando o criaste)." },
+    },
+    required: ["id"],
+  },
+};
+
+const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
+  nome: "editar_documento",
+  descricao:
+    "Reescreve um documento que já existe — a mão da revisão/auditoria. Usa quando ele pede " +
+    "«ajusta isso», «reescreve o parágrafo tal», «corrige o documento». LÊ o documento antes " +
+    "(ler_documento) e manda o CORPO INTEIRO reescrito em `conteudo` (não um trecho — o conteudo " +
+    "substitui o texto todo). Opcionalmente muda o `titulo`. Depois, na tua voz, conta o que mudaste " +
+    "— NÃO repitas o texto inteiro no chat.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do documento a editar (de listar_documentos)." },
+      titulo: { type: "string", description: "Novo título (só se for para mudar)." },
+      conteudo: {
+        type: "string",
+        description:
+          "O corpo INTEIRO reescrito, em Markdown. Substitui todo o texto atual — inclui o que " +
+          "fica, não só o trecho novo.",
+      },
+    },
+    required: ["id"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(
   opcoes: { pesquisaProfunda?: boolean; documentosAtivo?: boolean } = {},
@@ -548,9 +600,12 @@ export function listarFerramentasChat(
     FERRAMENTA_ANOTAR_IDEIA,
     FERRAMENTA_VER_IDEIAS,
   ];
-  // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, a ferramenta nem existe.
+  // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, as ferramentas nem existem.
   if (opcoes.documentosAtivo) {
     ferramentas.push(FERRAMENTA_CRIAR_DOCUMENTO);
+    ferramentas.push(FERRAMENTA_LISTAR_DOCUMENTOS);
+    ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
+    ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
   }
   if (webSearchDisponivel()) {
     ferramentas.push(FERRAMENTA_WEB_SEARCH);

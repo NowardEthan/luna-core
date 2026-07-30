@@ -108,6 +108,14 @@ export type DependenciasRotina = {
   // ── Estante de Documentos ──
   // Nasce da conversa: a conversaId já vem presa na closure (montada em maosDaRotina).
   criarDocumento?: (dados: { titulo: string; conteudo: string }) => Promise<{ id: string; titulo: string }>;
+  // Listar/ler/editar limitam-se aos documentos DESTA conversa (conversaId na closure).
+  listarDocumentos?: () => Promise<Array<{ id: string; titulo: string }>>;
+  lerDocumento?: (id: string) => Promise<{ id: string; titulo: string; conteudo: string } | null>;
+  editarDocumento?: (dados: {
+    id: string;
+    titulo?: string;
+    conteudo?: string;
+  }) => Promise<{ id: string; titulo: string } | null>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

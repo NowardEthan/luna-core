@@ -24,7 +24,12 @@ import {
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
 import { anotarIdeia, verIdeias } from "../ferramentas/maosDasIdeias.js";
-import { criarDocumento as criarDocumentoFerramenta } from "../ferramentas/maosDosDocumentos.js";
+import {
+  criarDocumento as criarDocumentoFerramenta,
+  listarDocumentos as listarDocumentosFerramenta,
+  lerDocumento as lerDocumentoFerramenta,
+  editarDocumento as editarDocumentoFerramenta,
+} from "../ferramentas/maosDosDocumentos.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import { compilarGuiaFerramentasPrompt } from "../personalidade/compilarGuiaFerramentas.js";
@@ -461,7 +466,10 @@ export async function responderComoLunaAgentico(
         nome === "apagar_bloco" ||
         nome === "anotar_ideia" ||
         nome === "ver_ideias" ||
-        nome === "criar_documento"
+        nome === "criar_documento" ||
+        nome === "listar_documentos" ||
+        nome === "ler_documento" ||
+        nome === "editar_documento"
       ) {
         if (!opcoes.rotinaDeps) {
           return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
@@ -471,6 +479,24 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: o método de criar documentos não foi implementado neste ambiente.";
           }
           return criarDocumentoFerramenta({ criarDocumento: opcoes.rotinaDeps.criarDocumento }, args);
+        }
+        if (nome === "listar_documentos") {
+          if (!opcoes.rotinaDeps.listarDocumentos) {
+            return "ERRO FATAL: o método de listar documentos não foi implementado neste ambiente.";
+          }
+          return listarDocumentosFerramenta({ listarDocumentos: opcoes.rotinaDeps.listarDocumentos }, args);
+        }
+        if (nome === "ler_documento") {
+          if (!opcoes.rotinaDeps.lerDocumento) {
+            return "ERRO FATAL: o método de ler documento não foi implementado neste ambiente.";
+          }
+          return lerDocumentoFerramenta({ lerDocumento: opcoes.rotinaDeps.lerDocumento }, args);
+        }
+        if (nome === "editar_documento") {
+          if (!opcoes.rotinaDeps.editarDocumento) {
+            return "ERRO FATAL: o método de editar documento não foi implementado neste ambiente.";
+          }
+          return editarDocumentoFerramenta({ editarDocumento: opcoes.rotinaDeps.editarDocumento }, args);
         }
         if (nome === "anotar_ideia") {
           if (!opcoes.rotinaDeps.criarIdeia) {

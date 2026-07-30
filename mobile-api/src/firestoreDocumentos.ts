@@ -66,3 +66,55 @@ export async function lerDocumentos(uid: string): Promise<Documento[]> {
   const snap = await ref.orderBy("updatedAt", "desc").get();
   return snap.docs.map((d) => d.data() as Documento);
 }
+
+/**
+ * Documentos nascidos de UMA conversa — é o que a Luna enxerga para saber o que pode ler/editar
+ * ali. Filtra por igualdade (`conversaId`) e ordena no cliente, sem exigir índice composto.
+ */
+export async function lerDocumentosDaConversa(
+  uid: string,
+  conversaId: string,
+): Promise<Documento[]> {
+  const db = getAdminFirestore();
+  if (!db) return [];
+  const ref = db.collection("users").doc(uid).collection("documentos");
+  const snap = await ref.where("conversaId", "==", conversaId).get();
+  return snap.docs
+    .map((d) => d.data() as Documento)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * Lê um documento pelo id. `null` se não existe (id inventado / apagado).
+ */
+export async function lerDocumento(uid: string, id: string): Promise<Documento | null> {
+  const db = getAdminFirestore();
+  if (!db) return null;
+  const ref = db.collection("users").doc(uid).collection("documentos").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  return snap.data() as Documento;
+}
+
+/**
+ * Atualiza (reescreve) um documento — a mão da Luna numa auditoria/revisão. Só mexe no que veio
+ * (título e/ou conteúdo), carimba `updatedAt` e marca quem tocou. Devolve `null` se o id não bate.
+ */
+export async function atualizarDocumento(
+  uid: string,
+  id: string,
+  dados: { titulo?: string; conteudo?: string },
+  updatedBy: "luna" | "user",
+): Promise<{ id: string; titulo: string } | null> {
+  const db = getAdminFirestore();
+  if (!db) throw new Error("Firestore admin indisponível — não consegui salvar o documento.");
+  const ref = db.collection("users").doc(uid).collection("documentos").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return null;
+  const atual = snap.data() as Documento;
+  const patch: Record<string, unknown> = { updatedAt: Date.now(), updatedBy };
+  if (typeof dados.titulo === "string" && dados.titulo.trim()) patch.titulo = dados.titulo.trim();
+  if (typeof dados.conteudo === "string") patch.conteudo = dados.conteudo;
+  await ref.update(patch);
+  return { id, titulo: (patch.titulo as string) ?? atual.titulo };
+}

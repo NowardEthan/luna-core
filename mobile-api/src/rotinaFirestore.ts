@@ -13,7 +13,12 @@ import {
   type RotinaSetCore,
 } from "../../dist/estado/neuronioRotina.js";
 import { criarIdeia as criarIdeiaNaInbox, lerIdeias } from "./firestoreIdeias.js";
-import { criarDocumento as criarDocumentoNaEstante } from "./firestoreDocumentos.js";
+import {
+  criarDocumento as criarDocumentoNaEstante,
+  lerDocumentosDaConversa,
+  lerDocumento as lerDocumentoDaEstante,
+  atualizarDocumento,
+} from "./firestoreDocumentos.js";
 
 /**
  * A rotina dele, lida do Firestore.
@@ -369,6 +374,27 @@ export function maosDaRotina(
         conversaId: conversaId ?? null,
         origem: "luna",
       });
+    },
+
+    // A Luna só enxerga (e mexe) os documentos DESTA conversa. Sem conversaId, a estante desta
+    // conversa é vazia — nada a listar, nada a editar por engano.
+    listarDocumentos: async () => {
+      if (!conversaId) return [];
+      const docs = await lerDocumentosDaConversa(uid, conversaId);
+      return docs.map((d) => ({ id: d.id, titulo: d.titulo }));
+    },
+    lerDocumento: async (id: string) => {
+      const doc = await lerDocumentoDaEstante(uid, id);
+      if (!doc) return null;
+      return { id: doc.id, titulo: doc.titulo, conteudo: doc.conteudo };
+    },
+    editarDocumento: async (dados: { id: string; titulo?: string; conteudo?: string }) => {
+      return atualizarDocumento(
+        uid,
+        dados.id,
+        { titulo: dados.titulo, conteudo: dados.conteudo },
+        "luna",
+      );
     },
   };
 }
