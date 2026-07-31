@@ -301,6 +301,92 @@ function acharSecao(secoes: SecaoArtefato[], alvo: string): SecaoArtefato | null
   return null;
 }
 
+/**
+ * Dobra acentos e caixa PRESERVANDO o comprimento (1 code point → 1 code point), para que os
+ * offsets da busca batam de volta no texto ORIGINAL. (O `normalize("NFD")+strip` clássico muda o
+ * comprimento — aqui não pode, senão o recorte do contexto sai deslocado.)
+ */
+function dobrarPreservando(texto: string): string {
+  let saida = "";
+  for (const ch of texto) {
+    const semAcento = ch.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    saida += (semAcento.length === 1 ? semAcento : ch).toLowerCase();
+  }
+  return saida;
+}
+
+/** Recorta uma janela de contexto à volta de uma ocorrência (uma linha, sem quebras). */
+function janelaContexto(texto: string, pos: number, len: number, raio = 60): string {
+  const ini = Math.max(0, pos - raio);
+  const fim = Math.min(texto.length, pos + len + raio);
+  return texto.slice(ini, fim).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * O GREP do artefato — acha ONDE um termo aparece, com o contexto e a seção de cada ocorrência.
+ *
+ * O terceiro órgão do «livro é uma codebase»: depois do mapa (`ler_estrutura`) e de abrir um
+ * capítulo (`ler_secao`), este é o «procurar no projeto». Resolve o caso que a navegação por
+ * seções não cobre — achar uma menção enterrada, inclusive num texto SEM títulos. Busca sem
+ * diferença de acento/maiúsculas, mas devolve o contexto na grafia ORIGINAL (para ela poder
+ * copiar o `trecho_antigo` exato depois). Reaproveita `lerDocumento` — nada de Firestore novo.
+ */
+export async function buscarNoDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const termo = String(args.termo ?? args.texto ?? "").trim();
+  if (!id) {
+    return "ERRO: preciso do id do artefato. Se não souber, chame listar_artefatos primeiro.";
+  }
+  if (!termo) {
+    return "ERRO: preciso do `termo` a procurar no artefato (uma palavra ou expressão).";
+  }
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) {
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
+    }
+    const corpo = doc.conteudo;
+    const base = dobrarPreservando(corpo);
+    const alvo = dobrarPreservando(termo);
+
+    const posicoes: number[] = [];
+    let idx = base.indexOf(alvo);
+    while (idx !== -1 && posicoes.length < 200) {
+      posicoes.push(idx);
+      idx = base.indexOf(alvo, idx + alvo.length);
+    }
+    if (posicoes.length === 0) {
+      return (
+        `Procurei «${termo}» no artefato «${doc.titulo}» (id: ${doc.id}) e não achei nenhuma ocorrência. ` +
+        `Confira a grafia, ou tente uma palavra-chave mais curta.`
+      );
+    }
+
+    const secoes = mapearSecoes(corpo);
+    const MAX = 8;
+    const linhas = posicoes.slice(0, MAX).map((pos, i) => {
+      const sec = secoes.find((s) => pos >= s.inicio && pos < s.fim);
+      const onde = sec ? `seção ${sec.numero} «${sec.titulo}»` : "(abertura)";
+      return `${i + 1}. ${onde}: …${janelaContexto(corpo, pos, termo.length)}…`;
+    });
+    const extra =
+      posicoes.length > MAX ? `\n(+${posicoes.length - MAX} outras — refine o termo se precisar de menos.)` : "";
+
+    return (
+      `Procurei «${termo}» no artefato «${doc.titulo}» (id: ${doc.id}): ${posicoes.length} ocorrência(s).\n` +
+      linhas.join("\n") +
+      extra +
+      `\n\nPara abrir onde está, use ler_secao com o número da seção; para trocar, ` +
+      `editar_trecho_artefato copiando o trecho EXATO à volta (a frase inteira, para ficar único).`
+    );
+  } catch (error) {
+    return `ERRO ao procurar no artefato: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 export async function editarDocumento(
   deps: Pick<DependenciasDocumentos, "editarDocumento">,
   args: Record<string, unknown>,

@@ -673,6 +673,33 @@ const FERRAMENTA_LER_SECAO: DefinicaoFerramenta = {
 };
 
 /**
+ * O GREP do artefato — acha ONDE um termo aparece (contexto + seção de cada ocorrência). O terceiro
+ * órgão do «livro é uma codebase»: cobre o que a navegação por seções não pega — uma menção
+ * enterrada, inclusive num texto SEM títulos. Mesma trava `documentosAtivo`.
+ */
+const FERRAMENTA_BUSCAR: DefinicaoFerramenta = {
+  nome: "buscar_no_artefato",
+  descricao:
+    "Procura um termo DENTRO de um artefato e diz ONDE ele aparece — o contexto à volta e em que " +
+    "seção, de cada ocorrência. É o teu «localizar»: usa quando ele fala de algo específico num " +
+    "artefato grande («onde é que eu falo do orçamento?», «acha a parte do personagem X») e tu " +
+    "precisas de ir direto ao ponto, em vez de ler tudo. Funciona mesmo num texto sem seções. " +
+    "Ignora acentos e maiúsculas na busca. Depois, abre a seção com `ler_secao` ou troca com " +
+    "`editar_trecho_artefato` (copiando o trecho exato do contexto).",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato (de listar_artefatos)." },
+      termo: {
+        type: "string",
+        description: "A palavra ou expressão a procurar (sem diferença de acento/maiúsculas).",
+      },
+    },
+    required: ["id", "termo"],
+  },
+} satisfies DefinicaoFerramenta;
+
+/**
  * O plano em passos — a coleira que segura um modelo one-shot na cadeia.
  *
  * O deepseek-v4-pro dá UMA chamada de ferramenta e sai: criar (1 salto) funciona, mas uma
@@ -762,6 +789,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
     ferramentas.push(FERRAMENTA_LER_ESTRUTURA);
     ferramentas.push(FERRAMENTA_LER_SECAO);
+    ferramentas.push(FERRAMENTA_BUSCAR);
     ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
   }
