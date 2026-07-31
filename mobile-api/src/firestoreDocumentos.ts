@@ -129,6 +129,21 @@ export async function atualizarDocumento(
   const snap = await ref.get();
   if (!snap.exists) return null;
   const atual = snap.data() as Documento;
+
+  // Antes de sobrescrever, guarda um RETRATO do estado atual em `versoes` — a rede de segurança
+  // pra quando a Luna reescreve por cima e o Ethan quer o texto de volta. Só quando o CORPO muda
+  // de fato (renome de título não gera versão) e havia conteúdo. O app lê essa subcoleção no
+  // «Histórico»; as regras do Firestore precisam liberar a subcoleção à parte (não herdam).
+  const mudouConteudo = typeof dados.conteudo === "string" && dados.conteudo !== atual.conteudo;
+  if (mudouConteudo && atual.conteudo.trim()) {
+    await ref.collection("versoes").add({
+      titulo: atual.titulo,
+      conteudo: atual.conteudo,
+      savedAt: atual.updatedAt,
+      autor: atual.updatedBy,
+    });
+  }
+
   const patch: Record<string, unknown> = { updatedAt: Date.now(), updatedBy };
   if (typeof dados.titulo === "string" && dados.titulo.trim()) patch.titulo = dados.titulo.trim();
   if (typeof dados.conteudo === "string") patch.conteudo = dados.conteudo;
