@@ -46,6 +46,69 @@ function contarOcorrencias(texto: string, alvo: string): number {
   return total;
 }
 
+/** Conta palavras de forma tosca-mas-suficiente (para dar a NOÇÃO de tamanho de uma seção). */
+function contarPalavras(texto: string): number {
+  const t = texto.trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+/**
+ * Uma seção do artefato — o «arquivo» dentro da «codebase» que é o texto.
+ *
+ * `numero` é o índice estável (1-based) pela ordem de leitura; `inicio`/`fim` são offsets de
+ * caractere na FONTE (incluem a linha do próprio título), para o degrau seguinte (`ler_secao`)
+ * recortar exatamente aquele pedaço sem tocar no resto.
+ */
+export type SecaoArtefato = {
+  numero: number;
+  nivel: number;
+  titulo: string;
+  palavras: number;
+  inicio: number;
+  fim: number;
+};
+
+/**
+ * O MAPA do artefato — parte o corpo Markdown pelos títulos (`#`..`######`) e devolve a lista de
+ * seções. É o `ls` da árvore: barato, cabe na cabeça dela inteiro, e é o que a deixa navegar um
+ * texto grande sem o carregar todo.
+ *
+ * Cada seção vai de um título até o PRÓXIMO título de qualquer nível (uma fatia contígua da fonte).
+ * Ignora `#` dentro de blocos de código cercados (``` / ~~~), que não são títulos de verdade.
+ * Texto ANTES do primeiro título não é seção (fica de fora do mapa de propósito — v1).
+ */
+export function mapearSecoes(texto: string): SecaoArtefato[] {
+  const linhas = texto.split("\n");
+  const cabecalhos: { nivel: number; titulo: string; inicioLinha: number }[] = [];
+  let emCodigo = false;
+  let offset = 0;
+  for (const linha of linhas) {
+    const semEspaco = linha.trimStart();
+    if (semEspaco.startsWith("```") || semEspaco.startsWith("~~~")) {
+      emCodigo = !emCodigo;
+    } else if (!emCodigo) {
+      const m = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(linha);
+      if (m) {
+        cabecalhos.push({ nivel: m[1].length, titulo: m[2].trim(), inicioLinha: offset });
+      }
+    }
+    offset += linha.length + 1; // +1 pela quebra de linha consumida no split
+  }
+
+  return cabecalhos.map((h, i) => {
+    const inicio = h.inicioLinha;
+    const fim = i + 1 < cabecalhos.length ? cabecalhos[i + 1].inicioLinha : texto.length;
+    return {
+      numero: i + 1,
+      nivel: h.nivel,
+      titulo: h.titulo,
+      palavras: contarPalavras(texto.slice(inicio, fim)),
+      inicio,
+      fim,
+    };
+  });
+}
+
 export async function criarDocumento(
   deps: Pick<DependenciasDocumentos, "criarDocumento">,
   args: Record<string, unknown>,
@@ -112,6 +175,130 @@ export async function lerDocumento(
   } catch (error) {
     return `ERRO ao ler artefato: ${error instanceof Error ? error.message : String(error)}`;
   }
+}
+
+/**
+ * O SUMÁRIO — devolve só o ÍNDICE do artefato (títulos + tamanho de cada seção), sem o corpo.
+ *
+ * É o primeiro órgão do «livro é uma codebase»: em vez de ler o texto inteiro (onde, num artefato
+ * grande, ela satura e confabula), ela olha o mapa — barato — e decide qual seção abrir com
+ * `ler_secao`. Reaproveita `lerDocumento` (nada de Firestore novo); a análise é local.
+ */
+export async function lerEstruturaDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  if (!id) {
+    return "ERRO: preciso do id do artefato. Se não souber, chame listar_artefatos primeiro.";
+  }
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) {
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
+    }
+    const secoes = mapearSecoes(doc.conteudo);
+    const totalPalavras = contarPalavras(doc.conteudo);
+    if (secoes.length === 0) {
+      return (
+        `O artefato «${doc.titulo}» (id: ${doc.id}) não tem seções — nenhum título (## ) pra dividir. ` +
+        `É um texto corrido de ~${totalPalavras} palavras; para o ler use ler_artefato.`
+      );
+    }
+    const linhas = secoes
+      .map((s) => `${s.numero}. ${"  ".repeat(Math.max(0, s.nivel - 1))}${s.titulo}  (~${s.palavras} palavras)`)
+      .join("\n");
+    return (
+      `Estrutura do artefato «${doc.titulo}» (id: ${doc.id}) — o índice, SEM o corpo ` +
+      `(${secoes.length} seções, ~${totalPalavras} palavras no total):\n${linhas}\n\n` +
+      `Para ler UMA seção sem carregar o resto, use ler_secao com este id e o número (ou o título) ` +
+      `da seção. Assim você só puxa o pedaço que precisa — não o artefato inteiro.`
+    );
+  } catch (error) {
+    return `ERRO ao ler a estrutura do artefato: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * ABRIR UM CAPÍTULO — devolve o texto de UMA seção do artefato, sem o resto.
+ *
+ * O segundo órgão do «livro é uma codebase»: depois de olhar o mapa (`ler_estrutura`), ela puxa
+ * só a seção que interessa — como abrir um arquivo da árvore em vez do projeto inteiro. Aceita o
+ * NÚMERO da seção (do índice) ou o TÍTULO (match sem diferença de acento/maiúsculas, e por
+ * prefixo se for único). Reaproveita `lerDocumento`; a fatia é local (offsets de `mapearSecoes`).
+ */
+export async function lerSecaoDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const alvoBruto = args.secao ?? args.numero ?? args.titulo ?? "";
+  const alvo = String(alvoBruto).trim();
+  if (!id) {
+    return "ERRO: preciso do id do artefato. Se não souber, chame listar_artefatos primeiro.";
+  }
+  if (!alvo) {
+    return "ERRO: preciso de qual seção — passe `secao` com o número (ex.: 3) ou o título dela. Veja o índice em ler_estrutura.";
+  }
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) {
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
+    }
+    const secoes = mapearSecoes(doc.conteudo);
+    if (secoes.length === 0) {
+      return (
+        `O artefato «${doc.titulo}» (id: ${doc.id}) não tem seções (nenhum título ## ) — não há o que ` +
+        `fatiar. É um texto corrido; para o ler use ler_artefato.`
+      );
+    }
+
+    const secao = acharSecao(secoes, alvo);
+    if (!secao) {
+      const indice = secoes.map((s) => `${s.numero}. ${s.titulo}`).join("\n");
+      return (
+        `ERRO: não achei a seção «${alvo}» no artefato «${doc.titulo}». O índice é:\n${indice}\n\n` +
+        `Passe o NÚMERO ou o título exato de uma dessas.`
+      );
+    }
+
+    const texto = doc.conteudo.slice(secao.inicio, secao.fim).trim();
+    return (
+      `Artefato «${doc.titulo}» (id: ${doc.id}) — seção ${secao.numero} «${secao.titulo}» ` +
+      `(~${secao.palavras} palavras), só este pedaço:\n\n${texto}\n\n` +
+      `Para mudar um ponto AQUI, use editar_trecho_artefato com este id e o trecho copiado tal e qual. ` +
+      `Para ver outra seção, chame ler_secao de novo; para o mapa todo, ler_estrutura.`
+    );
+  } catch (error) {
+    return `ERRO ao ler a seção do artefato: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/** Normaliza para comparar títulos sem tropeçar em acento/maiúsculas/espaços. */
+function normalizar(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Acha a seção pelo número (1-based) ou pelo título (igual → prefixo único → contém único). */
+function acharSecao(secoes: SecaoArtefato[], alvo: string): SecaoArtefato | null {
+  const comoNumero = Number.parseInt(alvo, 10);
+  if (String(comoNumero) === alvo.trim() && Number.isFinite(comoNumero)) {
+    return secoes.find((s) => s.numero === comoNumero) ?? null;
+  }
+  const n = normalizar(alvo);
+  const exatos = secoes.filter((s) => normalizar(s.titulo) === n);
+  if (exatos.length === 1) return exatos[0];
+  if (exatos.length > 1) return exatos[0]; // desempata pelo primeiro (ordem de leitura)
+  const prefixo = secoes.filter((s) => normalizar(s.titulo).startsWith(n));
+  if (prefixo.length === 1) return prefixo[0];
+  const contem = secoes.filter((s) => normalizar(s.titulo).includes(n));
+  if (contem.length === 1) return contem[0];
+  return null;
 }
 
 export async function editarDocumento(

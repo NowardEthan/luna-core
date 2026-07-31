@@ -625,6 +625,54 @@ const FERRAMENTA_EDITAR_TRECHO: DefinicaoFerramenta = {
 };
 
 /**
+ * O SUMÁRIO — «o livro é uma codebase». Devolve só o índice (títulos + tamanho de cada seção),
+ * não o corpo. É o que deixa a Luna navegar um artefato GRANDE (um livro, um documento longo) sem
+ * o carregar todo e saturar. Mesma trava `documentosAtivo`.
+ */
+const FERRAMENTA_LER_ESTRUTURA: DefinicaoFerramenta = {
+  nome: "ler_estrutura",
+  descricao:
+    "Mostra o ÍNDICE de um artefato — a lista de seções (títulos ## ) com o tamanho de cada uma, " +
+    "SEM trazer o corpo. Usa isto ANTES de ler um artefato GRANDE (um livro, um texto longo, algo " +
+    "com vários capítulos/seções): olhas o mapa — que é barato — e decides que seção abrir, em vez " +
+    "de carregar o texto inteiro (onde te perdes e confabulas). Depois lê só o que precisas com " +
+    "`ler_secao`. Para um artefato pequeno, de uma página, não precisas disto — lê direto.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato (de listar_artefatos ou de quando o criaste)." },
+    },
+    required: ["id"],
+  },
+};
+
+/**
+ * ABRIR UM CAPÍTULO — lê UMA seção do artefato, não o corpo inteiro. O par de `ler_estrutura`:
+ * primeiro olhas o índice, depois puxas só a seção que interessa. Mesma trava `documentosAtivo`.
+ */
+const FERRAMENTA_LER_SECAO: DefinicaoFerramenta = {
+  nome: "ler_secao",
+  descricao:
+    "Lê UMA seção de um artefato — só aquele pedaço, não o texto todo. Usa depois de `ler_estrutura`: " +
+    "viste o índice, agora abres o capítulo que interessa. Diz qual seção em `secao` — o NÚMERO do " +
+    "índice (ex.: 3) ou o TÍTULO dela. É assim que trabalhas um artefato grande sem o carregar " +
+    "inteiro: mapa primeiro, depois a seção. Para mudar algo dentro dela, `editar_trecho_artefato`.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato (de listar_artefatos)." },
+      secao: {
+        type: "string",
+        description:
+          "Qual seção abrir: o NÚMERO do índice (ex.: «3») ou o TÍTULO dela (ex.: «Capítulo 3»). " +
+          "Vê os números e títulos em ler_estrutura primeiro.",
+      },
+    },
+    required: ["id", "secao"],
+  },
+};
+
+/**
  * O plano em passos — a coleira que segura um modelo one-shot na cadeia.
  *
  * O deepseek-v4-pro dá UMA chamada de ferramenta e sai: criar (1 salto) funciona, mas uma
@@ -712,6 +760,8 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_CRIAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_LISTAR_DOCUMENTOS);
     ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
+    ferramentas.push(FERRAMENTA_LER_ESTRUTURA);
+    ferramentas.push(FERRAMENTA_LER_SECAO);
     ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
   }
