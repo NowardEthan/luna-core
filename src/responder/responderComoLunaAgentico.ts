@@ -33,6 +33,7 @@ import {
   buscarNoDocumento as buscarNoDocumentoFerramenta,
   editarDocumento as editarDocumentoFerramenta,
   editarTrechoDocumento as editarTrechoDocumentoFerramenta,
+  anotarCanone as anotarCanoneFerramenta,
   mapearSecoes,
 } from "../ferramentas/maosDosDocumentos.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
@@ -281,6 +282,7 @@ const DIRETRIZ_DOCUMENTOS =
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
   "EDITAR conta a mesma regra, e aqui há DUAS mãos — escolhe a certa. Para mudar um PONTO (uma frase, um parágrafo, um trecho: «corrige essa frase», «reescreve esse parágrafo», «troca esse pedaço») usa `editar_trecho_artefato` — a mão CIRÚRGICA, e a tua ESCOLHA PADRÃO: primeiro `ler_artefato` para ver o texto atual, depois passas só o `trecho_antigo` (cópia EXATA do que está lá) e o `trecho_novo`. O resto do artefato fica intocado — e num texto grande (um livro, um relatório longo) isto é o que te impede de, ao reescrever tudo, alterar sem querer o que não devias. Só usa `editar_artefato` (corpo INTEIRO) quando for mesmo refazer o texto do ZERO. Em ambas: primeiro `listar_artefatos`/`ler_artefato` para o corpo atual. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e não mudou nada. " +
   "ARTEFATO GRANDE (um livro, um texto longo, algo com vários capítulos/seções): NÃO o leias inteiro para mexer num ponto — é assim que te perdes e confabulas. Trata-o como quem abre um projeto de código: primeiro `ler_estrutura` para ver o ÍNDICE (os títulos e o tamanho de cada seção, sem o corpo), depois `ler_secao` para abrir SÓ a seção que interessa (pelo número ou pelo título), e aí `editar_trecho_artefato` para mudar o ponto. Se ele falar de algo ESPECÍFICO e tu não sabes em que seção está («onde é que eu falo do orçamento?», «acha a parte do personagem X»), usa `buscar_no_artefato` — o teu «localizar»: diz-te onde o termo aparece e em que seção, mesmo num texto sem títulos; daí vais direto com `ler_secao`/`editar_trecho_artefato`. O mapa e a busca são baratos; o texto todo é caro e satura. Para um artefato pequeno, de uma página, ignora isto — lê direto com `ler_artefato`. " +
+  "CÂNONE (a bíblia do artefato): num texto grande tu não vês o livro todo — é assim que não saturas — mas por isso podes «esquecer» que a personagem se chama Marina e chamá-la de Mariana no capítulo 8. Para não te contradizeres, guarda os FATOS FIXOS (nomes, idades, relações, decisões de mundo) com `anotar_canone` — é o `AGENTS.md` do teu texto. Quando ele ESTABELECE algo do mundo/personagens, ou quando TU fixas um fato ao escrever, anota-o. Esses fatos aparecem sempre à tua frente (na pré-carga, mesmo quando só vês o índice): antes de escrever ou editar, OLHA o CÂNONE e respeita-o. Passa sempre a lista COMPLETA e atualizada (tu já a tens no contexto) — junta o novo, corrige o que mudou. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
 
@@ -407,6 +409,14 @@ export async function responderComoLunaAgentico(
           const doc = await opcoes.rotinaDeps.lerDocumento(d.id);
           const corpo = doc?.conteudo?.trim() || "";
           const secoes = corpo ? mapearSecoes(corpo) : [];
+          // A BÍBLIA do artefato (fatos fixos) entra SEMPRE, grande ou pequeno — é curta e é ela que
+          // impede a contradição (trocar o nome de um personagem entre capítulos). Fica à frente
+          // dela mesmo quando só damos o índice.
+          const canone = doc?.canone?.trim() || "";
+          const blocoCanone = canone
+            ? `\n  CÂNONE (fatos FIXOS deste artefato — respeita-os, NÃO os contradigas; se um fato mudar, ` +
+              `atualiza com \`anotar_canone\`):\n${canone.split("\n").map((l) => `    ${l}`).join("\n")}`
+            : "";
           if (corpo.length > LIMITE_ARTEFATO_GRANDE && secoes.length > 0) {
             // Grande e seccionado: dá o mapa, não o livro.
             const indice = secoes
@@ -415,11 +425,12 @@ export async function responderComoLunaAgentico(
             partes.push(
               `— id: ${d.id} · «${d.titulo}» — ARTEFATO GRANDE. Em vez do corpo, aqui está só o ÍNDICE ` +
               `(${secoes.length} seções):\n${indice}\n  Para mexer aqui, abre a seção certa com \`ler_secao\` ` +
-              `(este id + o número) e só então \`editar_trecho_artefato\`. NÃO carregues o texto todo.`,
+              `(este id + o número) e só então \`editar_trecho_artefato\`. NÃO carregues o texto todo.` +
+              blocoCanone,
             );
           } else {
             // Pequeno: o corpo inteiro à frente (editar vira um passo só).
-            partes.push(`— id: ${d.id} · «${d.titulo}»\n\n${corpo || "(vazio)"}`);
+            partes.push(`— id: ${d.id} · «${d.titulo}»${blocoCanone}\n\n${corpo || "(vazio)"}`);
           }
         }
         blocoDocumentosDaConversa =
@@ -644,6 +655,7 @@ export async function responderComoLunaAgentico(
         nome === "ler_secao" ||
         nome === "buscar_no_artefato" ||
         nome === "editar_trecho_artefato" ||
+        nome === "anotar_canone" ||
         nome === "editar_artefato"
       ) {
         if (!opcoes.rotinaDeps) {
@@ -702,6 +714,12 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
           }
           return editarDocumentoFerramenta({ editarDocumento: opcoes.rotinaDeps.editarDocumento }, args);
+        }
+        if (nome === "anotar_canone") {
+          if (!opcoes.rotinaDeps.editarDocumento) {
+            return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
+          }
+          return anotarCanoneFerramenta({ editarDocumento: opcoes.rotinaDeps.editarDocumento }, args);
         }
         if (nome === "anotar_ideia") {
           if (!opcoes.rotinaDeps.criarIdeia) {

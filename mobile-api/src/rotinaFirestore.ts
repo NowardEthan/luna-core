@@ -386,13 +386,18 @@ export function maosDaRotina(
     lerDocumento: async (id: string) => {
       const doc = await lerDocumentoDaEstante(uid, id);
       if (!doc) return null;
-      return { id: doc.id, titulo: doc.titulo, conteudo: doc.conteudo };
+      return { id: doc.id, titulo: doc.titulo, conteudo: doc.conteudo, canone: doc.canone ?? "" };
     },
-    editarDocumento: async (dados: { id: string; titulo?: string; conteudo?: string }) => {
+    editarDocumento: async (dados: {
+      id: string;
+      titulo?: string;
+      conteudo?: string;
+      canone?: string;
+    }) => {
       return atualizarDocumento(
         uid,
         dados.id,
-        { titulo: dados.titulo, conteudo: dados.conteudo },
+        { titulo: dados.titulo, conteudo: dados.conteudo, canone: dados.canone },
         "luna",
       );
     },

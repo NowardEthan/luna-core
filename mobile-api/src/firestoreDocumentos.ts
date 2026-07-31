@@ -15,6 +15,13 @@ export type Documento = {
   titulo: string;
   /** Corpo do documento, em Markdown. */
   conteudo: string;
+  /**
+   * A «bíblia» do artefato: os fatos fixos que não podem se contradizer entre trechos (nomes,
+   * idades, relações, decisões de mundo). É METADADO — fica FORA do corpo (não vaza na exportação
+   * nem na contagem de palavras) e é injetado no contexto da Luna a cada turno pra ela não trocar
+   * o nome de um personagem entre um capítulo e outro. Ausente/`""` = sem cânone ainda.
+   */
+  canone?: string;
   /** De qual conversa nasceu (sessão do chat). `null` quando criado fora de uma conversa. */
   conversaId: string | null;
   origem: "luna" | "user";
@@ -120,7 +127,7 @@ export async function lerDocumento(uid: string, id: string): Promise<Documento |
 export async function atualizarDocumento(
   uid: string,
   id: string,
-  dados: { titulo?: string; conteudo?: string },
+  dados: { titulo?: string; conteudo?: string; canone?: string },
   updatedBy: "luna" | "user",
 ): Promise<{ id: string; titulo: string } | null> {
   const db = getAdminFirestore();
@@ -147,6 +154,8 @@ export async function atualizarDocumento(
   const patch: Record<string, unknown> = { updatedAt: Date.now(), updatedBy };
   if (typeof dados.titulo === "string" && dados.titulo.trim()) patch.titulo = dados.titulo.trim();
   if (typeof dados.conteudo === "string") patch.conteudo = dados.conteudo;
+  // Cânone é metadado independente do corpo — não gera versão (o snapshot acima só olha `conteudo`).
+  if (typeof dados.canone === "string") patch.canone = dados.canone;
   await ref.update(patch);
   return { id, titulo: (patch.titulo as string) ?? atual.titulo };
 }

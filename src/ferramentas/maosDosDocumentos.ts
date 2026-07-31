@@ -15,7 +15,13 @@
  * LÊ que não gravou, e não finge que criou.
  */
 export type DocumentoResumo = { id: string; titulo: string };
-export type DocumentoConteudo = { id: string; titulo: string; conteudo: string };
+export type DocumentoConteudo = {
+  id: string;
+  titulo: string;
+  conteudo: string;
+  /** A «bíblia» do artefato — os fatos fixos (nomes, idades, relações). `""` quando ainda não há. */
+  canone?: string;
+};
 
 export type DependenciasDocumentos = {
   criarDocumento: (dados: {
@@ -31,6 +37,8 @@ export type DependenciasDocumentos = {
     id: string;
     titulo?: string;
     conteudo?: string;
+    /** A bíblia dos fatos fixos — metadado, gravado sem tocar no corpo nem gerar versão. */
+    canone?: string;
   }) => Promise<{ id: string; titulo: string } | null>;
 };
 
@@ -419,6 +427,58 @@ export async function editarDocumento(
     );
   } catch (error) {
     return `ERRO ao editar artefato: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * A BÍBLIA do artefato — a memória fixa que impede a contradição entre trechos.
+ *
+ * O problema: num texto grande a Luna não vê o livro todo (é assim que ela não satura). Mas então,
+ * ao escrever o capítulo 8, ela pode «esquecer» que a personagem se chama Marina e chamá-la de
+ * Mariana. É o mesmo furo que um agente de código teria sem um `AGENTS.md` — as regras fixas que
+ * ele relê SEMPRE antes de mexer.
+ *
+ * `anotar_canone` guarda esses fatos fixos (nomes, idades, relações, decisões de mundo) num
+ * METADADO à parte do corpo — logo NÃO vaza na exportação nem na contagem de palavras — e a
+ * pré-carga injeta o cânone no contexto dela a CADA turno naquele artefato (é curto, cabe inteiro
+ * mesmo num livro). Assim os fatos estão sempre à frente dela quando vai escrever ou editar.
+ *
+ * Semântica de ESTADO COMPLETO (igual a editar_documento reescreve o corpo inteiro): a Luna já tem
+ * o cânone atual no contexto; ela passa a lista COMPLETA e atualizada — adiciona o fato novo,
+ * corrige/remove o que mudou — e isto substitui o cânone. Reaproveita a dep `editarDocumento`
+ * (grava só o campo `canone`, sem tocar no corpo nem gerar versão) — nada de Firestore novo.
+ */
+export async function anotarCanone(
+  deps: Pick<DependenciasDocumentos, "editarDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const temNotas = typeof args.notas === "string";
+  const notas = temNotas ? String(args.notas).trim() : "";
+
+  if (!id) {
+    return "ERRO: preciso do id do artefato. Chame listar_artefatos se não souber.";
+  }
+  if (!temNotas) {
+    return (
+      "ERRO: preciso das `notas` — a lista COMPLETA e atualizada dos fatos fixos do artefato " +
+      "(nomes, idades, relações, decisões de mundo). Você já tem o cânone atual no contexto: " +
+      "reescreva-o inteiro com o que mudou. Para limpar o cânone, passe `notas` vazio."
+    );
+  }
+
+  try {
+    const resultado = await deps.editarDocumento({ id, canone: notas });
+    if (!resultado) {
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
+    }
+    return (
+      `Cânone do artefato «${resultado.titulo}» atualizado (id: ${resultado.id}). ` +
+      `Esses fatos vão aparecer à sua frente sempre que mexer neste artefato — respeite-os para ` +
+      `não se contradizer. Conte ao Ethan, na sua voz, o que você fixou — sem repetir a lista toda.`
+    );
+  } catch (error) {
+    return `ERRO ao anotar o cânone: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 

@@ -700,6 +700,36 @@ const FERRAMENTA_BUSCAR: DefinicaoFerramenta = {
 } satisfies DefinicaoFerramenta;
 
 /**
+ * A bíblia do artefato — os fatos fixos que não podem se contradizer entre trechos. É o `AGENTS.md`
+ * do texto: as regras que ela relê SEMPRE antes de mexer, injetadas no contexto a cada turno. Mesma
+ * trava `documentosAtivo`.
+ */
+const FERRAMENTA_ANOTAR_CANONE: DefinicaoFerramenta = {
+  nome: "anotar_canone",
+  descricao:
+    "Guarda os FATOS FIXOS de um artefato — os nomes, idades, relações e decisões de mundo que não " +
+    "podem se contradizer entre um trecho e outro (ex.: «Marina: arquiteta, 30 anos, mora em Lisboa; " +
+    "Pedro é irmão dela»). Esses fatos aparecem à tua frente sempre que mexeres neste artefato, mesmo " +
+    "num livro grande onde só vês o índice — é assim que não trocas o nome de um personagem entre " +
+    "capítulos. Passa a lista COMPLETA e atualizada (tu já tens o cânone atual no contexto): junta o " +
+    "fato novo, corrige o que mudou. Usa quando ele ESTABELECE algo do mundo/personagens, ou quando " +
+    "tu mesma fixas um fato ao escrever.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato (de listar_artefatos)." },
+      notas: {
+        type: "string",
+        description:
+          "A lista COMPLETA e atualizada dos fatos fixos, em Markdown curto (um fato por linha). " +
+          "Substitui o cânone anterior — reescreve-o inteiro com o que mudou.",
+      },
+    },
+    required: ["id", "notas"],
+  },
+} satisfies DefinicaoFerramenta;
+
+/**
  * O plano em passos — a coleira que segura um modelo one-shot na cadeia.
  *
  * O deepseek-v4-pro dá UMA chamada de ferramenta e sai: criar (1 salto) funciona, mas uma
@@ -792,6 +822,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_BUSCAR);
     ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
+    ferramentas.push(FERRAMENTA_ANOTAR_CANONE);
   }
   // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.
   if (opcoes.planejamentoAtivo) {
