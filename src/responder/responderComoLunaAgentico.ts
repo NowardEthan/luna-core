@@ -32,6 +32,7 @@ import {
   lerSecaoDocumento as lerSecaoDocumentoFerramenta,
   editarDocumento as editarDocumentoFerramenta,
   editarTrechoDocumento as editarTrechoDocumentoFerramenta,
+  mapearSecoes,
 } from "../ferramentas/maosDosDocumentos.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
@@ -381,11 +382,16 @@ export async function responderComoLunaAgentico(
     return alvo?.mimeType?.startsWith("video/") ? "ver_video" : nome;
   };
 
-  // Pré-carrega os documentos DESTA conversa (id + título + corpo atual) direto no contexto.
+  // Pré-carrega os documentos DESTA conversa direto no contexto.
   // Sem isto, EDITAR exige uma cadeia listar→ler→editar que o deepseek abandona no meio: faz UMA
   // chamada (o `ler`), "vê" o corpo, sente-se pronto e escreve a revisão NA BOLHA em vez de gravar.
-  // Com o corpo já à frente, editar vira UM passo só (`editar_documento`) — a mesma ergonomia da
-  // criação, que já funciona. Só no OrbitLab (documentosAtivo) e só quando a conversa tem estante.
+  // Com o corpo já à frente, editar vira UM passo só — a mesma ergonomia da criação.
+  //
+  // MAS num artefato GRANDE (um livro, um texto longo), despejar o corpo inteiro é o que a faz
+  // saturar e confabular. Então aqui aplicamos o «livro é uma codebase»: pequeno → corpo inteiro
+  // (barato, cômodo); grande com seções → só o ÍNDICE (o mapa), e ela abre a seção certa com
+  // `ler_secao` antes de mexer. Só no OrbitLab (documentosAtivo) e só quando a conversa tem estante.
+  const LIMITE_ARTEFATO_GRANDE = 6000; // caracteres — acima disto, injeta o MAPA em vez do corpo
   let blocoDocumentosDaConversa: string | null = null;
   if (
     opcoes.documentosAtivo &&
@@ -395,16 +401,31 @@ export async function responderComoLunaAgentico(
     try {
       const lista = await opcoes.rotinaDeps.listarDocumentos();
       if (lista.length > 0) {
-        const corpos: string[] = [];
+        const partes: string[] = [];
         for (const d of lista.slice(0, 3)) {
           const doc = await opcoes.rotinaDeps.lerDocumento(d.id);
-          corpos.push(`— id: ${d.id} · «${d.titulo}»\n\n${doc?.conteudo?.trim() || "(vazio)"}`);
+          const corpo = doc?.conteudo?.trim() || "";
+          const secoes = corpo ? mapearSecoes(corpo) : [];
+          if (corpo.length > LIMITE_ARTEFATO_GRANDE && secoes.length > 0) {
+            // Grande e seccionado: dá o mapa, não o livro.
+            const indice = secoes
+              .map((s) => `  ${s.numero}. ${"  ".repeat(Math.max(0, s.nivel - 1))}${s.titulo} (~${s.palavras} palavras)`)
+              .join("\n");
+            partes.push(
+              `— id: ${d.id} · «${d.titulo}» — ARTEFATO GRANDE. Em vez do corpo, aqui está só o ÍNDICE ` +
+              `(${secoes.length} seções):\n${indice}\n  Para mexer aqui, abre a seção certa com \`ler_secao\` ` +
+              `(este id + o número) e só então \`editar_trecho_artefato\`. NÃO carregues o texto todo.`,
+            );
+          } else {
+            // Pequeno: o corpo inteiro à frente (editar vira um passo só).
+            partes.push(`— id: ${d.id} · «${d.titulo}»\n\n${corpo || "(vazio)"}`);
+          }
         }
         blocoDocumentosDaConversa =
-          "ARTEFATOS JÁ NA ESTANTE DESTA CONVERSA — o corpo atual de cada um está abaixo. NÃO precisas de `listar_artefatos` nem `ler_artefato`: já tens o id e o texto aqui. " +
-          "Como já tens o texto à frente, para mudar um PONTO usa `editar_trecho_artefato` (a mão cirúrgica): copia daqui o `trecho_antigo` EXATO (a frase/parágrafo que sai) e passa o `trecho_novo`. Só aquele ponto muda, o resto fica intacto — não reescrevas o texto todo só para trocar um pedaço. Reserva `editar_artefato` (corpo INTEIRO reescrito, MESMO id) para quando for refazer tudo do zero. É um passo só. " +
+          "ARTEFATOS JÁ NA ESTANTE DESTA CONVERSA. Para cada um abaixo: se vês o CORPO, já o tens — não precisas de `ler_artefato`. Se vês só o ÍNDICE (artefato grande), abre a seção que precisas com `ler_secao` ANTES de mexer — não carregues o texto todo (é assim que te perdes). " +
+          "Para mudar um PONTO usa `editar_trecho_artefato` (a mão cirúrgica): copia o `trecho_antigo` EXATO (a frase/parágrafo que sai) e passa o `trecho_novo`. Só aquele ponto muda, o resto fica intacto. Reserva `editar_artefato` (corpo INTEIRO reescrito, MESMO id) para refazer tudo do zero. " +
           "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e nada mudou.\n\n" +
-          corpos.join("\n\n---\n\n");
+          partes.join("\n\n---\n\n");
       }
     } catch {
       // Silencioso: sem o bloco, ela cai no fluxo normal listar→ler→editar.
