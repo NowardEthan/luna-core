@@ -560,11 +560,13 @@ const FERRAMENTA_LER_DOCUMENTO: DefinicaoFerramenta = {
 const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
   nome: "editar_artefato",
   descricao:
-    "Reescreve um artefato que já existe — a mão da revisão/auditoria. Usa quando ele pede " +
-    "«ajusta isso», «reescreve o parágrafo tal», «corrige o artefato». LÊ o artefato antes " +
-    "(ler_artefato) e manda o CORPO INTEIRO reescrito em `conteudo` (não um trecho — o conteudo " +
-    "substitui o texto todo). Opcionalmente muda o `titulo`. Depois, na tua voz, conta o que mudaste " +
-    "— NÃO repitas o texto inteiro no chat.",
+    "Reescreve um artefato do ZERO — o corpo INTEIRO. Usa isto SÓ quando for mesmo refazer tudo " +
+    "(mudar o título, ou reescrever o texto todo de cabo a rabo). Para mudar UM ponto — uma frase, " +
+    "um parágrafo, um trecho — NÃO uses isto: usa `editar_trecho_artefato`, que troca só aquele " +
+    "pedaço e deixa o resto intocado (num texto grande, reescrever tudo é onde tu alteras sem querer " +
+    "o que não devias). LÊ o artefato antes (ler_artefato) e manda o CORPO INTEIRO reescrito em " +
+    "`conteudo`. Opcionalmente muda o `titulo`. Depois, na tua voz, conta o que mudaste — NÃO " +
+    "repitas o texto inteiro no chat.",
   parametros: {
     type: "object",
     properties: {
@@ -578,6 +580,47 @@ const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
       },
     },
     required: ["id"],
+  },
+};
+
+/**
+ * A mão CIRÚRGICA — edita um PONTO do artefato sem reescrever o resto. O «Edit tool» do código
+ * trazido pra cá: é a forma PREFERIDA de mexer num artefato que já existe (menos tokens, e o
+ * que ela não re-emite não pode ser corrompido). Mesma trava `documentosAtivo`.
+ */
+const FERRAMENTA_EDITAR_TRECHO: DefinicaoFerramenta = {
+  nome: "editar_trecho_artefato",
+  descricao:
+    "Edita um PONTO específico de um artefato sem reescrever o resto — a mão cirúrgica, e a forma " +
+    "PREFERIDA de mexer num artefato que já existe. Em vez de mandar o corpo inteiro (onde, num " +
+    "texto grande, é fácil alterar sem querer o que não devia), tu passas só o `trecho_antigo` — " +
+    "uma cópia EXATA do que está lá agora — e o `trecho_novo` que entra no lugar. O resto do " +
+    "artefato fica intocado, literalmente não pode ser corrompido, porque nem passou por ti. Usa " +
+    "para corrigir uma frase, trocar um parágrafo, ajustar um ponto: «muda aquela frase», " +
+    "«reescreve esse parágrafo», «corrige isso aqui». LÊ o artefato antes (ler_artefato) para " +
+    "copiar o trecho tal e qual. O `trecho_antigo` tem de ser ÚNICO no texto — se aparecer mais de " +
+    "uma vez, a ferramenta recusa; então alarga-o com mais contexto à volta até ficar único. (Só " +
+    "reescreve o corpo INTEIRO com `editar_artefato` quando for mesmo refazer tudo do zero.) " +
+    "Depois, na tua voz, conta o que mudaste — não repitas o texto no chat.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato a editar (de listar_artefatos)." },
+      trecho_antigo: {
+        type: "string",
+        description:
+          "O texto EXATO que já está no artefato e vai sair — copiado tal e qual (mesma pontuação, " +
+          "acentos, espaços e quebras de linha). Tem de ser ÚNICO no artefato; se não for, inclui " +
+          "mais texto à volta (a frase ou o parágrafo inteiro) até ficar único.",
+      },
+      trecho_novo: {
+        type: "string",
+        description:
+          "O texto que entra no lugar do `trecho_antigo`. Pode ser vazio para APAGAR o trecho. " +
+          "Escreve só este pedaço — o resto do artefato não muda.",
+      },
+    },
+    required: ["id", "trecho_antigo", "trecho_novo"],
   },
 };
 
@@ -669,6 +712,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_CRIAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_LISTAR_DOCUMENTOS);
     ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
+    ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
   }
   // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.

@@ -29,6 +29,7 @@ import {
   listarDocumentos as listarDocumentosFerramenta,
   lerDocumento as lerDocumentoFerramenta,
   editarDocumento as editarDocumentoFerramenta,
+  editarTrechoDocumento as editarTrechoDocumentoFerramenta,
 } from "../ferramentas/maosDosDocumentos.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
@@ -274,7 +275,7 @@ const DIRETRIZ_DOCUMENTOS =
   "ARTEFATOS ligados: tens ferramentas REAIS para escrever num lugar que FICA (a estante dele), fora do fluxo do chat — `criar_artefato`, e para rever o que já existe `listar_artefatos`/`ler_artefato`/`editar_artefato`. Um ARTEFATO é algo que TU crias e guardas (texto, plano, carta, resumo); não confundas com `ler_arquivo`, que é para os ARQUIVOS/PDFs que ELE anexou. Ele pode dizer «documento» à toa — trata como artefato na mesma. " +
   "Quando ele pedir um artefato, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_artefato` com o corpo INTEIRO em `conteudo`. Não escrevas o artefato na bolha do chat. " +
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
-  "EDITAR conta a mesma regra: quando ele pedir para MEXER num artefato que já existe («revisa», «reescreve mais narrativo», «tira os tópicos», «deixa em prosa») — primeiro `listar_artefatos`/`ler_artefato` para pegar o corpo atual, depois `editar_artefato` com o corpo INTEIRO já reescrito em `conteudo`. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_artefato` — se não chamaste, o artefato continua igual e ele reabre e não mudou nada. " +
+  "EDITAR conta a mesma regra, e aqui há DUAS mãos — escolhe a certa. Para mudar um PONTO (uma frase, um parágrafo, um trecho: «corrige essa frase», «reescreve esse parágrafo», «troca esse pedaço») usa `editar_trecho_artefato` — a mão CIRÚRGICA, e a tua ESCOLHA PADRÃO: primeiro `ler_artefato` para ver o texto atual, depois passas só o `trecho_antigo` (cópia EXATA do que está lá) e o `trecho_novo`. O resto do artefato fica intocado — e num texto grande (um livro, um relatório longo) isto é o que te impede de, ao reescrever tudo, alterar sem querer o que não devias. Só usa `editar_artefato` (corpo INTEIRO) quando for mesmo refazer o texto do ZERO. Em ambas: primeiro `listar_artefatos`/`ler_artefato` para o corpo atual. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e não mudou nada. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
 
@@ -398,8 +399,8 @@ export async function responderComoLunaAgentico(
         }
         blocoDocumentosDaConversa =
           "ARTEFATOS JÁ NA ESTANTE DESTA CONVERSA — o corpo atual de cada um está abaixo. NÃO precisas de `listar_artefatos` nem `ler_artefato`: já tens o id e o texto aqui. " +
-          "Quando ele pedir para MUDAR um (revisar, «mais narrativo», «tira os tópicos», «reescreve», «encurta») chama `editar_artefato` UMA vez, com o MESMO id e o corpo INTEIRO já reescrito em `conteudo`. É um passo só. " +
-          "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado `editar_artefato` — se não chamaste, o artefato continua igual e ele reabre e nada mudou.\n\n" +
+          "Como já tens o texto à frente, para mudar um PONTO usa `editar_trecho_artefato` (a mão cirúrgica): copia daqui o `trecho_antigo` EXATO (a frase/parágrafo que sai) e passa o `trecho_novo`. Só aquele ponto muda, o resto fica intacto — não reescrevas o texto todo só para trocar um pedaço. Reserva `editar_artefato` (corpo INTEIRO reescrito, MESMO id) para quando for refazer tudo do zero. É um passo só. " +
+          "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e nada mudou.\n\n" +
           corpos.join("\n\n---\n\n");
       }
     } catch {
@@ -614,6 +615,7 @@ export async function responderComoLunaAgentico(
         nome === "criar_artefato" ||
         nome === "listar_artefatos" ||
         nome === "ler_artefato" ||
+        nome === "editar_trecho_artefato" ||
         nome === "editar_artefato"
       ) {
         if (!opcoes.rotinaDeps) {
@@ -636,6 +638,18 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: o método de ler artefato não foi implementado neste ambiente.";
           }
           return lerDocumentoFerramenta({ lerDocumento: opcoes.rotinaDeps.lerDocumento }, args);
+        }
+        if (nome === "editar_trecho_artefato") {
+          if (!opcoes.rotinaDeps.editarDocumento || !opcoes.rotinaDeps.lerDocumento) {
+            return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
+          }
+          return editarTrechoDocumentoFerramenta(
+            {
+              lerDocumento: opcoes.rotinaDeps.lerDocumento,
+              editarDocumento: opcoes.rotinaDeps.editarDocumento,
+            },
+            args,
+          );
         }
         if (nome === "editar_artefato") {
           if (!opcoes.rotinaDeps.editarDocumento) {

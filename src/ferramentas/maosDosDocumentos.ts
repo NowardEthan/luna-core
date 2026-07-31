@@ -34,6 +34,18 @@ export type DependenciasDocumentos = {
   }) => Promise<{ id: string; titulo: string } | null>;
 };
 
+/** Conta quantas vezes `alvo` aparece (sem sobreposição) em `texto`. */
+function contarOcorrencias(texto: string, alvo: string): number {
+  if (!alvo) return 0;
+  let total = 0;
+  let idx = texto.indexOf(alvo);
+  while (idx !== -1) {
+    total += 1;
+    idx = texto.indexOf(alvo, idx + alvo.length);
+  }
+  return total;
+}
+
 export async function criarDocumento(
   deps: Pick<DependenciasDocumentos, "criarDocumento">,
   args: Record<string, unknown>,
@@ -134,5 +146,84 @@ export async function editarDocumento(
     );
   } catch (error) {
     return `ERRO ao editar artefato: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * A mão CIRÚRGICA — edita UM ponto do artefato sem reescrever o resto.
+ *
+ * É o «Edit tool» do código trazido pra cá: em vez de a Luna re-emitir o corpo inteiro (onde,
+ * num texto grande, ela altera sem querer o que não devia — a confabulação por reescrita), ela
+ * passa só o `trecho_antigo` (cópia EXATA do que está lá) e o `trecho_novo`. O que ela não
+ * re-emite não pode ser corrompido, porque nunca passou por ela.
+ *
+ * Falha SEGURA: exige match ÚNICO. Se o trecho não existe (0) ou é ambíguo (>1), recusa e não
+ * grava nada — devolve um ERRO que a orienta a corrigir (copiar exato / alargar o contexto),
+ * exatamente como o Edit do código se comporta. E o histórico de versões continua a rede: mesmo
+ * uma troca infeliz é restaurável.
+ *
+ * Reaproveita as deps que já existem — LÊ (para achar e validar o trecho) e EDITA (grava o corpo
+ * já com a troca feita). Nada de Firestore novo.
+ */
+export async function editarTrechoDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento" | "editarDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const trechoAntigo = typeof args.trecho_antigo === "string" ? args.trecho_antigo : "";
+  const trechoNovo = typeof args.trecho_novo === "string" ? args.trecho_novo : "";
+
+  if (!id) {
+    return "ERRO: preciso do id do artefato a editar. Chame listar_artefatos se não souber.";
+  }
+  if (!trechoAntigo) {
+    return "ERRO: preciso do `trecho_antigo` — o texto EXATO que já está no artefato e vai sair. Chame ler_artefato para copiá-lo tal e qual.";
+  }
+  if (trechoAntigo === trechoNovo) {
+    return "ERRO: o `trecho_novo` é igual ao `trecho_antigo` — nada mudaria.";
+  }
+
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) {
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
+    }
+
+    const corpo = doc.conteudo;
+    const ocorrencias = contarOcorrencias(corpo, trechoAntigo);
+    if (ocorrencias === 0) {
+      return (
+        `ERRO: não encontrei esse trecho no artefato «${doc.titulo}». O \`trecho_antigo\` tem de ser ` +
+        `uma cópia EXATA do que está lá (mesma pontuação, acentos, espaços e quebras de linha). ` +
+        `Chame ler_artefato para ver o texto atual e copie o trecho tal e qual.`
+      );
+    }
+    if (ocorrencias > 1) {
+      return (
+        `ERRO: esse trecho aparece ${ocorrencias} vezes no artefato «${doc.titulo}» — não dá para saber ` +
+        `qual mudar. Alargue o \`trecho_antigo\` com mais texto à volta (a frase ou o parágrafo inteiro) ` +
+        `até ficar ÚNICO, e tente de novo.`
+      );
+    }
+
+    // Match único garantido: recorta pelo índice (evita as armadilhas de $ do String.replace).
+    const inicio = corpo.indexOf(trechoAntigo);
+    const novoCorpo = corpo.slice(0, inicio) + trechoNovo + corpo.slice(inicio + trechoAntigo.length);
+
+    if (novoCorpo.trim().length === 0) {
+      return "ERRO: essa troca deixaria o artefato vazio. Um artefato não pode ficar sem corpo.";
+    }
+
+    const resultado = await deps.editarDocumento({ id, conteudo: novoCorpo });
+    if (!resultado) {
+      return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
+    }
+    return (
+      `Trecho trocado no artefato «${resultado.titulo}» (id: ${resultado.id}) — só aquele ponto mudou, ` +
+      `o resto ficou intacto. O cartão nesta conversa já mostra a versão nova. ` +
+      `Conte ao Ethan, na sua voz, o que você mudou — não repita o texto inteiro aqui.`
+    );
+  } catch (error) {
+    return `ERRO ao editar trecho: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
