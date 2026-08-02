@@ -35,6 +35,9 @@ const FERRAMENTAS_DE_ACAO = new Set([
   "apagar_rotina",
   "anotar_ideia",
   "registrar_lancamento",
+  "gerir_recorrente",
+  "gerir_carteira",
+  "transferir",
 ]);
 
 /**

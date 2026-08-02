@@ -1,5 +1,5 @@
 /**
- * Mãos de Finanças — registrar lançamento e resumir o mês.
+ * Mãos de Finanças — registrar, listar, resumir, recorrentes, carteiras, transferir.
  * Firestore vive no mobile-api (deps injetadas); aqui só a prosa pro modelo.
  */
 
@@ -11,9 +11,12 @@ export type DependenciasFinancas = {
     categoria: string;
     carteiraId: string;
     dataMs?: number;
+    recorrenteId?: string | null;
+    pago?: boolean;
   }) => Promise<string>;
   listarLancamentos: () => Promise<
     Array<{
+      id?: string;
       tipo: "entrada" | "saida";
       valorCentavos: number;
       data: number;
@@ -23,7 +26,78 @@ export type DependenciasFinancas = {
       pago: boolean;
     }>
   >;
-  listarCarteiras: () => Promise<Array<{ id: string; apelido: string }>>;
+  listarCarteiras: () => Promise<
+    Array<{ id: string; apelido: string; tipo?: string }>
+  >;
+  criarCarteira?: (dados: {
+    tipo: string;
+    apelido: string;
+    banco?: string | null;
+    cor?: string;
+    ultimos4?: string | null;
+    limiteCentavos?: number | null;
+    fechamentoDia?: number | null;
+    vencimentoDia?: number | null;
+    saldoInicialCentavos?: number;
+  }) => Promise<string>;
+  atualizarCarteira?: (
+    id: string,
+    patch: Partial<{
+      tipo: string;
+      apelido: string;
+      banco: string | null;
+      cor: string;
+      ultimos4: string | null;
+      limiteCentavos: number | null;
+      fechamentoDia: number | null;
+      vencimentoDia: number | null;
+      saldoInicialCentavos: number;
+    }>,
+  ) => Promise<void>;
+  arquivarCarteira?: (id: string) => Promise<void>;
+  listarRecorrentes?: () => Promise<
+    Array<{
+      id: string;
+      tipo: "entrada" | "saida";
+      valorCentavos: number;
+      diaDoMes: number;
+      categoria: string;
+      carteiraId: string;
+      apelido: string;
+      variavel: boolean;
+      ativo: boolean;
+    }>
+  >;
+  criarRecorrente?: (dados: {
+    tipo: "entrada" | "saida";
+    valorCentavos: number;
+    diaDoMes: number;
+    categoria: string;
+    carteiraId: string;
+    apelido: string;
+    variavel?: boolean;
+  }) => Promise<string>;
+  atualizarRecorrente?: (
+    id: string,
+    patch: Partial<{
+      tipo: "entrada" | "saida";
+      valorCentavos: number;
+      diaDoMes: number;
+      categoria: string;
+      carteiraId: string;
+      apelido: string;
+      variavel: boolean;
+      ativo: boolean;
+    }>,
+  ) => Promise<void>;
+  criarTransferencia?: (dados: {
+    deCarteiraId: string;
+    paraCarteiraId: string;
+    valorCentavos: number;
+    dataMs?: number;
+    motivo?: string | null;
+    nota?: string | null;
+  }) => Promise<string>;
   reaisParaCentavos: (valor: number) => number;
   faixaPeriodo: (periodo: "dia" | "semana" | "mes") => { inicio: number; fim: number };
 };
@@ -39,20 +113,28 @@ const CATEGORIAS = new Set([
   "outros",
 ]);
 
+const TIPOS_CARTEIRA = new Set(["conta_debito", "cartao_credito", "dinheiro"]);
+const MOTIVOS_TRANSF = new Set(["pagar_fatura", "reserva", "ajuste"]);
+
 function formatarReais(centavos: number): string {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatarDia(ms: number): string {
+  return new Date(ms).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 function parseDataBr(texto: string | undefined): number | undefined {
   if (!texto || !texto.trim()) return undefined;
   const t = texto.trim();
-  // YYYY-MM-DD
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
   if (iso) {
     const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
     return d.getTime();
   }
-  // DD/MM ou DD/MM/YYYY
   const br = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(t);
   if (br) {
     const dia = Number(br[1]);
@@ -62,6 +144,37 @@ function parseDataBr(texto: string | undefined): number | undefined {
     return new Date(ano, mes, dia).getTime();
   }
   return undefined;
+}
+
+function categoriaSegura(raw: unknown, tipo: "entrada" | "saida"): string {
+  let categoria = String(raw ?? "").trim().toLowerCase();
+  if (!categoria || !CATEGORIAS.has(categoria)) {
+    categoria = tipo === "entrada" ? "renda" : "outros";
+  }
+  return categoria;
+}
+
+async function resolverCarteira(
+  deps: DependenciasFinancas,
+  carteiraArg: string | undefined,
+): Promise<{ id: string; apelido: string } | string> {
+  const carteiras = await deps.listarCarteiras();
+  if (carteiras.length === 0) {
+    return "ERRO: ele ainda não tem carteira. Pede pra criar uma em Cartões no app (ou usa gerir_carteira).";
+  }
+  if (!carteiraArg?.trim()) {
+    return { id: carteiras[0].id, apelido: carteiras[0].apelido };
+  }
+  const arg = carteiraArg.trim();
+  const hit = carteiras.find(
+    (c) => c.id === arg || c.apelido.toLowerCase() === arg.toLowerCase(),
+  );
+  if (!hit) {
+    return `ERRO: não achei a carteira "${arg}". Disponíveis: ${carteiras
+      .map((c) => c.apelido)
+      .join(", ")}.`;
+  }
+  return { id: hit.id, apelido: hit.apelido };
 }
 
 export async function registrarLancamento(
@@ -80,52 +193,129 @@ export async function registrarLancamento(
     return "ERRO: valor inválido — usa um número em reais (ex.: 32.5).";
   }
 
-  let categoria = String(args.categoria ?? "").trim().toLowerCase();
-  if (!categoria || !CATEGORIAS.has(categoria)) {
-    categoria = tipo === "entrada" ? "renda" : "outros";
-  }
+  const categoria = categoriaSegura(args.categoria, tipo);
+  const descricao =
+    String(args.descricao ?? args.nota ?? "").trim() ||
+    (tipo === "entrada" ? "Entrada" : "Saída");
 
-  const descricao = String(args.descricao ?? args.nota ?? "").trim()
-    || (tipo === "entrada" ? "Entrada" : "Saída");
-
-  const carteiras = await deps.listarCarteiras();
-  if (carteiras.length === 0) {
-    return "ERRO: ele ainda não tem carteira. Pede pra criar uma em Cartões no app.";
-  }
-
-  const carteiraArg = String(args.carteira ?? "").trim();
-  let carteiraId = carteiras[0].id;
-  let carteiraNome = carteiras[0].apelido;
-  if (carteiraArg) {
-    const hit = carteiras.find(
-      (c) =>
-        c.id === carteiraArg ||
-        c.apelido.toLowerCase() === carteiraArg.toLowerCase(),
-    );
-    if (!hit) {
-      return `ERRO: não achei a carteira "${carteiraArg}". Disponíveis: ${carteiras
-        .map((c) => c.apelido)
-        .join(", ")}.`;
-    }
-    carteiraId = hit.id;
-    carteiraNome = hit.apelido;
-  }
+  const carteira = await resolverCarteira(
+    deps,
+    typeof args.carteira === "string" ? args.carteira : undefined,
+  );
+  if (typeof carteira === "string") return carteira;
 
   const dataMs = parseDataBr(typeof args.data === "string" ? args.data : undefined);
+  const querRecorrente =
+    args.recorrente === true ||
+    String(args.recorrente ?? "").toLowerCase() === "true" ||
+    String(args.recorrente ?? "").toLowerCase() === "sim";
 
   try {
+    let recorrenteId: string | null = null;
+    if (querRecorrente && deps.criarRecorrente) {
+      const dia =
+        typeof args.diaDoMes === "number"
+          ? Math.round(args.diaDoMes)
+          : new Date(dataMs ?? Date.now()).getDate();
+      recorrenteId = await deps.criarRecorrente({
+        tipo,
+        valorCentavos,
+        diaDoMes: Math.min(31, Math.max(1, dia)),
+        categoria,
+        carteiraId: carteira.id,
+        apelido: descricao,
+        variavel: false,
+      });
+    }
+
     const id = await deps.criarLancamento({
       tipo,
       valorCentavos,
       descricao,
       categoria,
-      carteiraId,
+      carteiraId: carteira.id,
       dataMs,
+      recorrenteId,
+      pago: true,
     });
     const rotulo = tipo === "entrada" ? "entrada" : "saída";
-    return `Registei ${rotulo} de ${formatarReais(valorCentavos)} (${categoria}) na carteira ${carteiraNome}. (id: ${id})`;
+    let msg = `Registrei ${rotulo} de ${formatarReais(valorCentavos)} (${categoria}) na carteira ${carteira.apelido}. (id: ${id})`;
+    if (recorrenteId) {
+      msg += ` Também criei o recorrente mensal (id: ${recorrenteId}).`;
+    }
+    return msg;
   } catch (error) {
     return `ERRO ao salvar lançamento: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export async function listarLancamentosFinanca(
+  deps: DependenciasFinancas,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const periodoRaw = String(args.periodo ?? "mes").trim().toLowerCase();
+  const periodo =
+    periodoRaw === "dia" || periodoRaw === "semana" || periodoRaw === "mes"
+      ? periodoRaw
+      : "mes";
+  const soPendentes =
+    args.soPendentes === true ||
+    String(args.soPendentes ?? "").toLowerCase() === "true";
+  const categoriaFiltro = String(args.categoria ?? "").trim().toLowerCase();
+  const carteiraArg =
+    typeof args.carteira === "string" ? args.carteira.trim() : "";
+
+  try {
+    const { inicio, fim } = deps.faixaPeriodo(periodo);
+    const carteiras = await deps.listarCarteiras();
+    const nomePorId = new Map(carteiras.map((c) => [c.id, c.apelido]));
+    let carteiraId: string | null = null;
+    if (carteiraArg) {
+      const hit = carteiras.find(
+        (c) =>
+          c.id === carteiraArg ||
+          c.apelido.toLowerCase() === carteiraArg.toLowerCase(),
+      );
+      if (!hit) {
+        return `ERRO: não achei a carteira "${carteiraArg}".`;
+      }
+      carteiraId = hit.id;
+    }
+
+    const todos = await deps.listarLancamentos();
+    let lista = todos.filter((l) => l.data >= inicio && l.data < fim);
+    if (carteiraId) lista = lista.filter((l) => l.carteiraId === carteiraId);
+    if (categoriaFiltro && CATEGORIAS.has(categoriaFiltro)) {
+      lista = lista.filter((l) => l.categoria === categoriaFiltro);
+    }
+    if (soPendentes) lista = lista.filter((l) => !l.pago);
+
+    lista.sort((a, b) => b.data - a.data);
+    const max = 25;
+    const fatia = lista.slice(0, max);
+
+    const rotuloPeriodo =
+      periodo === "dia" ? "hoje" : periodo === "semana" ? "esta semana" : "este mês";
+
+    if (fatia.length === 0) {
+      return `Nenhum lançamento em ${rotuloPeriodo}${soPendentes ? " (só pendentes)" : ""}.`;
+    }
+
+    const linhas = fatia.map((l) => {
+      const sinal = l.tipo === "entrada" ? "+" : "−";
+      const cart = nomePorId.get(l.carteiraId) ?? "?";
+      const pend = !l.pago ? " · pendente" : "";
+      return `- ${formatarDia(l.data)} ${sinal}${formatarReais(l.valorCentavos)} · ${l.descricao || l.categoria} · ${cart}${pend}`;
+    });
+
+    let texto =
+      `## Lançamentos (${rotuloPeriodo})\n` +
+      `Total filtrado: ${lista.length}` +
+      (lista.length > max ? ` (mostrando ${max})` : "") +
+      `\n${linhas.join("\n")}`;
+    return texto;
+  } catch (error) {
+    return `ERRO ao listar lançamentos: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -188,5 +378,336 @@ export async function resumoFinanceiro(
     return texto;
   } catch (error) {
     return `ERRO ao ler resumo: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export async function gerirRecorrente(
+  deps: DependenciasFinancas,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const acao = String(args.acao ?? "").trim().toLowerCase();
+  if (!["criar", "editar", "desativar", "listar"].includes(acao)) {
+    return 'ERRO: acao deve ser "criar", "editar", "desativar" ou "listar".';
+  }
+
+  if (acao === "listar") {
+    if (!deps.listarRecorrentes) {
+      return "ERRO FATAL: listar recorrentes não está disponível.";
+    }
+    try {
+      const lista = await deps.listarRecorrentes();
+      const ativos = lista.filter((r) => r.ativo);
+      if (ativos.length === 0) return "Nenhum recorrente ativo.";
+      const carteiras = await deps.listarCarteiras();
+      const nomePorId = new Map(carteiras.map((c) => [c.id, c.apelido]));
+      const linhas = ativos.map((r) => {
+        const cart = nomePorId.get(r.carteiraId) ?? "?";
+        const tipo = r.tipo === "entrada" ? "entrada" : "saída";
+        const varMark = r.variavel ? " ~" : "";
+        return `- ${r.apelido}: ${tipo} ${formatarReais(r.valorCentavos)}${varMark} todo dia ${r.diaDoMes} · ${cart} (id: ${r.id})`;
+      });
+      return `## Recorrentes ativos (${ativos.length})\n${linhas.join("\n")}`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  if (acao === "desativar") {
+    if (!deps.atualizarRecorrente || !deps.listarRecorrentes) {
+      return "ERRO FATAL: desativar recorrente não está disponível.";
+    }
+    const idOuNome = String(args.id ?? args.apelido ?? "").trim();
+    if (!idOuNome) return "ERRO: informa id ou apelido do recorrente.";
+    try {
+      const lista = await deps.listarRecorrentes();
+      const hit = lista.find(
+        (r) =>
+          r.id === idOuNome ||
+          r.apelido.toLowerCase() === idOuNome.toLowerCase(),
+      );
+      if (!hit) return `ERRO: não achei o recorrente "${idOuNome}".`;
+      await deps.atualizarRecorrente(hit.id, { ativo: false });
+      return `Desativei o recorrente «${hit.apelido}».`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  if (acao === "criar") {
+    if (!deps.criarRecorrente) {
+      return "ERRO FATAL: criar recorrente não está disponível.";
+    }
+    const tipoRaw = String(args.tipo ?? "saida").trim().toLowerCase();
+    const tipo = tipoRaw === "entrada" || tipoRaw === "saida" ? tipoRaw : null;
+    if (!tipo) return 'ERRO: tipo deve ser "entrada" ou "saida".';
+    const valorNum = typeof args.valor === "number" ? args.valor : Number(args.valor);
+    const valorCentavos = deps.reaisParaCentavos(valorNum);
+    if (valorCentavos < 0) return "ERRO: valor inválido.";
+    const dia =
+      typeof args.diaDoMes === "number"
+        ? Math.round(args.diaDoMes)
+        : Number(args.diaDoMes);
+    if (!Number.isFinite(dia) || dia < 1 || dia > 31) {
+      return "ERRO: diaDoMes deve ser 1–31.";
+    }
+    const apelido = String(args.apelido ?? args.descricao ?? "").trim();
+    if (!apelido) return "ERRO: precisa de um apelido (ex.: Aluguel).";
+    const carteira = await resolverCarteira(
+      deps,
+      typeof args.carteira === "string" ? args.carteira : undefined,
+    );
+    if (typeof carteira === "string") return carteira;
+    try {
+      const id = await deps.criarRecorrente({
+        tipo,
+        valorCentavos,
+        diaDoMes: dia,
+        categoria: categoriaSegura(args.categoria, tipo),
+        carteiraId: carteira.id,
+        apelido,
+        variavel: args.variavel === true,
+      });
+      return `Criei o recorrente «${apelido}»: ${tipo} ${formatarReais(valorCentavos)} todo dia ${dia} em ${carteira.apelido}. (id: ${id})`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  // editar
+  if (!deps.atualizarRecorrente || !deps.listarRecorrentes) {
+    return "ERRO FATAL: editar recorrente não está disponível.";
+  }
+  const idOuNome = String(args.id ?? args.apelido ?? "").trim();
+  if (!idOuNome) return "ERRO: informa id (ou apelido atual) do recorrente pra editar.";
+  try {
+    const lista = await deps.listarRecorrentes();
+    const hit = lista.find(
+      (r) =>
+        r.id === idOuNome ||
+        r.apelido.toLowerCase() === idOuNome.toLowerCase(),
+    );
+    if (!hit) return `ERRO: não achei o recorrente "${idOuNome}".`;
+
+    const patch: Parameters<NonNullable<DependenciasFinancas["atualizarRecorrente"]>>[1] =
+      {};
+    if (typeof args.novoApelido === "string" && args.novoApelido.trim()) {
+      patch.apelido = args.novoApelido.trim();
+    }
+    if (args.tipo === "entrada" || args.tipo === "saida") patch.tipo = args.tipo;
+    if (args.valor !== undefined) {
+      const v = deps.reaisParaCentavos(
+        typeof args.valor === "number" ? args.valor : Number(args.valor),
+      );
+      if (v < 0) return "ERRO: valor inválido.";
+      patch.valorCentavos = v;
+    }
+    if (args.diaDoMes !== undefined) {
+      const dia = Math.round(Number(args.diaDoMes));
+      if (dia < 1 || dia > 31) return "ERRO: diaDoMes inválido.";
+      patch.diaDoMes = dia;
+    }
+    if (typeof args.categoria === "string" && args.categoria.trim()) {
+      patch.categoria = categoriaSegura(args.categoria, hit.tipo);
+    }
+    if (typeof args.carteira === "string" && args.carteira.trim()) {
+      const cart = await resolverCarteira(deps, args.carteira);
+      if (typeof cart === "string") return cart;
+      patch.carteiraId = cart.id;
+    }
+    if (typeof args.variavel === "boolean") patch.variavel = args.variavel;
+    if (typeof args.ativo === "boolean") patch.ativo = args.ativo;
+
+    if (Object.keys(patch).length === 0) {
+      return "ERRO: nada pra editar — manda valor, diaDoMes, novoApelido, etc.";
+    }
+    await deps.atualizarRecorrente(hit.id, patch);
+    return `Atualizei o recorrente «${patch.apelido ?? hit.apelido}».`;
+  } catch (error) {
+    return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export async function gerirCarteira(
+  deps: DependenciasFinancas,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const acao = String(args.acao ?? "").trim().toLowerCase();
+  if (!["criar", "editar", "arquivar", "listar"].includes(acao)) {
+    return 'ERRO: acao deve ser "criar", "editar", "arquivar" ou "listar".';
+  }
+
+  if (acao === "listar") {
+    try {
+      const lista = await deps.listarCarteiras();
+      if (lista.length === 0) return "Nenhuma carteira ativa.";
+      const linhas = lista.map((c) => {
+        const tipo = c.tipo ?? "conta_debito";
+        return `- ${c.apelido} (${tipo}) · id: ${c.id}`;
+      });
+      return `## Carteiras (${lista.length})\n${linhas.join("\n")}`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  if (acao === "arquivar") {
+    if (!deps.arquivarCarteira) {
+      return "ERRO FATAL: arquivar carteira não está disponível.";
+    }
+    const idOuNome = String(args.id ?? args.apelido ?? "").trim();
+    if (!idOuNome) return "ERRO: informa id ou apelido da carteira.";
+    try {
+      const lista = await deps.listarCarteiras();
+      const hit = lista.find(
+        (c) =>
+          c.id === idOuNome ||
+          c.apelido.toLowerCase() === idOuNome.toLowerCase(),
+      );
+      if (!hit) return `ERRO: não achei a carteira "${idOuNome}".`;
+      await deps.arquivarCarteira(hit.id);
+      return `Arquivei a carteira «${hit.apelido}».`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  if (acao === "criar") {
+    if (!deps.criarCarteira) {
+      return "ERRO FATAL: criar carteira não está disponível.";
+    }
+    const apelido = String(args.apelido ?? "").trim();
+    if (!apelido) return "ERRO: precisa de um apelido (ex.: Nubank).";
+    let tipo = String(args.tipo ?? "conta_debito").trim().toLowerCase();
+    if (tipo === "credito" || tipo === "crédito") tipo = "cartao_credito";
+    if (tipo === "debito" || tipo === "débito") tipo = "conta_debito";
+    if (!TIPOS_CARTEIRA.has(tipo)) {
+      return 'ERRO: tipo deve ser "conta_debito", "cartao_credito" ou "dinheiro".';
+    }
+    const saldoRaw =
+      typeof args.saldoInicial === "number"
+        ? args.saldoInicial
+        : Number(args.saldoInicial ?? 0);
+    const saldoInicialCentavos =
+      Number.isFinite(saldoRaw) && saldoRaw > 0
+        ? deps.reaisParaCentavos(saldoRaw)
+        : 0;
+    try {
+      const id = await deps.criarCarteira({
+        tipo,
+        apelido,
+        banco: typeof args.banco === "string" ? args.banco : null,
+        cor: typeof args.cor === "string" ? args.cor : "grafite",
+        ultimos4: typeof args.ultimos4 === "string" ? args.ultimos4 : null,
+        limiteCentavos:
+          tipo === "cartao_credito" && args.limite !== undefined
+            ? deps.reaisParaCentavos(Number(args.limite))
+            : null,
+        fechamentoDia:
+          tipo === "cartao_credito" && args.fechamentoDia !== undefined
+            ? Math.round(Number(args.fechamentoDia))
+            : null,
+        vencimentoDia:
+          tipo === "cartao_credito" && args.vencimentoDia !== undefined
+            ? Math.round(Number(args.vencimentoDia))
+            : null,
+        saldoInicialCentavos,
+      });
+      return `Criei a carteira «${apelido}» (${tipo}). (id: ${id})`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  // editar
+  if (!deps.atualizarCarteira) {
+    return "ERRO FATAL: editar carteira não está disponível.";
+  }
+  const idOuNome = String(args.id ?? args.apelido ?? "").trim();
+  if (!idOuNome) return "ERRO: informa id ou apelido da carteira pra editar.";
+  try {
+    const lista = await deps.listarCarteiras();
+    const hit = lista.find(
+      (c) =>
+        c.id === idOuNome ||
+        c.apelido.toLowerCase() === idOuNome.toLowerCase(),
+    );
+    if (!hit) return `ERRO: não achei a carteira "${idOuNome}".`;
+    const patch: Parameters<NonNullable<DependenciasFinancas["atualizarCarteira"]>>[1] =
+      {};
+    if (typeof args.novoApelido === "string" && args.novoApelido.trim()) {
+      patch.apelido = args.novoApelido.trim();
+    }
+    if (typeof args.tipo === "string" && TIPOS_CARTEIRA.has(args.tipo)) {
+      patch.tipo = args.tipo;
+    }
+    if (typeof args.banco === "string") patch.banco = args.banco;
+    if (typeof args.cor === "string") patch.cor = args.cor;
+    if (typeof args.ultimos4 === "string") patch.ultimos4 = args.ultimos4;
+    if (args.saldoInicial !== undefined) {
+      patch.saldoInicialCentavos = deps.reaisParaCentavos(Number(args.saldoInicial));
+    }
+    if (args.limite !== undefined) {
+      patch.limiteCentavos = deps.reaisParaCentavos(Number(args.limite));
+    }
+    if (args.fechamentoDia !== undefined) {
+      patch.fechamentoDia = Math.round(Number(args.fechamentoDia));
+    }
+    if (args.vencimentoDia !== undefined) {
+      patch.vencimentoDia = Math.round(Number(args.vencimentoDia));
+    }
+    if (Object.keys(patch).length === 0) {
+      return "ERRO: nada pra editar.";
+    }
+    await deps.atualizarCarteira(hit.id, patch);
+    return `Atualizei a carteira «${patch.apelido ?? hit.apelido}».`;
+  } catch (error) {
+    return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export async function transferirEntreCarteiras(
+  deps: DependenciasFinancas,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!deps.criarTransferencia) {
+    return "ERRO FATAL: transferências não estão disponíveis neste ambiente.";
+  }
+  const deArg = String(args.de ?? "").trim();
+  const paraArg = String(args.para ?? "").trim();
+  if (!deArg || !paraArg) {
+    return 'ERRO: precisa de "de" e "para" (apelido ou id das carteiras).';
+  }
+  const valorNum = typeof args.valor === "number" ? args.valor : Number(args.valor);
+  const valorCentavos = deps.reaisParaCentavos(valorNum);
+  if (valorCentavos <= 0) return "ERRO: valor inválido.";
+
+  const de = await resolverCarteira(deps, deArg);
+  if (typeof de === "string") return de;
+  const para = await resolverCarteira(deps, paraArg);
+  if (typeof para === "string") return para;
+  if (de.id === para.id) {
+    return "ERRO: De e Para são a mesma carteira.";
+  }
+
+  let motivo =
+    typeof args.motivo === "string" ? args.motivo.trim().toLowerCase() : "ajuste";
+  if (motivo === "fatura" || motivo === "pagar fatura") motivo = "pagar_fatura";
+  if (!MOTIVOS_TRANSF.has(motivo)) motivo = "ajuste";
+
+  const dataMs = parseDataBr(typeof args.data === "string" ? args.data : undefined);
+  const nota = typeof args.nota === "string" ? args.nota.trim() : null;
+
+  try {
+    const id = await deps.criarTransferencia({
+      deCarteiraId: de.id,
+      paraCarteiraId: para.id,
+      valorCentavos,
+      dataMs,
+      motivo,
+      nota,
+    });
+    return `Transferi ${formatarReais(valorCentavos)} de ${de.apelido} → ${para.apelido} (${motivo}). Não conta como gasto. (id: ${id})`;
+  } catch (error) {
+    return `ERRO ao transferir: ${error instanceof Error ? error.message : String(error)}`;
   }
 }

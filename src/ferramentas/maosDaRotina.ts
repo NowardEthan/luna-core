@@ -127,9 +127,12 @@ export type DependenciasRotina = {
     categoria: string;
     carteiraId: string;
     dataMs?: number;
+    recorrenteId?: string | null;
+    pago?: boolean;
   }) => Promise<string>;
   listarLancamentos?: () => Promise<
     Array<{
+      id?: string;
       tipo: "entrada" | "saida";
       valorCentavos: number;
       data: number;
@@ -139,7 +142,76 @@ export type DependenciasRotina = {
       pago: boolean;
     }>
   >;
-  listarCarteiras?: () => Promise<Array<{ id: string; apelido: string }>>;
+  listarCarteiras?: () => Promise<Array<{ id: string; apelido: string; tipo?: string }>>;
+  criarCarteira?: (dados: {
+    tipo: string;
+    apelido: string;
+    banco?: string | null;
+    cor?: string;
+    ultimos4?: string | null;
+    limiteCentavos?: number | null;
+    fechamentoDia?: number | null;
+    vencimentoDia?: number | null;
+    saldoInicialCentavos?: number;
+  }) => Promise<string>;
+  atualizarCarteira?: (
+    id: string,
+    patch: Partial<{
+      tipo: string;
+      apelido: string;
+      banco: string | null;
+      cor: string;
+      ultimos4: string | null;
+      limiteCentavos: number | null;
+      fechamentoDia: number | null;
+      vencimentoDia: number | null;
+      saldoInicialCentavos: number;
+    }>,
+  ) => Promise<void>;
+  arquivarCarteira?: (id: string) => Promise<void>;
+  listarRecorrentes?: () => Promise<
+    Array<{
+      id: string;
+      tipo: "entrada" | "saida";
+      valorCentavos: number;
+      diaDoMes: number;
+      categoria: string;
+      carteiraId: string;
+      apelido: string;
+      variavel: boolean;
+      ativo: boolean;
+    }>
+  >;
+  criarRecorrente?: (dados: {
+    tipo: "entrada" | "saida";
+    valorCentavos: number;
+    diaDoMes: number;
+    categoria: string;
+    carteiraId: string;
+    apelido: string;
+    variavel?: boolean;
+  }) => Promise<string>;
+  atualizarRecorrente?: (
+    id: string,
+    patch: Partial<{
+      tipo: "entrada" | "saida";
+      valorCentavos: number;
+      diaDoMes: number;
+      categoria: string;
+      carteiraId: string;
+      apelido: string;
+      variavel: boolean;
+      ativo: boolean;
+    }>,
+  ) => Promise<void>;
+  criarTransferencia?: (dados: {
+    deCarteiraId: string;
+    paraCarteiraId: string;
+    valorCentavos: number;
+    dataMs?: number;
+    motivo?: string | null;
+    nota?: string | null;
+  }) => Promise<string>;
   reaisParaCentavos?: (valor: number) => number;
   faixaPeriodoFinancas?: (periodo: "dia" | "semana" | "mes") => { inicio: number; fim: number };
 };
