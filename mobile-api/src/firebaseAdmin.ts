@@ -4,8 +4,12 @@ import { resolve } from "node:path";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 let app: App | null = null;
+
+/** O bucket do projeto (mesmo do app, ver FirebaseBootstrap.kt / google-services.json). */
+const STORAGE_BUCKET = "luna-8787d.firebasestorage.app";
 
 function loadServiceAccount(): Record<string, unknown> | null {
   const jsonRaw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
@@ -52,6 +56,22 @@ export function getFirebaseAdminApp(): App | null {
 export function getAdminFirestore(): Firestore | null {
   const adminApp = getFirebaseAdminApp();
   return adminApp ? getFirestore(adminApp) : null;
+}
+
+/**
+ * O bucket do Storage pelo Admin — a mão que ESCREVE arquivos (imagens que a Luna gera).
+ * Diferente da visão, que só LÊ URLs; aqui subimos bytes. Devolve null sem credenciais.
+ */
+export function getAdminBucket() {
+  const adminApp = getFirebaseAdminApp();
+  if (!adminApp) return null;
+  return getStorage(adminApp).bucket(STORAGE_BUCKET);
+}
+
+/** O host das download-URLs do Storage — o mesmo padrão que o SDK do cliente gera. */
+export function urlDownloadStorage(caminho: string, token: string): string {
+  const enc = encodeURIComponent(caminho);
+  return `https://firebasestorage.googleapis.com/v0/b/${STORAGE_BUCKET}/o/${enc}?alt=media&token=${token}`;
 }
 
 export type VerifiedAuth = {

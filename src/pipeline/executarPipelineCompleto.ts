@@ -281,7 +281,23 @@ function deveUsarModoAgentico(
     documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);
   // Finanças: «gastei 32», «transfere», «resumo do mês» — as tools vivem no agêntico.
   const pedeFinancas = mensagemPedeFinancas(mensagem);
-  return vision || documento || web || pedeDocumento || editaDocumento || pedeFinancas;
+  // DESENHAR (só OrbitLab). «desenha um…», «cria uma imagem de…» → a mão `gerar_imagem` vive no
+  // agêntico. Distinto do `vision` acima (que é «vê/descreve» uma imagem que ELE mandou).
+  const pedeGerarImagem = documentosAtivo && mensagemPedeGerarImagem(mensagem);
+  return vision || documento || web || pedeDocumento || editaDocumento || pedeFinancas || pedeGerarImagem;
+}
+
+/**
+ * Pedido de DESENHAR uma imagem (gerar, não «ver») — o sinal para abrir o agêntico com a mão
+ * `gerar_imagem`. Ancorado num verbo de CRIAR + um substantivo visual, ou nos verbos que já são
+ * de desenhar por si (desenhar/ilustrar). De propósito NÃO apanha «manda uma foto»/«olha essa
+ * imagem» — isso é visão, tratada noutro caminho. Só dispara com `documentosAtivo` (OrbitLab).
+ */
+export function mensagemPedeGerarImagem(mensagem: string): boolean {
+  if (/\b(desenh\w+|ilustr\w+)\b/i.test(mensagem)) return true;
+  return /\b(cria\w*|crie|faz|faça|faca|gera\w*|gere|quero|manda\w*|mande|me\s+d[áa]|monta\w*|monte)\b[^.?!\n]{0,30}\b(imagem|imagens|arte|ilustra[çc][ãa]o|desenho|logo|logotipo|[íi]cone|capa|wallpaper|papel\s+de\s+parede|pintura|pôster|poster|cartaz|avatar|figura)\b/i.test(
+    mensagem,
+  );
 }
 
 /**

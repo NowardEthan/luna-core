@@ -844,6 +844,36 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
 };
 
 /**
+ * A mão que DESENHA — a Luna gera uma imagem. Mesma trava (`documentosAtivo`): só no OrbitLab.
+ * A imagem NÃO viaja na fala; sobe pro Storage e o cartão dela aparece no chat.
+ */
+const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
+  nome: "gerar_imagem",
+  descricao:
+    "Desenha uma IMAGEM a partir de uma descrição e mostra-a como um cartão aqui no chat. Usa " +
+    "quando ele PEDE uma imagem («desenha…», «cria uma imagem de…», «faz uma arte/ilustração/" +
+    "capa/ícone de…», «como seria… numa imagem?»). O `prompt` é a descrição visual, em português " +
+    "ou inglês — quanto mais concreta (assunto, estilo, cores, luz, enquadramento), melhor o " +
+    "resultado; se ele foi vago, ENRIQUECE com bom senso visual em vez de pedir detalhes. Demora " +
+    "alguns segundos. NÃO uses para responder algo que é texto, nem para «ver» uma imagem que ELE " +
+    "mandou (isso é a visão, não isto). Depois de gerar, comenta na tua voz — o cartão já mostra a " +
+    "imagem, não a descrevas inteira.",
+  parametros: {
+    type: "object",
+    properties: {
+      prompt: {
+        type: "string",
+        description:
+          "A descrição visual do que desenhar — assunto + estilo + cores/atmosfera + " +
+          "enquadramento. Ex.: «uma raposa origami dourada sobre fundo grafite, luz suave, " +
+          "minimalista». Se quiseres texto dentro da imagem, escreve-o entre aspas no prompt.",
+      },
+    },
+    required: ["prompt"],
+  },
+};
+
+/**
  * Listar / ler / editar artefatos — o resto da mão, para a Luna AUDITAR e REVISAR o que já
  * existe, não só criar. Mesma trava (`documentosAtivo`): fora do OrbitLab, nem existem.
  */
@@ -1145,6 +1175,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_ANOTAR_CANONE);
+    ferramentas.push(FERRAMENTA_GERAR_IMAGEM);
   }
   // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.
   if (opcoes.planejamentoAtivo) {

@@ -246,6 +246,11 @@ export type DependenciasRotina = {
   apagarMeta?: (id: string) => Promise<void>;
   reaisParaCentavos?: (valor: number) => number;
   faixaPeriodoFinancas?: (periodo: "dia" | "semana" | "mes") => { inicio: number; fim: number };
+  // ── A mão que DESENHA ──
+  // Gera uma imagem a partir de um prompt, sobe pro Storage e devolve a URL estável.
+  // A URL nasce SÓ aqui (depois do upload), então não está nos argumentos da ferramenta —
+  // o dispatcher a devolve na string de retorno pra viajar no evento fim_ferramenta.
+  gerarImagem?: (prompt: string) => Promise<{ id: string; url: string; prompt: string }>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

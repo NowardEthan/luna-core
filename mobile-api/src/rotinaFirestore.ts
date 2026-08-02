@@ -37,6 +37,7 @@ import {
   lerDocumento as lerDocumentoDaEstante,
   atualizarDocumento,
 } from "./firestoreDocumentos.js";
+import { gerarImagemLuna } from "./gerarImagemLuna.js";
 
 /**
  * A rotina dele, lida do Firestore.
@@ -423,6 +424,11 @@ export function maosDaRotina(
         { titulo: dados.titulo, conteudo: dados.conteudo, canone: dados.canone },
         "luna",
       );
+    },
+
+    // ── A mão que DESENHA ──
+    gerarImagem: async (prompt: string) => {
+      return gerarImagemLuna(uid, prompt);
     },
 
     // ── Finanças (OrbitLab) ──

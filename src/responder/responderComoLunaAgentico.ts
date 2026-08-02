@@ -87,6 +87,11 @@ export type AcaoAgenticoChat = {
   maxRodadas: number;
   sucesso?: boolean;
   fontes?: FonteAgentico[];
+  /**
+   * A imagem que a Luna acabou de desenhar — presente só no `fim_ferramenta` de `gerar_imagem`.
+   * A URL nasce no servidor (depois do upload), então não está nos `argumentos`; viaja aqui.
+   */
+  imagem?: { url: string; prompt: string };
   /** Snapshot da lista de passos — presente só quando `tipo: "plano"`. */
   plano?: PassoPlano[];
 };
@@ -137,6 +142,26 @@ function analisarResultadoFerramenta(ferramenta: string, resultadoJson: string):
     return { ok: true };
   } catch {
     return { ok: true };
+  }
+}
+
+/**
+ * A URL da imagem nasce no servidor (depois do upload), então não está nos argumentos da
+ * ferramenta. `gerar_imagem` devolve-a no JSON de resultado — daqui ela viaja no evento
+ * fim_ferramenta pro app montar o cartão. Devolve null se o passo falhou (a Luna já leu o erro).
+ */
+function extrairImagemDoResultado(resultadoJson: string): { url: string; prompt: string } | null {
+  try {
+    const parsed = JSON.parse(resultadoJson) as {
+      ok?: boolean;
+      imagem?: { url?: unknown; prompt?: unknown };
+    };
+    if (parsed.ok !== true || !parsed.imagem) return null;
+    const url = typeof parsed.imagem.url === "string" ? parsed.imagem.url : "";
+    const prompt = typeof parsed.imagem.prompt === "string" ? parsed.imagem.prompt : "";
+    return url ? { url, prompt } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -323,6 +348,19 @@ const DIRETRIZ_DOCUMENTOS =
   "CÂNONE (a bíblia do artefato): num texto grande tu não vês o livro todo — é assim que não saturas — mas por isso podes «esquecer» que a personagem se chama Marina e chamá-la de Mariana no capítulo 8. Para não te contradizeres, guarda os FATOS FIXOS (nomes, idades, relações, decisões de mundo) com `anotar_canone` — é o `AGENTS.md` do teu texto. Quando ele ESTABELECE algo do mundo/personagens, ou quando TU fixas um fato ao escrever, anota-o. Esses fatos aparecem sempre à tua frente (na pré-carga, mesmo quando só vês o índice): antes de escrever ou editar, OLHA o CÂNONE e respeita-o. Passa sempre a lista COMPLETA e atualizada (tu já a tens no contexto) — junta o novo, corrige o que mudou. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
+
+/**
+ * A mão que DESENHA — a Luna gera imagens. Curta de propósito: é uma mão simples (um prompt →
+ * um cartão de imagem). Entra junto com `documentosAtivo` (só no OrbitLab, onde a ferramenta existe).
+ */
+const DIRETRIZ_IMAGEM =
+  "DESENHAR: tens a mão `gerar_imagem` — dás-lhe uma descrição e ela desenha uma imagem que aparece " +
+  "como cartão aqui no chat. Usa quando ele PEDE uma imagem/arte/ilustração/ícone/capa («desenha…», " +
+  "«cria uma imagem de…», «como seria… numa imagem?»). O `prompt` é a descrição visual — sê concreto " +
+  "(assunto, estilo, cores, luz, enquadramento); se ele foi vago, ENRIQUECE com bom senso em vez de " +
+  "interrogar. Demora alguns segundos. Depois de gerar, comenta curto na tua voz — o cartão já mostra " +
+  "a imagem, NÃO copies a URL nem a descrevas inteira. É PROIBIDO dizer «desenhei/aqui está» sem ter " +
+  "chamado a ferramenta. Isto é DESENHAR, não «ver» uma imagem que ele mandou.";
 
 /**
  * Diretriz do PLANO EM PASSOS — a coleira que segura um modelo one-shot na cadeia. Só entra com
@@ -561,6 +599,8 @@ export async function responderComoLunaAgentico(
     planejamentoAtivo ? DIRETRIZ_PLANO : null,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
+    // A mão que desenha — mesma trava (OrbitLab).
+    opcoes.documentosAtivo ? DIRETRIZ_IMAGEM : null,
     // Finanças: ordem imperativa — e, se o turno é de grana, web_search já saiu da lista.
     pedeFinancas ? DIRETRIZ_FINANCAS : null,
     // O corpo dos documentos desta conversa, já à frente dela (como a rotina já está sempre).
@@ -600,6 +640,10 @@ export async function responderComoLunaAgentico(
         passo.sucesso && ehFerramentaDePesquisa
           ? analisarResultadoFerramenta(passo.ferramenta, passo.resultado)
           : { ok: passo.sucesso };
+      const imagem =
+        passo.ferramenta === "gerar_imagem" && passo.sucesso
+          ? extrairImagemDoResultado(passo.resultado)
+          : null;
       opcoes.onAcao?.({
         tipo: "fim_ferramenta",
         ferramenta: nomeFerramentaParaUi(passo.ferramenta, passo.argumentos),
@@ -608,6 +652,7 @@ export async function responderComoLunaAgentico(
         maxRodadas,
         sucesso: analise.ok,
         fontes: analise.fontes,
+        imagem: imagem ?? undefined,
       });
     },
     onRaciocinioRodada: opcoes.onRaciocinio,
@@ -738,10 +783,32 @@ export async function responderComoLunaAgentico(
         nome === "buscar_no_artefato" ||
         nome === "editar_trecho_artefato" ||
         nome === "anotar_canone" ||
-        nome === "editar_artefato"
+        nome === "editar_artefato" ||
+        nome === "gerar_imagem"
       ) {
         if (!opcoes.rotinaDeps) {
           return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
+        }
+        if (nome === "gerar_imagem") {
+          if (!opcoes.rotinaDeps.gerarImagem) {
+            return "ERRO FATAL: o método de gerar imagens não foi implementado neste ambiente.";
+          }
+          const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+          if (!prompt) return "Passa em `prompt` a descrição visual do que desenhar.";
+          try {
+            const img = await opcoes.rotinaDeps.gerarImagem(prompt);
+            // O app lê a URL do evento fim_ferramenta (parseada daqui). Ao modelo, devolvo só a
+            // confirmação — com aviso EXPLÍCITO pra não colar a URL nem descrever a imagem inteira.
+            return JSON.stringify({
+              ok: true,
+              imagem: { url: img.url, prompt: img.prompt },
+              aviso:
+                "A imagem já foi desenhada e mostrada ao usuário num cartão. Comenta na tua voz " +
+                "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
+            });
+          } catch (err) {
+            return `Não consegui desenhar a imagem: ${err instanceof Error ? err.message : String(err)}`;
+          }
         }
         if (nome === "criar_artefato") {
           if (!opcoes.rotinaDeps.criarDocumento) {

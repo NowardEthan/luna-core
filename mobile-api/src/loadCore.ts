@@ -38,6 +38,7 @@ export type ChatStreamCallbacks = {
     maxRodadas: number;
     sucesso?: boolean;
     fontes?: Array<{ title?: string; url: string }>;
+    imagem?: { url: string; prompt: string };
     plano?: Array<{ texto: string; feito: boolean }>;
   }) => void;
 };
@@ -202,6 +203,7 @@ export type LunaCoreModule = {
         maxRodadas: number;
         sucesso?: boolean;
         fontes?: Array<{ title?: string; url: string }>;
+        imagem?: { url: string; prompt: string };
         plano?: Array<{ texto: string; feito: boolean }>;
       }) => void;
     },
@@ -326,6 +328,7 @@ const ROTULO_FERRAMENTA: Record<string, string> = {
   gerir_carteira: "Ajustando carteira…",
   gerir_meta: "Ajustando meta…",
   transferir: "Transferindo…",
+  gerar_imagem: "Desenhando…",
 };
 
 /**
