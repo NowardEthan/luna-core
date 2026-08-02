@@ -14,7 +14,12 @@
  * cartão aparecer no chat certo. A ferramenta devolve ERRO em vez de rebentar: se não gravou, ela
  * LÊ que não gravou, e não finge que criou.
  */
-export type DocumentoResumo = { id: string; titulo: string };
+export type DocumentoResumo = {
+  id: string;
+  titulo: string;
+  /** true = nasceu nesta conversa; false/omitido = veio de outra (ou sem conversa). */
+  destaConversa?: boolean;
+};
 export type DocumentoConteudo = {
   id: string;
   titulo: string;
@@ -28,7 +33,7 @@ export type DependenciasDocumentos = {
     titulo: string;
     conteudo: string;
   }) => Promise<{ id: string; titulo: string }>;
-  /** Lista os documentos desta conversa (id + título) — para a Luna saber o que existe. */
+  /** Lista a estante do usuário (id + título; preferir marcar `destaConversa`). */
   listarDocumentos: () => Promise<DocumentoResumo[]>;
   /** Lê o corpo de um documento pelo id (para auditar/revisar). `null` se o id não bate. */
   lerDocumento: (id: string) => Promise<DocumentoConteudo | null>;
@@ -143,6 +148,9 @@ export async function criarDocumento(
   }
 }
 
+/** Teto pra não afogar o modelo se a estante crescer. */
+const LIMITE_LISTA_ARTEFATOS = 40;
+
 export async function listarDocumentos(
   deps: Pick<DependenciasDocumentos, "listarDocumentos">,
   _args: Record<string, unknown>,
@@ -150,12 +158,28 @@ export async function listarDocumentos(
   try {
     const docs = await deps.listarDocumentos();
     if (docs.length === 0) {
-      return "Nenhum artefato nesta conversa ainda. Use criar_artefato para começar um.";
+      return "Nenhum artefato na estante ainda. Use criar_artefato para começar um.";
     }
-    const linhas = docs.map((d) => `- id: ${d.id} — «${d.titulo}»`).join("\n");
+    const fatia = docs.slice(0, LIMITE_LISTA_ARTEFATOS);
+    const linhas = fatia
+      .map((d) => {
+        const onde =
+          d.destaConversa === true
+            ? "esta conversa"
+            : d.destaConversa === false
+              ? "outra conversa"
+              : "estante";
+        return `- id: ${d.id} — «${d.titulo}» (${onde})`;
+      })
+      .join("\n");
+    const extras =
+      docs.length > LIMITE_LISTA_ARTEFATOS
+        ? `\n(…e mais ${docs.length - LIMITE_LISTA_ARTEFATOS} na estante; os mais recentes vêm primeiro.)`
+        : "";
     return (
-      `Artefatos desta conversa:\n${linhas}\n\n` +
-      `Para ler o corpo de um, use ler_artefato com o id. Para revisá-lo, use editar_artefato.`
+      `Artefatos na estante dele (todas as conversas):\n${linhas}${extras}\n\n` +
+      `Se ele citou um nome («meus gastos», etc.), bata o título na lista — pode ser de outra conversa. ` +
+      `Para ler o corpo, use ler_artefato com o id. Para revisar, use editar_artefato / editar_trecho_artefato.`
     );
   } catch (error) {
     return `ERRO ao listar artefatos: ${error instanceof Error ? error.message : String(error)}`;
