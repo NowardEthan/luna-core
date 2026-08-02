@@ -295,9 +295,24 @@ function deveUsarModoAgentico(
  */
 export function mensagemPedeGerarImagem(mensagem: string): boolean {
   if (/\b(desenh\w+|ilustr\w+)\b/i.test(mensagem)) return true;
-  return /\b(cria\w*|crie|faz|faça|faca|gera\w*|gere|quero|manda\w*|mande|me\s+d[áa]|monta\w*|monte)\b[^.?!\n]{0,30}\b(imagem|imagens|arte|ilustra[çc][ãa]o|desenho|logo|logotipo|[íi]cone|capa|wallpaper|papel\s+de\s+parede|pintura|pôster|poster|cartaz|avatar|figura)\b/i.test(
-    mensagem,
-  );
+  const substantivoVisual =
+    "imagem|imagens|arte|ilustra[çc][ãa]o|desenho|foto|logo|logotipo|[íi]cone|capa|wallpaper|papel\\s+de\\s+parede|pintura|pôster|poster|cartaz|avatar|figura";
+  // CRIAR do zero: verbo de criação + substantivo visual.
+  if (
+    new RegExp(
+      `\\b(cria\\w*|crie|faz|faça|faca|gera\\w*|gere|quero|manda\\w*|mande|me\\s+d[áa]|monta\\w*|monte)\\b[^.?!\\n]{0,30}\\b(${substantivoVisual})\\b`,
+      "i",
+    ).test(mensagem)
+  ) {
+    return true;
+  }
+  // EDITAR/ajustar uma imagem existente: verbo de edição + substantivo visual («edita a imagem»,
+  // «muda a cor da foto», «adiciona um chapéu no desenho»). Quem existe já vira `editar_imagem`; se
+  // não houver imagem anterior, a própria ferramenta avisa e ela cai pro `gerar_imagem`.
+  return new RegExp(
+    `\\b(edita\\w*|edite|ajust\\w+|muda|mude|mudar|troc\\w+|substitu\\w+|adicion\\w+|acrescent\\w+|p[õo]e|poe|coloca\\w*|tir(?:a|e|ar)|remov\\w+|altera\\w*|altere)\\b[^.?!\\n]{0,30}\\b(${substantivoVisual})\\b`,
+    "i",
+  ).test(mensagem);
 }
 
 /**

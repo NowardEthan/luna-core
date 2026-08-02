@@ -37,7 +37,12 @@ import {
   lerDocumento as lerDocumentoDaEstante,
   atualizarDocumento,
 } from "./firestoreDocumentos.js";
-import { gerarImagemLuna } from "./gerarImagemLuna.js";
+import {
+  editarImagemLuna,
+  gerarImagemLuna,
+  registrarUltimaImagem,
+  ultimaImagemDe,
+} from "./gerarImagemLuna.js";
 
 /**
  * A rotina dele, lida do Firestore.
@@ -198,6 +203,9 @@ export function maosDaRotina(
   timeZone?: string,
   conversaId?: string | null,
 ) {
+  // Chave da última imagem: por conversa (cai pra uid se não houver id) — pro `editar_imagem`
+  // saber em cima de qual imagem mexer sem depender do modelo carregar a URL no contexto.
+  const chaveImagem = conversaId ?? uid;
   return {
     ler: () => lerRotina(db, uid, timeZone),
 
@@ -426,9 +434,22 @@ export function maosDaRotina(
       );
     },
 
-    // ── A mão que DESENHA ──
+    // ── A mão que DESENHA (e EDITA) ──
     gerarImagem: async (prompt: string) => {
-      return gerarImagemLuna(uid, prompt);
+      const img = await gerarImagemLuna(uid, prompt);
+      registrarUltimaImagem(chaveImagem, img);
+      return img;
+    },
+    editarImagem: async (instrucao: string) => {
+      const base = ultimaImagemDe(chaveImagem);
+      if (!base) {
+        throw new Error(
+          "Não há imagem anterior nesta conversa para editar — desenha uma primeiro com gerar_imagem.",
+        );
+      }
+      const img = await editarImagemLuna(uid, instrucao, base.url);
+      registrarUltimaImagem(chaveImagem, img);
+      return img;
     },
 
     // ── Finanças (OrbitLab) ──

@@ -354,13 +354,21 @@ const DIRETRIZ_DOCUMENTOS =
  * um cartão de imagem). Entra junto com `documentosAtivo` (só no OrbitLab, onde a ferramenta existe).
  */
 const DIRETRIZ_IMAGEM =
-  "DESENHAR: tens a mão `gerar_imagem` — dás-lhe uma descrição e ela desenha uma imagem que aparece " +
-  "como cartão aqui no chat. Usa quando ele PEDE uma imagem/arte/ilustração/ícone/capa («desenha…», " +
-  "«cria uma imagem de…», «como seria… numa imagem?»). O `prompt` é a descrição visual — sê concreto " +
-  "(assunto, estilo, cores, luz, enquadramento); se ele foi vago, ENRIQUECE com bom senso em vez de " +
-  "interrogar. Demora alguns segundos. Depois de gerar, comenta curto na tua voz — o cartão já mostra " +
-  "a imagem, NÃO copies a URL nem a descrevas inteira. É PROIBIDO dizer «desenhei/aqui está» sem ter " +
-  "chamado a ferramenta. Isto é DESENHAR, não «ver» uma imagem que ele mandou.";
+  "DESENHAR e EDITAR imagens: tens DUAS mãos REAIS que produzem uma imagem de verdade, que aparece " +
+  "num cartão aqui no chat — não é metáfora, não é «pintar com palavras».\n" +
+  "• `gerar_imagem` (descrição → imagem NOVA): quando ele PEDE uma imagem/arte/ilustração/ícone/capa " +
+  "(«desenha…», «cria uma imagem de…», «como seria… numa imagem?»). O `prompt` é a descrição visual — " +
+  "sê concreta (assunto, estilo, cores, luz, enquadramento); se ele foi vago, ENRIQUECE com bom senso " +
+  "em vez de interrogar.\n" +
+  "• `editar_imagem` (mudança → a MESMA imagem ajustada): quando ele quer MEXER na imagem que acabaste " +
+  "de fazer («adiciona um sachê», «tira o fundo», «muda a cor», «põe óculos nele», «deixa igual mas de " +
+  "noite»), usa ESTA — NÃO o `gerar_imagem`, senão sai uma imagem nova do zero e perde a anterior. Em " +
+  "`instrucao` passa só o que muda; o resto é preservado sozinho.\n" +
+  "Demora alguns segundos. Depois de gerar/editar, a imagem JÁ está à frente dele no cartão: reage a " +
+  "ELA — curto, na tua voz (o que achaste, um detalhe). NÃO copies a URL, NÃO descrevas a imagem " +
+  "inteira, e NUNCA digas que «não desenhas de verdade» ou que «só pintas com palavras»: tu desenhaste, " +
+  "a imagem é real e está ali. É PROIBIDO dizer «desenhei/aqui está» SEM ter chamado a ferramenta. Isto " +
+  "é PRODUZIR uma imagem, não «ver» uma que ele mandou.";
 
 /**
  * Diretriz do PLANO EM PASSOS — a coleira que segura um modelo one-shot na cadeia. Só entra com
@@ -641,7 +649,8 @@ export async function responderComoLunaAgentico(
           ? analisarResultadoFerramenta(passo.ferramenta, passo.resultado)
           : { ok: passo.sucesso };
       const imagem =
-        passo.ferramenta === "gerar_imagem" && passo.sucesso
+        (passo.ferramenta === "gerar_imagem" || passo.ferramenta === "editar_imagem") &&
+        passo.sucesso
           ? extrairImagemDoResultado(passo.resultado)
           : null;
       opcoes.onAcao?.({
@@ -784,7 +793,8 @@ export async function responderComoLunaAgentico(
         nome === "editar_trecho_artefato" ||
         nome === "anotar_canone" ||
         nome === "editar_artefato" ||
-        nome === "gerar_imagem"
+        nome === "gerar_imagem" ||
+        nome === "editar_imagem"
       ) {
         if (!opcoes.rotinaDeps) {
           return "ERRO FATAL: o módulo de rotina/ideias não está disponível neste ambiente. Não posso fazer nada. Pede-lhe desculpa.";
@@ -808,6 +818,25 @@ export async function responderComoLunaAgentico(
             });
           } catch (err) {
             return `Não consegui desenhar a imagem: ${err instanceof Error ? err.message : String(err)}`;
+          }
+        }
+        if (nome === "editar_imagem") {
+          if (!opcoes.rotinaDeps.editarImagem) {
+            return "ERRO FATAL: o método de editar imagens não foi implementado neste ambiente.";
+          }
+          const instrucao = typeof args.instrucao === "string" ? args.instrucao.trim() : "";
+          if (!instrucao) return "Passa em `instrucao` a mudança a fazer na imagem.";
+          try {
+            const img = await opcoes.rotinaDeps.editarImagem(instrucao);
+            return JSON.stringify({
+              ok: true,
+              imagem: { url: img.url, prompt: img.prompt },
+              aviso:
+                "A imagem editada já foi mostrada ao usuário num cartão novo. Comenta na tua voz " +
+                "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
+            });
+          } catch (err) {
+            return `Não consegui editar a imagem: ${err instanceof Error ? err.message : String(err)}`;
           }
         }
         if (nome === "criar_artefato") {

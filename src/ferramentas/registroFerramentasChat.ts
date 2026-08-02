@@ -874,6 +874,34 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
 };
 
 /**
+ * A mão que EDITA a última imagem — mesma imagem, muda só o que ele pediu (image-to-image). Sem
+ * isto, um «adiciona um sachê» ia pro `gerar_imagem` e saía uma imagem NOVA do zero. Mesma trava
+ * (`documentosAtivo`): só no OrbitLab.
+ */
+const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
+  nome: "editar_imagem",
+  descricao:
+    "EDITA a imagem que acabaste de desenhar — parte dela e mexe SÓ no que ele pede, preservando o " +
+    "resto (mesma composição, cores, enquadramento). Usa quando ele quer AJUSTAR a imagem anterior " +
+    "(«adiciona um…», «tira o…», «muda a cor de…», «põe um chapéu nele», «deixa igual mas…», «agora " +
+    "de noite»). NÃO uses `gerar_imagem` pra isto — aquilo faz uma imagem NOVA do zero e perde a " +
+    "anterior. Só funciona se já houver uma imagem nesta conversa; se não houver, usa `gerar_imagem`.",
+  parametros: {
+    type: "object",
+    properties: {
+      instrucao: {
+        type: "string",
+        description:
+          "A MUDANÇA a fazer, curta e direta — só o que muda, não a cena inteira. Ex.: «adiciona um " +
+          "sachê de chá dentro da xícara», «troca o fundo para azul», «põe óculos no gato». O resto " +
+          "da imagem é preservado automaticamente.",
+      },
+    },
+    required: ["instrucao"],
+  },
+};
+
+/**
  * Listar / ler / editar artefatos — o resto da mão, para a Luna AUDITAR e REVISAR o que já
  * existe, não só criar. Mesma trava (`documentosAtivo`): fora do OrbitLab, nem existem.
  */
@@ -1176,6 +1204,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_ANOTAR_CANONE);
     ferramentas.push(FERRAMENTA_GERAR_IMAGEM);
+    ferramentas.push(FERRAMENTA_EDITAR_IMAGEM);
   }
   // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.
   if (opcoes.planejamentoAtivo) {

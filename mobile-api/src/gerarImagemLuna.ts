@@ -3,11 +3,19 @@ import { randomUUID } from "node:crypto";
 import { getAdminBucket, urlDownloadStorage } from "./firebaseAdmin.js";
 
 /**
- * A mão que DESENHA — a Luna gera uma imagem a partir de um prompt.
+ * A mão que DESENHA — a Luna gera (ou EDITA) uma imagem a partir de um prompt.
  *
  * Ao contrário da visão (`descreverImagemOpenRouter`), que manda imagem e recebe texto, aqui é o
- * inverso: manda texto e recebe imagem. E não é a via `modalities` do /chat/completions (essa é a
- * do Gemini/nano-banana) — o Riverflow usa o endpoint DEDICADO `/api/v1/images` da OpenRouter.
+ * inverso: manda texto e recebe imagem. E não é a via `modalities` do /chat/completions — a
+ * OpenRouter expõe um endpoint DEDICADO `/api/v1/images`.
+ *
+ * Dois modos, MESMO modelo — o `sourceful/riverflow-v2.5-fast` é unified text-to-image E
+ * image-to-image:
+ *  - GERAR (do zero): texto → imagem nova.
+ *  - EDITAR (preservando): a imagem anterior vai em `input_references` (URL do Storage) e o modelo
+ *    mexe SÓ no que o prompt pede — é isto que faz «adiciona um sachê» virar a MESMA xícara com o
+ *    sachê, em vez de uma imagem nova. A OpenRouter recomenda passar URL (não base64) por causa do
+ *    limite de 4.5MB do Sourceful — e é de graça pra nós, a URL já é pública.
  *
  * O byte não trafega pelo chat: a imagem volta em base64, sobe pro Firebase Storage, e o que segue
  * pro app é só a URL (leve, e o chat pode persistir sem carregar megabytes por mensagem).
@@ -30,6 +38,11 @@ function apiKey(): string | undefined {
 
 function modelo(): string {
   return process.env.OPENROUTER_IMAGE_MODEL?.trim() || MODELO_PADRAO;
+}
+
+/** O modelo de edição; por padrão o MESMO da geração (Riverflow edita). Overridável se um dia quiser. */
+function modeloEdicao(): string {
+  return process.env.OPENROUTER_IMAGE_EDIT_MODEL?.trim() || modelo();
 }
 
 type RespostaImagens = {
@@ -60,16 +73,7 @@ function extrairBytes(item: NonNullable<RespostaImagens["data"]>[number]): {
   return null;
 }
 
-export async function gerarImagemLuna(uid: string, prompt: string): Promise<ImagemGerada> {
-  const key = apiKey();
-  if (!key) throw new Error("OPENROUTER_API_KEY ausente — geração de imagem indisponível.");
-  if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
-  const texto = prompt.trim();
-  if (!texto) throw new Error("Prompt vazio — descreve a imagem a desenhar.");
-
-  const bucket = getAdminBucket();
-  if (!bucket) throw new Error("Firebase Storage indisponível (sem credenciais de Admin).");
-
+function cabecalhos(key: string): Record<string, string> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
     "Content-Type": "application/json",
@@ -78,16 +82,23 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
   const title = process.env.OPENROUTER_APP_TITLE?.trim();
   if (referer) headers["HTTP-Referer"] = referer;
   if (title) headers["X-Title"] = title;
+  return headers;
+}
 
+/** Faz o POST em /api/v1/images, valida a resposta e devolve os bytes + custo. */
+async function pedirImagem(
+  key: string,
+  corpo: Record<string, unknown>,
+): Promise<{ buffer: Buffer; mime: string; custoUsd?: number }> {
   const res = await fetch(OPENROUTER_IMAGES_URL, {
     method: "POST",
-    headers,
-    body: JSON.stringify({ model: modelo(), prompt: texto, n: 1 }),
+    headers: cabecalhos(key),
+    body: JSON.stringify(corpo),
   });
 
   if (!res.ok) {
-    const corpo = (await res.text()).slice(0, 300);
-    throw new Error(`Geração de imagem falhou (${res.status}): ${corpo}`);
+    const texto = (await res.text()).slice(0, 300);
+    throw new Error(`Geração de imagem falhou (${res.status}): ${texto}`);
   }
 
   const json = (await res.json()) as RespostaImagens;
@@ -96,8 +107,16 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
 
   const bytes = extrairBytes(item);
   if (!bytes) throw new Error("A resposta veio sem bytes de imagem legíveis.");
+  return { ...bytes, custoUsd: json.usage?.cost };
+}
 
-  // Sobe pro Storage com um token de download — a mesma URL estável que o SDK do cliente produz.
+/** Sobe os bytes pro Storage com token de download e devolve a URL estável. */
+async function subirImagem(
+  uid: string,
+  bytes: { buffer: Buffer; mime: string },
+): Promise<{ id: string; url: string }> {
+  const bucket = getAdminBucket();
+  if (!bucket) throw new Error("Firebase Storage indisponível (sem credenciais de Admin).");
   const id = randomUUID();
   const ext = bytes.mime.split("/")[1]?.replace(/[^a-z0-9]/gi, "") || "webp";
   const caminho = `users/${uid}/imagens/${id}.${ext}`;
@@ -108,11 +127,63 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
     contentType: bytes.mime,
     metadata: { metadata: { firebaseStorageDownloadTokens: token } },
   });
+  return { id, url: urlDownloadStorage(caminho, token) };
+}
 
-  return {
-    id,
-    url: urlDownloadStorage(caminho, token),
+export async function gerarImagemLuna(uid: string, prompt: string): Promise<ImagemGerada> {
+  const key = apiKey();
+  if (!key) throw new Error("OPENROUTER_API_KEY ausente — geração de imagem indisponível.");
+  if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
+  const texto = prompt.trim();
+  if (!texto) throw new Error("Prompt vazio — descreve a imagem a desenhar.");
+
+  const bytes = await pedirImagem(key, { model: modelo(), prompt: texto, n: 1 });
+  const { id, url } = await subirImagem(uid, bytes);
+  return { id, url, prompt: texto, custoUsd: bytes.custoUsd };
+}
+
+/**
+ * EDITAR a imagem anterior: manda a URL da imagem base em `input_references` e o modelo preserva o
+ * resto, mexendo só no que a `instrucao` pede. `baseUrl` é a URL pública do Storage (token não
+ * expira), que o modelo consegue buscar via HTTP.
+ */
+export async function editarImagemLuna(
+  uid: string,
+  instrucao: string,
+  baseUrl: string,
+): Promise<ImagemGerada> {
+  const key = apiKey();
+  if (!key) throw new Error("OPENROUTER_API_KEY ausente — edição de imagem indisponível.");
+  if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
+  const texto = instrucao.trim();
+  if (!texto) throw new Error("Instrução vazia — descreve a mudança a fazer.");
+  if (!baseUrl) throw new Error("Sem imagem base — não há o que editar.");
+
+  const bytes = await pedirImagem(key, {
+    model: modeloEdicao(),
     prompt: texto,
-    custoUsd: json.usage?.cost,
-  };
+    input_references: [{ type: "image_url", image_url: { url: baseUrl } }],
+    n: 1,
+  });
+  const { id, url } = await subirImagem(uid, bytes);
+  return { id, url, prompt: texto, custoUsd: bytes.custoUsd };
+}
+
+/**
+ * A última imagem que a Luna desenhou/editou NESTA conversa — para o `editar_imagem` saber em cima
+ * de qual imagem mexer, sem depender do modelo carregar a URL longa no contexto. Memória de processo
+ * (some se o servidor reiniciar): no pior caso, a edição avisa que não há base e ela redesenha.
+ */
+const ultimaImagemPorChave = new Map<string, { url: string; prompt: string }>();
+const LIMITE_CHAVES = 500;
+
+export function registrarUltimaImagem(chave: string, img: { url: string; prompt: string }): void {
+  if (!chave) return;
+  // Poda simples pra memória não crescer sem teto: ao estourar, esvazia (barato e raro).
+  if (ultimaImagemPorChave.size >= LIMITE_CHAVES) ultimaImagemPorChave.clear();
+  ultimaImagemPorChave.set(chave, { url: img.url, prompt: img.prompt });
+}
+
+export function ultimaImagemDe(chave: string): { url: string; prompt: string } | undefined {
+  return chave ? ultimaImagemPorChave.get(chave) : undefined;
 }
