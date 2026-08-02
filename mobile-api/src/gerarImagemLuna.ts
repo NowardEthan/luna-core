@@ -9,20 +9,21 @@ import { getAdminBucket, urlDownloadStorage } from "./firebaseAdmin.js";
  * inverso: manda texto e recebe imagem. E não é a via `modalities` do /chat/completions — a
  * OpenRouter expõe um endpoint DEDICADO `/api/v1/images`.
  *
- * Dois modos, MESMO modelo — o `sourceful/riverflow-v2.5-fast` é unified text-to-image E
- * image-to-image:
+ * Dois modos, MESMO modelo por padrão — o Seedream 4.5 (ByteDance) é text-to-image E
+ * image-to-image, com boa consistência na edição, anime e texto pequeno (~US$ 0,04/img):
  *  - GERAR (do zero): texto → imagem nova.
  *  - EDITAR (preservando): a imagem anterior vai em `input_references` (URL do Storage) e o modelo
- *    mexe SÓ no que o prompt pede — é isto que faz «adiciona um sachê» virar a MESMA xícara com o
- *    sachê, em vez de uma imagem nova. A OpenRouter recomenda passar URL (não base64) por causa do
- *    limite de 4.5MB do Sourceful — e é de graça pra nós, a URL já é pública.
+ *    mexe no que o prompt pede — «adiciona um sachê» deve virar a MESMA xícara com o sachê.
+ * Prefira URL (não base64) nas refs: payload leve e estável.
+ *
+ * Override: `OPENROUTER_IMAGE_MODEL` / `OPENROUTER_IMAGE_EDIT_MODEL` (ex. voltar pro Riverflow Fast).
  *
  * O byte não trafega pelo chat: a imagem volta em base64, sobe pro Firebase Storage, e o que segue
  * pro app é só a URL (leve, e o chat pode persistir sem carregar megabytes por mensagem).
  */
 
 const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images";
-const MODELO_PADRAO = "sourceful/riverflow-v2.5-fast";
+const MODELO_PADRAO = "bytedance-seed/seedream-4.5";
 
 export type ImagemGerada = {
   id: string;
@@ -40,7 +41,7 @@ function modelo(): string {
   return process.env.OPENROUTER_IMAGE_MODEL?.trim() || MODELO_PADRAO;
 }
 
-/** O modelo de edição; por padrão o MESMO da geração (Riverflow edita). Overridável se um dia quiser. */
+/** O modelo de edição; por padrão o MESMO da geração (Seedream edita). Overridável se um dia quiser. */
 function modeloEdicao(): string {
   return process.env.OPENROUTER_IMAGE_EDIT_MODEL?.trim() || modelo();
 }
@@ -147,7 +148,7 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
  * resto, mexendo só no que a `instrucao` pede. `baseUrl` é a URL pública do Storage (token não
  * expira), que o modelo consegue buscar via HTTP.
  *
- * `referenciaUrls` (opcional): anexos DELE — tipicamente estilo/paleta/clima. O Riverflow aceita
+ * `referenciaUrls` (opcional): anexos DELE — tipicamente estilo/paleta/clima. O Seedream aceita
  * várias referências; a 1ª é a base (arte dela), as seguintes guiam o estilo. Sem isto, «ajusta no
  * estilo da foto que mandei» só ia no texto e ela confabulava.
  */
