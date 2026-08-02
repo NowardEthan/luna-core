@@ -151,6 +151,24 @@ function formatarReais(centavos: number): string {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Aceita number ou string BR («32,90», «R$ 1.234,56») / EN («32.90»).
+ * O schema pede number, mas o modelo manda string com vírgula com frequência —
+ * Number("32,90") vira NaN e a mão devolvia ERRO (badge mentia sucesso antes do fix).
+ */
+function parseValorReais(raw: unknown): number {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw !== "string") return Number(raw);
+  let t = raw.trim().replace(/R\$\s*/i, "").replace(/\s/g, "");
+  if (!t) return NaN;
+  if (t.includes(",") && t.includes(".")) {
+    t = t.replace(/\./g, "").replace(",", ".");
+  } else if (t.includes(",")) {
+    t = t.replace(",", ".");
+  }
+  return Number(t);
+}
+
 function formatarDia(ms: number): string {
   return new Date(ms).toLocaleDateString("pt-BR", {
     day: "2-digit",
@@ -218,10 +236,10 @@ export async function registrarLancamento(
     return 'ERRO: tipo deve ser "entrada" ou "saida".';
   }
 
-  const valorNum = typeof args.valor === "number" ? args.valor : Number(args.valor);
+  const valorNum = parseValorReais(args.valor);
   const valorCentavos = deps.reaisParaCentavos(valorNum);
   if (valorCentavos <= 0) {
-    return "ERRO: valor inválido — usa um número em reais (ex.: 32.5).";
+    return "ERRO: valor inválido — usa um número em reais (ex.: 32.5 ou 32,90).";
   }
 
   const categoria = categoriaSegura(args.categoria, tipo);
@@ -471,7 +489,7 @@ export async function gerirRecorrente(
     const tipoRaw = String(args.tipo ?? "saida").trim().toLowerCase();
     const tipo = tipoRaw === "entrada" || tipoRaw === "saida" ? tipoRaw : null;
     if (!tipo) return 'ERRO: tipo deve ser "entrada" ou "saida".';
-    const valorNum = typeof args.valor === "number" ? args.valor : Number(args.valor);
+    const valorNum = parseValorReais(args.valor);
     const valorCentavos = deps.reaisParaCentavos(valorNum);
     if (valorCentavos < 0) return "ERRO: valor inválido.";
     const dia =
@@ -526,9 +544,7 @@ export async function gerirRecorrente(
     }
     if (args.tipo === "entrada" || args.tipo === "saida") patch.tipo = args.tipo;
     if (args.valor !== undefined) {
-      const v = deps.reaisParaCentavos(
-        typeof args.valor === "number" ? args.valor : Number(args.valor),
-      );
+      const v = deps.reaisParaCentavos(parseValorReais(args.valor));
       if (v < 0) return "ERRO: valor inválido.";
       patch.valorCentavos = v;
     }
@@ -708,7 +724,7 @@ export async function transferirEntreCarteiras(
   if (!deArg || !paraArg) {
     return 'ERRO: precisa de "de" e "para" (apelido ou id das carteiras).';
   }
-  const valorNum = typeof args.valor === "number" ? args.valor : Number(args.valor);
+  const valorNum = parseValorReais(args.valor);
   const valorCentavos = deps.reaisParaCentavos(valorNum);
   if (valorCentavos <= 0) return "ERRO: valor inválido.";
 
@@ -801,7 +817,7 @@ export async function gerirMeta(
     if (!TIPOS_META.has(tipo)) {
       return 'ERRO: tipo deve ser "reserva", "corte" ou "gasto_mes".';
     }
-    const alvoNum = typeof args.alvo === "number" ? args.alvo : Number(args.alvo);
+    const alvoNum = parseValorReais(args.alvo);
     const alvoCentavos = deps.reaisParaCentavos(alvoNum);
     if (alvoCentavos <= 0) return "ERRO: alvo inválido (em reais).";
     const categoria =

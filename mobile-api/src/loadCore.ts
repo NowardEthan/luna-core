@@ -619,7 +619,9 @@ export async function executarChatMobile(
         ? await conversaTemDocumentos(uid, sessionId)
         : false;
     const blocoFinancasPrevia =
-      prep.moduloFinancas && uid ? await montarBlocoFinancasPrevia(uid) : undefined;
+      prep.moduloFinancas && uid
+        ? await montarBlocoFinancasPrevia(uid, prep.timeZone)
+        : undefined;
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
@@ -751,7 +753,9 @@ export async function executarChatMobileStream(
         ? await conversaTemDocumentos(uid, sessionId)
         : false;
     const blocoFinancasPrevia =
-      prep.moduloFinancas && uid ? await montarBlocoFinancasPrevia(uid) : undefined;
+      prep.moduloFinancas && uid
+        ? await montarBlocoFinancasPrevia(uid, prep.timeZone)
+        : undefined;
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
