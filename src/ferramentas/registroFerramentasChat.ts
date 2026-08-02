@@ -526,8 +526,48 @@ const FERRAMENTA_REGISTRAR_LANCAMENTO: DefinicaoFerramenta = {
         type: "string",
         description: "Data opcional: YYYY-MM-DD ou DD/MM. Default = hoje.",
       },
+      recorrente: {
+        type: "boolean",
+        description:
+          "Se true, também cria um recorrente mensal com o mesmo valor/categoria (dia = dia da data).",
+      },
+      diaDoMes: {
+        type: "number",
+        description: "Só com recorrente=true: dia 1–31. Default = dia da data/hoje.",
+      },
     },
     required: ["tipo", "valor"],
+  },
+};
+
+const FERRAMENTA_LISTAR_LANCAMENTOS: DefinicaoFerramenta = {
+  nome: "listar_lancamentos",
+  descricao:
+    "Lista lançamentos (entradas/saídas) no período, com filtros opcionais de carteira, " +
+    "categoria ou só pendentes. Usa quando ele pergunta o que gastou, o extrato, ou pediu " +
+    "detalhe — não inventes linhas.",
+  parametros: {
+    type: "object",
+    properties: {
+      periodo: {
+        type: "string",
+        enum: ["dia", "semana", "mes"],
+        description: "Recorte. Default: mes.",
+      },
+      carteira: {
+        type: "string",
+        description: "Apelido ou id da carteira. Opcional.",
+      },
+      categoria: {
+        type: "string",
+        description: "Id da categoria. Opcional.",
+      },
+      soPendentes: {
+        type: "boolean",
+        description: "Se true, só contas ainda não pagas.",
+      },
+    },
+    required: [],
   },
 };
 
@@ -547,6 +587,167 @@ const FERRAMENTA_RESUMO_FINANCEIRO: DefinicaoFerramenta = {
       },
     },
     required: [],
+  },
+};
+
+const FERRAMENTA_GERIR_RECORRENTE: DefinicaoFerramenta = {
+  nome: "gerir_recorrente",
+  descricao:
+    "Cria, edita, desativa ou lista recorrentes mensais (aluguel, salário, Netflix…). " +
+    "Usa quando ele fala de conta fixa / «todo mês». Não inventes — chama a ferramenta.",
+  parametros: {
+    type: "object",
+    properties: {
+      acao: {
+        type: "string",
+        enum: ["criar", "editar", "desativar", "listar"],
+        description: "O que fazer.",
+      },
+      id: {
+        type: "string",
+        description: "Id do recorrente (editar/desativar). Ou usa apelido.",
+      },
+      apelido: {
+        type: "string",
+        description: "Nome (criar) ou busca (editar/desativar).",
+      },
+      novoApelido: {
+        type: "string",
+        description: "Só em editar: novo nome.",
+      },
+      tipo: {
+        type: "string",
+        enum: ["entrada", "saida"],
+        description: '"entrada" ou "saida".',
+      },
+      valor: {
+        type: "number",
+        description: "Valor em reais.",
+      },
+      diaDoMes: {
+        type: "number",
+        description: "Dia 1–31 do mês.",
+      },
+      categoria: {
+        type: "string",
+        description: "Id da categoria.",
+      },
+      carteira: {
+        type: "string",
+        description: "Apelido ou id da carteira.",
+      },
+      variavel: {
+        type: "boolean",
+        description: "Valor é estimativa (ex.: energia).",
+      },
+      ativo: {
+        type: "boolean",
+        description: "Se false, desativa o recorrente.",
+      },
+    },
+    required: ["acao"],
+  },
+};
+
+const FERRAMENTA_GERIR_CARTEIRA: DefinicaoFerramenta = {
+  nome: "gerir_carteira",
+  descricao:
+    "Cria, edita, arquiva ou lista carteiras/cartões. Usa quando ele pede pra adicionar " +
+    "Nubank, dinheiro, crédito, etc. Não digas que criaste sem chamar isto.",
+  parametros: {
+    type: "object",
+    properties: {
+      acao: {
+        type: "string",
+        enum: ["criar", "editar", "arquivar", "listar"],
+        description: "O que fazer.",
+      },
+      id: {
+        type: "string",
+        description: "Id da carteira (editar/arquivar).",
+      },
+      apelido: {
+        type: "string",
+        description: "Nome (criar) ou busca (editar/arquivar).",
+      },
+      novoApelido: {
+        type: "string",
+        description: "Só em editar: novo nome.",
+      },
+      tipo: {
+        type: "string",
+        enum: ["conta_debito", "cartao_credito", "dinheiro"],
+        description: "Tipo da carteira.",
+      },
+      banco: {
+        type: "string",
+        description: "Nome do banco (opcional).",
+      },
+      cor: {
+        type: "string",
+        description: "grafite, azul, roxo, verde, ambar.",
+      },
+      ultimos4: {
+        type: "string",
+        description: "Últimos 4 dígitos (opcional).",
+      },
+      saldoInicial: {
+        type: "number",
+        description: "Saldo inicial em reais (débito/dinheiro).",
+      },
+      limite: {
+        type: "number",
+        description: "Limite em reais (crédito).",
+      },
+      fechamentoDia: {
+        type: "number",
+        description: "Dia de fechamento da fatura (1–31).",
+      },
+      vencimentoDia: {
+        type: "number",
+        description: "Dia de vencimento da fatura (1–31).",
+      },
+    },
+    required: ["acao"],
+  },
+};
+
+const FERRAMENTA_TRANSFERIR: DefinicaoFerramenta = {
+  nome: "transferir",
+  descricao:
+    "Move dinheiro entre carteiras SEM contar como gasto nem entrada (ex.: pagar fatura do " +
+    "crédito com o débito, reserva). Usa quando ele diz «transfere», «paga a fatura», «move X " +
+    "pro cartão». Não inventes — chama isto.",
+  parametros: {
+    type: "object",
+    properties: {
+      de: {
+        type: "string",
+        description: "Carteira de origem (apelido ou id).",
+      },
+      para: {
+        type: "string",
+        description: "Carteira de destino.",
+      },
+      valor: {
+        type: "number",
+        description: "Valor em reais.",
+      },
+      motivo: {
+        type: "string",
+        enum: ["pagar_fatura", "reserva", "ajuste"],
+        description: "Default: ajuste.",
+      },
+      data: {
+        type: "string",
+        description: "YYYY-MM-DD ou DD/MM. Default = hoje.",
+      },
+      nota: {
+        type: "string",
+        description: "Nota opcional.",
+      },
+    },
+    required: ["de", "para", "valor"],
   },
 };
 
@@ -872,7 +1073,11 @@ export function listarFerramentasChat(
     FERRAMENTA_ANOTAR_IDEIA,
     FERRAMENTA_VER_IDEIAS,
     FERRAMENTA_REGISTRAR_LANCAMENTO,
+    FERRAMENTA_LISTAR_LANCAMENTOS,
     FERRAMENTA_RESUMO_FINANCEIRO,
+    FERRAMENTA_GERIR_RECORRENTE,
+    FERRAMENTA_GERIR_CARTEIRA,
+    FERRAMENTA_TRANSFERIR,
   ];
   // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, as ferramentas nem existem.
   if (opcoes.documentosAtivo) {

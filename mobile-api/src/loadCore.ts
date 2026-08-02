@@ -316,6 +316,12 @@ const ROTULO_FERRAMENTA: Record<string, string> = {
   criar_rotina: "Montando a rotina…",
   gerir_rotina: "Ajustando a rotina…",
   ver_rotina: "Olhando a rotina…",
+  registrar_lancamento: "Registrando lançamento…",
+  listar_lancamentos: "Lendo o extrato…",
+  resumo_financeiro: "Lendo as finanças…",
+  gerir_recorrente: "Ajustando recorrente…",
+  gerir_carteira: "Ajustando carteira…",
+  transferir: "Transferindo…",
 };
 
 /**

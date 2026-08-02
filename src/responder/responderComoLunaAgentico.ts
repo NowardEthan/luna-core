@@ -24,7 +24,15 @@ import {
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
 import { anotarIdeia, verIdeias } from "../ferramentas/maosDasIdeias.js";
-import { registrarLancamento, resumoFinanceiro } from "../ferramentas/maosDasFinancas.js";
+import {
+  gerirCarteira,
+  gerirRecorrente,
+  listarLancamentosFinanca,
+  registrarLancamento,
+  resumoFinanceiro,
+  transferirEntreCarteiras,
+  type DependenciasFinancas,
+} from "../ferramentas/maosDasFinancas.js";
 import {
   criarDocumento as criarDocumentoFerramenta,
   listarDocumentos as listarDocumentosFerramenta,
@@ -124,6 +132,24 @@ function analisarResultadoFerramenta(ferramenta: string, resultadoJson: string):
   } catch {
     return { ok: true };
   }
+}
+
+/** Junta as deps de finanças a partir das mãos da rotina (mesmo objeto, campos opcionais). */
+function montarDepsFinancas(deps: DependenciasRotina): DependenciasFinancas {
+  return {
+    criarLancamento: deps.criarLancamento ?? (async () => ""),
+    listarLancamentos: deps.listarLancamentos ?? (async () => []),
+    listarCarteiras: deps.listarCarteiras ?? (async () => []),
+    criarCarteira: deps.criarCarteira,
+    atualizarCarteira: deps.atualizarCarteira,
+    arquivarCarteira: deps.arquivarCarteira,
+    listarRecorrentes: deps.listarRecorrentes,
+    criarRecorrente: deps.criarRecorrente,
+    atualizarRecorrente: deps.atualizarRecorrente,
+    criarTransferencia: deps.criarTransferencia,
+    reaisParaCentavos: deps.reaisParaCentavos ?? (() => -1),
+    faixaPeriodo: deps.faixaPeriodoFinancas ?? (() => ({ inicio: 0, fim: 0 })),
+  };
 }
 
 export type OpcoesResponderAgentico = {
@@ -650,7 +676,11 @@ export async function responderComoLunaAgentico(
         nome === "anotar_ideia" ||
         nome === "ver_ideias" ||
         nome === "registrar_lancamento" ||
+        nome === "listar_lancamentos" ||
         nome === "resumo_financeiro" ||
+        nome === "gerir_recorrente" ||
+        nome === "gerir_carteira" ||
+        nome === "transferir" ||
         nome === "criar_artefato" ||
         nome === "listar_artefatos" ||
         nome === "ler_artefato" ||
@@ -744,16 +774,17 @@ export async function responderComoLunaAgentico(
           ) {
             return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
           }
-          return registrarLancamento(
-            {
-              criarLancamento: opcoes.rotinaDeps.criarLancamento,
-              listarLancamentos: opcoes.rotinaDeps.listarLancamentos ?? (async () => []),
-              listarCarteiras: opcoes.rotinaDeps.listarCarteiras,
-              reaisParaCentavos: opcoes.rotinaDeps.reaisParaCentavos,
-              faixaPeriodo: opcoes.rotinaDeps.faixaPeriodoFinancas ?? (() => ({ inicio: 0, fim: 0 })),
-            },
-            args,
-          );
+          return registrarLancamento(montarDepsFinancas(opcoes.rotinaDeps), args);
+        }
+        if (nome === "listar_lancamentos") {
+          if (
+            !opcoes.rotinaDeps.listarLancamentos ||
+            !opcoes.rotinaDeps.faixaPeriodoFinancas ||
+            !opcoes.rotinaDeps.reaisParaCentavos
+          ) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return listarLancamentosFinanca(montarDepsFinancas(opcoes.rotinaDeps), args);
         }
         if (nome === "resumo_financeiro") {
           if (
@@ -763,16 +794,29 @@ export async function responderComoLunaAgentico(
           ) {
             return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
           }
-          return resumoFinanceiro(
-            {
-              criarLancamento: opcoes.rotinaDeps.criarLancamento ?? (async () => ""),
-              listarLancamentos: opcoes.rotinaDeps.listarLancamentos,
-              listarCarteiras: opcoes.rotinaDeps.listarCarteiras ?? (async () => []),
-              reaisParaCentavos: opcoes.rotinaDeps.reaisParaCentavos,
-              faixaPeriodo: opcoes.rotinaDeps.faixaPeriodoFinancas,
-            },
-            args,
-          );
+          return resumoFinanceiro(montarDepsFinancas(opcoes.rotinaDeps), args);
+        }
+        if (nome === "gerir_recorrente") {
+          if (!opcoes.rotinaDeps.listarCarteiras || !opcoes.rotinaDeps.reaisParaCentavos) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return gerirRecorrente(montarDepsFinancas(opcoes.rotinaDeps), args);
+        }
+        if (nome === "gerir_carteira") {
+          if (!opcoes.rotinaDeps.listarCarteiras || !opcoes.rotinaDeps.reaisParaCentavos) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return gerirCarteira(montarDepsFinancas(opcoes.rotinaDeps), args);
+        }
+        if (nome === "transferir") {
+          if (
+            !opcoes.rotinaDeps.criarTransferencia ||
+            !opcoes.rotinaDeps.listarCarteiras ||
+            !opcoes.rotinaDeps.reaisParaCentavos
+          ) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return transferirEntreCarteiras(montarDepsFinancas(opcoes.rotinaDeps), args);
         }
         if (nome === "ver_rotina") {
           const dia = typeof args.dia === "number" ? args.dia : undefined;

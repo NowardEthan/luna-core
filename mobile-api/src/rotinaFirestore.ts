@@ -14,10 +14,17 @@ import {
 } from "../../dist/estado/neuronioRotina.js";
 import { criarIdeia as criarIdeiaNaInbox, lerIdeias } from "./firestoreIdeias.js";
 import {
+  atualizarCarteiraLuna,
+  atualizarRecorrenteLuna,
+  arquivarCarteiraLuna,
+  criarCarteiraLuna,
   criarLancamentoLuna,
+  criarRecorrenteLuna,
+  criarTransferenciaLuna,
   faixaPeriodo as faixaPeriodoFinancas,
   listarCarteiras,
   listarLancamentos,
+  listarRecorrentes,
   reaisParaCentavos,
 } from "./firestoreFinancas.js";
 import {
@@ -417,12 +424,15 @@ export function maosDaRotina(
       categoria: string;
       carteiraId: string;
       dataMs?: number;
+      recorrenteId?: string | null;
+      pago?: boolean;
     }) => {
       return criarLancamentoLuna(uid, dados);
     },
     listarLancamentos: async () => {
       const lista = await listarLancamentos(uid);
       return lista.map((l) => ({
+        id: l.id,
         tipo: l.tipo,
         valorCentavos: l.valorCentavos,
         data: l.data,
@@ -434,8 +444,15 @@ export function maosDaRotina(
     },
     listarCarteiras: async () => {
       const lista = await listarCarteiras(uid);
-      return lista.map((c) => ({ id: c.id, apelido: c.apelido }));
+      return lista.map((c) => ({ id: c.id, apelido: c.apelido, tipo: c.tipo }));
     },
+    criarCarteira: async (dados) => criarCarteiraLuna(uid, dados),
+    atualizarCarteira: async (id, patch) => atualizarCarteiraLuna(uid, id, patch),
+    arquivarCarteira: async (id) => arquivarCarteiraLuna(uid, id),
+    listarRecorrentes: async () => listarRecorrentes(uid),
+    criarRecorrente: async (dados) => criarRecorrenteLuna(uid, dados),
+    atualizarRecorrente: async (id, patch) => atualizarRecorrenteLuna(uid, id, patch),
+    criarTransferencia: async (dados) => criarTransferenciaLuna(uid, dados),
     reaisParaCentavos,
     faixaPeriodoFinancas,
   };

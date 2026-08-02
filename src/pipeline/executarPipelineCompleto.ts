@@ -279,7 +279,43 @@ function deveUsarModoAgentico(
   // um verbo de edição/estilo basta para pôr a ferramenta na mão.
   const editaDocumento =
     documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);
-  return vision || documento || web || pedeDocumento || editaDocumento;
+  // Finanças: «gastei 32», «transfere», «resumo do mês» — as tools vivem no agêntico.
+  const pedeFinancas = mensagemPedeFinancas(mensagem);
+  return vision || documento || web || pedeDocumento || editaDocumento || pedeFinancas;
+}
+
+/**
+ * Pedido de ação/consulta financeira — abre o agêntico pra `registrar_lancamento`,
+ * `resumo_financeiro`, `transferir`, etc. Deliberadamente ancorado em verbo de grana
+ * ou substantivo do módulo Finanças (sem alargar pra qualquer «R$» solto em metáfora).
+ */
+export function mensagemPedeFinancas(mensagem: string): boolean {
+  if (
+    /\b(gastei|gastamos|gaste|paguei|pagamos|recebi|recebemos|transferi|transfere|transferir|transferiu)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(lan[cç]amento|lan[cç]amentos|extrato|fatura|carteira|carteiras|cart[aã]o|cart[oõ]es|recorrente|recorrentes|or[cç]amento|finan[cç]as|conta\s+a\s+pagar|contas\s+a\s+pagar)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(registr\w+|anot\w+|salva\w+|cria\w*|crie|lista\w*|mostra\w*|quanto\s+(gastei|saiu|entrou))\b[^.?!\n]{0,40}\b(r\$|reais?|centavos|aluguel|sal[aá]rio|netflix|nubank)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  // «R$ 32» / «32 reais» perto de verbo de anotar/gastar já coberto acima; aqui o atalho
+  // «registre 50 reais no almoço» sem o verbo na primeira cláusula.
+  if (/\b\d+([.,]\d{1,2})?\s*(reais?|r\$)\b/i.test(mensagem)) return true;
+  if (/\br\$\s*\d/i.test(mensagem)) return true;
+  return false;
 }
 
 /**
