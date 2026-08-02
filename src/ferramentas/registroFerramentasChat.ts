@@ -844,17 +844,26 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
 };
 
 /**
- * A mão que DESENHA — a Luna gera uma imagem. Mesma trava (`documentosAtivo`): só no OrbitLab.
- * A imagem NÃO viaja na fala; sobe pro Storage e o cartão dela aparece no chat.
+ * A mão que DESENHA DO ZERO — a Luna gera uma imagem NOVA, sem referência. Mesma trava
+ * (`documentosAtivo`): só no OrbitLab. A imagem NÃO viaja na fala; sobe pro Storage e o cartão
+ * dela aparece no chat.
+ *
+ * ⚠️ Continuidade: se ele quer «o MESMO» personagem/objeto de uma imagem que já existe nesta
+ * conversa — mesmo numa cena, pose ou ângulo TOTALMENTE novos — isto NÃO serve (pinta do zero e
+ * sai outro bicho); usa `editar_imagem`, que carrega a anterior como referência.
  */
 const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
   nome: "gerar_imagem",
   descricao:
-    "Desenha uma IMAGEM a partir de uma descrição e mostra-a como um cartão aqui no chat. Usa " +
-    "quando ele PEDE uma imagem («desenha…», «cria uma imagem de…», «faz uma arte/ilustração/" +
-    "capa/ícone de…», «como seria… numa imagem?»). O `prompt` é a descrição visual, em português " +
-    "ou inglês — quanto mais concreta (assunto, estilo, cores, luz, enquadramento), melhor o " +
-    "resultado; se ele foi vago, ENRIQUECE com bom senso visual em vez de pedir detalhes. Demora " +
+    "Desenha uma IMAGEM NOVA, do ZERO, a partir de uma descrição e mostra-a como um cartão aqui no " +
+    "chat. Usa quando ele PEDE uma imagem de um assunto NOVO («desenha…», «cria uma imagem de…», " +
+    "«faz uma arte/ilustração/capa/ícone de…», «como seria… numa imagem?»). O `prompt` é a descrição " +
+    "visual, em português ou inglês — quanto mais concreta (assunto, estilo, cores, luz, " +
+    "enquadramento), melhor o resultado; se ele foi vago, ENRIQUECE com bom senso visual em vez de " +
+    "pedir detalhes. ── ATENÇÃO À CONTINUIDADE ── se o pedido é sobre «o MESMO» gato/personagem/" +
+    "objeto de uma imagem que já existe nesta conversa (mesmo que peça outra cena, outro ângulo, " +
+    "«mais trabalhada», «em perspectiva»), NÃO uses isto — pintarias do zero e sairia OUTRO. Aí é " +
+    "`editar_imagem`, que parte da imagem anterior como referência e mantém o personagem. Demora " +
     "alguns segundos. NÃO uses para responder algo que é texto, nem para «ver» uma imagem que ELE " +
     "mandou (isso é a visão, não isto). Depois de gerar, comenta na tua voz — o cartão já mostra a " +
     "imagem, não a descrevas inteira.",
@@ -874,27 +883,37 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
 };
 
 /**
- * A mão que EDITA a última imagem — mesma imagem, muda só o que ele pediu (image-to-image). Sem
- * isto, um «adiciona um sachê» ia pro `gerar_imagem` e saía uma imagem NOVA do zero. Mesma trava
- * (`documentosAtivo`): só no OrbitLab.
+ * A mão da CONTINUIDADE — parte da última imagem da conversa como REFERÊNCIA (image-to-image) e
+ * mantém o mesmo personagem/objeto. Cobre DOIS casos: (a) retoque — mexe só num detalhe e preserva
+ * o resto; (b) re-encenar — o MESMO personagem numa cena/pose/ângulo totalmente novos. Sem isto, um
+ * «adiciona um sachê» OU um «faz o mesmo gato noutra cena» ia pro `gerar_imagem` e saía outro bicho
+ * do zero. Testado: o Riverflow segura o personagem mesmo trocando cenário e ângulo inteiros. Mesma
+ * trava (`documentosAtivo`): só no OrbitLab.
  */
 const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
   nome: "editar_imagem",
   descricao:
-    "EDITA a imagem que acabaste de desenhar — parte dela e mexe SÓ no que ele pede, preservando o " +
-    "resto (mesma composição, cores, enquadramento). Usa quando ele quer AJUSTAR a imagem anterior " +
-    "(«adiciona um…», «tira o…», «muda a cor de…», «põe um chapéu nele», «deixa igual mas…», «agora " +
-    "de noite»). NÃO uses `gerar_imagem` pra isto — aquilo faz uma imagem NOVA do zero e perde a " +
-    "anterior. Só funciona se já houver uma imagem nesta conversa; se não houver, usa `gerar_imagem`.",
+    "Parte da ÚLTIMA imagem desta conversa como REFERÊNCIA e produz uma nova versão MANTENDO o mesmo " +
+    "personagem/objeto (image-to-image). Serve pra DOIS casos: " +
+    "① RETOQUE — mexer só num detalhe e preservar o resto («adiciona um…», «tira o…», «muda a cor " +
+    "de…», «põe um chapéu nele», «deixa igual mas de noite»). " +
+    "② RE-ENCENAR — pegar «o MESMO» gato/personagem/objeto e pô-lo numa CENA, pose ou ângulo NOVOS " +
+    "(«faz o mesmo gato agora numa rua», «esse personagem em perspectiva, mais trabalhado», «o mesmo " +
+    "mas num cenário de floresta»). Repara: mesmo o usuário dizendo «cria OUTRA imagem» ou «uma NOVA " +
+    "cena», se é «o MESMO» de uma imagem que já existe aqui, é ISTO — não o `gerar_imagem`, que " +
+    "pintaria do zero e perderia o personagem. Só funciona se já houver uma imagem nesta conversa; " +
+    "se não houver (ou se o assunto é totalmente novo, sem ligação com a anterior), usa `gerar_imagem`.",
   parametros: {
     type: "object",
     properties: {
       instrucao: {
         type: "string",
         description:
-          "A MUDANÇA a fazer, curta e direta — só o que muda, não a cena inteira. Ex.: «adiciona um " +
-          "sachê de chá dentro da xícara», «troca o fundo para azul», «põe óculos no gato». O resto " +
-          "da imagem é preservado automaticamente.",
+          "O que fazer. Para um RETOQUE, diz só o que muda («adiciona um sachê de chá na xícara», " +
+          "«troca o fundo para azul») — o resto é preservado sozinho. Para RE-ENCENAR o mesmo " +
+          "personagem, descreve a CENA nova por inteiro e deixa claro que o personagem é o mesmo — " +
+          "ex.: «o mesmo gato laranja de chapéu e botas, agora numa rua de paralelepípedo à noite, " +
+          "perspectiva baixa, clima noir; mantém o personagem idêntico, muda só o cenário e o ângulo».",
       },
     },
     required: ["instrucao"],

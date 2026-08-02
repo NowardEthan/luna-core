@@ -296,7 +296,7 @@ function deveUsarModoAgentico(
 export function mensagemPedeGerarImagem(mensagem: string): boolean {
   if (/\b(desenh\w+|ilustr\w+)\b/i.test(mensagem)) return true;
   const substantivoVisual =
-    "imagem|imagens|arte|ilustra[çc][ãa]o|desenho|foto|logo|logotipo|[íi]cone|capa|wallpaper|papel\\s+de\\s+parede|pintura|pôster|poster|cartaz|avatar|figura";
+    "imagem|imagens|arte|ilustra[çc][ãa]o|desenho|foto|logo|logotipo|[íi]cone|capa|wallpaper|papel\\s+de\\s+parede|pintura|pôster|poster|cartaz|avatar|figura|cena|cenas|personagem|personagens|retrato";
   // CRIAR do zero: verbo de criação + substantivo visual.
   if (
     new RegExp(
