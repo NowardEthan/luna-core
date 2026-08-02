@@ -55,31 +55,36 @@ export async function listarLancamentos(uid: string): Promise<LancamentoFirestor
   const db = getAdminFirestore();
   if (!db) return [];
   const snap = await db.collection("users").doc(uid).collection("lancamentos").get();
-  return snap.docs
-    .map((d) => {
-      const data = d.data();
-      const tipo = data.tipo === "entrada" || data.tipo === "saida" ? data.tipo : null;
-      if (!tipo) return null;
-      const valor = Number(data.valorCentavos);
-      if (!Number.isFinite(valor) || valor < 0) return null;
-      const dataMs = Number(data.data);
-      if (!Number.isFinite(dataMs)) return null;
-      return {
-        id: (data.id as string) || d.id,
-        tipo,
-        valorCentavos: valor,
-        data: dataMs,
-        descricao: String(data.descricao ?? ""),
-        categoria: String(data.categoria ?? "outros"),
-        carteiraId: String(data.carteiraId ?? ""),
-        recorrenteId: (data.recorrenteId as string) ?? null,
-        origem: (data.origem as LancamentoFirestore["origem"]) || "luna",
-        pago: data.pago !== false,
-        createdAt: Number(data.createdAt) || 0,
-        updatedAt: Number(data.updatedAt) || 0,
-      } satisfies LancamentoFirestore;
-    })
-    .filter((x): x is LancamentoFirestore => x !== null);
+  const out: LancamentoFirestore[] = [];
+  for (const d of snap.docs) {
+    const data = d.data();
+    const tipo = data.tipo === "entrada" || data.tipo === "saida" ? data.tipo : null;
+    if (!tipo) continue;
+    const valor = Number(data.valorCentavos);
+    if (!Number.isFinite(valor) || valor < 0) continue;
+    const dataMs = Number(data.data);
+    if (!Number.isFinite(dataMs)) continue;
+    const origemRaw = data.origem;
+    const origem: LancamentoFirestore["origem"] =
+      origemRaw === "manual" || origemRaw === "luna" || origemRaw === "captura"
+        ? origemRaw
+        : "luna";
+    out.push({
+      id: (data.id as string) || d.id,
+      tipo,
+      valorCentavos: valor,
+      data: dataMs,
+      descricao: String(data.descricao ?? ""),
+      categoria: String(data.categoria ?? "outros"),
+      carteiraId: String(data.carteiraId ?? ""),
+      recorrenteId: typeof data.recorrenteId === "string" ? data.recorrenteId : null,
+      origem,
+      pago: data.pago !== false,
+      createdAt: Number(data.createdAt) || 0,
+      updatedAt: Number(data.updatedAt) || 0,
+    });
+  }
+  return out;
 }
 
 export async function criarLancamentoLuna(
