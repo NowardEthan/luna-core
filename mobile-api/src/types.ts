@@ -148,6 +148,11 @@ export const ChatRequestSchema = z.object({
     )
     .max(5)
     .optional(),
+  /**
+   * URL da arte da Luna que o usuário REFERENCIOU neste turno (swipe numa imagem anterior).
+   * O `editar_imagem` usa isto como BASE em vez da última gerada na conversa.
+   */
+  imagemBaseEdicao: z.string().url().max(2_048).optional(),
 });
 
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;

@@ -400,11 +400,14 @@ const DIRETRIZ_IMAGEM =
   "do anexo (ou omite o id pra usar o anexo de imagem mais recente DESTE turno). Sem isso, a edição " +
   "NÃO recebe a foto dele — só texto — e o resultado quase não muda. `ver_imagem` SÓ OLHA; não " +
   "produz cartão novo. É PROIBIDO dizer que «ajustei no estilo da foto» / «apliquei a referência» " +
-  "SEM ter chamado `editar_imagem` (com a referência). REGRA DE OURO: se ele diz «o mesmo…», " +
-  "«esse…», «ele/ela agora…» — mesmo pedindo «outra imagem» ou «uma cena nova» —, é `editar_imagem`, " +
-  "NUNCA `gerar_imagem` (do zero sairia OUTRO bicho). No RETOQUE, em `instrucao` passa só o que muda; " +
-  "no RE-ENCENAR, descreve a cena nova inteira e diz que o personagem é o mesmo; no ESTILO, deixa " +
-  "claro o que pegar da referência.\n" +
+  "SEM ter chamado `editar_imagem` (com a referência). " +
+  "── BASE ≠ SEMPRE A ÚLTIMA ── se ele REFERENCIOU/PUXOU uma imagem TUA anterior (bloco de " +
+  "referência com URL, ou `base_url`), passa `base_url` com ESSA URL ao `editar_imagem`. Senão " +
+  "mexes na última arte e ignoras o que ele apontou — erro clássico. REGRA DE OURO: se ele diz " +
+  "«o mesmo…», «esse…», «ele/ela agora…» — mesmo pedindo «outra imagem» ou «uma cena nova» —, é " +
+  "`editar_imagem`, NUNCA `gerar_imagem` (do zero sairia OUTRO bicho). No RETOQUE, em `instrucao` " +
+  "passa só o que muda; no RE-ENCENAR, descreve a cena nova inteira e diz que o personagem é o " +
+  "mesmo; no ESTILO, deixa claro o que pegar da referência.\n" +
   "Demora alguns segundos. Depois de gerar/editar, a imagem JÁ está à frente dele no cartão: reage a " +
   "ELA — curto, na tua voz (o que achaste, um detalhe). NÃO copies a URL, NÃO descrevas a imagem " +
   "inteira, e NUNCA digas que «não desenhas de verdade» ou que «só pintas com palavras»: tu desenhaste, " +
@@ -959,14 +962,25 @@ export async function responderComoLunaAgentico(
             referenciaUrls.push(refUrl);
           }
 
+          const baseUrlArg =
+            typeof args.base_url === "string" ? args.base_url.trim() : "";
+          // Aceita só http(s) — evita o modelo colar lixo; data: também ok (raro).
+          const baseUrl =
+            baseUrlArg &&
+            (/^https?:\/\//i.test(baseUrlArg) || baseUrlArg.startsWith("data:image/"))
+              ? baseUrlArg
+              : undefined;
+
           try {
             const img = await opcoes.rotinaDeps.editarImagem(instrucao, {
               referenciaUrls: referenciaUrls.length > 0 ? referenciaUrls : undefined,
+              baseUrl,
             });
             return JSON.stringify({
               ok: true,
               imagem: { url: img.url, prompt: img.prompt },
               usouReferenciaEstilo: referenciaUrls.length > 0,
+              usouBaseExplicita: Boolean(baseUrl),
               aviso:
                 "A imagem editada já foi mostrada ao usuário num cartão novo. Comenta na tua voz " +
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",

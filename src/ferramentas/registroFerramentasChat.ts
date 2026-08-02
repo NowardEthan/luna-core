@@ -904,10 +904,13 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
     "imagem (paleta, traço, clima) de acordo com a dele. Aí passas `referencia_id` com o id do " +
     "anexo (ou omite o id pra usar o anexo de imagem mais recente DESTE turno). Sem `referencia_id`/" +
     "anexo, o modelo NÃO vê a foto dele na edição — só texto — e o resultado quase não muda. " +
-    "Repara: mesmo o usuário dizendo «cria OUTRA imagem» ou «uma NOVA cena», se é «o MESMO» de uma " +
-    "imagem que já existe aqui, é ISTO — não o `gerar_imagem`. Só funciona se já houver uma imagem " +
-    "tua nesta conversa; se não houver, usa `gerar_imagem`. NÃO uses isto só pra OLHAR o anexo " +
-    "(isso é `ver_imagem`); usa quando vais PRODUZIR uma versão nova.",
+    "── BASE NÃO É SEMPRE A ÚLTIMA ── se ele REFERENCIOU/PUXOU uma imagem TUA anterior (há " +
+    "`base_url` ou URL no bloco de referência), passa `base_url` com ESSA URL — senão mexes na " +
+    "última e ignora o que ele apontou. Repara: mesmo o usuário dizendo «cria OUTRA imagem» ou " +
+    "«uma NOVA cena», se é «o MESMO» de uma imagem que já existe aqui, é ISTO — não o " +
+    "`gerar_imagem`. Só funciona se já houver uma imagem tua nesta conversa; se não houver, usa " +
+    "`gerar_imagem`. NÃO uses isto só pra OLHAR o anexo (isso é `ver_imagem`); usa quando vais " +
+    "PRODUZIR uma versão nova.",
   parametros: {
     type: "object",
     properties: {
@@ -922,13 +925,20 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
           "Para ESTILO a partir do anexo: deixa claro o que pegar da referência («aplica a paleta e " +
           "o traço da imagem de referência; mantém o mesmo gato»).",
       },
+      base_url: {
+        type: "string",
+        description:
+          "URL da imagem TUA (que tu desenhaste) a usar como BASE desta edição. OBRIGATÓRIO quando " +
+          "ele referenciou/puxou uma arte anterior — copia a URL do bloco de referência. Se omitires, " +
+          "o servidor usa a base do turno (se ele puxou uma) ou a última gerada na conversa.",
+      },
       referencia_id: {
         type: "string",
         description:
-          "ID do anexo de imagem que ELE mandou, pra usar como REFERÊNCIA DE ESTILO (além da tua " +
-          "última arte, que é a base). Usa quando ele pede «no estilo dessa foto», «com a mesma " +
-          "vibe/paleta/traço desta imagem». Se omitires e houver anexo de imagem NESTE turno, o " +
-          "sistema usa o mais recente do turno. Não passes id de vídeo.",
+          "ID do anexo de imagem que ELE mandou, pra usar como REFERÊNCIA DE ESTILO (além da base " +
+          "tua). Usa quando ele pede «no estilo dessa foto», «com a mesma vibe/paleta/traço desta " +
+          "imagem». Se omitires e o pedido for de estilo com anexo neste turno, o sistema usa o " +
+          "mais recente do turno. Não passes id de vídeo.",
       },
     },
     required: ["instrucao"],

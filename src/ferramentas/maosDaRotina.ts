@@ -251,12 +251,12 @@ export type DependenciasRotina = {
   // A URL nasce SÓ aqui (depois do upload), então não está nos argumentos da ferramenta —
   // o dispatcher a devolve na string de retorno pra viajar no evento fim_ferramenta.
   gerarImagem?: (prompt: string) => Promise<{ id: string; url: string; prompt: string }>;
-  // Edita a ÚLTIMA imagem desta conversa (image-to-image): preserva o resto e mexe só no que a
-  // instrução pede. `referenciaUrls` = anexos DELE (estilo/paleta) além da base dela.
-  // Lança se não houver imagem anterior para editar.
+  // Edita uma imagem TUA desta conversa (image-to-image). Por defeito a última; `baseUrl`
+  // escolhe outra (quando ele referenciou/puxou uma arte anterior). `referenciaUrls` = anexos
+  // DELE (estilo/paleta) além da base. Lança se não houver base.
   editarImagem?: (
     instrucao: string,
-    opts?: { referenciaUrls?: string[] },
+    opts?: { referenciaUrls?: string[]; baseUrl?: string },
   ) => Promise<{ id: string; url: string; prompt: string }>;
 };
 
