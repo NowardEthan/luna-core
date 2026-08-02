@@ -15,15 +15,19 @@ import {
 import { criarIdeia as criarIdeiaNaInbox, lerIdeias } from "./firestoreIdeias.js";
 import {
   atualizarCarteiraLuna,
+  atualizarMetaLuna,
   atualizarRecorrenteLuna,
+  apagarMetaLuna,
   arquivarCarteiraLuna,
   criarCarteiraLuna,
   criarLancamentoLuna,
+  criarMetaLuna,
   criarRecorrenteLuna,
   criarTransferenciaLuna,
   faixaPeriodo as faixaPeriodoFinancas,
   listarCarteiras,
   listarLancamentos,
+  listarMetas,
   listarRecorrentes,
   reaisParaCentavos,
 } from "./firestoreFinancas.js";
@@ -462,6 +466,11 @@ export function maosDaRotina(
     ) => atualizarRecorrenteLuna(uid, id, patch),
     criarTransferencia: async (dados: Parameters<typeof criarTransferenciaLuna>[1]) =>
       criarTransferenciaLuna(uid, dados),
+    listarMetas: async () => listarMetas(uid),
+    criarMeta: async (dados: Parameters<typeof criarMetaLuna>[1]) => criarMetaLuna(uid, dados),
+    atualizarMeta: async (id: string, patch: Parameters<typeof atualizarMetaLuna>[2]) =>
+      atualizarMetaLuna(uid, id, patch),
+    apagarMeta: async (id: string) => apagarMetaLuna(uid, id),
     reaisParaCentavos,
     faixaPeriodoFinancas,
   };

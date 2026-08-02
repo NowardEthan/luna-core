@@ -212,6 +212,36 @@ export type DependenciasRotina = {
     motivo?: string | null;
     nota?: string | null;
   }) => Promise<string>;
+  listarMetas?: () => Promise<
+    Array<{
+      id: string;
+      apelido: string;
+      tipo: "reserva" | "corte" | "gasto_mes";
+      alvoCentavos: number;
+      atualCentavos: number;
+      categoria?: string | null;
+      ativa: boolean;
+    }>
+  >;
+  criarMeta?: (dados: {
+    apelido: string;
+    tipo: "reserva" | "corte" | "gasto_mes";
+    alvoCentavos: number;
+    atualCentavos?: number;
+    categoria?: string | null;
+  }) => Promise<string>;
+  atualizarMeta?: (
+    id: string,
+    patch: Partial<{
+      apelido: string;
+      tipo: "reserva" | "corte" | "gasto_mes";
+      alvoCentavos: number;
+      atualCentavos: number;
+      categoria: string | null;
+      ativa: boolean;
+    }>,
+  ) => Promise<void>;
+  apagarMeta?: (id: string) => Promise<void>;
   reaisParaCentavos?: (valor: number) => number;
   faixaPeriodoFinancas?: (periodo: "dia" | "semana" | "mes") => { inicio: number; fim: number };
 };
