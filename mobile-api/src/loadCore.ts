@@ -343,6 +343,8 @@ const ROTULO_FERRAMENTA: Record<string, string> = {
   gerir_meta: "Ajustando meta…",
   transferir: "Transferindo…",
   gerar_imagem: "Desenhando…",
+  editar_imagem: "Ajustando…",
+  perguntar: "Perguntando…",
 };
 
 /**

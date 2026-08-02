@@ -92,6 +92,11 @@ export type AcaoAgenticoChat = {
    * A URL nasce no servidor (depois do upload), então não está nos `argumentos`; viaja aqui.
    */
   imagem?: { url: string; prompt: string };
+  /**
+   * A pergunta com opções que a Luna fez ao usuário — presente só no `fim_ferramenta` de
+   * `perguntar`. O app renderiza um cartão com as opções tocáveis; tocar vira a próxima mensagem.
+   */
+  pergunta?: { texto: string; opcoes: string[] };
   /** Snapshot da lista de passos — presente só quando `tipo: "plano"`. */
   plano?: PassoPlano[];
 };
@@ -160,6 +165,31 @@ function extrairImagemDoResultado(resultadoJson: string): { url: string; prompt:
     const url = typeof parsed.imagem.url === "string" ? parsed.imagem.url : "";
     const prompt = typeof parsed.imagem.prompt === "string" ? parsed.imagem.prompt : "";
     return url ? { url, prompt } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A pergunta+opções da ferramenta `perguntar` nasce nos argumentos, mas normalizo aqui (2 a 4
+ * opções não-vazias) e faço viajar no evento fim_ferramenta pro app montar o cartão de opções.
+ * Devolve null se não houver pergunta ou opções válidas.
+ */
+function extrairPerguntaDoResultado(resultadoJson: string): { texto: string; opcoes: string[] } | null {
+  try {
+    const parsed = JSON.parse(resultadoJson) as {
+      ok?: boolean;
+      pergunta?: { texto?: unknown; opcoes?: unknown };
+    };
+    if (parsed.ok !== true || !parsed.pergunta) return null;
+    const texto = typeof parsed.pergunta.texto === "string" ? parsed.pergunta.texto.trim() : "";
+    const opcoes = Array.isArray(parsed.pergunta.opcoes)
+      ? parsed.pergunta.opcoes
+          .filter((o): o is string => typeof o === "string" && o.trim().length > 0)
+          .map((o) => o.trim())
+          .slice(0, 4)
+      : [];
+    return texto && opcoes.length >= 2 ? { texto, opcoes } : null;
   } catch {
     return null;
   }
@@ -360,20 +390,43 @@ const DIRETRIZ_IMAGEM =
   "sem ligação com nenhuma imagem anterior desta conversa («desenha…», «cria uma imagem de…», «como " +
   "seria… numa imagem?»). O `prompt` é a descrição visual — sê concreta (assunto, estilo, cores, luz, " +
   "enquadramento); se ele foi vago, ENRIQUECE com bom senso em vez de interrogar.\n" +
-  "• `editar_imagem` (parte da ÚLTIMA imagem como referência, mantém o personagem): usa SEMPRE que o " +
-  "pedido tem CONTINUIDADE com a imagem que já existe aqui. Dois casos: (a) RETOQUE — mexer num " +
+  "• `editar_imagem` (parte da ÚLTIMA imagem TUA como BASE, mantém o personagem): usa SEMPRE que o " +
+  "pedido tem CONTINUIDADE com a imagem que já existe aqui. Três casos: (a) RETOQUE — mexer num " +
   "detalhe e preservar o resto («adiciona um sachê», «tira o fundo», «muda a cor», «põe óculos nele»); " +
   "(b) RE-ENCENAR — «o MESMO» gato/personagem/objeto numa CENA, pose ou ângulo NOVOS («faz o mesmo " +
-  "gato agora numa rua», «esse personagem em perspectiva, mais trabalhado, num cenário»). REGRA DE " +
-  "OURO: se ele diz «o mesmo…», «esse…», «ele/ela agora…» — mesmo pedindo «outra imagem» ou «uma cena " +
-  "nova» —, é `editar_imagem`, NUNCA `gerar_imagem` (do zero sairia OUTRO bicho, foi o erro a evitar). " +
-  "No RETOQUE, em `instrucao` passa só o que muda; no RE-ENCENAR, descreve a cena nova inteira e diz " +
-  "que o personagem é o mesmo.\n" +
+  "gato agora numa rua», «esse personagem em perspectiva, mais trabalhado, num cenário»); " +
+  "(c) ESTILO A PARTIR DO ANEXO DELE — ele manda uma foto/arte e pede pra ajustar o ESTILO da TUA " +
+  "arte (paleta, traço, vibe) de acordo com a dele. Aí CHAMA `editar_imagem` e passa `referencia_id` " +
+  "do anexo (ou omite o id pra usar o anexo de imagem mais recente DESTE turno). Sem isso, a edição " +
+  "NÃO recebe a foto dele — só texto — e o resultado quase não muda. `ver_imagem` SÓ OLHA; não " +
+  "produz cartão novo. É PROIBIDO dizer que «ajustei no estilo da foto» / «apliquei a referência» " +
+  "SEM ter chamado `editar_imagem` (com a referência). REGRA DE OURO: se ele diz «o mesmo…», " +
+  "«esse…», «ele/ela agora…» — mesmo pedindo «outra imagem» ou «uma cena nova» —, é `editar_imagem`, " +
+  "NUNCA `gerar_imagem` (do zero sairia OUTRO bicho). No RETOQUE, em `instrucao` passa só o que muda; " +
+  "no RE-ENCENAR, descreve a cena nova inteira e diz que o personagem é o mesmo; no ESTILO, deixa " +
+  "claro o que pegar da referência.\n" +
   "Demora alguns segundos. Depois de gerar/editar, a imagem JÁ está à frente dele no cartão: reage a " +
   "ELA — curto, na tua voz (o que achaste, um detalhe). NÃO copies a URL, NÃO descrevas a imagem " +
   "inteira, e NUNCA digas que «não desenhas de verdade» ou que «só pintas com palavras»: tu desenhaste, " +
   "a imagem é real e está ali. É PROIBIDO dizer «desenhei/aqui está» SEM ter chamado a ferramenta. Isto " +
   "é PRODUZIR uma imagem, não «ver» uma que ele mandou.";
+
+/**
+ * A mão que PERGUNTA — a Luna consulta antes de agir, com opções tocáveis. O Ethan escolheu que ela
+ * seja consultiva: pergunta sempre que houver uma escolha de GOSTO, mesmo que conseguisse chutar. O
+ * segredo é que isto PARA o turno: depois de chamar, ela não escreve a resposta, espera a dele.
+ */
+const DIRETRIZ_PERGUNTAR =
+  "PERGUNTAR antes de agir: tens uma mão `perguntar` que faz uma pergunta ao usuário com opções " +
+  "tocáveis (ele toca numa ou escreve a dele) e ESPERA a resposta. Usa-a de forma consultiva: SEMPRE " +
+  "que houver uma escolha de GOSTO/direção que molda o que vais produzir — estilo, tom, ângulo, " +
+  "paleta, formato, rumo, nível de detalhe —, pergunta em vez de chutar, mesmo que conseguisses " +
+  "adivinhar. É melhor acertar uma pergunta do que entregar dez versões erradas; é assim que colaboras " +
+  "com ele em vez de despejar. Dá 2 a 4 opções curtas e concretas (ele sempre pode escrever a dele — " +
+  "não ponhas «outro»). Regras: (1) NÃO uses pra pedir permissão óbvia («posso desenhar?»), pra fugir " +
+  "de fazer o que já dá com bom senso, nem pra pedir algo que ele já disse; (2) DEPOIS de `perguntar`, " +
+  "PARA — no máximo uma frase de contexto, NUNCA respondas por ele nem sigas adivinhando; (3) uma " +
+  "pergunta de cada vez, não empilhes três cartões. Quando ele responder, segue com a escolha dele.";
 
 /**
  * Diretriz do PLANO EM PASSOS — a coleira que segura um modelo one-shot na cadeia. Só entra com
@@ -614,6 +667,8 @@ export async function responderComoLunaAgentico(
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
     // A mão que desenha — mesma trava (OrbitLab).
     opcoes.documentosAtivo ? DIRETRIZ_IMAGEM : null,
+    // A mão que pergunta antes de agir — mesma trava (OrbitLab).
+    opcoes.documentosAtivo ? DIRETRIZ_PERGUNTAR : null,
     // Finanças: ordem imperativa — e, se o turno é de grana, web_search já saiu da lista.
     pedeFinancas ? DIRETRIZ_FINANCAS : null,
     // O corpo dos documentos desta conversa, já à frente dela (como a rotina já está sempre).
@@ -658,6 +713,10 @@ export async function responderComoLunaAgentico(
         passo.sucesso
           ? extrairImagemDoResultado(passo.resultado)
           : null;
+      const pergunta =
+        passo.ferramenta === "perguntar" && passo.sucesso
+          ? extrairPerguntaDoResultado(passo.resultado)
+          : null;
       opcoes.onAcao?.({
         tipo: "fim_ferramenta",
         ferramenta: nomeFerramentaParaUi(passo.ferramenta, passo.argumentos),
@@ -667,10 +726,37 @@ export async function responderComoLunaAgentico(
         sucesso: analise.ok,
         fontes: analise.fontes,
         imagem: imagem ?? undefined,
+        pergunta: pergunta ?? undefined,
       });
     },
     onRaciocinioRodada: opcoes.onRaciocinio,
     toolExecutor: async (nome, args) => {
+      // ── A mão que PERGUNTA — para o turno e espera a resposta dele ───────────
+      // A pergunta+opções viajam no evento fim_ferramenta (o app monta o cartão). Ao modelo,
+      // devolvo a ordem firme: PARA aqui, não respondas por ele. As opções são normalizadas
+      // (2 a 4, curtas) tanto aqui como no extractor do evento.
+      if (nome === "perguntar") {
+        const pergunta = typeof args.pergunta === "string" ? args.pergunta.trim() : "";
+        const opcoes = Array.isArray(args.opcoes)
+          ? args.opcoes
+              .filter((o): o is string => typeof o === "string" && o.trim().length > 0)
+              .map((o) => o.trim())
+              .slice(0, 4)
+          : [];
+        if (!pergunta) return "Passa em `pergunta` a pergunta curta a fazer ao usuário.";
+        if (opcoes.length < 2) {
+          return "Passa em `opcoes` de 2 a 4 respostas curtas e concretas — ele ainda poderá escrever a dele.";
+        }
+        return JSON.stringify({
+          ok: true,
+          pergunta: { texto: pergunta, opcoes },
+          aviso:
+            "A pergunta e as opções JÁ apareceram num cartão pra ele. Encerra AGORA o turno: no " +
+            "máximo uma frase curtinha de contexto na tua voz (ou nada) — NÃO repitas a pergunta nem " +
+            "as opções em texto, NÃO respondas por ele, NÃO sigas adivinhando. Espera a resposta dele.",
+        });
+      }
+
       // ── O plano em passos (a coleira) ───────────────────────────────────────
       if (nome === "planejar") {
         const passos = Array.isArray(args.passos)
@@ -831,11 +917,56 @@ export async function responderComoLunaAgentico(
           }
           const instrucao = typeof args.instrucao === "string" ? args.instrucao.trim() : "";
           if (!instrucao) return "Passa em `instrucao` a mudança a fazer na imagem.";
+
+          // Referência de estilo = anexo DELE (além da base = última arte dela).
+          // Entra se ela passou `referencia_id`, OU se o pedido cheira a estilo/referência e
+          // há foto neste turno (caminho feliz: «ajusta no estilo desta» sem o modelo lembrar do id).
+          const referenciaUrls: string[] = [];
+          const refIdArg =
+            typeof args.referencia_id === "string" ? args.referencia_id.trim() : "";
+          const pedeEstiloAnexo =
+            /\b(estilo|paleta|vibe|tra[cç]o|clima|mood|refer[eê]ncia|como (nesta|nessa|esta|essa|na|a) (foto|imagem|arte|pintura)|de acordo com (a |essa |esta )?(foto|imagem|arte))\b/i.test(
+              `${mensagemUsuario}\n${instrucao}`,
+            );
+          const anexoEstilo = (() => {
+            if (refIdArg) {
+              const hit = mapaImagens.get(refIdArg);
+              if (!hit) {
+                return { erro: `Não achei o anexo \`${refIdArg}\` pra usar de referência de estilo.` };
+              }
+              return { anexo: hit };
+            }
+            if (!pedeEstiloAnexo) return { anexo: undefined as undefined };
+            const doTurno = anexosImagem.filter(
+              (a) => !a.deTurnoAnterior && !a.mimeType?.startsWith("video/"),
+            );
+            return { anexo: doTurno.length > 0 ? doTurno[doTurno.length - 1] : undefined };
+          })();
+          if ("erro" in anexoEstilo && anexoEstilo.erro) return anexoEstilo.erro;
+          const estilo = "anexo" in anexoEstilo ? anexoEstilo.anexo : undefined;
+          if (estilo) {
+            if (estilo.mimeType?.startsWith("video/")) {
+              return "Referência de estilo precisa ser uma IMAGEM, não vídeo. Pede uma foto/arte.";
+            }
+            const refUrl =
+              estilo.url?.trim() ||
+              (estilo.imageBase64?.trim()
+                ? `data:${estilo.mimeType?.trim() || "image/jpeg"};base64,${estilo.imageBase64.trim()}`
+                : "");
+            if (!refUrl) {
+              return "O anexo de referência existe, mas sem URL/bytes — não consigo usá-lo de estilo.";
+            }
+            referenciaUrls.push(refUrl);
+          }
+
           try {
-            const img = await opcoes.rotinaDeps.editarImagem(instrucao);
+            const img = await opcoes.rotinaDeps.editarImagem(instrucao, {
+              referenciaUrls: referenciaUrls.length > 0 ? referenciaUrls : undefined,
+            });
             return JSON.stringify({
               ok: true,
               imagem: { url: img.url, prompt: img.prompt },
+              usouReferenciaEstilo: referenciaUrls.length > 0,
               aviso:
                 "A imagem editada já foi mostrada ao usuário num cartão novo. Comenta na tua voz " +
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
