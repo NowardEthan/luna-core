@@ -440,14 +440,14 @@ export function maosDaRotina(
       registrarUltimaImagem(chaveImagem, img);
       return img;
     },
-    editarImagem: async (instrucao: string) => {
+    editarImagem: async (instrucao: string, opts?: { referenciaUrls?: string[] }) => {
       const base = ultimaImagemDe(chaveImagem);
       if (!base) {
         throw new Error(
           "Não há imagem anterior nesta conversa para editar — desenha uma primeiro com gerar_imagem.",
         );
       }
-      const img = await editarImagemLuna(uid, instrucao, base.url);
+      const img = await editarImagemLuna(uid, instrucao, base.url, opts?.referenciaUrls ?? []);
       registrarUltimaImagem(chaveImagem, img);
       return img;
     },

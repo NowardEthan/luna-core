@@ -252,8 +252,12 @@ export type DependenciasRotina = {
   // o dispatcher a devolve na string de retorno pra viajar no evento fim_ferramenta.
   gerarImagem?: (prompt: string) => Promise<{ id: string; url: string; prompt: string }>;
   // Edita a ÚLTIMA imagem desta conversa (image-to-image): preserva o resto e mexe só no que a
-  // instrução pede. Lança se não houver imagem anterior para editar.
-  editarImagem?: (instrucao: string) => Promise<{ id: string; url: string; prompt: string }>;
+  // instrução pede. `referenciaUrls` = anexos DELE (estilo/paleta) além da base dela.
+  // Lança se não houver imagem anterior para editar.
+  editarImagem?: (
+    instrucao: string,
+    opts?: { referenciaUrls?: string[] },
+  ) => Promise<{ id: string; url: string; prompt: string }>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

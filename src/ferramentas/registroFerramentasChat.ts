@@ -893,16 +893,21 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
 const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
   nome: "editar_imagem",
   descricao:
-    "Parte da ÚLTIMA imagem desta conversa como REFERÊNCIA e produz uma nova versão MANTENDO o mesmo " +
-    "personagem/objeto (image-to-image). Serve pra DOIS casos: " +
+    "Parte da ÚLTIMA imagem DESTA conversa (a que TU desenhaste) como BASE e produz uma nova versão " +
+    "MANTENDO o mesmo personagem/objeto (image-to-image). Serve pra TRÊS casos: " +
     "① RETOQUE — mexer só num detalhe e preservar o resto («adiciona um…», «tira o…», «muda a cor " +
     "de…», «põe um chapéu nele», «deixa igual mas de noite»). " +
     "② RE-ENCENAR — pegar «o MESMO» gato/personagem/objeto e pô-lo numa CENA, pose ou ângulo NOVOS " +
     "(«faz o mesmo gato agora numa rua», «esse personagem em perspectiva, mais trabalhado», «o mesmo " +
-    "mas num cenário de floresta»). Repara: mesmo o usuário dizendo «cria OUTRA imagem» ou «uma NOVA " +
-    "cena», se é «o MESMO» de uma imagem que já existe aqui, é ISTO — não o `gerar_imagem`, que " +
-    "pintaria do zero e perderia o personagem. Só funciona se já houver uma imagem nesta conversa; " +
-    "se não houver (ou se o assunto é totalmente novo, sem ligação com a anterior), usa `gerar_imagem`.",
+    "mas num cenário de floresta»). " +
+    "③ ESTILO A PARTIR DO ANEXO DELE — ele manda uma foto/arte e pede pra ajustar o ESTILO da TUA " +
+    "imagem (paleta, traço, clima) de acordo com a dele. Aí passas `referencia_id` com o id do " +
+    "anexo (ou omite o id pra usar o anexo de imagem mais recente DESTE turno). Sem `referencia_id`/" +
+    "anexo, o modelo NÃO vê a foto dele na edição — só texto — e o resultado quase não muda. " +
+    "Repara: mesmo o usuário dizendo «cria OUTRA imagem» ou «uma NOVA cena», se é «o MESMO» de uma " +
+    "imagem que já existe aqui, é ISTO — não o `gerar_imagem`. Só funciona se já houver uma imagem " +
+    "tua nesta conversa; se não houver, usa `gerar_imagem`. NÃO uses isto só pra OLHAR o anexo " +
+    "(isso é `ver_imagem`); usa quando vais PRODUZIR uma versão nova.",
   parametros: {
     type: "object",
     properties: {
@@ -913,10 +918,59 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
           "«troca o fundo para azul») — o resto é preservado sozinho. Para RE-ENCENAR o mesmo " +
           "personagem, descreve a CENA nova por inteiro e deixa claro que o personagem é o mesmo — " +
           "ex.: «o mesmo gato laranja de chapéu e botas, agora numa rua de paralelepípedo à noite, " +
-          "perspectiva baixa, clima noir; mantém o personagem idêntico, muda só o cenário e o ângulo».",
+          "perspectiva baixa, clima noir; mantém o personagem idêntico, muda só o cenário e o ângulo». " +
+          "Para ESTILO a partir do anexo: deixa claro o que pegar da referência («aplica a paleta e " +
+          "o traço da imagem de referência; mantém o mesmo gato»).",
+      },
+      referencia_id: {
+        type: "string",
+        description:
+          "ID do anexo de imagem que ELE mandou, pra usar como REFERÊNCIA DE ESTILO (além da tua " +
+          "última arte, que é a base). Usa quando ele pede «no estilo dessa foto», «com a mesma " +
+          "vibe/paleta/traço desta imagem». Se omitires e houver anexo de imagem NESTE turno, o " +
+          "sistema usa o mais recente do turno. Não passes id de vídeo.",
       },
     },
     required: ["instrucao"],
+  },
+};
+
+/**
+ * A mão que PERGUNTA — a Luna consulta o usuário antes de agir, com opções tocáveis (+ escrever
+ * à mão). O que o Ethan pediu: «que nem tu fazes comigo». Diferente das outras mãos, esta PARA o
+ * turno e ESPERA a resposta — a pergunta e as opções aparecem num cartão no chat, e o toque numa
+ * opção vira a próxima mensagem dele. Mesma trava (`documentosAtivo`): só no OrbitLab.
+ */
+const FERRAMENTA_PERGUNTAR: DefinicaoFerramenta = {
+  nome: "perguntar",
+  descricao:
+    "Faz uma PERGUNTA ao usuário e oferece opções tocáveis, em vez de adivinhar — aparece num cartão " +
+    "no chat, ele toca numa (ou escreve a dele) e tu continuas com a resposta. Usa SEMPRE que houver " +
+    "uma escolha de GOSTO/direção que muda o que vais produzir e tu não tens como saber a preferência " +
+    "dele: estilo, tom, ângulo, paleta, formato, rumo, nível de detalhe («desenho realista ou " +
+    "cartoon?», «resposta curta ou fundo?», «foco em qual dos dois?»). É colaborar em vez de chutar — " +
+    "melhor perguntar uma coisa certa do que entregar dez erradas. Dá 2 a 4 opções curtas e concretas " +
+    "(ele SEMPRE pode escrever a dele, não precisas de uma opção «outro»). DEPOIS de chamar, PARA: não " +
+    "respondas por ele nem sigas adivinhando — espera. NÃO uses pra pedir permissão óbvia, nem pra " +
+    "fugir de fazer o que já dá pra fazer com bom senso, nem pra info que ele já te deu.",
+  parametros: {
+    type: "object",
+    properties: {
+      pergunta: {
+        type: "string",
+        description:
+          "A pergunta, curta e na tua voz — ex.: «Perspectiva de qual ângulo?», «Prefere o texto mais " +
+          "direto ou mais detalhado?».",
+      },
+      opcoes: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "2 a 4 respostas possíveis, cada uma curta (poucas palavras) e concreta — ex.: [«De baixo, " +
+          "dramático», «De cima», «Frontal»]. Ele ainda pode escrever a dele; não incluas «outro».",
+      },
+    },
+    required: ["pergunta", "opcoes"],
   },
 };
 
@@ -1224,6 +1278,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_ANOTAR_CANONE);
     ferramentas.push(FERRAMENTA_GERAR_IMAGEM);
     ferramentas.push(FERRAMENTA_EDITAR_IMAGEM);
+    ferramentas.push(FERRAMENTA_PERGUNTAR);
   }
   // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.
   if (opcoes.planejamentoAtivo) {

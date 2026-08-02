@@ -146,11 +146,16 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
  * EDITAR a imagem anterior: manda a URL da imagem base em `input_references` e o modelo preserva o
  * resto, mexendo só no que a `instrucao` pede. `baseUrl` é a URL pública do Storage (token não
  * expira), que o modelo consegue buscar via HTTP.
+ *
+ * `referenciaUrls` (opcional): anexos DELE — tipicamente estilo/paleta/clima. O Riverflow aceita
+ * várias referências; a 1ª é a base (arte dela), as seguintes guiam o estilo. Sem isto, «ajusta no
+ * estilo da foto que mandei» só ia no texto e ela confabulava.
  */
 export async function editarImagemLuna(
   uid: string,
   instrucao: string,
   baseUrl: string,
+  referenciaUrls: string[] = [],
 ): Promise<ImagemGerada> {
   const key = apiKey();
   if (!key) throw new Error("OPENROUTER_API_KEY ausente — edição de imagem indisponível.");
@@ -159,10 +164,23 @@ export async function editarImagemLuna(
   if (!texto) throw new Error("Instrução vazia — descreve a mudança a fazer.");
   if (!baseUrl) throw new Error("Sem imagem base — não há o que editar.");
 
+  const extras = referenciaUrls.map((u) => u.trim()).filter((u) => u.length > 0);
+  const prompt =
+    extras.length > 0
+      ? "Image 1 is the BASE — keep the same subject/character/composition. " +
+        "Image 2+ are STYLE references — apply their palette, stroke, lighting and mood. " +
+        `Request: ${texto}`
+      : texto;
+
+  const input_references = [
+    { type: "image_url", image_url: { url: baseUrl } },
+    ...extras.map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+
   const bytes = await pedirImagem(key, {
     model: modeloEdicao(),
-    prompt: texto,
-    input_references: [{ type: "image_url", image_url: { url: baseUrl } }],
+    prompt,
+    input_references,
     n: 1,
   });
   const { id, url } = await subirImagem(uid, bytes);
