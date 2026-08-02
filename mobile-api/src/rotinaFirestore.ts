@@ -446,13 +446,22 @@ export function maosDaRotina(
       const lista = await listarCarteiras(uid);
       return lista.map((c) => ({ id: c.id, apelido: c.apelido, tipo: c.tipo }));
     },
-    criarCarteira: async (dados) => criarCarteiraLuna(uid, dados),
-    atualizarCarteira: async (id, patch) => atualizarCarteiraLuna(uid, id, patch),
-    arquivarCarteira: async (id) => arquivarCarteiraLuna(uid, id),
+    criarCarteira: async (dados: Parameters<typeof criarCarteiraLuna>[1]) =>
+      criarCarteiraLuna(uid, dados),
+    atualizarCarteira: async (
+      id: string,
+      patch: Parameters<typeof atualizarCarteiraLuna>[2],
+    ) => atualizarCarteiraLuna(uid, id, patch),
+    arquivarCarteira: async (id: string) => arquivarCarteiraLuna(uid, id),
     listarRecorrentes: async () => listarRecorrentes(uid),
-    criarRecorrente: async (dados) => criarRecorrenteLuna(uid, dados),
-    atualizarRecorrente: async (id, patch) => atualizarRecorrenteLuna(uid, id, patch),
-    criarTransferencia: async (dados) => criarTransferenciaLuna(uid, dados),
+    criarRecorrente: async (dados: Parameters<typeof criarRecorrenteLuna>[1]) =>
+      criarRecorrenteLuna(uid, dados),
+    atualizarRecorrente: async (
+      id: string,
+      patch: Parameters<typeof atualizarRecorrenteLuna>[2],
+    ) => atualizarRecorrenteLuna(uid, id, patch),
+    criarTransferencia: async (dados: Parameters<typeof criarTransferenciaLuna>[1]) =>
+      criarTransferenciaLuna(uid, dados),
     reaisParaCentavos,
     faixaPeriodoFinancas,
   };
