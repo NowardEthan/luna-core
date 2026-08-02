@@ -98,6 +98,36 @@ export type DependenciasFinancas = {
     motivo?: string | null;
     nota?: string | null;
   }) => Promise<string>;
+  listarMetas?: () => Promise<
+    Array<{
+      id: string;
+      apelido: string;
+      tipo: "reserva" | "corte" | "gasto_mes";
+      alvoCentavos: number;
+      atualCentavos: number;
+      categoria?: string | null;
+      ativa: boolean;
+    }>
+  >;
+  criarMeta?: (dados: {
+    apelido: string;
+    tipo: "reserva" | "corte" | "gasto_mes";
+    alvoCentavos: number;
+    atualCentavos?: number;
+    categoria?: string | null;
+  }) => Promise<string>;
+  atualizarMeta?: (
+    id: string,
+    patch: Partial<{
+      apelido: string;
+      tipo: "reserva" | "corte" | "gasto_mes";
+      alvoCentavos: number;
+      atualCentavos: number;
+      categoria: string | null;
+      ativa: boolean;
+    }>,
+  ) => Promise<void>;
+  apagarMeta?: (id: string) => Promise<void>;
   reaisParaCentavos: (valor: number) => number;
   faixaPeriodo: (periodo: "dia" | "semana" | "mes") => { inicio: number; fim: number };
 };
@@ -115,6 +145,7 @@ const CATEGORIAS = new Set([
 
 const TIPOS_CARTEIRA = new Set(["conta_debito", "cartao_credito", "dinheiro"]);
 const MOTIVOS_TRANSF = new Set(["pagar_fatura", "reserva", "ajuste"]);
+const TIPOS_META = new Set(["reserva", "corte", "gasto_mes"]);
 
 function formatarReais(centavos: number): string {
   return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -709,5 +740,137 @@ export async function transferirEntreCarteiras(
     return `Transferi ${formatarReais(valorCentavos)} de ${de.apelido} → ${para.apelido} (${motivo}). Não conta como gasto. (id: ${id})`;
   } catch (error) {
     return `ERRO ao transferir: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export async function gerirMeta(
+  deps: DependenciasFinancas,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const acao = String(args.acao ?? "").trim().toLowerCase();
+  if (!["criar", "editar", "apagar", "listar"].includes(acao)) {
+    return 'ERRO: acao deve ser "criar", "editar", "apagar" ou "listar".';
+  }
+
+  if (acao === "listar") {
+    if (!deps.listarMetas) return "ERRO FATAL: listar metas não está disponível.";
+    try {
+      const lista = (await deps.listarMetas()).filter((m) => m.ativa);
+      if (lista.length === 0) return "Nenhuma meta ativa.";
+      const linhas = lista.map((m) => {
+        const cat = m.categoria ? ` · ${m.categoria}` : "";
+        const atual =
+          m.tipo === "reserva"
+            ? ` · atual ${formatarReais(m.atualCentavos)}`
+            : "";
+        return `- ${m.apelido}: ${m.tipo} alvo ${formatarReais(m.alvoCentavos)}${atual}${cat} (id: ${m.id})`;
+      });
+      return `## Metas ativas (${lista.length})\n${linhas.join("\n")}`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  if (acao === "apagar") {
+    if (!deps.apagarMeta || !deps.listarMetas) {
+      return "ERRO FATAL: apagar meta não está disponível.";
+    }
+    const idOuNome = String(args.id ?? args.apelido ?? "").trim();
+    if (!idOuNome) return "ERRO: informa id ou apelido da meta.";
+    try {
+      const lista = await deps.listarMetas();
+      const hit = lista.find(
+        (m) =>
+          m.id === idOuNome ||
+          m.apelido.toLowerCase() === idOuNome.toLowerCase(),
+      );
+      if (!hit) return `ERRO: não achei a meta "${idOuNome}".`;
+      await deps.apagarMeta(hit.id);
+      return `Apaguei a meta «${hit.apelido}».`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  if (acao === "criar") {
+    if (!deps.criarMeta) return "ERRO FATAL: criar meta não está disponível.";
+    const apelido = String(args.apelido ?? "").trim();
+    if (!apelido) return "ERRO: precisa de um apelido (ex.: Reserva viagem).";
+    let tipo = String(args.tipo ?? "reserva").trim().toLowerCase();
+    if (tipo === "gasto" || tipo === "teto") tipo = "gasto_mes";
+    if (!TIPOS_META.has(tipo)) {
+      return 'ERRO: tipo deve ser "reserva", "corte" ou "gasto_mes".';
+    }
+    const alvoNum = typeof args.alvo === "number" ? args.alvo : Number(args.alvo);
+    const alvoCentavos = deps.reaisParaCentavos(alvoNum);
+    if (alvoCentavos <= 0) return "ERRO: alvo inválido (em reais).";
+    const categoria =
+      typeof args.categoria === "string" ? args.categoria.trim() : "";
+    if (tipo === "corte" && !categoria) {
+      return "ERRO: meta de corte precisa de categoria (ex.: alimentacao).";
+    }
+    const atualNum =
+      typeof args.atual === "number" ? args.atual : Number(args.atual ?? 0);
+    const atualCentavos =
+      Number.isFinite(atualNum) && atualNum > 0
+        ? deps.reaisParaCentavos(atualNum)
+        : 0;
+    try {
+      const id = await deps.criarMeta({
+        apelido,
+        tipo: tipo as "reserva" | "corte" | "gasto_mes",
+        alvoCentavos,
+        atualCentavos,
+        categoria: categoria || null,
+      });
+      return `Criei a meta «${apelido}» (${tipo}) com alvo ${formatarReais(alvoCentavos)}. (id: ${id})`;
+    } catch (error) {
+      return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+
+  // editar
+  if (!deps.atualizarMeta || !deps.listarMetas) {
+    return "ERRO FATAL: editar meta não está disponível.";
+  }
+  const idOuNome = String(args.id ?? args.apelido ?? "").trim();
+  if (!idOuNome) return "ERRO: informa id ou apelido da meta pra editar.";
+  try {
+    const lista = await deps.listarMetas();
+    const hit = lista.find(
+      (m) =>
+        m.id === idOuNome ||
+        m.apelido.toLowerCase() === idOuNome.toLowerCase(),
+    );
+    if (!hit) return `ERRO: não achei a meta "${idOuNome}".`;
+    const patch: Parameters<NonNullable<DependenciasFinancas["atualizarMeta"]>>[1] =
+      {};
+    if (typeof args.novoApelido === "string" && args.novoApelido.trim()) {
+      patch.apelido = args.novoApelido.trim();
+    }
+    if (typeof args.tipo === "string" && TIPOS_META.has(args.tipo)) {
+      patch.tipo = args.tipo as "reserva" | "corte" | "gasto_mes";
+    }
+    if (args.alvo !== undefined) {
+      const v = deps.reaisParaCentavos(Number(args.alvo));
+      if (v <= 0) return "ERRO: alvo inválido.";
+      patch.alvoCentavos = v;
+    }
+    if (args.atual !== undefined) {
+      const v = deps.reaisParaCentavos(Number(args.atual));
+      if (v < 0) return "ERRO: atual inválido.";
+      patch.atualCentavos = v;
+    }
+    if (typeof args.categoria === "string") {
+      patch.categoria = args.categoria.trim() || null;
+    }
+    if (typeof args.ativa === "boolean") patch.ativa = args.ativa;
+    if (Object.keys(patch).length === 0) {
+      return "ERRO: nada pra editar — manda alvo, atual, novoApelido, etc.";
+    }
+    await deps.atualizarMeta(hit.id, patch);
+    return `Atualizei a meta «${patch.apelido ?? hit.apelido}».`;
+  } catch (error) {
+    return `ERRO: ${error instanceof Error ? error.message : String(error)}`;
   }
 }

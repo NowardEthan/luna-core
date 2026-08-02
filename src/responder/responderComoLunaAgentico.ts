@@ -26,6 +26,7 @@ import {
 import { anotarIdeia, verIdeias } from "../ferramentas/maosDasIdeias.js";
 import {
   gerirCarteira,
+  gerirMeta,
   gerirRecorrente,
   listarLancamentosFinanca,
   registrarLancamento,
@@ -152,6 +153,10 @@ function montarDepsFinancas(deps: DependenciasRotina): DependenciasFinancas {
     criarRecorrente: deps.criarRecorrente,
     atualizarRecorrente: deps.atualizarRecorrente,
     criarTransferencia: deps.criarTransferencia,
+    listarMetas: deps.listarMetas,
+    criarMeta: deps.criarMeta,
+    atualizarMeta: deps.atualizarMeta,
+    apagarMeta: deps.apagarMeta,
     reaisParaCentavos: deps.reaisParaCentavos ?? (() => -1),
     faixaPeriodo: deps.faixaPeriodoFinancas ?? (() => ({ inicio: 0, fim: 0 })),
   };
@@ -339,14 +344,13 @@ const DIRETRIZ_PLANO =
  */
 const DIRETRIZ_FINANCAS =
   "FINANÇAS DELE (módulo Finanças do app): tens mãos REAIS — `resumo_financeiro`, `listar_lancamentos`, " +
-  "`registrar_lancamento`, `gerir_recorrente`, `gerir_carteira`, `transferir`. " +
-  "Quando ele pergunta quanto GASTOU / SAIU / ENTROU, pede extrato, resumo do mês, fatura, cartão, " +
-  "carteira, orçamento, ou pede pra anotar/registrar um gasto — CHAMA essas ferramentas. " +
-  "É PROIBIDO usar `web_search` ou `ler_url` pra responder sobre a grana DELE: isso não está na internet, " +
-  "está no app. `web_search` só entra se ele pedir EXPLICITAMENTE algo público (cotação do dólar, " +
-  "notícia de banco, preço de produto no mercado) — nunca «quanto gastei», «resumo dos cartões», " +
-  "«extrato», «fatura». Não inventes números: se a ferramenta devolver vazio, diz que não há lançamento " +
-  "no período. Só confirma «registrei» / «transferi» / «criei recorrente» DEPOIS de chamar a mão.";
+  "`registrar_lancamento`, `gerir_recorrente`, `gerir_carteira`, `gerir_meta`, `transferir`. " +
+  "Quando ele pergunta quanto GASTOU / SAIU / ENTROU, pede extrato, resumo, fatura, cartão, carteira, " +
+  "meta, orçamento, ou pede pra anotar gasto / criar cartão / criar meta / transferir — CHAMA essas mãos. " +
+  "Criar CARTÃO = `gerir_carteira` (acao=criar, tipo=cartao_credito). Criar CONTA = tipo=conta_debito. " +
+  "Criar META = `gerir_meta`. É PROIBIDO usar `web_search` ou `ler_url` pra a grana DELE. " +
+  "`web_search` só se ele pedir algo público (cotação, notícia). Não inventes números. " +
+  "Só confirma «criei o cartão» / «registrei» / «transferi» / «criei a meta» DEPOIS de chamar a mão.";
 
 export async function responderComoLunaAgentico(
   mensagemUsuario: string,
@@ -718,6 +722,7 @@ export async function responderComoLunaAgentico(
         nome === "resumo_financeiro" ||
         nome === "gerir_recorrente" ||
         nome === "gerir_carteira" ||
+        nome === "gerir_meta" ||
         nome === "transferir" ||
         nome === "criar_artefato" ||
         nome === "listar_artefatos" ||
@@ -845,6 +850,12 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
           }
           return gerirCarteira(montarDepsFinancas(opcoes.rotinaDeps), args);
+        }
+        if (nome === "gerir_meta") {
+          if (!opcoes.rotinaDeps.reaisParaCentavos) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return gerirMeta(montarDepsFinancas(opcoes.rotinaDeps), args);
         }
         if (nome === "transferir") {
           if (

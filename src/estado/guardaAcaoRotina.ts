@@ -37,6 +37,7 @@ const FERRAMENTAS_DE_ACAO = new Set([
   "registrar_lancamento",
   "gerir_recorrente",
   "gerir_carteira",
+  "gerir_meta",
   "transferir",
 ]);
 

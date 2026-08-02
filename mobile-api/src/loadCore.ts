@@ -324,6 +324,7 @@ const ROTULO_FERRAMENTA: Record<string, string> = {
   resumo_financeiro: "Lendo as finanças…",
   gerir_recorrente: "Ajustando recorrente…",
   gerir_carteira: "Ajustando carteira…",
+  gerir_meta: "Ajustando meta…",
   transferir: "Transferindo…",
 };
 

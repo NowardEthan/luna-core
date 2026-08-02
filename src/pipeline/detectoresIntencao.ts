@@ -32,7 +32,15 @@ export function mensagemPedeFinancas(mensagem: string): boolean {
     return true;
   }
   if (
-    /\b(lan[cç]amento|lan[cç]amentos|extrato|fatura|carteira|carteiras|cart[aã]o|cart[oõ]es|recorrente|recorrentes|or[cç]amento|finan[cç]as|conta\s+a\s+pagar|contas\s+a\s+pagar)\b/i.test(
+    /\b(lan[cç]amento|lan[cç]amentos|extrato|fatura|carteira|carteiras|cart[aã]o|cart[oõ]es|recorrente|recorrentes|or[cç]amento|finan[cç]as|meta|metas|conta\s+a\s+pagar|contas\s+a\s+pagar)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  // «cria/adiciona o Nubank», «novo cartão Inter» — criar carteira sem citar «carteira».
+  if (
+    /\b(cria\w*|crie|adicion\w+|cadastr\w+)\b[^.?!\n]{0,40}\b(nubank|inter|c6|ita[uú]|bradesco|santander|picpay|mercado\s*pago)\b/i.test(
       mensagem,
     )
   ) {

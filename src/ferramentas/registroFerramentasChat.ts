@@ -652,8 +652,9 @@ const FERRAMENTA_GERIR_RECORRENTE: DefinicaoFerramenta = {
 const FERRAMENTA_GERIR_CARTEIRA: DefinicaoFerramenta = {
   nome: "gerir_carteira",
   descricao:
-    "Cria, edita, arquiva ou lista carteiras/cartões. Usa quando ele pede pra adicionar " +
-    "Nubank, dinheiro, crédito, etc. Não digas que criaste sem chamar isto.",
+    "Cria, edita, arquiva ou lista carteiras e CARTÕES. Usa quando ele pede «cria um cartão», " +
+    "«adiciona o Nubank», «conta débito», dinheiro, crédito com limite/fechamento/vencimento. " +
+    "Pra cartão: acao=criar, tipo=cartao_credito. Não digas que criaste sem chamar isto.",
   parametros: {
     type: "object",
     properties: {
@@ -706,6 +707,58 @@ const FERRAMENTA_GERIR_CARTEIRA: DefinicaoFerramenta = {
       vencimentoDia: {
         type: "number",
         description: "Dia de vencimento da fatura (1–31).",
+      },
+    },
+    required: ["acao"],
+  },
+};
+
+const FERRAMENTA_GERIR_META: DefinicaoFerramenta = {
+  nome: "gerir_meta",
+  descricao:
+    "Cria, edita, apaga ou lista metas financeiras (reserva, corte por categoria, teto do mês). " +
+    "Usa quando ele fala de meta, orçamento-alvo, «quero juntar X», «limite de gasto». " +
+    "Não digas que criaste sem chamar isto.",
+  parametros: {
+    type: "object",
+    properties: {
+      acao: {
+        type: "string",
+        enum: ["criar", "editar", "apagar", "listar"],
+        description: "O que fazer.",
+      },
+      id: {
+        type: "string",
+        description: "Id da meta (editar/apagar).",
+      },
+      apelido: {
+        type: "string",
+        description: "Nome (criar) ou busca (editar/apagar).",
+      },
+      novoApelido: {
+        type: "string",
+        description: "Só em editar: novo nome.",
+      },
+      tipo: {
+        type: "string",
+        enum: ["reserva", "corte", "gasto_mes"],
+        description: "reserva = juntar; corte = teto por categoria; gasto_mes = teto do mês.",
+      },
+      alvo: {
+        type: "number",
+        description: "Valor-alvo em reais.",
+      },
+      atual: {
+        type: "number",
+        description: "Progresso atual em reais (só reserva, opcional).",
+      },
+      categoria: {
+        type: "string",
+        description: "Obrigatório em corte: alimentacao, transporte, etc.",
+      },
+      ativa: {
+        type: "boolean",
+        description: "Se false, desativa a meta (editar).",
       },
     },
     required: ["acao"],
@@ -1077,6 +1130,7 @@ export function listarFerramentasChat(
     FERRAMENTA_RESUMO_FINANCEIRO,
     FERRAMENTA_GERIR_RECORRENTE,
     FERRAMENTA_GERIR_CARTEIRA,
+    FERRAMENTA_GERIR_META,
     FERRAMENTA_TRANSFERIR,
   ];
   // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, as ferramentas nem existem.

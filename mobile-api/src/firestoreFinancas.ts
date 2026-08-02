@@ -51,6 +51,16 @@ export type TransferenciaFirestore = {
   nota?: string | null;
 };
 
+export type MetaFirestore = {
+  id: string;
+  apelido: string;
+  tipo: "reserva" | "corte" | "gasto_mes";
+  alvoCentavos: number;
+  atualCentavos: number;
+  categoria?: string | null;
+  ativa: boolean;
+};
+
 function inicioDoDia(ms: number): number {
   const d = new Date(ms);
   d.setHours(0, 0, 0, 0);
@@ -452,4 +462,98 @@ export function faixaPeriodo(
   const inicio = d.getTime();
   d.setMonth(d.getMonth() + 1);
   return { inicio, fim: d.getTime() };
+}
+
+const TIPOS_META = new Set(["reserva", "corte", "gasto_mes"]);
+
+export async function listarMetas(uid: string): Promise<MetaFirestore[]> {
+  const db = getAdminFirestore();
+  if (!db) return [];
+  const snap = await db.collection("users").doc(uid).collection("metas").get();
+  const out: MetaFirestore[] = [];
+  for (const d of snap.docs) {
+    const data = d.data();
+    const apelido = String(data.apelido ?? "").trim();
+    const tipoRaw = String(data.tipo ?? "").trim();
+    if (!apelido || !TIPOS_META.has(tipoRaw)) continue;
+    const alvo =
+      typeof data.alvoCentavos === "number" ? data.alvoCentavos : Number(data.alvoCentavos);
+    if (!Number.isFinite(alvo) || alvo < 0) continue;
+    out.push({
+      id: (data.id as string) || d.id,
+      apelido,
+      tipo: tipoRaw as MetaFirestore["tipo"],
+      alvoCentavos: alvo,
+      atualCentavos:
+        typeof data.atualCentavos === "number"
+          ? data.atualCentavos
+          : Number(data.atualCentavos) || 0,
+      categoria: typeof data.categoria === "string" ? data.categoria : null,
+      ativa: data.ativa !== false,
+    });
+  }
+  return out;
+}
+
+export async function criarMetaLuna(
+  uid: string,
+  dados: {
+    apelido: string;
+    tipo: "reserva" | "corte" | "gasto_mes";
+    alvoCentavos: number;
+    atualCentavos?: number;
+    categoria?: string | null;
+  },
+): Promise<string> {
+  const db = getAdminFirestore();
+  if (!db) throw new Error("Firestore admin indisponível.");
+  if (!TIPOS_META.has(dados.tipo)) throw new Error("Tipo de meta inválido.");
+  if (dados.alvoCentavos <= 0) throw new Error("Alvo inválido.");
+  if (dados.tipo === "corte" && !dados.categoria?.trim()) {
+    throw new Error("Meta de corte precisa de categoria.");
+  }
+  const ref = db.collection("users").doc(uid).collection("metas").doc();
+  const agora = Date.now();
+  await ref.set({
+    id: ref.id,
+    apelido: dados.apelido.trim(),
+    tipo: dados.tipo,
+    alvoCentavos: dados.alvoCentavos,
+    atualCentavos: dados.atualCentavos ?? 0,
+    categoria: dados.categoria?.trim() || null,
+    ativa: true,
+    createdAt: agora,
+    updatedAt: agora,
+  });
+  return ref.id;
+}
+
+export async function atualizarMetaLuna(
+  uid: string,
+  id: string,
+  patch: Partial<{
+    apelido: string;
+    tipo: "reserva" | "corte" | "gasto_mes";
+    alvoCentavos: number;
+    atualCentavos: number;
+    categoria: string | null;
+    ativa: boolean;
+  }>,
+): Promise<void> {
+  const db = getAdminFirestore();
+  if (!db) throw new Error("Firestore admin indisponível.");
+  const ref = db.collection("users").doc(uid).collection("metas").doc(id);
+  const existente = await ref.get();
+  if (!existente.exists) throw new Error(`Meta ${id} não encontrada.`);
+  const update: Record<string, unknown> = { updatedAt: Date.now() };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v !== undefined) update[k] = k === "apelido" && typeof v === "string" ? v.trim() : v;
+  }
+  await ref.set(update, { merge: true });
+}
+
+export async function apagarMetaLuna(uid: string, id: string): Promise<void> {
+  const db = getAdminFirestore();
+  if (!db) throw new Error("Firestore admin indisponível.");
+  await db.collection("users").doc(uid).collection("metas").doc(id).delete();
 }
