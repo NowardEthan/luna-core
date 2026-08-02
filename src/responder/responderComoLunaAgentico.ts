@@ -24,6 +24,7 @@ import {
   type DependenciasRotina,
 } from "../ferramentas/maosDaRotina.js";
 import { anotarIdeia, verIdeias } from "../ferramentas/maosDasIdeias.js";
+import { registrarLancamento, resumoFinanceiro } from "../ferramentas/maosDasFinancas.js";
 import {
   criarDocumento as criarDocumentoFerramenta,
   listarDocumentos as listarDocumentosFerramenta,
@@ -648,6 +649,8 @@ export async function responderComoLunaAgentico(
         nome === "apagar_bloco" ||
         nome === "anotar_ideia" ||
         nome === "ver_ideias" ||
+        nome === "registrar_lancamento" ||
+        nome === "resumo_financeiro" ||
         nome === "criar_artefato" ||
         nome === "listar_artefatos" ||
         nome === "ler_artefato" ||
@@ -732,6 +735,44 @@ export async function responderComoLunaAgentico(
             criarIdeia: opcoes.rotinaDeps.criarIdeia!,
             verIdeias: opcoes.rotinaDeps.verIdeias
           });
+        }
+        if (nome === "registrar_lancamento") {
+          if (
+            !opcoes.rotinaDeps.criarLancamento ||
+            !opcoes.rotinaDeps.listarCarteiras ||
+            !opcoes.rotinaDeps.reaisParaCentavos
+          ) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return registrarLancamento(
+            {
+              criarLancamento: opcoes.rotinaDeps.criarLancamento,
+              listarLancamentos: opcoes.rotinaDeps.listarLancamentos ?? (async () => []),
+              listarCarteiras: opcoes.rotinaDeps.listarCarteiras,
+              reaisParaCentavos: opcoes.rotinaDeps.reaisParaCentavos,
+              faixaPeriodo: opcoes.rotinaDeps.faixaPeriodoFinancas ?? (() => ({ inicio: 0, fim: 0 })),
+            },
+            args,
+          );
+        }
+        if (nome === "resumo_financeiro") {
+          if (
+            !opcoes.rotinaDeps.listarLancamentos ||
+            !opcoes.rotinaDeps.faixaPeriodoFinancas ||
+            !opcoes.rotinaDeps.reaisParaCentavos
+          ) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return resumoFinanceiro(
+            {
+              criarLancamento: opcoes.rotinaDeps.criarLancamento ?? (async () => ""),
+              listarLancamentos: opcoes.rotinaDeps.listarLancamentos,
+              listarCarteiras: opcoes.rotinaDeps.listarCarteiras ?? (async () => []),
+              reaisParaCentavos: opcoes.rotinaDeps.reaisParaCentavos,
+              faixaPeriodo: opcoes.rotinaDeps.faixaPeriodoFinancas,
+            },
+            args,
+          );
         }
         if (nome === "ver_rotina") {
           const dia = typeof args.dia === "number" ? args.dia : undefined;

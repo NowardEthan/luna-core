@@ -490,6 +490,66 @@ const FERRAMENTA_VER_IDEIAS: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_REGISTRAR_LANCAMENTO: DefinicaoFerramenta = {
+  nome: "registrar_lancamento",
+  descricao:
+    "Registra uma ENTRADA ou SAÍDA nas finanças dele (carteira/cartão). Usa quando ele diz que gastou, " +
+    "pagou, recebeu, ou pede pra anotar um valor («gastei 32 no almoço», «entrou o freela»). " +
+    "O valor é em REAIS (ex.: 32.5). Se não disser a carteira, usa a primeira que ele tiver. " +
+    "Não inventes lançamento sem ele pedir — e não digas que registaste sem chamar esta ferramenta.",
+  parametros: {
+    type: "object",
+    properties: {
+      tipo: {
+        type: "string",
+        enum: ["entrada", "saida"],
+        description: '"saida" pra gasto/pagamento; "entrada" pra dinheiro que entrou.',
+      },
+      valor: {
+        type: "number",
+        description: "Valor em reais (ex.: 32 ou 32.5). Nunca em centavos.",
+      },
+      descricao: {
+        type: "string",
+        description: "Nota curta (ex.: Almoço iFood).",
+      },
+      categoria: {
+        type: "string",
+        description:
+          "Id: alimentacao, transporte, moradia, saude, lazer, contas, renda, outros.",
+      },
+      carteira: {
+        type: "string",
+        description: "Apelido ou id da carteira (ex.: Nubank). Opcional.",
+      },
+      data: {
+        type: "string",
+        description: "Data opcional: YYYY-MM-DD ou DD/MM. Default = hoje.",
+      },
+    },
+    required: ["tipo", "valor"],
+  },
+};
+
+const FERRAMENTA_RESUMO_FINANCEIRO: DefinicaoFerramenta = {
+  nome: "resumo_financeiro",
+  descricao:
+    "Lê o resumo financeiro dele (entrou/saiu/saldo, por categoria, contas pendentes) no período. " +
+    "Usa antes de aconselhar sobre grana, orçamento ou «quanto posso gastar». " +
+    "Não chute números — chama isto.",
+  parametros: {
+    type: "object",
+    properties: {
+      periodo: {
+        type: "string",
+        enum: ["dia", "semana", "mes"],
+        description: "Recorte. Default: mes.",
+      },
+    },
+    required: [],
+  },
+};
+
 /**
  * Criar artefato — só aparece quando o ambiente liga `documentosAtivo` (por ora, só o OrbitLab).
  *
@@ -811,6 +871,8 @@ export function listarFerramentasChat(
     FERRAMENTA_APAGAR_BLOCO,
     FERRAMENTA_ANOTAR_IDEIA,
     FERRAMENTA_VER_IDEIAS,
+    FERRAMENTA_REGISTRAR_LANCAMENTO,
+    FERRAMENTA_RESUMO_FINANCEIRO,
   ];
   // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, as ferramentas nem existem.
   if (opcoes.documentosAtivo) {

@@ -119,6 +119,29 @@ export type DependenciasRotina = {
     conteudo?: string;
     canone?: string;
   }) => Promise<{ id: string; titulo: string } | null>;
+  // ── Finanças (OrbitLab) ──
+  criarLancamento?: (dados: {
+    tipo: "entrada" | "saida";
+    valorCentavos: number;
+    descricao: string;
+    categoria: string;
+    carteiraId: string;
+    dataMs?: number;
+  }) => Promise<string>;
+  listarLancamentos?: () => Promise<
+    Array<{
+      tipo: "entrada" | "saida";
+      valorCentavos: number;
+      data: number;
+      descricao: string;
+      categoria: string;
+      carteiraId: string;
+      pago: boolean;
+    }>
+  >;
+  listarCarteiras?: () => Promise<Array<{ id: string; apelido: string }>>;
+  reaisParaCentavos?: (valor: number) => number;
+  faixaPeriodoFinancas?: (periodo: "dia" | "semana" | "mes") => { inicio: number; fim: number };
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];

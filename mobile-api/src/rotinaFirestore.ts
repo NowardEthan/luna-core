@@ -14,6 +14,13 @@ import {
 } from "../../dist/estado/neuronioRotina.js";
 import { criarIdeia as criarIdeiaNaInbox, lerIdeias } from "./firestoreIdeias.js";
 import {
+  criarLancamentoLuna,
+  faixaPeriodo as faixaPeriodoFinancas,
+  listarCarteiras,
+  listarLancamentos,
+  reaisParaCentavos,
+} from "./firestoreFinancas.js";
+import {
   criarDocumento as criarDocumentoNaEstante,
   lerDocumentosDaConversa,
   lerDocumento as lerDocumentoDaEstante,
@@ -401,5 +408,35 @@ export function maosDaRotina(
         "luna",
       );
     },
+
+    // ── Finanças (OrbitLab) ──
+    criarLancamento: async (dados: {
+      tipo: "entrada" | "saida";
+      valorCentavos: number;
+      descricao: string;
+      categoria: string;
+      carteiraId: string;
+      dataMs?: number;
+    }) => {
+      return criarLancamentoLuna(uid, dados);
+    },
+    listarLancamentos: async () => {
+      const lista = await listarLancamentos(uid);
+      return lista.map((l) => ({
+        tipo: l.tipo,
+        valorCentavos: l.valorCentavos,
+        data: l.data,
+        descricao: l.descricao,
+        categoria: l.categoria,
+        carteiraId: l.carteiraId,
+        pago: l.pago,
+      }));
+    },
+    listarCarteiras: async () => {
+      const lista = await listarCarteiras(uid);
+      return lista.map((c) => ({ id: c.id, apelido: c.apelido }));
+    },
+    reaisParaCentavos,
+    faixaPeriodoFinancas,
   };
 }
