@@ -319,6 +319,7 @@ async function resolverTurnoChat(params: {
       parsed.modoAgentico,
       parsed.moduloFinancas,
       parsed.reenvio,
+      parsed.imagemBaseEdicao,
     ),
   );
 
@@ -710,6 +711,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.modoAgentico,
         parsed.moduloFinancas,
         parsed.reenvio,
+        parsed.imagemBaseEdicao,
       );
 
       clearTimeout(streamTimeout);

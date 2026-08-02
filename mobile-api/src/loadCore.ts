@@ -603,6 +603,8 @@ export async function executarChatMobile(
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
   reenvio?: ReenvioSessaoMobile,
+  /** Arte dela referenciada neste turno (swipe) — base do `editar_imagem`. */
+  imagemBaseEdicao?: string,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -669,7 +671,10 @@ export async function executarChatMobile(
       rotina,
       rotina_registos: rotinaRegistos,
       // As mãos dela: sem isto, «monta-me a semana» só podia ser encenado.
-      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone, sessionId ?? null) : undefined,
+      rotinaDeps:
+        uid && db
+          ? maosDaRotina(db, uid, prep.timeZone, sessionId ?? null, imagemBaseEdicao)
+          : undefined,
       stream: false,
       timeZone: prep.timeZone,
       local: prep.local,
@@ -707,6 +712,7 @@ export async function executarChatMobileStream(
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
   reenvio?: ReenvioSessaoMobile,
+  imagemBaseEdicao?: string,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -728,6 +734,7 @@ export async function executarChatMobileStream(
       modoAgentico,
       moduloFinancas,
       reenvio,
+      imagemBaseEdicao,
     );
   }
 
@@ -805,7 +812,10 @@ export async function executarChatMobileStream(
       anexosDocumento: prep.anexosDocumento,
       rotina,
       rotina_registos: rotinaRegistos,
-      rotinaDeps: uid && db ? maosDaRotina(db, uid, prep.timeZone, sessionId ?? null) : undefined,
+      rotinaDeps:
+        uid && db
+          ? maosDaRotina(db, uid, prep.timeZone, sessionId ?? null, imagemBaseEdicao)
+          : undefined,
       stream: true,
       timeZone: prep.timeZone,
       local: prep.local,

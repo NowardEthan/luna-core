@@ -202,10 +202,16 @@ export function maosDaRotina(
   uid: string,
   timeZone?: string,
   conversaId?: string | null,
+  /**
+   * Base preferida DESTE turno — URL da arte dela que o app referenciou (swipe numa imagem
+   * anterior). Sem isto, `editar_imagem` caía sempre na última gerada e ignorava o que ele puxou.
+   */
+  imagemBaseEdicao?: string | null,
 ) {
   // Chave da última imagem: por conversa (cai pra uid se não houver id) — pro `editar_imagem`
   // saber em cima de qual imagem mexer sem depender do modelo carregar a URL no contexto.
   const chaveImagem = conversaId ?? uid;
+  const baseDoTurno = imagemBaseEdicao?.trim() || "";
   return {
     ler: () => lerRotina(db, uid, timeZone),
 
@@ -440,14 +446,19 @@ export function maosDaRotina(
       registrarUltimaImagem(chaveImagem, img);
       return img;
     },
-    editarImagem: async (instrucao: string, opts?: { referenciaUrls?: string[] }) => {
-      const base = ultimaImagemDe(chaveImagem);
-      if (!base) {
+    editarImagem: async (
+      instrucao: string,
+      opts?: { referenciaUrls?: string[]; baseUrl?: string },
+    ) => {
+      // Prioridade: URL explícita da ferramenta > base do turno (swipe) > última gerada.
+      const baseUrl =
+        opts?.baseUrl?.trim() || baseDoTurno || ultimaImagemDe(chaveImagem)?.url || "";
+      if (!baseUrl) {
         throw new Error(
           "Não há imagem anterior nesta conversa para editar — desenha uma primeiro com gerar_imagem.",
         );
       }
-      const img = await editarImagemLuna(uid, instrucao, base.url, opts?.referenciaUrls ?? []);
+      const img = await editarImagemLuna(uid, instrucao, baseUrl, opts?.referenciaUrls ?? []);
       registrarUltimaImagem(chaveImagem, img);
       return img;
     },
