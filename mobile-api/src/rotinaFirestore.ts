@@ -477,7 +477,7 @@ export function maosDaRotina(
       atualizarMetaLuna(uid, id, patch),
     apagarMeta: async (id: string) => apagarMetaLuna(uid, id),
     reaisParaCentavos,
-    faixaPeriodoFinancas: (periodo) =>
+    faixaPeriodoFinancas: (periodo: "dia" | "semana" | "mes") =>
       faixaPeriodoFinancas(periodo, Date.now(), timeZone || undefined),
   };
 }
