@@ -351,7 +351,8 @@ const DIRETRIZ_FINANCAS =
   "Criar CARTÃO = `gerir_carteira` (acao=criar, tipo=cartao_credito). Criar CONTA = tipo=conta_debito. " +
   "Criar META = `gerir_meta`. É PROIBIDO usar `web_search` ou `ler_url` pra a grana DELE. " +
   "`web_search` só se ele pedir algo público (cotação, notícia). Não inventes números. " +
-  "Só confirma «criei o cartão» / «registrei» / «transferi» / «criei a meta» DEPOIS de chamar a mão.";
+  "Só confirma «criei o cartão» / «registrei» / «transferi» / «criei a meta» DEPOIS de chamar a mão " +
+  "E só se o resultado NÃO começar com ERRO — se veio ERRO, diz o que faltou (carteira, valor…) e NÃO finja que gravou.";
 
 export async function responderComoLunaAgentico(
   mensagemUsuario: string,

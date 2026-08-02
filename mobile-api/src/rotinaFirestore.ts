@@ -436,7 +436,7 @@ export function maosDaRotina(
       recorrenteId?: string | null;
       pago?: boolean;
     }) => {
-      return criarLancamentoLuna(uid, dados);
+      return criarLancamentoLuna(uid, dados, timeZone || undefined);
     },
     listarLancamentos: async () => {
       const lista = await listarLancamentos(uid);
@@ -470,13 +470,14 @@ export function maosDaRotina(
       patch: Parameters<typeof atualizarRecorrenteLuna>[2],
     ) => atualizarRecorrenteLuna(uid, id, patch),
     criarTransferencia: async (dados: Parameters<typeof criarTransferenciaLuna>[1]) =>
-      criarTransferenciaLuna(uid, dados),
+      criarTransferenciaLuna(uid, dados, timeZone || undefined),
     listarMetas: async () => listarMetas(uid),
     criarMeta: async (dados: Parameters<typeof criarMetaLuna>[1]) => criarMetaLuna(uid, dados),
     atualizarMeta: async (id: string, patch: Parameters<typeof atualizarMetaLuna>[2]) =>
       atualizarMetaLuna(uid, id, patch),
     apagarMeta: async (id: string) => apagarMetaLuna(uid, id),
     reaisParaCentavos,
-    faixaPeriodoFinancas,
+    faixaPeriodoFinancas: (periodo) =>
+      faixaPeriodoFinancas(periodo, Date.now(), timeZone || undefined),
   };
 }

@@ -162,6 +162,12 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
 
         try {
           resultado = await toolExecutor(chamada.nome, chamada.argumentos);
+          // Muitas mãos devolvem «ERRO: …» em string (sem throw). Sem isto o badge do app
+          // marcava sucesso («Lançamento registrado») e ela ainda podia narrar que gravou
+          // — enquanto o Extrato ficava vazio de verdade.
+          if (/^\s*ERRO\b/i.test(resultado)) {
+            sucesso = false;
+          }
         } catch (erro) {
           resultado = `ERRO: ${erro instanceof Error ? erro.message : String(erro)}`;
           sucesso = false;

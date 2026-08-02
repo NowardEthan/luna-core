@@ -61,10 +61,64 @@ export type MetaFirestore = {
   ativa: boolean;
 };
 
-function inicioDoDia(ms: number): number {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+/** Fuso padrão das finanças (BR). Railway roda em UTC — sem isto o «hoje» caía no dia errado. */
+const FUSO_PADRAO_FINANCAS = "America/Sao_Paulo";
+
+/** Offset (ms) de `timeZone` em relação a UTC no instante `utcMs`. */
+function offsetDoFuso(utcMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(utcMs));
+  const n = (tipo: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((p) => p.type === tipo)?.value ?? "0");
+  const asIfUtc = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour"), n("minute"), n("second"));
+  return asIfUtc - utcMs;
+}
+
+/** Epoch ms do 00:00:00.000 no calendário do fuso (igual ao Lab no celular). */
+function inicioDoDia(ms: number, timeZone: string = FUSO_PADRAO_FINANCAS): number {
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(ms)); // YYYY-MM-DD
+  const asUtcMidnight = new Date(`${iso}T00:00:00.000Z`).getTime();
+  return asUtcMidnight - offsetDoFuso(asUtcMidnight, timeZone);
+}
+
+function partesYmd(ms: number, timeZone: string): { y: number; m: number; d: number; weekday: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(new Date(ms));
+  const get = (tipo: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === tipo)?.value ?? "";
+  const mapa: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    weekday: mapa[get("weekday")] ?? 0,
+  };
 }
 
 /** Converte reais (number do LLM) pra centavos inteiros. */
@@ -252,6 +306,7 @@ export async function criarLancamentoLuna(
     /** Default true — «gastei» já aconteceu; contas a pagar usam recorrente. */
     pago?: boolean;
   },
+  timeZone: string = FUSO_PADRAO_FINANCAS,
 ): Promise<string> {
   const db = getAdminFirestore();
   if (!db) throw new Error("Firestore admin indisponível — não consegui guardar o lançamento.");
@@ -261,7 +316,7 @@ export async function criarLancamentoLuna(
     id: ref.id,
     tipo: dados.tipo,
     valorCentavos: dados.valorCentavos,
-    data: inicioDoDia(dados.dataMs ?? agora),
+    data: inicioDoDia(dados.dataMs ?? agora, timeZone),
     descricao: dados.descricao.trim() || (dados.tipo === "entrada" ? "Entrada" : "Saída"),
     categoria: dados.categoria,
     carteiraId: dados.carteiraId,
@@ -374,6 +429,7 @@ export async function criarTransferenciaLuna(
     motivo?: string | null;
     nota?: string | null;
   },
+  timeZone: string = FUSO_PADRAO_FINANCAS,
 ): Promise<string> {
   const db = getAdminFirestore();
   if (!db) throw new Error("Firestore admin indisponível.");
@@ -388,7 +444,7 @@ export async function criarTransferenciaLuna(
     deCarteiraId: dados.deCarteiraId,
     paraCarteiraId: dados.paraCarteiraId,
     valorCentavos: dados.valorCentavos,
-    data: inicioDoDia(dados.dataMs ?? agora),
+    data: inicioDoDia(dados.dataMs ?? agora, timeZone),
     motivo: dados.motivo ?? null,
     nota: dados.nota?.trim() || null,
     createdAt: agora,
@@ -408,9 +464,12 @@ function formatarReaisCentavos(centavos: number): string {
  * Snapshot curto do mês pra pré-carregar no briefing da conversa Finanças.
  * Falha silenciosa — sem isto ela ainda tem as ferramentas.
  */
-export async function montarBlocoFinancasPrevia(uid: string): Promise<string | undefined> {
+export async function montarBlocoFinancasPrevia(
+  uid: string,
+  timeZone: string = FUSO_PADRAO_FINANCAS,
+): Promise<string | undefined> {
   try {
-    const { inicio, fim } = faixaPeriodo("mes");
+    const { inicio, fim } = faixaPeriodo("mes", Date.now(), timeZone);
     const [carteiras, lancamentos] = await Promise.all([
       listarCarteiras(uid),
       listarLancamentos(uid),
@@ -443,25 +502,30 @@ export async function montarBlocoFinancasPrevia(uid: string): Promise<string | u
 export function faixaPeriodo(
   periodo: "dia" | "semana" | "mes",
   agoraMs = Date.now(),
+  timeZone: string = FUSO_PADRAO_FINANCAS,
 ): { inicio: number; fim: number } {
-  const d = new Date(agoraMs);
-  d.setHours(0, 0, 0, 0);
   if (periodo === "dia") {
-    const inicio = d.getTime();
-    return { inicio, fim: inicio + 24 * 60 * 60 * 1000 };
+    const inicio = inicioDoDia(agoraMs, timeZone);
+    // +1 dia civil no fuso (não 24h fixas — DST)
+    const amanha = inicio + 36 * 60 * 60 * 1000;
+    const fim = inicioDoDia(amanha, timeZone);
+    return { inicio, fim };
   }
   if (periodo === "semana") {
     // Segunda-feira como início (igual ao Lab)
-    const dia = d.getDay(); // 0=dom
-    const desloc = dia === 0 ? -6 : 1 - dia;
-    d.setDate(d.getDate() + desloc);
-    const inicio = d.getTime();
-    return { inicio, fim: inicio + 7 * 24 * 60 * 60 * 1000 };
+    const { weekday } = partesYmd(agoraMs, timeZone);
+    const desloc = weekday === 0 ? -6 : 1 - weekday;
+    const ancora = inicioDoDia(agoraMs, timeZone) + desloc * 24 * 60 * 60 * 1000;
+    const inicio = inicioDoDia(ancora + 12 * 60 * 60 * 1000, timeZone);
+    const fimAncora = inicio + 8 * 24 * 60 * 60 * 1000;
+    const fim = inicioDoDia(fimAncora, timeZone);
+    return { inicio, fim };
   }
-  d.setDate(1);
-  const inicio = d.getTime();
-  d.setMonth(d.getMonth() + 1);
-  return { inicio, fim: d.getTime() };
+  const { y, m } = partesYmd(agoraMs, timeZone);
+  const inicio = inicioDoDia(Date.UTC(y, m - 1, 1, 12), timeZone);
+  const proxMes = m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
+  const fim = inicioDoDia(Date.UTC(proxMes.y, proxMes.m - 1, 1, 12), timeZone);
+  return { inicio, fim };
 }
 
 const TIPOS_META = new Set(["reserva", "corte", "gasto_mes"]);
@@ -469,7 +533,8 @@ const TIPOS_META = new Set(["reserva", "corte", "gasto_mes"]);
 export async function listarMetas(uid: string): Promise<MetaFirestore[]> {
   const db = getAdminFirestore();
   if (!db) return [];
-  const snap = await db.collection("users").doc(uid).collection("metas").get();
+  // Mesma coleção do OrbitLab (`metasFinanceiras`) — `metas` era um path fantasma.
+  const snap = await db.collection("users").doc(uid).collection("metasFinanceiras").get();
   const out: MetaFirestore[] = [];
   for (const d of snap.docs) {
     const data = d.data();
@@ -512,7 +577,7 @@ export async function criarMetaLuna(
   if (dados.tipo === "corte" && !dados.categoria?.trim()) {
     throw new Error("Meta de corte precisa de categoria.");
   }
-  const ref = db.collection("users").doc(uid).collection("metas").doc();
+  const ref = db.collection("users").doc(uid).collection("metasFinanceiras").doc();
   const agora = Date.now();
   await ref.set({
     id: ref.id,
@@ -542,7 +607,7 @@ export async function atualizarMetaLuna(
 ): Promise<void> {
   const db = getAdminFirestore();
   if (!db) throw new Error("Firestore admin indisponível.");
-  const ref = db.collection("users").doc(uid).collection("metas").doc(id);
+  const ref = db.collection("users").doc(uid).collection("metasFinanceiras").doc(id);
   const existente = await ref.get();
   if (!existente.exists) throw new Error(`Meta ${id} não encontrada.`);
   const update: Record<string, unknown> = { updatedAt: Date.now() };
@@ -555,5 +620,5 @@ export async function atualizarMetaLuna(
 export async function apagarMetaLuna(uid: string, id: string): Promise<void> {
   const db = getAdminFirestore();
   if (!db) throw new Error("Firestore admin indisponível.");
-  await db.collection("users").doc(uid).collection("metas").doc(id).delete();
+  await db.collection("users").doc(uid).collection("metasFinanceiras").doc(id).delete();
 }
