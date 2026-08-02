@@ -18,6 +18,10 @@ type LunaCoreCross = {
     sessaoId: string,
     mensagens: TurnoRemoto[],
   ) => unknown;
+  redefinirSessaoOrbit: (
+    sessaoId: string,
+    mensagens: TurnoRemoto[],
+  ) => unknown;
 };
 
 function tokenizar(texto: string): Set<string> {
@@ -240,6 +244,15 @@ export type PrepararMemoriaGlobalInput = {
   sessionId: string;
   mensagem: string;
   maxSessoes?: number;
+  /**
+   * «Reenviar»: histórico ANTERIOR (autoritativo, já truncado) que substitui o buffer da
+   * sessão antes deste turno. Quando presente, NÃO relemos o Firestore — ele ainda tem a
+   * mensagem antiga (o app só marca `deletedMessageIds`, que o servidor não lê), e reler
+   * traria de volta justamente o que o reenvio quer apagar.
+   */
+  reenvio?: {
+    historico: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>;
+  };
 };
 
 export type PrepararMemoriaGlobalResult = {
@@ -269,12 +282,24 @@ export async function prepararMemoriaGlobalMobile(
 
   const sessaoLocal = core.prepararSessaoOrbit(sessionId);
 
-  // `hidratarSessaoOrbit` só aplica o Firestore quando ele tem MAIS turnos
-  // que o local (ver orbitIntegracao.ts) — ou seja, a partir do momento em
-  // que a sessão já tem histórico local, essa leitura remota é sempre
-  // descartada. Só vale a pena pagar o round-trip quando a sessão local
-  // está mesmo vazia (instância nova do servidor, ou 1ª mensagem).
-  if (uid && sessaoLocal.mensagens.length === 0) {
+  if (input.reenvio) {
+    // Reenvio: o app é a fonte da verdade. Reescreve o buffer com o histórico truncado
+    // (pode ser vazio, se ele reenviou a 1ª mensagem) e NÃO relê o Firestore — que ainda
+    // carrega a fala antiga. O turno atual será anexado por cima, uma única vez.
+    core.redefinirSessaoOrbit(
+      sessionId,
+      input.reenvio.historico.map((m) => ({
+        papel: m.papel,
+        conteudo: m.conteudo,
+        timestamp: m.timestamp ?? new Date().toISOString(),
+      })),
+    );
+  } else if (uid && sessaoLocal.mensagens.length === 0) {
+    // `hidratarSessaoOrbit` só aplica o Firestore quando ele tem MAIS turnos
+    // que o local (ver orbitIntegracao.ts) — ou seja, a partir do momento em
+    // que a sessão já tem histórico local, essa leitura remota é sempre
+    // descartada. Só vale a pena pagar o round-trip quando a sessão local
+    // está mesmo vazia (instância nova do servidor, ou 1ª mensagem).
     try {
       const turnos = await carregarMensagensFirestore(uid, sessionId);
       if (turnos.length > 0) {

@@ -335,3 +335,26 @@ export function hidratarSessaoOrbit(
   salvarSessao(sessao);
   return sessao;
 }
+
+/**
+ * SUBSTITUI incondicionalmente o histórico local da sessão — ao contrário de
+ * `hidratarSessaoOrbit`, que só cresce.
+ *
+ * É o coração do «Reenviar»: quando o usuário refaz uma mensagem, o app trunca a
+ * conversa (local + Firestore) e manda o histórico ANTERIOR, autoritativo. Sem isto,
+ * o buffer quente do servidor guardaria a mensagem antiga e a próxima rodada apareceria
+ * DUAS vezes na memória da Luna — ela responderia «mas você já me disse isso». Aqui o
+ * buffer volta a ser exatamente o que sobrou antes do ponto de reenvio; o turno novo é
+ * anexado por cima, uma única vez.
+ */
+export function redefinirSessaoOrbit(
+  sessaoId: string,
+  mensagens: MemoriaSessao["mensagens"],
+): MemoriaSessao {
+  const sessao = prepararSessaoOrbit(sessaoId);
+  sessao.mensagens = [...mensagens];
+  const ultima = mensagens[mensagens.length - 1];
+  sessao.atualizada_em = ultima?.timestamp ?? new Date().toISOString();
+  salvarSessao(sessao);
+  return sessao;
+}

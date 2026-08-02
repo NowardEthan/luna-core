@@ -91,6 +91,24 @@ export const ChatRequestSchema = z.object({
    */
   moduloFinancas: z.boolean().optional(),
   /**
+   * «Reenviar»: quando o usuário refaz uma mensagem, o app trunca a conversa e manda aqui
+   * o histórico ANTERIOR (autoritativo, já truncado). O servidor reescreve o buffer da
+   * sessão com ele antes do turno — senão a fala antiga sobrevive no buffer quente e a Luna
+   * responde «você já me disse isso». Vazio = reenvio da 1ª mensagem (buffer volta a zero).
+   */
+  reenvio: z
+    .object({
+      historico: z
+        .array(
+          z.object({
+            papel: z.enum(["user", "assistant"]),
+            conteudo: z.string().max(16_000),
+          }),
+        )
+        .max(200),
+    })
+    .optional(),
+  /**
    * Anexos visuais (imagem/vídeo) do turno, para a visão agêntica no core.
    *
    * Preferimos `url` (Firebase Storage): o modelo de visão busca o arquivo direto,

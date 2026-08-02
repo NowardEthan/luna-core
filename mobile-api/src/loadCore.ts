@@ -39,6 +39,7 @@ export type ChatStreamCallbacks = {
     sucesso?: boolean;
     fontes?: Array<{ title?: string; url: string }>;
     imagem?: { url: string; prompt: string };
+    pergunta?: { texto: string; opcoes: string[] };
     plano?: Array<{ texto: string; feito: boolean }>;
   }) => void;
 };
@@ -204,6 +205,7 @@ export type LunaCoreModule = {
         sucesso?: boolean;
         fontes?: Array<{ title?: string; url: string }>;
         imagem?: { url: string; prompt: string };
+        pergunta?: { texto: string; opcoes: string[] };
         plano?: Array<{ texto: string; feito: boolean }>;
       }) => void;
     },
@@ -233,6 +235,18 @@ export type LunaCoreModule = {
     sessaoId: string,
     mensagens: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp: string }>,
   ) => unknown;
+  redefinirSessaoOrbit: (
+    sessaoId: string,
+    mensagens: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp: string }>,
+  ) => unknown;
+};
+
+/**
+ * Sinal de «Reenviar» que desce do app: o histórico ANTERIOR (autoritativo, já truncado)
+ * que deve substituir o buffer da sessão antes deste turno rodar. Ver `redefinirSessaoOrbit`.
+ */
+export type ReenvioSessaoMobile = {
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string; timestamp?: string }>;
 };
 
 let cached: Promise<LunaCoreModule> | null = null;
@@ -373,6 +387,7 @@ async function prepararChatMobile(
   documentosAtivo?: boolean,
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
+  reenvio?: ReenvioSessaoMobile,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -436,6 +451,7 @@ async function prepararChatMobile(
     sessionId: sidPipeline,
     mensagem: message,
     maxSessoes: 3,
+    reenvio,
   });
 
   const usarNeuronioMemoriaLlm =
@@ -584,6 +600,7 @@ export async function executarChatMobile(
   documentosAtivo?: boolean,
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
+  reenvio?: ReenvioSessaoMobile,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -603,6 +620,7 @@ export async function executarChatMobile(
     documentosAtivo,
     modoAgentico,
     moduloFinancas,
+    reenvio,
   );
 
   const rodarPipeline = async () => {
@@ -686,6 +704,7 @@ export async function executarChatMobileStream(
   documentosAtivo?: boolean,
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
+  reenvio?: ReenvioSessaoMobile,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -706,6 +725,7 @@ export async function executarChatMobileStream(
       documentosAtivo,
       modoAgentico,
       moduloFinancas,
+      reenvio,
     );
   }
 
@@ -727,6 +747,7 @@ export async function executarChatMobileStream(
     documentosAtivo,
     modoAgentico,
     moduloFinancas,
+    reenvio,
   );
 
   const rodarPipeline = async () => {

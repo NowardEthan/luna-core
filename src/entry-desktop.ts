@@ -24,6 +24,7 @@ export {
   executarReflexaoSessao,
   vincularSessaoOrbit,
   hidratarSessaoOrbit,
+  redefinirSessaoOrbit,
   type FatoMemoriaLongaResumo,
   type ResultadoReflexaoOrbit,
   type OpcoesBuscaContextoCross,
