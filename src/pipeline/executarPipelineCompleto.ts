@@ -41,6 +41,7 @@ import {
   orcamentoPorProfundidade,
 } from "../contexto/compiladorContexto.js";
 import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
+import { CONTEXTO_MODULO_FINANCAS } from "../responder/contextoModuloFinancas.js";
 import { gerarBlocoTempo } from "../contexto/gerarBlocoTempo.js";
 import { gerarBlocoLocalClima, type LocalClima } from "../contexto/gerarBlocoLocalClima.js";
 import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
@@ -177,6 +178,13 @@ export type OpcoesPipelineCompleto = {
    * a Luna já entra com as mãos à disposição (planejar, documentos, etc.). Só o OrbitLab liga.
    */
   forcarAgentico?: boolean;
+  /**
+   * Conversa do módulo Finanças (OrbitLab). Injeta contexto de presença financeira
+   * no briefing — ela sabe que está ali, não só quando a mensagem cita grana.
+   */
+  moduloFinancas?: boolean;
+  /** Snapshot curto do mês (pré-carga) — montado pelo mobile-api. */
+  blocoFinancasPrevia?: string;
   onStatusHint?: (hint: string) => void;
   /** Trace parcial do pipeline PAIA para a timeline do Orbit. */
   onPipelineTrace?: (trace: {
@@ -850,6 +858,17 @@ export async function executarPipelineCompleto(
       dietaMinima ? "simples" : mapProfundidadeOrcamento(profundidade),
     );
     contextoCompilado = compilarContexto(entradas, orcamento);
+    // Módulo Finanças: ela precisa saber ONDE está em todo turno desta conversa —
+    // não só quando a mensagem cita «gastei». Pré-carga do mês vem do mobile-api.
+    if (opcoes.moduloFinancas && contextoCompilado) {
+      const extras = [CONTEXTO_MODULO_FINANCAS, opcoes.blocoFinancasPrevia?.trim()]
+        .filter(Boolean)
+        .join("\n\n");
+      contextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${extras}`,
+      };
+    }
     if (process.env.LUNA_DEBUG_BRIEFING === "1" && contextoCompilado) {
       console.error(
         `─── BRIEFING ───\n${contextoCompilado.briefing}\n─── FIM (cortes: ${contextoCompilado.cortes.join(", ")}) ───`,
