@@ -387,6 +387,49 @@ export async function criarTransferenciaLuna(
   return ref.id;
 }
 
+function formatarReaisCentavos(centavos: number): string {
+  return (centavos / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+/**
+ * Snapshot curto do mês pra pré-carregar no briefing da conversa Finanças.
+ * Falha silenciosa — sem isto ela ainda tem as ferramentas.
+ */
+export async function montarBlocoFinancasPrevia(uid: string): Promise<string | undefined> {
+  try {
+    const { inicio, fim } = faixaPeriodo("mes");
+    const [carteiras, lancamentos] = await Promise.all([
+      listarCarteiras(uid),
+      listarLancamentos(uid),
+    ]);
+    const noMes = lancamentos.filter((l) => l.data >= inicio && l.data < fim);
+    let entrou = 0;
+    let saiu = 0;
+    for (const l of noMes) {
+      if (l.tipo === "entrada") entrou += l.valorCentavos;
+      else saiu += l.valorCentavos;
+    }
+    const nomesCarteiras =
+      carteiras
+        .slice(0, 8)
+        .map((c) => c.apelido)
+        .filter(Boolean)
+        .join(", ") || "(nenhuma cadastrada)";
+    return (
+      "FINANÇAS DELE NESTE MÓDULO (pré-carga do mês corrente — use as ferramentas se for " +
+      "preciso detalhar ou atualizar):\n" +
+      `Carteiras: ${nomesCarteiras}.\n` +
+      `Este mês: entrou ${formatarReaisCentavos(entrou)}, saiu ${formatarReaisCentavos(saiu)}, ` +
+      `${noMes.length} lançamento(s).`
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 export function faixaPeriodo(
   periodo: "dia" | "semana" | "mes",
   agoraMs = Date.now(),

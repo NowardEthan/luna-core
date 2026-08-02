@@ -22,6 +22,7 @@ import { carregarAnexosVisuaisRecentes } from "./firestoreChat.js";
 import { getAdminFirestore } from "./firebaseAdmin.js";
 import { conversaTemDocumentos } from "./firestoreDocumentos.js";
 import { lerRotina, lerRegistosRotina, lerRotinaSets, maosDaRotina } from "./rotinaFirestore.js";
+import { montarBlocoFinancasPrevia } from "./firestoreFinancas.js";
 import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronioRotina.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
@@ -119,6 +120,8 @@ export type LunaCoreModule = {
       modoTecnico?: boolean;
       documentosAtivo?: boolean;
       forcarAgentico?: boolean;
+      moduloFinancas?: boolean;
+      blocoFinancasPrevia?: string;
       conversaTemDocumentos?: boolean;
       usarNeuronioMemoriaLlm?: boolean;
       contexto_cross_sessao?: string[];
@@ -365,6 +368,7 @@ async function prepararChatMobile(
   modoTecnico?: boolean,
   documentosAtivo?: boolean,
   modoAgentico?: boolean,
+  moduloFinancas?: boolean,
 ) {
   const resolved = resolveLlmProviderSelection(llm, message, planId);
   const selection = resolved?.selection ?? null;
@@ -413,10 +417,15 @@ async function prepararChatMobile(
       : undefined,
   );
   const sidPipeline = sessionId ?? crypto.randomUUID();
-  const detalheAmbiente = montarDetalheAmbienteMobile(
+  let detalheAmbiente = montarDetalheAmbienteMobile(
     userDisplayName,
     interlocutor?.criador_verificado,
   );
+  if (moduloFinancas === true) {
+    const onde =
+      "módulo Finanças do app — conversa dedicada a extrato, carteiras e orçamento dele";
+    detalheAmbiente = detalheAmbiente ? `${detalheAmbiente} · ${onde}` : onde;
+  }
   const memoria = await prepararMemoriaGlobalMobile({
     core,
     uid: uid ?? null,
@@ -476,8 +485,10 @@ async function prepararChatMobile(
     modoTecnico: modoTecnico === true,
     // "Mãos à obra" força o agêntico; ele também precisa das ferramentas de documento/planejamento
     // à disposição, então liga o documentosAtivo junto (o OrbitLab já manda os dois, mas garantimos).
-    documentosAtivo: documentosAtivo === true || modoAgentico === true,
-    forcarAgentico: modoAgentico === true,
+    // Conversa Finanças também força: as mãos de grana vivem no agêntico.
+    documentosAtivo: documentosAtivo === true || modoAgentico === true || moduloFinancas === true,
+    forcarAgentico: modoAgentico === true || moduloFinancas === true,
+    moduloFinancas: moduloFinancas === true,
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -568,6 +579,7 @@ export async function executarChatMobile(
   modoTecnico?: boolean,
   documentosAtivo?: boolean,
   modoAgentico?: boolean,
+  moduloFinancas?: boolean,
 ): Promise<ChatMobileResult> {
   const prep = await prepararChatMobile(
     message,
@@ -586,6 +598,7 @@ export async function executarChatMobile(
     modoTecnico,
     documentosAtivo,
     modoAgentico,
+    moduloFinancas,
   );
 
   const rodarPipeline = async () => {
@@ -604,6 +617,8 @@ export async function executarChatMobile(
       prep.documentosAtivo && uid && db && sessionId
         ? await conversaTemDocumentos(uid, sessionId)
         : false;
+    const blocoFinancasPrevia =
+      prep.moduloFinancas && uid ? await montarBlocoFinancasPrevia(uid) : undefined;
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
@@ -618,6 +633,8 @@ export async function executarChatMobile(
       modoTecnico: prep.modoTecnico,
       documentosAtivo: prep.documentosAtivo,
       forcarAgentico: prep.forcarAgentico,
+      moduloFinancas: prep.moduloFinancas,
+      blocoFinancasPrevia,
       conversaTemDocumentos: temDocumentos,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
@@ -662,6 +679,7 @@ export async function executarChatMobileStream(
   modoTecnico?: boolean,
   documentosAtivo?: boolean,
   modoAgentico?: boolean,
+  moduloFinancas?: boolean,
 ): Promise<ChatMobileResult> {
   if (!isStreamSupported()) {
     return executarChatMobile(
@@ -681,6 +699,7 @@ export async function executarChatMobileStream(
       modoTecnico,
       documentosAtivo,
       modoAgentico,
+      moduloFinancas,
     );
   }
 
@@ -701,6 +720,7 @@ export async function executarChatMobileStream(
     modoTecnico,
     documentosAtivo,
     modoAgentico,
+    moduloFinancas,
   );
 
   const rodarPipeline = async () => {
@@ -729,6 +749,8 @@ export async function executarChatMobileStream(
       prep.documentosAtivo && uid && db && sessionId
         ? await conversaTemDocumentos(uid, sessionId)
         : false;
+    const blocoFinancasPrevia =
+      prep.moduloFinancas && uid ? await montarBlocoFinancasPrevia(uid) : undefined;
 
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
@@ -743,6 +765,8 @@ export async function executarChatMobileStream(
       modoTecnico: prep.modoTecnico,
       documentosAtivo: prep.documentosAtivo,
       forcarAgentico: prep.forcarAgentico,
+      moduloFinancas: prep.moduloFinancas,
+      blocoFinancasPrevia,
       conversaTemDocumentos: temDocumentos,
       usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,

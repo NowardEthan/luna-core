@@ -86,6 +86,11 @@ export const ChatRequestSchema = z.object({
   /** Modo "Mãos à obra" (opt-in): força o caminho agêntico em todo turno. Só o OrbitLab liga. */
   modoAgentico: z.boolean().optional(),
   /**
+   * Conversa dedicada do módulo Finanças (OrbitLab). Injeta briefing + pré-carga
+   * pra Luna saber que está ali falando de grana — não só quando a mensagem cita real.
+   */
+  moduloFinancas: z.boolean().optional(),
+  /**
    * Anexos visuais (imagem/vídeo) do turno, para a visão agêntica no core.
    *
    * Preferimos `url` (Firebase Storage): o modelo de visão busca o arquivo direto,
