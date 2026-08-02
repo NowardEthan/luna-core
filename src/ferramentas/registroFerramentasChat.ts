@@ -850,9 +850,10 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
 const FERRAMENTA_LISTAR_DOCUMENTOS: DefinicaoFerramenta = {
   nome: "listar_artefatos",
   descricao:
-    "Lista os artefatos desta conversa (id + título). Usa para saber o que já existe antes de " +
-    "ler ou editar — ex.: quando ele diz «revisa aquele artefato» e tu precisas do id. Não repete " +
-    "o corpo; para o texto, usa ler_artefato com o id.",
+    "Lista os artefatos da estante dele — de TODAS as conversas (id + título + se é desta ou de " +
+    "outra). Usa quando ele pergunta se tu lembras de um artefato, cita um nome («meus gastos»), " +
+    "ou antes de ler/editar e precisas do id. Não inventes que não existe sem ter listado. Não " +
+    "repete o corpo; para o texto, usa ler_artefato com o id.",
   parametros: { type: "object", properties: {}, required: [] },
 };
 

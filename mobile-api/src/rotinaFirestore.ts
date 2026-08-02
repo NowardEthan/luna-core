@@ -33,7 +33,7 @@ import {
 } from "./firestoreFinancas.js";
 import {
   criarDocumento as criarDocumentoNaEstante,
-  lerDocumentosDaConversa,
+  lerDocumentos,
   lerDocumento as lerDocumentoDaEstante,
   atualizarDocumento,
 } from "./firestoreDocumentos.js";
@@ -394,12 +394,17 @@ export function maosDaRotina(
       });
     },
 
-    // A Luna só enxerga (e mexe) os documentos DESTA conversa. Sem conversaId, a estante desta
-    // conversa é vazia — nada a listar, nada a editar por engano.
+    // Lista a estante INTEIRA do usuário (todas as conversas). Sem isto, no chat Finanças ela
+    // «consultava a estante», via só os artefatos nascidos ali (vazio) e jurava que «meus gastos»
+    // — criado noutro chat — não existia. `destaConversa` marca o que nasceu neste turno/sessão
+    // pra pré-carga do pipeline não despejar livro de outra conversa no contexto.
     listarDocumentos: async () => {
-      if (!conversaId) return [];
-      const docs = await lerDocumentosDaConversa(uid, conversaId);
-      return docs.map((d) => ({ id: d.id, titulo: d.titulo }));
+      const docs = await lerDocumentos(uid);
+      return docs.map((d) => ({
+        id: d.id,
+        titulo: d.titulo,
+        destaConversa: conversaId != null && d.conversaId === conversaId,
+      }));
     },
     lerDocumento: async (id: string) => {
       const doc = await lerDocumentoDaEstante(uid, id);

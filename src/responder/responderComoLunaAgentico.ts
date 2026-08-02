@@ -315,6 +315,7 @@ function montarMensagemUsuario(
  */
 const DIRETRIZ_DOCUMENTOS =
   "ARTEFATOS ligados: tens ferramentas REAIS para escrever num lugar que FICA (a estante dele), fora do fluxo do chat — `criar_artefato`, e para rever o que já existe `listar_artefatos`/`ler_artefato`/`editar_artefato`. Um ARTEFATO é algo que TU crias e guardas (texto, plano, carta, resumo); não confundas com `ler_arquivo`, que é para os ARQUIVOS/PDFs que ELE anexou. Ele pode dizer «documento» à toa — trata como artefato na mesma. " +
+  "A estante é DELE, não só desta conversa: `listar_artefatos` mostra artefatos de TODAS as conversas (marca se é desta ou de outra). Se ele perguntar «lembra daquele artefato», citar um nome («meus gastos») ou falar de algo criado noutro chat — LISTA e procura o título. É PROIBIDO dizer que não existe sem ter listado a estante inteira. " +
   "Quando ele pedir um artefato, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_artefato` com o corpo INTEIRO em `conteudo`. Não escrevas o artefato na bolha do chat. " +
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
   "EDITAR conta a mesma regra, e aqui há DUAS mãos — escolhe a certa. Para mudar um PONTO (uma frase, um parágrafo, um trecho: «corrige essa frase», «reescreve esse parágrafo», «troca esse pedaço») usa `editar_trecho_artefato` — a mão CIRÚRGICA, e a tua ESCOLHA PADRÃO: primeiro `ler_artefato` para ver o texto atual, depois passas só o `trecho_antigo` (cópia EXATA do que está lá) e o `trecho_novo`. O resto do artefato fica intocado — e num texto grande (um livro, um relatório longo) isto é o que te impede de, ao reescrever tudo, alterar sem querer o que não devias. Só usa `editar_artefato` (corpo INTEIRO) quando for mesmo refazer o texto do ZERO. Em ambas: primeiro `listar_artefatos`/`ler_artefato` para o corpo atual. É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e não mudou nada. " +
@@ -458,6 +459,9 @@ export async function responderComoLunaAgentico(
   // saturar e confabular. Então aqui aplicamos o «livro é uma codebase»: pequeno → corpo inteiro
   // (barato, cômodo); grande com seções → só o ÍNDICE (o mapa), e ela abre a seção certa com
   // `ler_secao` antes de mexer. Só no OrbitLab (documentosAtivo) e só quando a conversa tem estante.
+  //
+  // `listarDocumentos` agora devolve a estante INTEIRA (pra ela achar «meus gastos» noutro chat);
+  // a pré-carga filtra `destaConversa` — senão despejava livro alheio no contexto do turno.
   const LIMITE_ARTEFATO_GRANDE = 6000; // caracteres — acima disto, injeta o MAPA em vez do corpo
   let blocoDocumentosDaConversa: string | null = null;
   if (
@@ -466,7 +470,8 @@ export async function responderComoLunaAgentico(
     opcoes.rotinaDeps?.lerDocumento
   ) {
     try {
-      const lista = await opcoes.rotinaDeps.listarDocumentos();
+      const listaBruta = await opcoes.rotinaDeps.listarDocumentos();
+      const lista = listaBruta.filter((d) => d.destaConversa !== false);
       if (lista.length > 0) {
         const partes: string[] = [];
         for (const d of lista.slice(0, 3)) {
