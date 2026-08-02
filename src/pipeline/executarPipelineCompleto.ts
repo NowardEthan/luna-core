@@ -14,6 +14,13 @@ import { gerarPolitica, type ResultadoPipeline } from "./executarPipeline.js";
 import { responderComoLuna, responderComoLunaStream, type ResultadoResposta } from "../responder/responderLuna.js";
 import { responderComoLunaAgentico, type AcaoAgenticoChat } from "../responder/responderComoLunaAgentico.js";
 import { webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
+import {
+  mensagemContemUrl,
+  mensagemPedeFinancas,
+  mensagemSugerePesquisaWeb,
+} from "./detectoresIntencao.js";
+
+export { mensagemPedeFinancas, mensagemSugerePesquisaWeb } from "./detectoresIntencao.js";
 import { carregarConfig, type ConfigLuna, type ProvedorAgente, type ProvedorLlm } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 import { providerSupportsStream, type ChunkStreamLlm } from "../providers/completarStream.js";
@@ -229,21 +236,6 @@ function featureFlagAgenticoWebAtiva(): boolean {
   return true;
 }
 
-function mensagemContemUrl(mensagem: string): boolean {
-  return /https?:\/\/\S+/i.test(mensagem);
-}
-
-/**
- * Pedidos que pedem busca na web — não todo papo casual.
- * Antes, `LUNA_AGENTIC_WEB_SEARCH` ligado forçava modo agêntico em **toda** mensagem
- * (sem stream ao vivo → TTFT ≈ total). Agora só ativa com intenção de pesquisa.
- */
-export function mensagemSugerePesquisaWeb(mensagem: string): boolean {
-  return /\b(pesquisa|pesquisar|busca|buscar|procure|procura|google|bing|not[ií]cias?|pre[cç]o|cota[cç][aã]o|quem ganhou|resultado do|o que (?:rolou|aconteceu) (?:com|sobre)|atualiza[cç][aã]o sobre|últimas? not[ií]cias)\b/i.test(
-    mensagem,
-  );
-}
-
 function deveUsarModoAgentico(
   provedor: ProvedorLlm,
   mensagem: string,
@@ -282,40 +274,6 @@ function deveUsarModoAgentico(
   // Finanças: «gastei 32», «transfere», «resumo do mês» — as tools vivem no agêntico.
   const pedeFinancas = mensagemPedeFinancas(mensagem);
   return vision || documento || web || pedeDocumento || editaDocumento || pedeFinancas;
-}
-
-/**
- * Pedido de ação/consulta financeira — abre o agêntico pra `registrar_lancamento`,
- * `resumo_financeiro`, `transferir`, etc. Deliberadamente ancorado em verbo de grana
- * ou substantivo do módulo Finanças (sem alargar pra qualquer «R$» solto em metáfora).
- */
-export function mensagemPedeFinancas(mensagem: string): boolean {
-  if (
-    /\b(gastei|gastamos|gaste|paguei|pagamos|recebi|recebemos|transferi|transfere|transferir|transferiu)\b/i.test(
-      mensagem,
-    )
-  ) {
-    return true;
-  }
-  if (
-    /\b(lan[cç]amento|lan[cç]amentos|extrato|fatura|carteira|carteiras|cart[aã]o|cart[oõ]es|recorrente|recorrentes|or[cç]amento|finan[cç]as|conta\s+a\s+pagar|contas\s+a\s+pagar)\b/i.test(
-      mensagem,
-    )
-  ) {
-    return true;
-  }
-  if (
-    /\b(registr\w+|anot\w+|salva\w+|cria\w*|crie|lista\w*|mostra\w*|quanto\s+(gastei|saiu|entrou))\b[^.?!\n]{0,40}\b(r\$|reais?|centavos|aluguel|sal[aá]rio|netflix|nubank)\b/i.test(
-      mensagem,
-    )
-  ) {
-    return true;
-  }
-  // «R$ 32» / «32 reais» perto de verbo de anotar/gastar já coberto acima; aqui o atalho
-  // «registre 50 reais no almoço» sem o verbo na primeira cláusula.
-  if (/\b\d+([.,]\d{1,2})?\s*(reais?|r\$)\b/i.test(mensagem)) return true;
-  if (/\br\$\s*\d/i.test(mensagem)) return true;
-  return false;
 }
 
 /**

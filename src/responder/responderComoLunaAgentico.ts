@@ -55,6 +55,11 @@ import { consultarAtlas } from "../atlas/consultarAtlas.js";
 import { pesquisaWeb, webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
 import { lerUrl } from "../ferramentas/lerUrl.js";
 import { verificarFontes, formatarVerificacao, type FonteDossie } from "../ferramentas/verificarFontes.js";
+import {
+  mensagemContemUrl,
+  mensagemPedeFinancas,
+  mensagemSugerePesquisaWeb,
+} from "../pipeline/detectoresIntencao.js";
 
 export type FonteAgentico = {
   title?: string;
@@ -326,6 +331,23 @@ const DIRETRIZ_PLANO =
   "marcar, NÃO escrevas a resposta final — o teu trabalho não acabou. Para um pedido de UMA ação só (uma pergunta, " +
   "uma criação simples, uma edição de um documento que já tens à frente), NÃO uses o plano: vai direto, é mais rápido.";
 
+/**
+ * Diretriz de FINANÇAS — a grana DELE vive nas mãos `resumo_financeiro` / `listar_lancamentos` /
+ * `registrar_lancamento` / etc. Sem isto, o modelo (com `web_search` na mão no modo agêntico)
+ * ia pra internet quando ele perguntava «quanto gastei» — inventava fontes públicas em vez de
+ * ler a carteira. Mesmo espírito da DIRETRIZ_DOCUMENTOS: ter a ferramenta não basta.
+ */
+const DIRETRIZ_FINANCAS =
+  "FINANÇAS DELE (módulo Finanças do app): tens mãos REAIS — `resumo_financeiro`, `listar_lancamentos`, " +
+  "`registrar_lancamento`, `gerir_recorrente`, `gerir_carteira`, `transferir`. " +
+  "Quando ele pergunta quanto GASTOU / SAIU / ENTROU, pede extrato, resumo do mês, fatura, cartão, " +
+  "carteira, orçamento, ou pede pra anotar/registrar um gasto — CHAMA essas ferramentas. " +
+  "É PROIBIDO usar `web_search` ou `ler_url` pra responder sobre a grana DELE: isso não está na internet, " +
+  "está no app. `web_search` só entra se ele pedir EXPLICITAMENTE algo público (cotação do dólar, " +
+  "notícia de banco, preço de produto no mercado) — nunca «quanto gastei», «resumo dos cartões», " +
+  "«extrato», «fatura». Não inventes números: se a ferramenta devolver vazio, diz que não há lançamento " +
+  "no período. Só confirma «registrei» / «transferi» / «criei recorrente» DEPOIS de chamar a mão.";
+
 export async function responderComoLunaAgentico(
   mensagemUsuario: string,
   provedor: ProvedorAgente,
@@ -357,11 +379,22 @@ export async function responderComoLunaAgentico(
   // seletor de modos chegar ao app, é este flag que o modo agêntico vai acender por conta própria.
   const planejamentoAtivo = opcoes.documentosAtivo === true;
   const maxRodadas = planejamentoAtivo ? MAX_RODADAS_PLANEJAMENTO : MAX_RODADAS_AGENTICO;
-  const ferramentas = listarFerramentasChat({
+  const pedeFinancas = mensagemPedeFinancas(mensagemUsuario);
+  // Grana pessoal ≠ pesquisa web. Se o turno é financeiro e ele NÃO pediu busca/URL,
+  // tira `web_search` da mão — o prompt sozinho não segura o deepseek.
+  const pedeWebExplicita =
+    mensagemSugerePesquisaWeb(mensagemUsuario) || mensagemContemUrl(mensagemUsuario);
+  const ferramentasBrutas = listarFerramentasChat({
     pesquisaProfunda: opcoes.pesquisaProfunda,
     documentosAtivo: opcoes.documentosAtivo,
     planejamentoAtivo,
   });
+  const ferramentas =
+    pedeFinancas && !pedeWebExplicita
+      ? ferramentasBrutas.filter(
+          (f) => f.nome !== "web_search" && f.nome !== "verificar_fontes",
+        )
+      : ferramentasBrutas;
 
   // ── O plano em passos deste turno (estado vivo, morre com o turno) ────────────
   // A Luna DECLARA os passos (`planejar`), marca um a um (`concluir_passo`), pode acrescentar
@@ -497,15 +530,18 @@ export async function responderComoLunaAgentico(
       "Ela mandou o anexo justamente para que tu visses; pedir que ela descreva o que acabou de te enviar é o oposto de estar presente. " +
       "E podes olhar mais de uma vez, com perguntas diferentes: é uma conversa com quem vê, não um scanner.",
     "Usa `ler_url` quando o usuário colar um link e quiser que leias, resumas ou analises aquela página específica.",
-    webSearchDisponivel()
+    webSearchDisponivel() && !(pedeFinancas && !pedeWebExplicita)
       ? "Usa `web_search` quando precisares de informação actual da internet por palavras-chave (notícias, preços, eventos) — não para abrir um link específico, aí usa `ler_url`. " +
+        "NUNCA uses `web_search` pra responder quanto ELE gastou/recebeu — isso é dado do app (`resumo_financeiro` / `listar_lancamentos`). " +
         "Não repitas a mesma pesquisa se os resultados já estão nas tool messages deste turno. " +
         "Na resposta final, estrutura em Markdown com links [nome](url) apenas para fontes que realmente vieram no resultado da ferramenta (campo `results`/`url`). " +
         "Se `web_search` ou `ler_url` devolver `ok: false` ou nenhum resultado, NÃO invente links, nomes de site ou citações. Começa a resposta avisando isso claramente (ex.: \"não encontrei nada na busca sobre X\") antes de qualquer outra coisa — não deixes o aviso escondido no meio ou no fim do texto. " +
         "Nesse caso, se ainda assim quiseres responder com o que sabes do teu próprio treino, deixa isso bem explícito (\"pelo teu treino, sem confirmar agora\") e evita números, datas, versões ou benchmarks específicos que não consegues verificar — não escrevas uma resposta longa e estruturada em tópicos como se fosse pesquisa real; um resumo curto e visivelmente incerto é mais honesto."
       : null,
     // Modo pesquisa profunda (opcional): a Luna cruza as fontes antes de escrever.
-    opcoes.pesquisaProfunda && webSearchDisponivel()
+    opcoes.pesquisaProfunda &&
+      webSearchDisponivel() &&
+      !(pedeFinancas && !pedeWebExplicita)
       ? "MODO PESQUISA PROFUNDA ligado: quando usares `web_search`/`ler_url` e fores fazer afirmações factuais (números, datas, versões, alegações), chama `verificar_fontes` UMA vez ANTES de escrever a resposta final — passa as afirmações que pretendes dizer. Um segundo par de olhos cruza-as com o que leste e devolve o que está sustentado, parcial ou sem apoio. Depois escreve reconciliando: mantém o sustentado, põe ressalva no parcial, corrige/tira o resto. Não chames antes de ter fontes, nem mais de uma vez sem necessidade."
       : null,
     // MODO TÉCNICO (opt-in do usuário): ele PEDIU profundidade, então não esperes o segundo
@@ -515,6 +551,8 @@ export async function responderComoLunaAgentico(
     planejamentoAtivo ? DIRETRIZ_PLANO : null,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
+    // Finanças: ordem imperativa — e, se o turno é de grana, web_search já saiu da lista.
+    pedeFinancas ? DIRETRIZ_FINANCAS : null,
     // O corpo dos documentos desta conversa, já à frente dela (como a rotina já está sempre).
     // É isto que faz editar virar um passo só, em vez de uma caça listar→ler→editar.
     blocoDocumentosDaConversa,
