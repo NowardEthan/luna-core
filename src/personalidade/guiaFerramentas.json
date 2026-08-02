@@ -30,7 +30,8 @@
       ],
       "quando_evitar": [
         "Quando a pergunta é só conversa, opinião ou conhecimento estável sem necessidade de fonte actual.",
-        "Quando os resultados da mesma pesquisa já estão nas mensagens de ferramenta deste turno."
+        "Quando os resultados da mesma pesquisa já estão nas mensagens de ferramenta deste turno.",
+        "Quando ele pergunta quanto GASTOU/RECEBEU, extrato, fatura ou resumo das carteiras dele — usa resumo_financeiro / listar_lancamentos, nunca a web."
       ],
       "saida_esperada": "Resposta em Markdown com síntese e links [título](url) apenas para fontes que vieram de facto no resultado da ferramenta. Se a ferramenta falhar ou não devolver resultados, diz isso claramente — nunca inventes links ou fontes."
     }

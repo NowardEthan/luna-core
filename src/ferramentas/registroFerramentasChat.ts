@@ -545,7 +545,7 @@ const FERRAMENTA_LISTAR_LANCAMENTOS: DefinicaoFerramenta = {
   descricao:
     "Lista lançamentos (entradas/saídas) no período, com filtros opcionais de carteira, " +
     "categoria ou só pendentes. Usa quando ele pergunta o que gastou, o extrato, ou pediu " +
-    "detalhe — não inventes linhas.",
+    "detalhe — não inventes linhas. NÃO uses web_search pra isto: a grana dele está aqui.",
   parametros: {
     type: "object",
     properties: {
@@ -575,8 +575,8 @@ const FERRAMENTA_RESUMO_FINANCEIRO: DefinicaoFerramenta = {
   nome: "resumo_financeiro",
   descricao:
     "Lê o resumo financeiro dele (entrou/saiu/saldo, por categoria, contas pendentes) no período. " +
-    "Usa antes de aconselhar sobre grana, orçamento ou «quanto posso gastar». " +
-    "Não chute números — chama isto.",
+    "Usa SEMPRE em «quanto gastei», «quanto saiu», resumo do mês/semana, orçamento. " +
+    "Não chute números — chama isto. NÃO uses web_search: não é dado público.",
   parametros: {
     type: "object",
     properties: {
