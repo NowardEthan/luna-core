@@ -1,14 +1,25 @@
-/** Estimativa de tokens — calibrada com logs reais GLM (~12,5k/turno mediano). */
+/**
+ * Estimativa de tokens — a "carteira" da Luna. Reprecificada 2026-08 pro OpenRouter,
+ * onde a conversa ficou MUITO mais barata que a calibração GLM antiga (~12,5k/turno).
+ * Filosofia: chat = barato e generoso (o gancho grátis); as duas "lagostas" caras —
+ * pesquisa profunda e geração de imagem — é que são medidas e pesam na carteira.
+ */
 
 export const TOKENS_POR_CARACTERE = 0.25;
 
-/** Overhead fixo do pipeline Luna (roteamento + humor + contexto). */
-export const CUSTO_PIPELINE = 8_000;
-export const CUSTO_MINIMO_CHAT = 8_000;
+/** Overhead fixo do pipeline Luna (roteamento + humor + contexto). A conversa é a "unidade" (~3k). */
+export const CUSTO_PIPELINE = 3_000;
+export const CUSTO_MINIMO_CHAT = 3_000;
 export const MULTIPLICADOR_TEXTO_TURNO = 2.8;
+/** Custo de ANALISAR uma imagem anexada (visão), NÃO de gerar — ver CUSTO_IMAGEM_GERADA. */
 export const CUSTO_POR_IMAGEM = 2_500;
 export const CUSTO_POR_DOCUMENTO = 4_000;
 export const CUSTO_BASE_TRANSCRICAO = 800;
+
+/** Lagosta 1 — cada imagem GERADA pela Luna (Riverflow) custa ~10 conversas. */
+export const CUSTO_IMAGEM_GERADA = 30_000;
+/** Lagosta 2 — uma pesquisa profunda (dossiê web) custa ~5 conversas. */
+export const CUSTO_PESQUISA_PROFUNDA = 15_000;
 
 /** @deprecated Usar CUSTO_PIPELINE */
 export const CUSTO_BASE_CHAT = CUSTO_PIPELINE;
@@ -66,6 +77,16 @@ export function estimarTokensDocumentos(quantidade: number): number {
 
 export function estimarTokensTranscricao(texto: string): number {
   return CUSTO_BASE_TRANSCRICAO + estimarTokensDeTexto(texto);
+}
+
+/** Custo total das imagens geradas num turno (0 se nenhuma). */
+export function estimarTokensImagensGeradas(quantidade: number): number {
+  return Math.max(0, quantidade) * CUSTO_IMAGEM_GERADA;
+}
+
+/** Custo extra de uma pesquisa profunda que rodou de fato no turno. */
+export function estimarTokensPesquisaProfunda(rodou: boolean): number {
+  return rodou ? CUSTO_PESQUISA_PROFUNDA : 0;
 }
 
 /** Converte contadores legados (mensagens/tipos) para tokens. */

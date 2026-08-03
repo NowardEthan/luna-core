@@ -47,6 +47,8 @@ import {
   estimarInputTokensChat,
   estimarTokensChat,
   estimarTokensDocumentos,
+  estimarTokensImagensGeradas,
+  estimarTokensPesquisaProfunda,
   estimarTokensTranscricao,
   estimarTokensVisao,
 } from "./billing/tokenEstimate.js";
@@ -182,15 +184,26 @@ function readAuthHeader(req: IncomingMessage): string | undefined {
   return typeof raw === "string" ? raw : undefined;
 }
 
-function quotaDeniedPayload(
-  err: QuotaExceededError | ReducedQuotaExceededError,
-): { ok: false; error: string; code: "quota_exceeded"; quotaKind: string } {
+function quotaDeniedPayload(err: QuotaExceededError | ReducedQuotaExceededError): {
+  ok: false;
+  error: string;
+  code: "quota_exceeded";
+  quotaKind: string;
+  resetsAtMs?: number;
+  cycle?: "window" | "weekly";
+} {
   const kind = err instanceof ReducedQuotaExceededError ? "reduced" : err.kind;
+  // Só o QuotaExceededError do plano sabe quando renova — o cliente usa pra "renova em X".
+  const detalhes =
+    err instanceof QuotaExceededError
+      ? { resetsAtMs: err.resetsAtMs, cycle: err.cycle }
+      : {};
   return {
     ok: false,
     error: err.message,
     code: "quota_exceeded",
     quotaKind: kind,
+    ...detalhes,
   };
 }
 
@@ -252,6 +265,21 @@ async function chargeTokens(
   await consumeTokens(auth.uid, tokens);
 }
 
+/**
+ * Custo das duas "lagostas" que o turno de fato consumiu — imagens geradas + pesquisa profunda.
+ * A imagem é cobrada aqui (pós-turno) porque a Luna decide gerar no meio do caminho; aceita um
+ * pequeno saque-a-descoberto de uma vez. A pesquisa também entra no pré-cheque (a flag é sabida
+ * antes), então não passa despercebida. Só se aplica no modo plano (a carteira de tokens).
+ */
+function custoExtrasLagostas(result: ChatMobileResult): number {
+  const extras = result.custosExtras;
+  if (!extras) return 0;
+  return (
+    estimarTokensImagensGeradas(extras.imagensGeradas) +
+    estimarTokensPesquisaProfunda(extras.pesquisaProfundaRodou)
+  );
+}
+
 type TurnoResolvido = {
   result: ChatMobileResult;
   idempotent: boolean;
@@ -290,7 +318,10 @@ async function resolverTurnoChat(params: {
   if (auth) {
     const quota = await resolveQuotaForRequest(
       auth.uid,
-      estimarCustoMinimoChat(parsed.message, attCount),
+      // Pesquisa profunda é sabida ANTES do turno (flag) → já reserva no pré-cheque, pra bloquear
+      // limpo quem não tem saldo pra ela. Imagem só é cobrada depois (a Luna decide no meio).
+      estimarCustoMinimoChat(parsed.message, attCount) +
+        estimarTokensPesquisaProfunda(parsed.pesquisaProfunda === true),
       estimarInputTokensChat(parsed.message, attCount),
     );
     quotaMode = quota.mode;
@@ -339,7 +370,10 @@ async function resolverTurnoChat(params: {
       humor_atual: result.humor_atual,
     });
     if (quotaMode === "plan") {
-      await chargeTokens(auth, estimarTokensChat(parsed.message, result.text, attCount));
+      await chargeTokens(
+        auth,
+        estimarTokensChat(parsed.message, result.text, attCount) + custoExtrasLagostas(result),
+      );
     } else {
       await consumeReducedTokens(
         auth.uid,
@@ -479,6 +513,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         buscaSemantica: true,
         dietaWritingLeve: true,
         gatePrevozLeve: true,
+        /** Carteira 2026-08: chat barato; cobra imagem gerada + pesquisa profunda. */
+        carteiraLagostas: true,
+        /** Resposta de cota inclui resetsAtMs/cycle pro cliente mostrar "renova em X". */
+        quotaResetsAtMs: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -654,7 +692,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (auth) {
         const quota = await resolveQuotaForRequest(
           auth.uid,
-          estimarCustoMinimoChat(parsed.message, streamAttCount),
+          estimarCustoMinimoChat(parsed.message, streamAttCount) +
+            estimarTokensPesquisaProfunda(parsed.pesquisaProfunda === true),
           estimarInputTokensChat(parsed.message, streamAttCount),
         );
         streamQuotaMode = quota.mode;
@@ -743,7 +782,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         if (streamQuotaMode === "plan") {
           await chargeTokens(
             auth,
-            estimarTokensChat(parsed.message, result.text, streamAttCount),
+            estimarTokensChat(parsed.message, result.text, streamAttCount) +
+              custoExtrasLagostas(result),
           );
         } else {
           await consumeReducedTokens(

@@ -59,6 +59,15 @@ export type ChatMobileResult = {
     narrativa?: string;
     accessibilityLabel: string;
   };
+  /**
+   * As duas "lagostas" caras deste turno — o servidor usa isto pra cobrar na borda do turno
+   * (ver billing/tokenEstimate + server.ts). Imagens geradas são contadas pelos eventos
+   * `fim_ferramenta` (com `imagem.url`); pesquisa profunda segue a flag do turno.
+   */
+  custosExtras?: {
+    imagensGeradas: number;
+    pesquisaProfundaRodou: boolean;
+  };
 };
 
 export type ChatAttachmentInput = {
@@ -525,6 +534,7 @@ function resultadoFromPipeline(
   sessionId: string | undefined,
   selection: LlmProviderSelection,
   resolved: ReturnType<typeof resolveLlmProviderSelection>,
+  custosExtras?: { imagensGeradas: number; pesquisaProfundaRodou: boolean },
 ): ChatMobileResult {
   const text = resultado.resposta?.texto?.trim();
   if (!text) {
@@ -542,7 +552,29 @@ function resultadoFromPipeline(
     providerReason: resolved?.autoReasonLabel,
     autoMode: Boolean(resolved?.autoReason),
     humor_atual: resultado.humor_atual,
+    custosExtras,
   };
+}
+
+/**
+ * Conta, ao vivo, as imagens que a Luna gerou no turno — cada evento `fim_ferramenta` com
+ * `imagem.url` é uma arte pronta. É o sinal mais fiel (o cartão só nasce com imagem real).
+ * Devolve o contador + um callback pra encaixar no `onAcaoAgentico` do pipeline.
+ */
+function criarContadorImagens(encadear?: ChatStreamCallbacks["onAcao"]) {
+  const estado = { imagensGeradas: 0 };
+  const onAcao: NonNullable<ChatStreamCallbacks["onAcao"]> = (acao) => {
+    if (
+      acao.tipo === "fim_ferramenta" &&
+      (acao.ferramenta === "gerar_imagem" || acao.ferramenta === "editar_imagem") &&
+      typeof acao.imagem?.url === "string" &&
+      acao.imagem.url.trim().length > 0
+    ) {
+      estado.imagensGeradas += 1;
+    }
+    encadear?.(acao);
+  };
+  return { estado, onAcao };
 }
 
 function erroDeProvedorRecuperavel(erro: unknown): boolean {
@@ -648,6 +680,8 @@ export async function executarChatMobile(
         ? await montarBlocoFinancasPrevia(uid, prep.timeZone)
         : undefined;
 
+    const contador = criarContadorImagens();
+
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
@@ -678,8 +712,12 @@ export async function executarChatMobile(
       stream: false,
       timeZone: prep.timeZone,
       local: prep.local,
+      onAcaoAgentico: contador.onAcao,
     });
-    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
+    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved, {
+      imagensGeradas: contador.estado.imagensGeradas,
+      pesquisaProfundaRodou: prep.pesquisaProfunda,
+    });
   };
 
   try {
@@ -790,6 +828,9 @@ export async function executarChatMobileStream(
         ? await montarBlocoFinancasPrevia(uid, prep.timeZone)
         : undefined;
 
+    // Conta as imagens geradas espiando os mesmos eventos que já sobem pro app.
+    const contador = criarContadorImagens(callbacks.onAcao);
+
     const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
       sessaoId: prep.sidPipeline,
       config: prep.config,
@@ -825,9 +866,12 @@ export async function executarChatMobileStream(
       },
       onStreamReasoningDelta: callbacks.onReasoningDelta,
       onStreamContentDelta: callbacks.onContentDelta,
-      onAcaoAgentico: callbacks.onAcao,
+      onAcaoAgentico: contador.onAcao,
     });
-    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
+    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved, {
+      imagensGeradas: contador.estado.imagensGeradas,
+      pesquisaProfundaRodou: prep.pesquisaProfunda,
+    });
   };
 
   try {
