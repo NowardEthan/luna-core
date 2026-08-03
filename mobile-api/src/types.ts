@@ -184,6 +184,10 @@ export type ChatResponseErr = {
   error: string;
   code?: "quota_exceeded";
   quotaKind?: string;
+  /** Quando a cota renova (epoch ms) — o cliente mostra "renova em X". */
+  resetsAtMs?: number;
+  /** Qual janela estourou: rolante (5h) ou semanal. */
+  cycle?: "window" | "weekly";
 };
 
 export type ChatResponse = ChatResponseOk | ChatResponseErr;
@@ -254,6 +258,10 @@ export type HealthResponse = {
     dietaWritingLeve: boolean;
     /** L3: no leve/simples, intenção e memória pré-voz usam regras (sem LLM extra). */
     gatePrevozLeve: boolean;
+    /** Carteira reprecificada: chat generoso; imagem gerada + pesquisa profunda pesam. */
+    carteiraLagostas: boolean;
+    /** Erro de cota traz resetsAtMs/cycle — o app mostra "renova em X". */
+    quotaResetsAtMs: boolean;
   };
   /**
    * O commit que está a correr AQUI.
