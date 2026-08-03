@@ -865,10 +865,12 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
     "«mais trabalhada», «em perspectiva»), NÃO uses isto — pintarias do zero e sairia OUTRO. Aí é " +
     "`editar_imagem`, que parte da imagem anterior como referência e mantém o personagem. Demora " +
     "alguns segundos. O servidor escolhe o motor: arte/ilustração/anime → Seedream; foto/realista → " +
-    "Riverflow — então no `prompt` deixa claro o estilo («foto realista…» ou «ilustração watercolor…»). " +
-    "NÃO uses para responder algo que é texto, nem para «ver» uma imagem que ELE mandou (isso é a " +
-    "visão, não isto). Depois de gerar, comenta na tua voz — o cartão já mostra a imagem, não a " +
-    "descrevas inteira.",
+    "Riverflow — então no `prompt` deixa claro o estilo («foto realista do MESMO sofá…» ou «ilustração " +
+    "watercolor…»). ── ESTILO / «FAZ REALISTA» ── se ele referenciou/puxou uma imagem TUA ou pede " +
+    "versão realista/fotográfica DE uma arte que já existe, NÃO uses isto — é `editar_imagem` " +
+    "(senão o motor realista inventa outro assunto). NÃO uses para responder algo que é texto, nem " +
+    "para «ver» uma imagem que ELE mandou (isso é a visão, não isto). Depois de gerar, comenta na " +
+    "tua voz — o cartão já mostra a imagem, não a descrevas inteira.",
   parametros: {
     type: "object",
     properties: {
@@ -877,8 +879,9 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
         description:
           "A descrição visual do que desenhar — assunto + estilo + cores/atmosfera + " +
           "enquadramento. Ex. arte: «uma raposa origami dourada sobre fundo grafite, luz suave, " +
-          "minimalista». Ex. foto: «foto realista de uma mulher numa rua ao entardecer, dslr 50mm». " +
-          "Se quiseres texto dentro da imagem, escreve-o entre aspas no prompt.",
+          "minimalista». Ex. foto NOVA (assunto novo): «foto realista de um sofá de couro num " +
+          "living minimalista, luz de janela, dslr 50mm». NÃO uses exemplo de rosto/pessoa quando " +
+          "o pedido for objeto/produto. Se quiseres texto dentro da imagem, escreve-o entre aspas.",
       },
       aspect_ratio: {
         type: "string",
@@ -906,7 +909,8 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
     "Parte de uma imagem de referência (a que tu desenhaste, uma que ele puxou/referenciou ou uma FOTO/arte que ELE anexou neste turno) como BASE e produz uma nova versão (image-to-image). Serve para: " +
     "① RETOQUE/EDIÇÃO EM FOTO OU DESENHO — mexer num detalhe, adicionar algo, trocar fundo ou transformar («adiciona um óculos escuros nesta foto», «muda o fundo para praia», «tira o objeto», «põe um chapéu nele», «deixa de noite»). " +
     "② RE-ENCENAR — pegar o MESMO personagem/objeto e colocá-lo numa CENA, pose ou ângulo NOVOS. " +
-    "③ APLICAR ESTILO DE ANEXO — usar a foto/arte dele como referência de estilo/paleta para a imagem. " +
+    "③ MUDANÇA SÓ DE ESTILO — «faz realista», «versão fotográfica», «photoreal», «estilo foto» da arte que já existe: MANTÉM o mesmo sujeito (sofá continua sofá). " +
+    "④ APLICAR ESTILO DE ANEXO — usar a foto/arte dele como referência de estilo/paleta para a imagem. " +
     "── BASE DE EDIÇÃO ── Se ele anexou uma foto neste turno ou puxou uma imagem anterior, usa essa imagem como base. Se ele referenciou uma imagem específica (há `base_url` no bloco de referência), passa `base_url`. " +
     "NÃO uses isto só para OLHAR a imagem dele (isso é a visão/leitura); usa quando vais PRODUZIR uma imagem/arte nova modificada.",
   parametros: {
@@ -917,11 +921,11 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
         description:
           "O que fazer. Para um RETOQUE, diz só o que muda («adiciona um sachê de chá na xícara», " +
           "«troca o fundo para azul») — o resto é preservado sozinho. Para RE-ENCENAR o mesmo " +
-          "personagem, descreve a CENA nova por inteiro e deixa claro que o personagem é o mesmo — " +
-          "ex.: «o mesmo gato laranja de chapéu e botas, agora numa rua de paralelepípedo à noite, " +
-          "perspectiva baixa, clima noir; mantém o personagem idêntico, muda só o cenário e o ângulo». " +
-          "Para ESTILO a partir do anexo: deixa claro o que pegar da referência («aplica a paleta e " +
-          "o traço da imagem de referência; mantém o mesmo gato»).",
+          "personagem/objeto, descreve a CENA nova e deixa claro que o sujeito é o mesmo — " +
+          "ex.: «o mesmo sofá bege da Image 1, agora em foto realista de catálogo, luz de janela; " +
+          "mantém o sofá idêntico, só o estilo». Para «faz realista»: «versão fotorealística do " +
+          "MESMO sujeito da Image 1; não troques o assunto». Para ESTILO a partir do anexo: o que " +
+          "pegar da referência («aplica a paleta; mantém o mesmo objeto»).",
       },
       base_url: {
         type: "string",

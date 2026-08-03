@@ -421,24 +421,20 @@ const DIRETRIZ_IMAGEM =
   "sem ligação com nenhuma imagem anterior desta conversa («desenha…», «cria uma imagem de…», «como " +
   "seria… numa imagem?»). O `prompt` é a descrição visual — sê concreta (assunto, estilo, cores, luz, " +
   "enquadramento); se ele foi vago, ENRIQUECE com bom senso em vez de interrogar.\n" +
-  "• `editar_imagem` (parte da ÚLTIMA imagem TUA como BASE, mantém o personagem): usa SEMPRE que o " +
-  "pedido tem CONTINUIDADE com a imagem que já existe aqui. Três casos: (a) RETOQUE — mexer num " +
-  "detalhe e preservar o resto («adiciona um sachê», «tira o fundo», «muda a cor», «põe óculos nele»); " +
-  "(b) RE-ENCENAR — «o MESMO» gato/personagem/objeto numa CENA, pose ou ângulo NOVOS («faz o mesmo " +
-  "gato agora numa rua», «esse personagem em perspectiva, mais trabalhado, num cenário»); " +
-  "(c) ESTILO A PARTIR DO ANEXO DELE — ele manda uma foto/arte e pede pra ajustar o ESTILO da TUA " +
-  "arte (paleta, traço, vibe) de acordo com a dele. Aí CHAMA `editar_imagem` e passa `referencia_id` " +
-  "do anexo (ou omite o id pra usar o anexo de imagem mais recente DESTE turno). Sem isso, a edição " +
-  "NÃO recebe a foto dele — só texto — e o resultado quase não muda. `ver_imagem` SÓ OLHA; não " +
-  "produz cartão novo. É PROIBIDO dizer que «ajustei no estilo da foto» / «apliquei a referência» " +
-  "SEM ter chamado `editar_imagem` (com a referência). " +
-  "── BASE ≠ SEMPRE A ÚLTIMA ── se ele REFERENCIOU/PUXOU uma imagem TUA anterior (bloco de " +
-  "referência com URL, ou `base_url`), passa `base_url` com ESSA URL ao `editar_imagem`. Senão " +
-  "mexes na última arte e ignoras o que ele apontou — erro clássico. REGRA DE OURO: se ele diz " +
-  "«o mesmo…», «esse…», «ele/ela agora…» — mesmo pedindo «outra imagem» ou «uma cena nova» —, é " +
-  "`editar_imagem`, NUNCA `gerar_imagem` (do zero sairia OUTRO bicho). No RETOQUE, em `instrucao` " +
-  "passa só o que muda; no RE-ENCENAR, descreve a cena nova inteira e diz que o personagem é o " +
-  "mesmo; no ESTILO, deixa claro o que pegar da referência.\n" +
+  "• `editar_imagem` (parte da imagem TUA/referenciada como BASE, mantém o SUJEITO): usa SEMPRE que o " +
+  "pedido tem CONTINUIDADE com uma imagem que já existe aqui. Quatro casos: (a) RETOQUE — mexer num " +
+  "detalhe e preservar o resto («adiciona um sachê», «tira o fundo», «muda a cor»); " +
+  "(b) RE-ENCENAR — «o MESMO» gato/objeto/cena num ângulo ou cenário NOVO; " +
+  "(c) MUDANÇA SÓ DE ESTILO — «faz realista», «versão fotográfica», «photoreal» da arte que ele " +
+  "puxou/da última: SEMPRE `editar_imagem` com essa base. Sofá continua sofá — NUNCA `gerar_imagem` " +
+  "(o motor realista do zero inventa outro assunto, ex. um rosto); " +
+  "(d) ESTILO A PARTIR DO ANEXO DELE — ele manda foto/arte e pede ajustar ESTILO da TUA arte; passa " +
+  "`referencia_id` do anexo. `ver_imagem` SÓ OLHA; não produz cartão. É PROIBIDO dizer que «ajustei " +
+  "no estilo» SEM ter chamado `editar_imagem`. " +
+  "── BASE ≠ SEMPRE A ÚLTIMA ── se ele REFERENCIOU/PUXOU uma imagem TUA (bloco com URL/`base_url`), " +
+  "passa `base_url` com ESSA URL. REGRA DE OURO: «o mesmo…», «esse…», «faz realista» (desta arte), " +
+  "«versão foto» — é `editar_imagem`, NUNCA `gerar_imagem`. No RETOQUE, `instrucao` = só o que muda; " +
+  "no ESTILO, deixa claro «mesmo sujeito da Image 1, só o estilo».\n" +
   "── PROPORÇÃO / FORMATO ── PRESERVA a proporção da imagem atual em todo retoque " +
   "(«adiciona…», «muda a cor…») — NÃO passes `aspect_ratio` e NÃO mudes o enquadramento, " +
   "a menos que ele PEÇA outro formato (9:16, 16:9, widescreen, story…). " +
