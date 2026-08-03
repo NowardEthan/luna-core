@@ -132,7 +132,14 @@ async function carregarMensagensFirestore(
   for (const doc of snap.docs) {
     const data = doc.data();
     const role = data.role === "user" ? "user" : "assistant";
-    const text = typeof data.text === "string" ? data.text.trim() : "";
+    // Mensagem de voz guarda o placeholder «[Mensagem de voz — 0:12]» em `text` e a
+    // fala real em `transcript`. O modelo TEM que ler a transcrição — senão, ao
+    // reidratar o histórico do Firestore (acontece a cada restart do servidor), a
+    // Luna vê só «[Mensagem de voz]» e não sabe o que foi dito. `transcript` só
+    // existe em mensagens de voz; mensagem de texto cai no `text` normalmente.
+    const textoBruto = typeof data.text === "string" ? data.text.trim() : "";
+    const transcricao = typeof data.transcript === "string" ? data.transcript.trim() : "";
+    const text = transcricao || textoBruto;
     if (!text) continue;
     turnos.push({
       papel: role,
