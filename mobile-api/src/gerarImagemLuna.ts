@@ -269,26 +269,20 @@ function reforcarAspectoNoPrompt(
   if (modo === "preservar") {
     return (
       `Keep the exact same aspect ratio (${aspect}) and camera framing as the base image. ` +
-      `Do NOT crop, reframe, rotate, or change orientation. Gravity stays the same (feet/bottom down, head/top up). ` +
+      `Do NOT crop, reframe, or rotate the scene. Preserve the base image's orientation as-is. ` +
       `Apply ONLY the requested change. ` +
       `Request: ${instrucao}`
     );
   }
-  // Retrato (9:16 / 3:4 / 2:3): o modelo às vezes «deita» a cena (paisagem rodada 90°)
-  // dentro do canvas vertical — como filmar deitado. Travar orientação do sujeito.
-  const retrato = aspect === "9:16" || aspect === "3:4" || aspect === "2:3";
-  const paisagem = aspect === "16:9" || aspect === "21:9" || aspect === "4:3" || aspect === "3:2";
-  const orientacao = retrato
-    ? "The frame is PORTRAIT (taller than wide). Keep the subject UPRIGHT — standing/sitting normally, head toward the TOP of the image, feet toward the BOTTOM. " +
-      "Do NOT rotate the scene 90 degrees. Do NOT lay the character on their side. This is NOT a sideways phone video. "
-    : paisagem
-      ? "The frame is LANDSCAPE (wider than tall). Keep the subject UPRIGHT with correct gravity (head up, feet down). Do NOT rotate the scene. "
-      : "Keep the subject UPRIGHT with correct gravity (head up, feet down). Do NOT rotate the image. ";
+  // O erro clássico: canvas 9:16 certo, mas a cena inteira rodada 90° (como «filmar deitado»).
+  // Não forçamos «personagem em pé» — depende da base (paisagem, objeto, deitado, etc.).
   return (
-    `Change the canvas to aspect ratio ${aspect}. Expand / outpaint the scene to fill the new frame — add scenery above/below or to the sides as needed. ` +
-    orientacao +
-    `Keep the FULL subject visible — do NOT crop, cut off, zoom in, or trim edges. ` +
-    `Preserve character identity, style, pose orientation, and mood from the base. ` +
+    `Change the canvas to aspect ratio ${aspect}. Expand / outpaint to fill the new frame — ` +
+    `extend the scene into the empty regions (above/below for portrait, left/right for landscape). ` +
+    `CRITICAL: do NOT rotate the image or the scene by 90°. Keep the same world orientation as the base ` +
+    `(whatever is "up" in the base stays up; if a subject was standing, keep them standing; if they were lying down, keep them lying down; if there is no character, just keep the scene upright relative to the base). ` +
+    `Portrait/landscape here means the FRAME shape only — not tilting the content sideways into the frame. ` +
+    `Keep the FULL subject/scene visible — do NOT crop or zoom in. Preserve identity, style and mood. ` +
     `Request: ${instrucao}`
   );
 }

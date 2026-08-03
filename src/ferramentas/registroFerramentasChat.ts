@@ -941,7 +941,8 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
         description:
           "Proporção do resultado. SÓ passa quando ELE pediu mudar formato («refaz em 9:16», " +
           "«widescreen»). Em retoque comum NÃO passes — o servidor preserva o aspecto atual. " +
-          "Na instrução, se for retrato: personagem em pé (cabeça pra cima), sem girar a cena.",
+          "Na instrução, se for mudança de formato: expandir o quadro sem girar a cena 90° " +
+          "(preservar a orientação da base, seja personagem, objeto ou paisagem).",
       },
     },
     required: ["instrucao"],

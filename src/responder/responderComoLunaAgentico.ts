@@ -443,9 +443,9 @@ const DIRETRIZ_IMAGEM =
   "(«adiciona…», «muda a cor…») — NÃO passes `aspect_ratio` e NÃO mudes o enquadramento, " +
   "a menos que ele PEÇA outro formato (9:16, 16:9, widescreen, story…). " +
   "Quando ele pedir formato novo: passa `aspect_ratio` e na `instrucao` pede EXPANDIR o canvas " +
-  "(completar cenário), personagem EM PÉ com cabeça pra cima / pés pra baixo — NUNCA girar a " +
-  "cena 90° nem «deitar» o personagem num frame vertical. Ex.: aspect_ratio=\"9:16\" + «mantém o " +
-  "mesmo gato em pé, cresce o cenário pra cima e pra baixo».\n" +
+  "(completar cenário nas bordas). O formato muda o QUADRO, não a orientação do conteúdo — " +
+  "NUNCA girar a cena 90° («filmar deitado»). Preserva a orientação da base: se o sujeito estava " +
+  "em pé, continua; se estava deitado, continua; se não tem personagem, só completa o cenário.\n" +
   "Demora alguns segundos. Depois de gerar/editar, a imagem JÁ está à frente dele no cartão: reage a " +
   "ELA — curto, na tua voz (o que achaste, um detalhe). NÃO copies a URL, NÃO descrevas a imagem " +
   "inteira, e NUNCA digas que «não desenhas de verdade» ou que «só pintas com palavras»: tu desenhaste, " +
