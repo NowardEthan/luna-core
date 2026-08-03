@@ -8,28 +8,25 @@ export const TranscribeRequestSchema = z.object({
 
 export type TranscribeRequest = z.infer<typeof TranscribeRequestSchema>;
 
+/**
+ * STT via OpenRouter, só OpenRouter — mesma chave (`OPENROUTER_API_KEY`) do chat e
+ * da visão. O OpenRouter tem um endpoint de transcrição OpenAI-compatível
+ * (`/api/v1/audio/transcriptions`) que aceita o mesmo multipart que já mandamos.
+ *
+ * Antes havia um fallback Groq/OpenAI que escolhia provedor pela chave/base — foi
+ * daí que veio o «Chave STT inválida»: sem a chave da Groq, ele caía na chave do
+ * chat (OpenRouter) e batia no endpoint da OpenAI, que recusava (401). Fim do
+ * fallback: uma fonte só, sem tropeço.
+ */
 function resolveSttConfig(): { apiKey: string; apiUrl: string; model: string } | null {
-  const apiKey =
-    process.env.LUNA_STT_API_KEY?.trim() ||
-    process.env.GROQ_API_KEY?.trim() ||
-    process.env.LUNA_API_KEY?.trim() ||
-    "";
-
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || "";
   if (!apiKey) return null;
 
-  const lunaBase = process.env.LUNA_API_BASE?.trim() ?? "";
-  const usesGroq =
-    lunaBase.includes("groq.com") || apiKey.startsWith("gsk_") || Boolean(process.env.GROQ_API_KEY?.trim());
-
   const apiUrl =
-    process.env.LUNA_STT_API_URL?.trim() ||
-    (usesGroq
-      ? "https://api.groq.com/openai/v1/audio/transcriptions"
-      : "https://api.openai.com/v1/audio/transcriptions");
+    process.env.LUNA_STT_API_URL?.trim() || "https://openrouter.ai/api/v1/audio/transcriptions";
 
-  const model =
-    process.env.LUNA_STT_MODEL?.trim() ||
-    (apiUrl.includes("groq.com") ? "whisper-large-v3-turbo" : "whisper-1");
+  // Slug confirmado no OpenRouter; sobrescreve por env se quiser um mais novo/barato.
+  const model = process.env.LUNA_STT_MODEL?.trim() || "openai/whisper-1";
 
   return { apiKey, apiUrl, model };
 }
@@ -51,7 +48,7 @@ function extensionForMime(mime: string): string {
 export async function transcribeAudio(input: TranscribeRequest): Promise<string> {
   const cfg = resolveSttConfig();
   if (!cfg) {
-    throw new Error("STT não configurado no servidor (LUNA_API_KEY ou LUNA_STT_API_KEY).");
+    throw new Error("STT não configurado no servidor (OPENROUTER_API_KEY ausente).");
   }
 
   const buffer = Buffer.from(input.audioBase64, "base64");
@@ -75,9 +72,16 @@ export async function transcribeAudio(input: TranscribeRequest): Promise<string>
     process.env.LUNA_STT_PROMPT?.trim() || "Mensagem de voz em português do Brasil.",
   );
 
+  const headers: Record<string, string> = { Authorization: `Bearer ${cfg.apiKey}` };
+  // Atribuição opcional do OpenRouter (mesmos envs da visão/leitor).
+  const referer = process.env.OPENROUTER_HTTP_REFERER?.trim();
+  const title = process.env.OPENROUTER_APP_TITLE?.trim();
+  if (referer) headers["HTTP-Referer"] = referer;
+  if (title) headers["X-Title"] = title;
+
   const res = await fetch(cfg.apiUrl, {
     method: "POST",
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    headers,
     body: form,
   });
 
