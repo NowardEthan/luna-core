@@ -256,38 +256,47 @@ function dimensoesPollinations(aspect?: AspectRatioOpenRouter): {
 }
 
 /**
- * Em edição com mudança de proporção, o modelo tende a CORTAR o sujeito.
- * Prefixa pedindo outpaint: expandir o canvas, não zoom/crop.
- * Se só estamos PRESERVANDO o aspecto, reforça manter o enquadramento.
+ * Prefixo de continuidade: edição é i2i, não desenho novo.
+ * Vai SEMPRE no começo — o Seedream senão redesenha outro personagem.
+ */
+function prefixoIdentidadeEdicao(temEstiloExtra: boolean): string {
+  return (
+    "Image 1 is the BASE to EDIT (image-to-image). This is NOT a new illustration from scratch. " +
+    "Keep the SAME subject/character identity, face, body, clothes, colors, line style and mood as Image 1. " +
+    "Do not replace them with a different character or redesign the scene from zero. " +
+    (temEstiloExtra
+      ? "Image 2+ are STYLE references only (palette/stroke/lighting) — never replace the subject from Image 1. "
+      : "")
+  );
+}
+
+/**
+ * Mudança de proporção: expandir o quadro sem redesenhar.
+ * Orientação = a da BASE (não forçar «em pé» — depende da imagem).
  */
 function reforcarAspectoNoPrompt(
   instrucao: string,
   aspect: AspectRatioOpenRouter | undefined,
   modo: "mudar" | "preservar" | "nenhum",
 ): string {
-  if (!aspect || modo === "nenhum") return instrucao;
+  if (!aspect || modo === "nenhum") {
+    return `${instrucao}`;
+  }
   if (modo === "preservar") {
     return (
-      `Keep the exact same aspect ratio (${aspect}) and camera framing as the base image. ` +
-      `Do NOT crop, reframe, or rotate the scene. Preserve the base image's orientation as-is. ` +
-      `Apply ONLY the requested change. ` +
-      `Request: ${instrucao}`
+      `Keep aspect ratio ${aspect} and the same framing as the base. ` +
+      `Do not crop, rotate, or reframe. Only: ${instrucao}`
     );
   }
-  // O erro clássico: canvas 9:16 certo, mas a cena inteira rodada 90° (como «filmar deitado»).
-  // Não forçamos «personagem em pé» — depende da base (paisagem, objeto, deitado, etc.).
   return (
-    `Change the canvas to aspect ratio ${aspect}. Expand / outpaint to fill the new frame — ` +
-    `extend the scene into the empty regions (above/below for portrait, left/right for landscape). ` +
-    `CRITICAL: do NOT rotate the image or the scene by 90°. Keep the same world orientation as the base ` +
-    `(whatever is "up" in the base stays up; if a subject was standing, keep them standing; if they were lying down, keep them lying down; if there is no character, just keep the scene upright relative to the base). ` +
-    `Portrait/landscape here means the FRAME shape only — not tilting the content sideways into the frame. ` +
-    `Keep the FULL subject/scene visible — do NOT crop or zoom in. Preserve identity, style and mood. ` +
-    `Request: ${instrucao}`
+    `Outpaint/extend THIS base image to aspect ratio ${aspect}. ` +
+    `Grow the canvas (add scenery in the empty borders) while keeping the subject IDENTICAL to Image 1. ` +
+    `Do NOT rotate 90°. Frame shape changes — content orientation stays as in the base. ` +
+    `Do NOT redesign or invent a different character/scene. Only: ${instrucao}`
   );
 }
 
-/** Fallback gratuito via Pollinations.ai (FLUX) quando o OpenRouter estiver sem saldo ou falhar. */
+/** Fallback gratuito via Pollinations.ai (FLUX) — só pra GERAR do zero (não tem base i2i). */
 async function pedirImagemPollinations(
   prompt: string,
   aspect?: AspectRatioOpenRouter,
@@ -379,13 +388,6 @@ export async function editarImagemLuna(
   if (!baseUrl) throw new Error("Sem imagem base — não há o que editar.");
 
   const extras = referenciaUrls.map((u) => u.trim()).filter((u) => u.length > 0);
-  const promptBase =
-    extras.length > 0
-      ? "Image 1 is the BASE — keep the same subject/character/composition. " +
-        "Image 2+ are STYLE references — apply their palette, stroke, lighting and mood. " +
-        `Request: ${texto}`
-      : texto;
-
   const mudando = Boolean(opts?.mudarProporcao);
   const aspectNovo = mudando ? normalizarAspectRatio(opts?.aspectRatio) : undefined;
   const aspectBase = normalizarAspectRatio(opts?.aspectRatioBase);
@@ -397,7 +399,16 @@ export async function editarImagemLuna(
     : aspect_ratio
       ? "preservar"
       : "nenhum";
-  const prompt = reforcarAspectoNoPrompt(promptBase, aspect_ratio, modo);
+
+  // Instrução curta demais no outpaint evita o modelo «reescrever a cena» e inventar outro bicho.
+  const pedido =
+    mudando && aspect_ratio
+      ? `Extend this exact image to ${aspect_ratio}. Keep the subject identical. ${texto}`
+      : texto;
+
+  const prompt =
+    prefixoIdentidadeEdicao(extras.length > 0) +
+    reforcarAspectoNoPrompt(pedido, aspect_ratio, modo);
 
   const input_references = [
     { type: "image_url", image_url: { url: baseUrl } },
@@ -406,27 +417,26 @@ export async function editarImagemLuna(
 
   let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
   const key = apiKey();
-  if (key) {
-    try {
-      bytes = await pedirImagem(key, {
-        model: modeloEdicao(),
-        prompt,
-        input_references,
-        n: 1,
-        ...(aspect_ratio ? { aspect_ratio } : {}),
-      });
-    } catch (err) {
-      console.warn("[Imagem] OpenRouter edição falhou, tentando fallback Pollinations:", err);
-      bytes = await pedirImagemPollinations(
-        `${texto} (base picture provided, style and changes applied)`,
-        aspect_ratio,
-      );
-    }
-  } else {
-    bytes = await pedirImagemPollinations(
-      `${texto} (base picture provided, style and changes applied)`,
-      aspect_ratio,
+  if (!key) {
+    // Pollinations NÃO recebe a base — cair nele = imagem totalmente outra. Falha explícita.
+    throw new Error(
+      "Edição de imagem precisa do OpenRouter (a base i2i não funciona no fallback). Tenta de novo já já.",
     );
+  }
+  try {
+    bytes = await pedirImagem(key, {
+      model: modeloEdicao(),
+      prompt,
+      input_references,
+      n: 1,
+      ...(aspect_ratio ? { aspect_ratio } : {}),
+    });
+  } catch (err) {
+    // Sem fallback Pollinations na edição — redesenharia do zero e perderia o personagem.
+    console.warn("[Imagem] OpenRouter edição falhou (sem fallback i2i):", err);
+    throw err instanceof Error
+      ? err
+      : new Error("Não consegui editar a imagem no OpenRouter.");
   }
 
   const { id, url } = await subirImagem(uid, bytes);
