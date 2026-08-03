@@ -131,14 +131,42 @@ async function subirImagem(
   return { id, url: urlDownloadStorage(caminho, token) };
 }
 
+/** Fallback gratuito via Pollinations.ai (FLUX) quando o OpenRouter estiver sem saldo ou falhar. */
+async function pedirImagemPollinations(
+  prompt: string,
+): Promise<{ buffer: Buffer; mime: string }> {
+  const seed = Math.floor(Math.random() * 1000000);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Pollinations falhou (${res.status})`);
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  const contentType = res.headers.get("content-type") || "image/jpeg";
+  return {
+    buffer: Buffer.from(arrayBuffer),
+    mime: contentType,
+  };
+}
+
 export async function gerarImagemLuna(uid: string, prompt: string): Promise<ImagemGerada> {
-  const key = apiKey();
-  if (!key) throw new Error("OPENROUTER_API_KEY ausente — geração de imagem indisponível.");
   if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
   const texto = prompt.trim();
   if (!texto) throw new Error("Prompt vazio — descreve a imagem a desenhar.");
 
-  const bytes = await pedirImagem(key, { model: modelo(), prompt: texto, n: 1 });
+  let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
+  const key = apiKey();
+  if (key) {
+    try {
+      bytes = await pedirImagem(key, { model: modelo(), prompt: texto, n: 1 });
+    } catch (err) {
+      console.warn("[Imagem] OpenRouter falhou, gerando via fallback Pollinations:", err);
+      bytes = await pedirImagemPollinations(texto);
+    }
+  } else {
+    bytes = await pedirImagemPollinations(texto);
+  }
+
   const { id, url } = await subirImagem(uid, bytes);
   return { id, url, prompt: texto, custoUsd: bytes.custoUsd };
 }
@@ -158,8 +186,6 @@ export async function editarImagemLuna(
   baseUrl: string,
   referenciaUrls: string[] = [],
 ): Promise<ImagemGerada> {
-  const key = apiKey();
-  if (!key) throw new Error("OPENROUTER_API_KEY ausente — edição de imagem indisponível.");
   if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
   const texto = instrucao.trim();
   if (!texto) throw new Error("Instrução vazia — descreve a mudança a fazer.");
@@ -178,12 +204,24 @@ export async function editarImagemLuna(
     ...extras.map((url) => ({ type: "image_url", image_url: { url } })),
   ];
 
-  const bytes = await pedirImagem(key, {
-    model: modeloEdicao(),
-    prompt,
-    input_references,
-    n: 1,
-  });
+  let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
+  const key = apiKey();
+  if (key) {
+    try {
+      bytes = await pedirImagem(key, {
+        model: modeloEdicao(),
+        prompt,
+        input_references,
+        n: 1,
+      });
+    } catch (err) {
+      console.warn("[Imagem] OpenRouter edição falhou, tentando fallback Pollinations:", err);
+      bytes = await pedirImagemPollinations(`${texto} (base picture provided, style and changes applied)`);
+    }
+  } else {
+    bytes = await pedirImagemPollinations(`${texto} (base picture provided, style and changes applied)`);
+  }
+
   const { id, url } = await subirImagem(uid, bytes);
   return { id, url, prompt: texto, custoUsd: bytes.custoUsd };
 }
