@@ -131,29 +131,121 @@ async function subirImagem(
   return { id, url: urlDownloadStorage(caminho, token) };
 }
 
-function extrairAspectoOpenRouter(prompt: string): string | undefined {
-  if (/16:9|widescreen|horizontal/i.test(prompt)) return "16:9";
-  if (/9:16|vertical|retrato|story|stories/i.test(prompt)) return "9:16";
-  if (/21:9|ultrawide|cinema/i.test(prompt)) return "21:9";
-  if (/4:3/i.test(prompt)) return "4:3";
-  if (/1:1|quadrad[ao]/i.test(prompt)) return "1:1";
+/** Aspectos que o OpenRouter/Seedream aceitam de forma estável. */
+export type AspectRatioOpenRouter =
+  | "1:1"
+  | "16:9"
+  | "9:16"
+  | "21:9"
+  | "4:3"
+  | "3:4"
+  | "3:2"
+  | "2:3";
+
+const ASPECTOS_VALIDOS = new Set<string>([
+  "1:1",
+  "16:9",
+  "9:16",
+  "21:9",
+  "4:3",
+  "3:4",
+  "3:2",
+  "2:3",
+]);
+
+/**
+ * Normaliza um valor explícito (`9:16`, `aspect_ratio=9:16`) ou devolve undefined.
+ * Preferir SEMPRE o param da ferramenta a adivinhar pelo texto.
+ */
+export function normalizarAspectRatio(
+  valor?: string | null,
+): AspectRatioOpenRouter | undefined {
+  if (!valor) return undefined;
+  const limpo = valor.trim().replace(/\s+/g, "");
+  const m = limpo.match(/(\d+)\s*:\s*(\d+)/);
+  if (m) {
+    const cand = `${m[1]}:${m[2]}`;
+    if (ASPECTOS_VALIDOS.has(cand)) return cand as AspectRatioOpenRouter;
+  }
+  if (ASPECTOS_VALIDOS.has(limpo)) return limpo as AspectRatioOpenRouter;
+  return extrairAspectoDeTexto(valor);
+}
+
+/**
+ * Extrai aspecto de texto livre. Ratios LITERAIS (`9:16`) primeiro — palavras vagas
+ * (`horizontal`/`vertical`) depois. Assim «não horizontal, usa 9:16» não vira 16:9.
+ */
+export function extrairAspectoDeTexto(
+  ...textos: Array<string | undefined | null>
+): AspectRatioOpenRouter | undefined {
+  const prompt = textos.filter((t) => t && t.trim()).join("\n");
+  if (!prompt) return undefined;
+
+  if (/\b21\s*:\s*9\b/i.test(prompt)) return "21:9";
+  if (/\b16\s*:\s*9\b/i.test(prompt)) return "16:9";
+  if (/\b9\s*:\s*16\b/i.test(prompt)) return "9:16";
+  if (/\b4\s*:\s*3\b/i.test(prompt)) return "4:3";
+  if (/\b3\s*:\s*4\b/i.test(prompt)) return "3:4";
+  if (/\b3\s*:\s*2\b/i.test(prompt)) return "3:2";
+  if (/\b2\s*:\s*3\b/i.test(prompt)) return "2:3";
+  if (/\b1\s*:\s*1\b/i.test(prompt)) return "1:1";
+
+  if (/\b(ultrawide|cinema)\b/i.test(prompt)) return "21:9";
+  if (/\b(widescreen)\b/i.test(prompt)) return "16:9";
+  if (/\b(vertical|retrato|portrait|stories?)\b/i.test(prompt)) return "9:16";
+  if (/\b(horizontal|paisagem|landscape)\b/i.test(prompt)) return "16:9";
+  if (/\bquadrad[ao]\b/i.test(prompt)) return "1:1";
   return undefined;
 }
 
-function extrairDimensoesPollinations(prompt: string): { width: number; height: number } {
-  if (/16:9|widescreen|horizontal/i.test(prompt)) return { width: 1280, height: 720 };
-  if (/9:16|vertical|retrato|story|stories/i.test(prompt)) return { width: 720, height: 1280 };
-  if (/21:9|ultrawide|cinema/i.test(prompt)) return { width: 1344, height: 576 };
-  if (/4:3/i.test(prompt)) return { width: 1024, height: 768 };
-  return { width: 1024, height: 1024 };
+function dimensoesPollinations(aspect?: AspectRatioOpenRouter): {
+  width: number;
+  height: number;
+} {
+  switch (aspect) {
+    case "16:9":
+      return { width: 1280, height: 720 };
+    case "9:16":
+      return { width: 720, height: 1280 };
+    case "21:9":
+      return { width: 1344, height: 576 };
+    case "4:3":
+      return { width: 1024, height: 768 };
+    case "3:4":
+      return { width: 768, height: 1024 };
+    case "3:2":
+      return { width: 1152, height: 768 };
+    case "2:3":
+      return { width: 768, height: 1152 };
+    default:
+      return { width: 1024, height: 1024 };
+  }
+}
+
+/**
+ * Em edição com mudança de proporção, o modelo tende a CORTAR o sujeito.
+ * Prefixa pedindo outpaint: expandir o canvas, não zoom/crop.
+ */
+function reforcarOutpaint(
+  instrucao: string,
+  aspect: AspectRatioOpenRouter | undefined,
+): string {
+  if (!aspect) return instrucao;
+  return (
+    `Change the canvas to aspect ratio ${aspect}. Expand / outpaint the scene to fill the new frame. ` +
+    `Keep the FULL subject visible from head to toe (or full object) — do NOT crop, cut off, zoom in, or trim edges. ` +
+    `Grow background and scenery to fill empty space. Preserve character identity, style and mood. ` +
+    `Request: ${instrucao}`
+  );
 }
 
 /** Fallback gratuito via Pollinations.ai (FLUX) quando o OpenRouter estiver sem saldo ou falhar. */
 async function pedirImagemPollinations(
   prompt: string,
+  aspect?: AspectRatioOpenRouter,
 ): Promise<{ buffer: Buffer; mime: string }> {
   const seed = Math.floor(Math.random() * 1000000);
-  const { width, height } = extrairDimensoesPollinations(prompt);
+  const { width, height } = dimensoesPollinations(aspect);
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${seed}`;
   const res = await fetch(url);
   if (!res.ok) {
@@ -167,14 +259,24 @@ async function pedirImagemPollinations(
   };
 }
 
-export async function gerarImagemLuna(uid: string, prompt: string): Promise<ImagemGerada> {
+export type OpcoesGerarImagem = {
+  /** Proporção explícita — tem prioridade sobre regex no prompt. */
+  aspectRatio?: string;
+};
+
+export async function gerarImagemLuna(
+  uid: string,
+  prompt: string,
+  opts?: OpcoesGerarImagem,
+): Promise<ImagemGerada> {
   if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
   const texto = prompt.trim();
   if (!texto) throw new Error("Prompt vazio — descreve a imagem a desenhar.");
 
   let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
   const key = apiKey();
-  const aspect_ratio = extrairAspectoOpenRouter(texto);
+  const aspect_ratio =
+    normalizarAspectRatio(opts?.aspectRatio) ?? extrairAspectoDeTexto(texto);
   if (key) {
     try {
       bytes = await pedirImagem(key, {
@@ -185,10 +287,10 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
       });
     } catch (err) {
       console.warn("[Imagem] OpenRouter falhou, gerando via fallback Pollinations:", err);
-      bytes = await pedirImagemPollinations(texto);
+      bytes = await pedirImagemPollinations(texto, aspect_ratio);
     }
   } else {
-    bytes = await pedirImagemPollinations(texto);
+    bytes = await pedirImagemPollinations(texto, aspect_ratio);
   }
 
   const { id, url } = await subirImagem(uid, bytes);
@@ -204,11 +306,16 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
  * várias referências; a 1ª é a base (arte dela), as seguintes guiam o estilo. Sem isto, «ajusta no
  * estilo da foto que mandei» só ia no texto e ela confabulava.
  */
+export type OpcoesEditarImagem = {
+  aspectRatio?: string;
+};
+
 export async function editarImagemLuna(
   uid: string,
   instrucao: string,
   baseUrl: string,
   referenciaUrls: string[] = [],
+  opts?: OpcoesEditarImagem,
 ): Promise<ImagemGerada> {
   if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
   const texto = instrucao.trim();
@@ -216,12 +323,16 @@ export async function editarImagemLuna(
   if (!baseUrl) throw new Error("Sem imagem base — não há o que editar.");
 
   const extras = referenciaUrls.map((u) => u.trim()).filter((u) => u.length > 0);
-  const prompt =
+  const promptBase =
     extras.length > 0
       ? "Image 1 is the BASE — keep the same subject/character/composition. " +
         "Image 2+ are STYLE references — apply their palette, stroke, lighting and mood. " +
         `Request: ${texto}`
       : texto;
+
+  const aspect_ratio =
+    normalizarAspectRatio(opts?.aspectRatio) ?? extrairAspectoDeTexto(texto);
+  const prompt = reforcarOutpaint(promptBase, aspect_ratio);
 
   const input_references = [
     { type: "image_url", image_url: { url: baseUrl } },
@@ -230,7 +341,6 @@ export async function editarImagemLuna(
 
   let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
   const key = apiKey();
-  const aspect_ratio = extrairAspectoOpenRouter(texto);
   if (key) {
     try {
       bytes = await pedirImagem(key, {
@@ -242,10 +352,16 @@ export async function editarImagemLuna(
       });
     } catch (err) {
       console.warn("[Imagem] OpenRouter edição falhou, tentando fallback Pollinations:", err);
-      bytes = await pedirImagemPollinations(`${texto} (base picture provided, style and changes applied)`);
+      bytes = await pedirImagemPollinations(
+        `${texto} (base picture provided, style and changes applied)`,
+        aspect_ratio,
+      );
     }
   } else {
-    bytes = await pedirImagemPollinations(`${texto} (base picture provided, style and changes applied)`);
+    bytes = await pedirImagemPollinations(
+      `${texto} (base picture provided, style and changes applied)`,
+      aspect_ratio,
+    );
   }
 
   const { id, url } = await subirImagem(uid, bytes);

@@ -877,6 +877,13 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
           "enquadramento. Ex.: «uma raposa origami dourada sobre fundo grafite, luz suave, " +
           "minimalista». Se quiseres texto dentro da imagem, escreve-o entre aspas no prompt.",
       },
+      aspect_ratio: {
+        type: "string",
+        enum: ["1:1", "16:9", "9:16", "21:9", "4:3", "3:4"],
+        description:
+          "Proporção da imagem. OBRIGATÓRIO quando ele pede formato (vertical/story 9:16, " +
+          "widescreen 16:9, ultrawide 21:9, quadrado 1:1). Sem isto o modelo cai no default 1:1.",
+      },
     },
     required: ["prompt"],
   },
@@ -893,24 +900,12 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
 const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
   nome: "editar_imagem",
   descricao:
-    "Parte da ÚLTIMA imagem DESTA conversa (a que TU desenhaste) como BASE e produz uma nova versão " +
-    "MANTENDO o mesmo personagem/objeto (image-to-image). Serve pra TRÊS casos: " +
-    "① RETOQUE — mexer só num detalhe e preservar o resto («adiciona um…», «tira o…», «muda a cor " +
-    "de…», «põe um chapéu nele», «deixa igual mas de noite»). " +
-    "② RE-ENCENAR — pegar «o MESMO» gato/personagem/objeto e pô-lo numa CENA, pose ou ângulo NOVOS " +
-    "(«faz o mesmo gato agora numa rua», «esse personagem em perspectiva, mais trabalhado», «o mesmo " +
-    "mas num cenário de floresta»). " +
-    "③ ESTILO A PARTIR DO ANEXO DELE — ele manda uma foto/arte e pede pra ajustar o ESTILO da TUA " +
-    "imagem (paleta, traço, clima) de acordo com a dele. Aí passas `referencia_id` com o id do " +
-    "anexo (ou omite o id pra usar o anexo de imagem mais recente DESTE turno). Sem `referencia_id`/" +
-    "anexo, o modelo NÃO vê a foto dele na edição — só texto — e o resultado quase não muda. " +
-    "── BASE NÃO É SEMPRE A ÚLTIMA ── se ele REFERENCIOU/PUXOU uma imagem TUA anterior (há " +
-    "`base_url` ou URL no bloco de referência), passa `base_url` com ESSA URL — senão mexes na " +
-    "última e ignora o que ele apontou. Repara: mesmo o usuário dizendo «cria OUTRA imagem» ou " +
-    "«uma NOVA cena», se é «o MESMO» de uma imagem que já existe aqui, é ISTO — não o " +
-    "`gerar_imagem`. Só funciona se já houver uma imagem tua nesta conversa; se não houver, usa " +
-    "`gerar_imagem`. NÃO uses isto só pra OLHAR o anexo (isso é `ver_imagem`); usa quando vais " +
-    "PRODUZIR uma versão nova.",
+    "Parte de uma imagem de referência (a que tu desenhaste, uma que ele puxou/referenciou ou uma FOTO/arte que ELE anexou neste turno) como BASE e produz uma nova versão (image-to-image). Serve para: " +
+    "① RETOQUE/EDIÇÃO EM FOTO OU DESENHO — mexer num detalhe, adicionar algo, trocar fundo ou transformar («adiciona um óculos escuros nesta foto», «muda o fundo para praia», «tira o objeto», «põe um chapéu nele», «deixa de noite»). " +
+    "② RE-ENCENAR — pegar o MESMO personagem/objeto e colocá-lo numa CENA, pose ou ângulo NOVOS. " +
+    "③ APLICAR ESTILO DE ANEXO — usar a foto/arte dele como referência de estilo/paleta para a imagem. " +
+    "── BASE DE EDIÇÃO ── Se ele anexou uma foto neste turno ou puxou uma imagem anterior, usa essa imagem como base. Se ele referenciou uma imagem específica (há `base_url` no bloco de referência), passa `base_url`. " +
+    "NÃO uses isto só para OLHAR a imagem dele (isso é a visão/leitura); usa quando vais PRODUZIR uma imagem/arte nova modificada.",
   parametros: {
     type: "object",
     properties: {
@@ -939,6 +934,14 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
           "tua). Usa quando ele pede «no estilo dessa foto», «com a mesma vibe/paleta/traço desta " +
           "imagem». Se omitires e o pedido for de estilo com anexo neste turno, o sistema usa o " +
           "mais recente do turno. Não passes id de vídeo.",
+      },
+      aspect_ratio: {
+        type: "string",
+        enum: ["1:1", "16:9", "9:16", "21:9", "4:3", "3:4"],
+        description:
+          "Proporção do resultado. OBRIGATÓRIO ao mudar formato («refaz em 9:16», «widescreen»). " +
+          "O servidor força outpaint (expandir canvas sem cortar o sujeito). Sem isto, a edição " +
+          "fica na proporção da base (quase sempre 1:1) e parece «cortada».",
       },
     },
     required: ["instrucao"],

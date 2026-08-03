@@ -299,6 +299,10 @@ async function resolverTurnoChat(params: {
     }
   }
 
+  const imagemBaseEdicaoEfetiva =
+    parsed.imagemBaseEdicao ||
+    parsed.attachments?.find((a) => a.mimeType?.startsWith("image/") && a.url)?.url;
+
   const result = await comTimeoutChat(
     executarChatMobile(
       parsed.message,
@@ -319,7 +323,7 @@ async function resolverTurnoChat(params: {
       parsed.modoAgentico,
       parsed.moduloFinancas,
       parsed.reenvio,
-      parsed.imagemBaseEdicao,
+      imagemBaseEdicaoEfetiva,
     ),
   );
 
@@ -711,7 +715,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.modoAgentico,
         parsed.moduloFinancas,
         parsed.reenvio,
-        parsed.imagemBaseEdicao,
+        parsed.imagemBaseEdicao ||
+          parsed.attachments?.find((a) => a.mimeType?.startsWith("image/") && a.url)?.url,
       );
 
       clearTimeout(streamTimeout);

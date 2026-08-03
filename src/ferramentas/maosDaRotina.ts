@@ -250,13 +250,17 @@ export type DependenciasRotina = {
   // Gera uma imagem a partir de um prompt, sobe pro Storage e devolve a URL estável.
   // A URL nasce SÓ aqui (depois do upload), então não está nos argumentos da ferramenta —
   // o dispatcher a devolve na string de retorno pra viajar no evento fim_ferramenta.
-  gerarImagem?: (prompt: string) => Promise<{ id: string; url: string; prompt: string }>;
+  gerarImagem?: (
+    prompt: string,
+    opts?: { aspectRatio?: string },
+  ) => Promise<{ id: string; url: string; prompt: string }>;
   // Edita uma imagem TUA desta conversa (image-to-image). Por defeito a última; `baseUrl`
   // escolhe outra (quando ele referenciou/puxou uma arte anterior). `referenciaUrls` = anexos
-  // DELE (estilo/paleta) além da base. Lança se não houver base.
+  // DELE (estilo/paleta) além da base. `aspectRatio` força a proporção no OpenRouter. Lança se
+  // não houver base.
   editarImagem?: (
     instrucao: string,
-    opts?: { referenciaUrls?: string[]; baseUrl?: string },
+    opts?: { referenciaUrls?: string[]; baseUrl?: string; aspectRatio?: string },
   ) => Promise<{ id: string; url: string; prompt: string }>;
 };
 

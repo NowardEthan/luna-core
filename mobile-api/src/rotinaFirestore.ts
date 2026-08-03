@@ -441,14 +441,14 @@ export function maosDaRotina(
     },
 
     // ── A mão que DESENHA (e EDITA) ──
-    gerarImagem: async (prompt: string) => {
-      const img = await gerarImagemLuna(uid, prompt);
+    gerarImagem: async (prompt: string, opts?: { aspectRatio?: string }) => {
+      const img = await gerarImagemLuna(uid, prompt, { aspectRatio: opts?.aspectRatio });
       registrarUltimaImagem(chaveImagem, img);
       return img;
     },
     editarImagem: async (
       instrucao: string,
-      opts?: { referenciaUrls?: string[]; baseUrl?: string },
+      opts?: { referenciaUrls?: string[]; baseUrl?: string; aspectRatio?: string },
     ) => {
       // Prioridade: URL explícita da ferramenta > base do turno (swipe) > última gerada.
       const baseUrl =
@@ -458,7 +458,9 @@ export function maosDaRotina(
           "Não há imagem anterior nesta conversa para editar — desenha uma primeiro com gerar_imagem.",
         );
       }
-      const img = await editarImagemLuna(uid, instrucao, baseUrl, opts?.referenciaUrls ?? []);
+      const img = await editarImagemLuna(uid, instrucao, baseUrl, opts?.referenciaUrls ?? [], {
+        aspectRatio: opts?.aspectRatio,
+      });
       registrarUltimaImagem(chaveImagem, img);
       return img;
     },

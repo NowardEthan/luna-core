@@ -295,6 +295,17 @@ function deveUsarModoAgentico(
  */
 export function mensagemPedeGerarImagem(mensagem: string): boolean {
   if (/\b(desenh\w+|ilustr\w+)\b/i.test(mensagem)) return true;
+  // Refazer proporção / formato — chips do app e pedidos curtos («refaz em 9:16»).
+  if (
+    /\b(refaz\w*|refaça|refaca|propor[cç][aã]o|aspecto|aspect_ratio|formato)\b/i.test(mensagem) &&
+    (/\b\d+\s*:\s*\d+\b/.test(mensagem) ||
+      /\b(vertical|horizontal|widescreen|ultrawide|retrato|quadrad[ao]|story|stories)\b/i.test(
+        mensagem,
+      ))
+  ) {
+    return true;
+  }
+  if (/\baspect_ratio\s*=\s*\d+\s*:\s*\d+\b/i.test(mensagem)) return true;
   const substantivoVisual =
     "imagem|imagens|arte|ilustra[çc][ãa]o|desenho|foto|logo|logotipo|[íi]cone|capa|wallpaper|papel\\s+de\\s+parede|pintura|pôster|poster|cartaz|avatar|figura|cena|cenas|personagem|personagens|retrato";
   // CRIAR do zero: verbo de criação + substantivo visual.

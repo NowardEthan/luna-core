@@ -408,6 +408,11 @@ const DIRETRIZ_IMAGEM =
   "`editar_imagem`, NUNCA `gerar_imagem` (do zero sairia OUTRO bicho). No RETOQUE, em `instrucao` " +
   "passa só o que muda; no RE-ENCENAR, descreve a cena nova inteira e diz que o personagem é o " +
   "mesmo; no ESTILO, deixa claro o que pegar da referência.\n" +
+  "── PROPORÇÃO / FORMATO ── se ele pede formato (9:16, 16:9, 21:9, 1:1, vertical, widescreen, " +
+  "story), PASSA `aspect_ratio` na ferramenta (gerar OU editar). Sem o param o resultado cai em " +
+  "1:1 e parece «cortado». Em mudança de proporção, a `instrucao` deve pedir EXPANDIR o canvas " +
+  "(completar cenário), NUNCA cortar/esticar o personagem. Ex.: aspect_ratio=\"9:16\" + «mantém o " +
+  "mesmo gato inteiro, cresce o cenário pra cima e pra baixo».\n" +
   "Demora alguns segundos. Depois de gerar/editar, a imagem JÁ está à frente dele no cartão: reage a " +
   "ELA — curto, na tua voz (o que achaste, um detalhe). NÃO copies a URL, NÃO descrevas a imagem " +
   "inteira, e NUNCA digas que «não desenhas de verdade» ou que «só pintas com palavras»: tu desenhaste, " +
@@ -899,13 +904,27 @@ export async function responderComoLunaAgentico(
           }
           const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
           if (!prompt) return "Passa em `prompt` a descrição visual do que desenhar.";
+          const aspectArg =
+            typeof args.aspect_ratio === "string" ? args.aspect_ratio.trim() : "";
+          // Fallback: o modelo esqueceu o param — tira do pedido dele + do prompt.
+          const aspectRatio =
+            aspectArg ||
+            (() => {
+              const m = `${mensagemUsuario}\n${prompt}`.match(
+                /\b(21\s*:\s*9|16\s*:\s*9|9\s*:\s*16|4\s*:\s*3|3\s*:\s*4|1\s*:\s*1)\b/i,
+              );
+              return m ? m[1]!.replace(/\s+/g, "") : undefined;
+            })();
           try {
-            const img = await opcoes.rotinaDeps.gerarImagem(prompt);
+            const img = await opcoes.rotinaDeps.gerarImagem(prompt, {
+              aspectRatio,
+            });
             // O app lê a URL do evento fim_ferramenta (parseada daqui). Ao modelo, devolvo só a
             // confirmação — com aviso EXPLÍCITO pra não colar a URL nem descrever a imagem inteira.
             return JSON.stringify({
               ok: true,
               imagem: { url: img.url, prompt: img.prompt },
+              aspect_ratio: aspectRatio ?? null,
               aviso:
                 "A imagem já foi desenhada e mostrada ao usuário num cartão. Comenta na tua voz " +
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
@@ -972,15 +991,27 @@ export async function responderComoLunaAgentico(
               : undefined;
 
           try {
+            const aspectArg =
+              typeof args.aspect_ratio === "string" ? args.aspect_ratio.trim() : "";
+            const aspectRatio =
+              aspectArg ||
+              (() => {
+                const m = `${mensagemUsuario}\n${instrucao}`.match(
+                  /\b(21\s*:\s*9|16\s*:\s*9|9\s*:\s*16|4\s*:\s*3|3\s*:\s*4|1\s*:\s*1)\b/i,
+                );
+                return m ? m[1]!.replace(/\s+/g, "") : undefined;
+              })();
             const img = await opcoes.rotinaDeps.editarImagem(instrucao, {
               referenciaUrls: referenciaUrls.length > 0 ? referenciaUrls : undefined,
               baseUrl,
+              aspectRatio,
             });
             return JSON.stringify({
               ok: true,
               imagem: { url: img.url, prompt: img.prompt },
               usouReferenciaEstilo: referenciaUrls.length > 0,
               usouBaseExplicita: Boolean(baseUrl),
+              aspect_ratio: aspectRatio ?? null,
               aviso:
                 "A imagem editada já foi mostrada ao usuário num cartão novo. Comenta na tua voz " +
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
