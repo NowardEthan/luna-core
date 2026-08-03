@@ -935,8 +935,12 @@ export async function responderComoLunaAgentico(
           if (!opcoes.rotinaDeps.gerarImagem) {
             return "ERRO FATAL: o método de gerar imagens não foi implementado neste ambiente.";
           }
-          const prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
-          if (!prompt) return "Passa em `prompt` a descrição visual do que desenhar.";
+          // Flash (plano Grátis) às vezes CHAMA a ferramenta mas esquece de preencher `prompt` —
+          // o cartão-fantasma já apareceu, então abortar aqui fazia a imagem sumir E ela narrar
+          // sucesso. Em vez de abortar, desenho a partir do pedido dele.
+          let prompt = typeof args.prompt === "string" ? args.prompt.trim() : "";
+          if (!prompt) prompt = (mensagemUsuario ?? "").trim();
+          if (!prompt) return "ERRO: sem descrição do que desenhar — nem no `prompt` nem na mensagem.";
           const aspectArg =
             typeof args.aspect_ratio === "string" ? args.aspect_ratio.trim() : "";
           // Fallback: o modelo esqueceu o param — tira do pedido dele + do prompt.
@@ -963,7 +967,9 @@ export async function responderComoLunaAgentico(
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
             });
           } catch (err) {
-            return `Não consegui desenhar a imagem: ${err instanceof Error ? err.message : String(err)}`;
+            // Prefixo ERRO → o executor marca o passo como falho (sucesso=false), o app pinta
+            // vermelho e ela não consegue narrar que desenhou.
+            return `ERRO: não consegui desenhar a imagem: ${err instanceof Error ? err.message : String(err)}`;
           }
         }
         if (nome === "editar_imagem") {
@@ -1055,7 +1061,7 @@ export async function responderComoLunaAgentico(
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",
             });
           } catch (err) {
-            return `Não consegui editar a imagem: ${err instanceof Error ? err.message : String(err)}`;
+            return `ERRO: não consegui editar a imagem: ${err instanceof Error ? err.message : String(err)}`;
           }
         }
         if (nome === "criar_artefato") {
