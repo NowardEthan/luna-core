@@ -131,12 +131,30 @@ async function subirImagem(
   return { id, url: urlDownloadStorage(caminho, token) };
 }
 
+function extrairAspectoOpenRouter(prompt: string): string | undefined {
+  if (/16:9|widescreen|horizontal/i.test(prompt)) return "16:9";
+  if (/9:16|vertical|retrato|story|stories/i.test(prompt)) return "9:16";
+  if (/21:9|ultrawide|cinema/i.test(prompt)) return "21:9";
+  if (/4:3/i.test(prompt)) return "4:3";
+  if (/1:1|quadrad[ao]/i.test(prompt)) return "1:1";
+  return undefined;
+}
+
+function extrairDimensoesPollinations(prompt: string): { width: number; height: number } {
+  if (/16:9|widescreen|horizontal/i.test(prompt)) return { width: 1280, height: 720 };
+  if (/9:16|vertical|retrato|story|stories/i.test(prompt)) return { width: 720, height: 1280 };
+  if (/21:9|ultrawide|cinema/i.test(prompt)) return { width: 1344, height: 576 };
+  if (/4:3/i.test(prompt)) return { width: 1024, height: 768 };
+  return { width: 1024, height: 1024 };
+}
+
 /** Fallback gratuito via Pollinations.ai (FLUX) quando o OpenRouter estiver sem saldo ou falhar. */
 async function pedirImagemPollinations(
   prompt: string,
 ): Promise<{ buffer: Buffer; mime: string }> {
   const seed = Math.floor(Math.random() * 1000000);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
+  const { width, height } = extrairDimensoesPollinations(prompt);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&nologo=true&seed=${seed}`;
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Pollinations falhou (${res.status})`);
@@ -156,9 +174,15 @@ export async function gerarImagemLuna(uid: string, prompt: string): Promise<Imag
 
   let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
   const key = apiKey();
+  const aspect_ratio = extrairAspectoOpenRouter(texto);
   if (key) {
     try {
-      bytes = await pedirImagem(key, { model: modelo(), prompt: texto, n: 1 });
+      bytes = await pedirImagem(key, {
+        model: modelo(),
+        prompt: texto,
+        n: 1,
+        ...(aspect_ratio ? { aspect_ratio } : {}),
+      });
     } catch (err) {
       console.warn("[Imagem] OpenRouter falhou, gerando via fallback Pollinations:", err);
       bytes = await pedirImagemPollinations(texto);
@@ -188,7 +212,7 @@ export async function editarImagemLuna(
 ): Promise<ImagemGerada> {
   if (!uid) throw new Error("uid ausente — não sei de quem é a imagem.");
   const texto = instrucao.trim();
-  if (!texto) throw new Error("Instrução vazia — descreve a mudança a fazer.");
+  if (!texto) throw new Error("Sem instrução — descreve a mudança a fazer.");
   if (!baseUrl) throw new Error("Sem imagem base — não há o que editar.");
 
   const extras = referenciaUrls.map((u) => u.trim()).filter((u) => u.length > 0);
@@ -206,6 +230,7 @@ export async function editarImagemLuna(
 
   let bytes: { buffer: Buffer; mime: string; custoUsd?: number };
   const key = apiKey();
+  const aspect_ratio = extrairAspectoOpenRouter(texto);
   if (key) {
     try {
       bytes = await pedirImagem(key, {
@@ -213,6 +238,7 @@ export async function editarImagemLuna(
         prompt,
         input_references,
         n: 1,
+        ...(aspect_ratio ? { aspect_ratio } : {}),
       });
     } catch (err) {
       console.warn("[Imagem] OpenRouter edição falhou, tentando fallback Pollinations:", err);
