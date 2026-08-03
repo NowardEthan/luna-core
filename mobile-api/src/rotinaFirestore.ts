@@ -448,18 +448,27 @@ export function maosDaRotina(
     },
     editarImagem: async (
       instrucao: string,
-      opts?: { referenciaUrls?: string[]; baseUrl?: string; aspectRatio?: string },
+      opts?: {
+        referenciaUrls?: string[];
+        baseUrl?: string;
+        aspectRatio?: string;
+        mudarProporcao?: boolean;
+      },
     ) => {
       // Prioridade: URL explícita da ferramenta > base do turno (swipe) > última gerada.
+      const previa = ultimaImagemDe(chaveImagem);
       const baseUrl =
-        opts?.baseUrl?.trim() || baseDoTurno || ultimaImagemDe(chaveImagem)?.url || "";
+        opts?.baseUrl?.trim() || baseDoTurno || previa?.url || "";
       if (!baseUrl) {
         throw new Error(
           "Não há imagem anterior nesta conversa para editar — desenha uma primeiro com gerar_imagem.",
         );
       }
+      const mudando = Boolean(opts?.mudarProporcao);
       const img = await editarImagemLuna(uid, instrucao, baseUrl, opts?.referenciaUrls ?? [], {
-        aspectRatio: opts?.aspectRatio,
+        aspectRatio: mudando ? opts?.aspectRatio : undefined,
+        aspectRatioBase: previa?.aspectRatio,
+        mudarProporcao: mudando,
       });
       registrarUltimaImagem(chaveImagem, img);
       return img;

@@ -939,9 +939,9 @@ const FERRAMENTA_EDITAR_IMAGEM: DefinicaoFerramenta = {
         type: "string",
         enum: ["1:1", "16:9", "9:16", "21:9", "4:3", "3:4"],
         description:
-          "Proporção do resultado. OBRIGATÓRIO ao mudar formato («refaz em 9:16», «widescreen»). " +
-          "O servidor força outpaint (expandir canvas sem cortar o sujeito). Sem isto, a edição " +
-          "fica na proporção da base (quase sempre 1:1) e parece «cortada».",
+          "Proporção do resultado. SÓ passa quando ELE pediu mudar formato («refaz em 9:16», " +
+          "«widescreen»). Em retoque comum NÃO passes — o servidor preserva o aspecto atual. " +
+          "Na instrução, se for retrato: personagem em pé (cabeça pra cima), sem girar a cena.",
       },
     },
     required: ["instrucao"],

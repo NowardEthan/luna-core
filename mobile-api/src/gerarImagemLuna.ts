@@ -25,10 +25,23 @@ import { getAdminBucket, urlDownloadStorage } from "./firebaseAdmin.js";
 const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images";
 const MODELO_PADRAO = "bytedance-seed/seedream-4.5";
 
+/** Aspectos que o OpenRouter/Seedream aceitam de forma estável. */
+export type AspectRatioOpenRouter =
+  | "1:1"
+  | "16:9"
+  | "9:16"
+  | "21:9"
+  | "4:3"
+  | "3:4"
+  | "3:2"
+  | "2:3";
+
 export type ImagemGerada = {
   id: string;
   url: string;
   prompt: string;
+  /** Proporção efetiva enviada ao modelo (se houver). */
+  aspectRatio?: AspectRatioOpenRouter;
   /** Custo em dólares reportado pela OpenRouter (pra telemetria/log). */
   custoUsd?: number;
 };
@@ -131,17 +144,6 @@ async function subirImagem(
   return { id, url: urlDownloadStorage(caminho, token) };
 }
 
-/** Aspectos que o OpenRouter/Seedream aceitam de forma estável. */
-export type AspectRatioOpenRouter =
-  | "1:1"
-  | "16:9"
-  | "9:16"
-  | "21:9"
-  | "4:3"
-  | "3:4"
-  | "3:2"
-  | "2:3";
-
 const ASPECTOS_VALIDOS = new Set<string>([
   "1:1",
   "16:9",
@@ -152,6 +154,37 @@ const ASPECTOS_VALIDOS = new Set<string>([
   "3:2",
   "2:3",
 ]);
+
+/**
+ * Pediu mudar formato/proporção de propósito? («refaz em 9:16», «aspect_ratio=…»).
+ * Retoques («adiciona um chapéu») NÃO contam — aí preservamos o aspecto atual.
+ */
+export function mensagemPedeMudancaDeAspecto(texto: string): boolean {
+  const t = texto.trim();
+  if (!t) return false;
+  if (/\baspect_ratio\s*=\s*\d+\s*:\s*\d+\b/i.test(t)) return true;
+  const temRatio = /\b\d+\s*:\s*\d+\b/.test(t);
+  const temFormato =
+    /\b(formato|propor[cç][aã]o|aspecto|enquadramento|canvas|widescreen|ultrawide|retrato|portrait|paisagem|landscape|quadrad[ao]|story|stories|vertical|horizontal)\b/i.test(
+      t,
+    );
+  if (temRatio && temFormato) return true;
+  if (
+    /\b(formato|propor[cç][aã]o|aspecto)\b.{0,48}\b(vertical|horizontal|widescreen|ultrawide|retrato|quadrad|story|16\s*:\s*9|9\s*:\s*16)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(refaz\w*|refaça|refaca|muda|mude|troca|troque)\b.{0,40}\b(formato|propor[cç][aã]o|aspecto|para\s+(vertical|horizontal|widescreen|quadrad))\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Normaliza um valor explícito (`9:16`, `aspect_ratio=9:16`) ou devolve undefined.
@@ -225,16 +258,37 @@ function dimensoesPollinations(aspect?: AspectRatioOpenRouter): {
 /**
  * Em edição com mudança de proporção, o modelo tende a CORTAR o sujeito.
  * Prefixa pedindo outpaint: expandir o canvas, não zoom/crop.
+ * Se só estamos PRESERVANDO o aspecto, reforça manter o enquadramento.
  */
-function reforcarOutpaint(
+function reforcarAspectoNoPrompt(
   instrucao: string,
   aspect: AspectRatioOpenRouter | undefined,
+  modo: "mudar" | "preservar" | "nenhum",
 ): string {
-  if (!aspect) return instrucao;
+  if (!aspect || modo === "nenhum") return instrucao;
+  if (modo === "preservar") {
+    return (
+      `Keep the exact same aspect ratio (${aspect}) and camera framing as the base image. ` +
+      `Do NOT crop, reframe, rotate, or change orientation. Gravity stays the same (feet/bottom down, head/top up). ` +
+      `Apply ONLY the requested change. ` +
+      `Request: ${instrucao}`
+    );
+  }
+  // Retrato (9:16 / 3:4 / 2:3): o modelo às vezes «deita» a cena (paisagem rodada 90°)
+  // dentro do canvas vertical — como filmar deitado. Travar orientação do sujeito.
+  const retrato = aspect === "9:16" || aspect === "3:4" || aspect === "2:3";
+  const paisagem = aspect === "16:9" || aspect === "21:9" || aspect === "4:3" || aspect === "3:2";
+  const orientacao = retrato
+    ? "The frame is PORTRAIT (taller than wide). Keep the subject UPRIGHT — standing/sitting normally, head toward the TOP of the image, feet toward the BOTTOM. " +
+      "Do NOT rotate the scene 90 degrees. Do NOT lay the character on their side. This is NOT a sideways phone video. "
+    : paisagem
+      ? "The frame is LANDSCAPE (wider than tall). Keep the subject UPRIGHT with correct gravity (head up, feet down). Do NOT rotate the scene. "
+      : "Keep the subject UPRIGHT with correct gravity (head up, feet down). Do NOT rotate the image. ";
   return (
-    `Change the canvas to aspect ratio ${aspect}. Expand / outpaint the scene to fill the new frame. ` +
-    `Keep the FULL subject visible from head to toe (or full object) — do NOT crop, cut off, zoom in, or trim edges. ` +
-    `Grow background and scenery to fill empty space. Preserve character identity, style and mood. ` +
+    `Change the canvas to aspect ratio ${aspect}. Expand / outpaint the scene to fill the new frame — add scenery above/below or to the sides as needed. ` +
+    orientacao +
+    `Keep the FULL subject visible — do NOT crop, cut off, zoom in, or trim edges. ` +
+    `Preserve character identity, style, pose orientation, and mood from the base. ` +
     `Request: ${instrucao}`
   );
 }
@@ -294,7 +348,7 @@ export async function gerarImagemLuna(
   }
 
   const { id, url } = await subirImagem(uid, bytes);
-  return { id, url, prompt: texto, custoUsd: bytes.custoUsd };
+  return { id, url, prompt: texto, aspectRatio: aspect_ratio, custoUsd: bytes.custoUsd };
 }
 
 /**
@@ -307,7 +361,15 @@ export async function gerarImagemLuna(
  * estilo da foto que mandei» só ia no texto e ela confabulava.
  */
 export type OpcoesEditarImagem = {
+  /** Novo formato pedido explicitamente — dispara outpaint. */
   aspectRatio?: string;
+  /**
+   * Aspecto da imagem base (última gerada). Usado quando NÃO há pedido de mudar formato,
+   * pra o Seedream não cair no default 1:1.
+   */
+  aspectRatioBase?: string;
+  /** true = usuário pediu mudar proporção; false/omitido = preservar. */
+  mudarProporcao?: boolean;
 };
 
 export async function editarImagemLuna(
@@ -330,9 +392,18 @@ export async function editarImagemLuna(
         `Request: ${texto}`
       : texto;
 
-  const aspect_ratio =
-    normalizarAspectRatio(opts?.aspectRatio) ?? extrairAspectoDeTexto(texto);
-  const prompt = reforcarOutpaint(promptBase, aspect_ratio);
+  const mudando = Boolean(opts?.mudarProporcao);
+  const aspectNovo = mudando ? normalizarAspectRatio(opts?.aspectRatio) : undefined;
+  const aspectBase = normalizarAspectRatio(opts?.aspectRatioBase);
+  // Prioridade: mudança explícita > herdar da base > (sem aspecto).
+  // NÃO extrair da instrução do LLM — «pose vertical» virava 9:16 por acidente.
+  const aspect_ratio = aspectNovo ?? aspectBase;
+  const modo: "mudar" | "preservar" | "nenhum" = mudando
+    ? "mudar"
+    : aspect_ratio
+      ? "preservar"
+      : "nenhum";
+  const prompt = reforcarAspectoNoPrompt(promptBase, aspect_ratio, modo);
 
   const input_references = [
     { type: "image_url", image_url: { url: baseUrl } },
@@ -365,7 +436,7 @@ export async function editarImagemLuna(
   }
 
   const { id, url } = await subirImagem(uid, bytes);
-  return { id, url, prompt: texto, custoUsd: bytes.custoUsd };
+  return { id, url, prompt: texto, aspectRatio: aspect_ratio, custoUsd: bytes.custoUsd };
 }
 
 /**
@@ -373,16 +444,28 @@ export async function editarImagemLuna(
  * de qual imagem mexer, sem depender do modelo carregar a URL longa no contexto. Memória de processo
  * (some se o servidor reiniciar): no pior caso, a edição avisa que não há base e ela redesenha.
  */
-const ultimaImagemPorChave = new Map<string, { url: string; prompt: string }>();
+type UltimaImagemMem = {
+  url: string;
+  prompt: string;
+  aspectRatio?: AspectRatioOpenRouter;
+};
+const ultimaImagemPorChave = new Map<string, UltimaImagemMem>();
 const LIMITE_CHAVES = 500;
 
-export function registrarUltimaImagem(chave: string, img: { url: string; prompt: string }): void {
+export function registrarUltimaImagem(
+  chave: string,
+  img: { url: string; prompt: string; aspectRatio?: AspectRatioOpenRouter },
+): void {
   if (!chave) return;
   // Poda simples pra memória não crescer sem teto: ao estourar, esvazia (barato e raro).
   if (ultimaImagemPorChave.size >= LIMITE_CHAVES) ultimaImagemPorChave.clear();
-  ultimaImagemPorChave.set(chave, { url: img.url, prompt: img.prompt });
+  ultimaImagemPorChave.set(chave, {
+    url: img.url,
+    prompt: img.prompt,
+    aspectRatio: img.aspectRatio,
+  });
 }
 
-export function ultimaImagemDe(chave: string): { url: string; prompt: string } | undefined {
+export function ultimaImagemDe(chave: string): UltimaImagemMem | undefined {
   return chave ? ultimaImagemPorChave.get(chave) : undefined;
 }

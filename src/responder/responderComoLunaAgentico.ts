@@ -380,6 +380,37 @@ const DIRETRIZ_DOCUMENTOS =
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
 
 /**
+ * Pediu mudar formato de propósito? Espelho leve de `mensagemPedeMudancaDeAspecto` (mobile-api)
+ * — fica aqui pra o dispatcher não depender do dist da API.
+ */
+function mensagemPedeMudancaDeAspectoLocal(texto: string): boolean {
+  const t = texto.trim();
+  if (!t) return false;
+  if (/\baspect_ratio\s*=\s*\d+\s*:\s*\d+\b/i.test(t)) return true;
+  const temRatio = /\b\d+\s*:\s*\d+\b/.test(t);
+  const temFormato =
+    /\b(formato|propor[cç][aã]o|aspecto|enquadramento|canvas|widescreen|ultrawide|retrato|portrait|paisagem|landscape|quadrad[ao]|story|stories|vertical|horizontal)\b/i.test(
+      t,
+    );
+  if (temRatio && temFormato) return true;
+  if (
+    /\b(formato|propor[cç][aã]o|aspecto)\b.{0,48}\b(vertical|horizontal|widescreen|ultrawide|retrato|quadrad|story|16\s*:\s*9|9\s*:\s*16)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(refaz\w*|refaça|refaca|muda|mude|troca|troque)\b.{0,40}\b(formato|propor[cç][aã]o|aspecto|para\s+(vertical|horizontal|widescreen|quadrad))\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * A mão que DESENHA — a Luna gera imagens. Curta de propósito: é uma mão simples (um prompt →
  * um cartão de imagem). Entra junto com `documentosAtivo` (só no OrbitLab, onde a ferramenta existe).
  */
@@ -408,11 +439,13 @@ const DIRETRIZ_IMAGEM =
   "`editar_imagem`, NUNCA `gerar_imagem` (do zero sairia OUTRO bicho). No RETOQUE, em `instrucao` " +
   "passa só o que muda; no RE-ENCENAR, descreve a cena nova inteira e diz que o personagem é o " +
   "mesmo; no ESTILO, deixa claro o que pegar da referência.\n" +
-  "── PROPORÇÃO / FORMATO ── se ele pede formato (9:16, 16:9, 21:9, 1:1, vertical, widescreen, " +
-  "story), PASSA `aspect_ratio` na ferramenta (gerar OU editar). Sem o param o resultado cai em " +
-  "1:1 e parece «cortado». Em mudança de proporção, a `instrucao` deve pedir EXPANDIR o canvas " +
-  "(completar cenário), NUNCA cortar/esticar o personagem. Ex.: aspect_ratio=\"9:16\" + «mantém o " +
-  "mesmo gato inteiro, cresce o cenário pra cima e pra baixo».\n" +
+  "── PROPORÇÃO / FORMATO ── PRESERVA a proporção da imagem atual em todo retoque " +
+  "(«adiciona…», «muda a cor…») — NÃO passes `aspect_ratio` e NÃO mudes o enquadramento, " +
+  "a menos que ele PEÇA outro formato (9:16, 16:9, widescreen, story…). " +
+  "Quando ele pedir formato novo: passa `aspect_ratio` e na `instrucao` pede EXPANDIR o canvas " +
+  "(completar cenário), personagem EM PÉ com cabeça pra cima / pés pra baixo — NUNCA girar a " +
+  "cena 90° nem «deitar» o personagem num frame vertical. Ex.: aspect_ratio=\"9:16\" + «mantém o " +
+  "mesmo gato em pé, cresce o cenário pra cima e pra baixo».\n" +
   "Demora alguns segundos. Depois de gerar/editar, a imagem JÁ está à frente dele no cartão: reage a " +
   "ELA — curto, na tua voz (o que achaste, um detalhe). NÃO copies a URL, NÃO descrevas a imagem " +
   "inteira, e NUNCA digas que «não desenhas de verdade» ou que «só pintas com palavras»: tu desenhaste, " +
@@ -991,27 +1024,32 @@ export async function responderComoLunaAgentico(
               : undefined;
 
           try {
+            // Só muda proporção se ELE pediu formato — senão o servidor herda o aspecto da última.
+            // Ignora aspect_ratio que o modelo inventou num retoque («adiciona chapéu»).
             const aspectArg =
               typeof args.aspect_ratio === "string" ? args.aspect_ratio.trim() : "";
-            const aspectRatio =
-              aspectArg ||
-              (() => {
-                const m = `${mensagemUsuario}\n${instrucao}`.match(
-                  /\b(21\s*:\s*9|16\s*:\s*9|9\s*:\s*16|4\s*:\s*3|3\s*:\s*4|1\s*:\s*1)\b/i,
-                );
-                return m ? m[1]!.replace(/\s+/g, "") : undefined;
-              })();
+            const pediuMudanca = mensagemPedeMudancaDeAspectoLocal(mensagemUsuario);
+            const aspectRatio = pediuMudanca
+              ? aspectArg ||
+                (() => {
+                  const m = mensagemUsuario.match(
+                    /\b(21\s*:\s*9|16\s*:\s*9|9\s*:\s*16|4\s*:\s*3|3\s*:\s*4|1\s*:\s*1)\b/i,
+                  );
+                  return m ? m[1]!.replace(/\s+/g, "") : undefined;
+                })()
+              : undefined;
             const img = await opcoes.rotinaDeps.editarImagem(instrucao, {
               referenciaUrls: referenciaUrls.length > 0 ? referenciaUrls : undefined,
               baseUrl,
               aspectRatio,
+              mudarProporcao: pediuMudanca,
             });
             return JSON.stringify({
               ok: true,
               imagem: { url: img.url, prompt: img.prompt },
               usouReferenciaEstilo: referenciaUrls.length > 0,
               usouBaseExplicita: Boolean(baseUrl),
-              aspect_ratio: aspectRatio ?? null,
+              aspect_ratio: img.aspectRatio ?? aspectRatio ?? null,
               aviso:
                 "A imagem editada já foi mostrada ao usuário num cartão novo. Comenta na tua voz " +
                 "(curto e caloroso). NÃO copies a URL nem descrevas a imagem inteira.",

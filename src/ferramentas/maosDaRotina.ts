@@ -253,15 +253,20 @@ export type DependenciasRotina = {
   gerarImagem?: (
     prompt: string,
     opts?: { aspectRatio?: string },
-  ) => Promise<{ id: string; url: string; prompt: string }>;
+  ) => Promise<{ id: string; url: string; prompt: string; aspectRatio?: string }>;
   // Edita uma imagem TUA desta conversa (image-to-image). Por defeito a última; `baseUrl`
   // escolhe outra (quando ele referenciou/puxou uma arte anterior). `referenciaUrls` = anexos
-  // DELE (estilo/paleta) além da base. `aspectRatio` força a proporção no OpenRouter. Lança se
-  // não houver base.
+  // DELE (estilo/paleta) além da base. `aspectRatio` só quando ele pediu mudar formato;
+  // senão o servidor herda o aspecto da última. Lança se não houver base.
   editarImagem?: (
     instrucao: string,
-    opts?: { referenciaUrls?: string[]; baseUrl?: string; aspectRatio?: string },
-  ) => Promise<{ id: string; url: string; prompt: string }>;
+    opts?: {
+      referenciaUrls?: string[];
+      baseUrl?: string;
+      aspectRatio?: string;
+      mudarProporcao?: boolean;
+    },
+  ) => Promise<{ id: string; url: string; prompt: string; aspectRatio?: string }>;
 };
 
 const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
