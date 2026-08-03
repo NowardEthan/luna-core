@@ -68,6 +68,11 @@ export type ChatMobileResult = {
     imagensGeradas: number;
     pesquisaProfundaRodou: boolean;
   };
+  /**
+   * Arte com URL real deste turno — vai pro Firestore no `persistChatTurn`. Sem isto o
+   * servidor gravava a bolha dela SEM `imagens[]` e o listener do app apagava o cartão local.
+   */
+  imagens?: Array<{ url: string; prompt: string }>;
 };
 
 export type ChatAttachmentInput = {
@@ -535,6 +540,7 @@ function resultadoFromPipeline(
   selection: LlmProviderSelection,
   resolved: ReturnType<typeof resolveLlmProviderSelection>,
   custosExtras?: { imagensGeradas: number; pesquisaProfundaRodou: boolean },
+  imagens?: Array<{ url: string; prompt: string }>,
 ): ChatMobileResult {
   const text = resultado.resposta?.texto?.trim();
   if (!text) {
@@ -553,16 +559,21 @@ function resultadoFromPipeline(
     autoMode: Boolean(resolved?.autoReason),
     humor_atual: resultado.humor_atual,
     custosExtras,
+    imagens,
   };
 }
 
 /**
- * Conta, ao vivo, as imagens que a Luna gerou no turno — cada evento `fim_ferramenta` com
- * `imagem.url` é uma arte pronta. É o sinal mais fiel (o cartão só nasce com imagem real).
- * Devolve o contador + um callback pra encaixar no `onAcaoAgentico` do pipeline.
+ * Conta e guarda, ao vivo, as imagens que a Luna gerou no turno — cada evento
+ * `fim_ferramenta` com `imagem.url` é uma arte pronta. É o sinal mais fiel (o cartão
+ * só nasce com imagem real). Devolve o contador + a lista + um callback pra encaixar
+ * no `onAcaoAgentico` do pipeline.
  */
 function criarContadorImagens(encadear?: ChatStreamCallbacks["onAcao"]) {
-  const estado = { imagensGeradas: 0 };
+  const estado = {
+    imagensGeradas: 0,
+    imagens: [] as Array<{ url: string; prompt: string }>,
+  };
   const onAcao: NonNullable<ChatStreamCallbacks["onAcao"]> = (acao) => {
     if (
       acao.tipo === "fim_ferramenta" &&
@@ -571,6 +582,10 @@ function criarContadorImagens(encadear?: ChatStreamCallbacks["onAcao"]) {
       acao.imagem.url.trim().length > 0
     ) {
       estado.imagensGeradas += 1;
+      estado.imagens.push({
+        url: acao.imagem.url.trim(),
+        prompt: typeof acao.imagem.prompt === "string" ? acao.imagem.prompt : "",
+      });
     }
     encadear?.(acao);
   };
@@ -714,10 +729,17 @@ export async function executarChatMobile(
       local: prep.local,
       onAcaoAgentico: contador.onAcao,
     });
-    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved, {
-      imagensGeradas: contador.estado.imagensGeradas,
-      pesquisaProfundaRodou: prep.pesquisaProfunda,
-    });
+    return resultadoFromPipeline(
+      resultado,
+      sessionId,
+      prep.selection,
+      prep.resolved,
+      {
+        imagensGeradas: contador.estado.imagensGeradas,
+        pesquisaProfundaRodou: prep.pesquisaProfunda,
+      },
+      contador.estado.imagens,
+    );
   };
 
   try {
@@ -868,10 +890,17 @@ export async function executarChatMobileStream(
       onStreamContentDelta: callbacks.onContentDelta,
       onAcaoAgentico: contador.onAcao,
     });
-    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved, {
-      imagensGeradas: contador.estado.imagensGeradas,
-      pesquisaProfundaRodou: prep.pesquisaProfunda,
-    });
+    return resultadoFromPipeline(
+      resultado,
+      sessionId,
+      prep.selection,
+      prep.resolved,
+      {
+        imagensGeradas: contador.estado.imagensGeradas,
+        pesquisaProfundaRodou: prep.pesquisaProfunda,
+      },
+      contador.estado.imagens,
+    );
   };
 
   try {

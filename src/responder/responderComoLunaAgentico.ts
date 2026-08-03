@@ -977,7 +977,8 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: o método de editar imagens não foi implementado neste ambiente.";
           }
           const instrucao = typeof args.instrucao === "string" ? args.instrucao.trim() : "";
-          if (!instrucao) return "Passa em `instrucao` a mudança a fazer na imagem.";
+          // Prefixo ERRO em todo soft-fail — senão o badge fica verde e ela narra sucesso sem URL.
+          if (!instrucao) return "ERRO: passa em `instrucao` a mudança a fazer na imagem.";
 
           // Referência de estilo = anexo DELE (além da base = última arte dela).
           // Entra se ela passou `referencia_id`, OU se o pedido cheira a estilo/referência e
@@ -993,7 +994,7 @@ export async function responderComoLunaAgentico(
             if (refIdArg) {
               const hit = mapaImagens.get(refIdArg);
               if (!hit) {
-                return { erro: `Não achei o anexo \`${refIdArg}\` pra usar de referência de estilo.` };
+                return { erro: `ERRO: não achei o anexo \`${refIdArg}\` pra usar de referência de estilo.` };
               }
               return { anexo: hit };
             }
@@ -1007,7 +1008,7 @@ export async function responderComoLunaAgentico(
           const estilo = "anexo" in anexoEstilo ? anexoEstilo.anexo : undefined;
           if (estilo) {
             if (estilo.mimeType?.startsWith("video/")) {
-              return "Referência de estilo precisa ser uma IMAGEM, não vídeo. Pede uma foto/arte.";
+              return "ERRO: referência de estilo precisa ser uma IMAGEM, não vídeo. Pede uma foto/arte.";
             }
             const refUrl =
               estilo.url?.trim() ||
@@ -1015,7 +1016,7 @@ export async function responderComoLunaAgentico(
                 ? `data:${estilo.mimeType?.trim() || "image/jpeg"};base64,${estilo.imageBase64.trim()}`
                 : "");
             if (!refUrl) {
-              return "O anexo de referência existe, mas sem URL/bytes — não consigo usá-lo de estilo.";
+              return "ERRO: o anexo de referência existe, mas sem URL/bytes — não consigo usá-lo de estilo.";
             }
             referenciaUrls.push(refUrl);
           }
