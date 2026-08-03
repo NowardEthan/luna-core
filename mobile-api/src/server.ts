@@ -51,6 +51,7 @@ import {
   estimarTokensPesquisaProfunda,
   estimarTokensTranscricao,
   estimarTokensVisao,
+  reservaTokensImagemSePedido,
 } from "./billing/tokenEstimate.js";
 import {
   REDUCED_LLM_SELECTION,
@@ -260,24 +261,26 @@ async function denyIfInsufficientTokens(
 async function chargeTokens(
   auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>,
   tokens: number,
+  opts?: { allowOverdraft?: boolean },
 ): Promise<void> {
   if (!auth || tokens < 1) return;
-  await consumeTokens(auth.uid, tokens);
+  await consumeTokens(auth.uid, tokens, opts);
 }
 
 /**
  * Custo das duas "lagostas" que o turno de fato consumiu — imagens geradas + pesquisa profunda.
  * A imagem é cobrada aqui (pós-turno) porque a Luna decide gerar no meio do caminho; aceita um
- * pequeno saque-a-descoberto de uma vez. A pesquisa também entra no pré-cheque (a flag é sabida
- * antes), então não passa despercebida. Só se aplica no modo plano (a carteira de tokens).
+ * pequeno saque-a-descoberto de uma vez (`allowOverdraft`). A pesquisa também entra no
+ * pré-cheque (a flag é sabida antes). Fonte da verdade da imagem: `result.imagens` (URLs
+ * reais); cai no contador de billing se a lista não veio.
  */
 function custoExtrasLagostas(result: ChatMobileResult): number {
-  const extras = result.custosExtras;
-  if (!extras) return 0;
-  return (
-    estimarTokensImagensGeradas(extras.imagensGeradas) +
-    estimarTokensPesquisaProfunda(extras.pesquisaProfundaRodou)
+  const qtdImagens = Math.max(
+    result.imagens?.length ?? 0,
+    result.custosExtras?.imagensGeradas ?? 0,
   );
+  const pesquisa = result.custosExtras?.pesquisaProfundaRodou === true;
+  return estimarTokensImagensGeradas(qtdImagens) + estimarTokensPesquisaProfunda(pesquisa);
 }
 
 type TurnoResolvido = {
@@ -318,10 +321,12 @@ async function resolverTurnoChat(params: {
   if (auth) {
     const quota = await resolveQuotaForRequest(
       auth.uid,
-      // Pesquisa profunda é sabida ANTES do turno (flag) → já reserva no pré-cheque, pra bloquear
-      // limpo quem não tem saldo pra ela. Imagem só é cobrada depois (a Luna decide no meio).
+      // Pesquisa profunda e pedido de desenho são sabidos ANTES → reserva no pré-cheque.
+      // Se ela decidir desenhar sem o pedido cheirar a isso, a cobrança pós-turno
+      // usa allowOverdraft (a lagosta ainda pesa).
       estimarCustoMinimoChat(parsed.message, attCount) +
-        estimarTokensPesquisaProfunda(parsed.pesquisaProfunda === true),
+        estimarTokensPesquisaProfunda(parsed.pesquisaProfunda === true) +
+        reservaTokensImagemSePedido(parsed.message),
       estimarInputTokensChat(parsed.message, attCount),
     );
     quotaMode = quota.mode;
@@ -371,9 +376,12 @@ async function resolverTurnoChat(params: {
       imagens: result.imagens,
     });
     if (quotaMode === "plan") {
+      const lagostas = custoExtrasLagostas(result);
       await chargeTokens(
         auth,
-        estimarTokensChat(parsed.message, result.text, attCount) + custoExtrasLagostas(result),
+        estimarTokensChat(parsed.message, result.text, attCount) + lagostas,
+        // Lagosta de imagem pode estourar o teto residual — conta mesmo assim.
+        { allowOverdraft: lagostas > 0 },
       );
     } else {
       await consumeReducedTokens(
@@ -520,6 +528,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         quotaResetsAtMs: true,
         /** Persiste imagens[] no Firestore + guarda anti-mentira sem URL. */
         imagemPersistidaComGuarda: true,
+        /** Imagem gerada debita de verdade (overdraft pós-turno) + rota Seedream/Riverflow. */
+        imagemCotaERoteamento: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -696,7 +706,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         const quota = await resolveQuotaForRequest(
           auth.uid,
           estimarCustoMinimoChat(parsed.message, streamAttCount) +
-            estimarTokensPesquisaProfunda(parsed.pesquisaProfunda === true),
+            estimarTokensPesquisaProfunda(parsed.pesquisaProfunda === true) +
+            reservaTokensImagemSePedido(parsed.message),
           estimarInputTokensChat(parsed.message, streamAttCount),
         );
         streamQuotaMode = quota.mode;
@@ -784,10 +795,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         }
 
         if (streamQuotaMode === "plan") {
+          const lagostas = custoExtrasLagostas(result);
           await chargeTokens(
             auth,
-            estimarTokensChat(parsed.message, result.text, streamAttCount) +
-              custoExtrasLagostas(result),
+            estimarTokensChat(parsed.message, result.text, streamAttCount) + lagostas,
+            { allowOverdraft: lagostas > 0 },
           );
         } else {
           await consumeReducedTokens(

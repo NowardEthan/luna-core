@@ -16,7 +16,7 @@ export const CUSTO_POR_IMAGEM = 2_500;
 export const CUSTO_POR_DOCUMENTO = 4_000;
 export const CUSTO_BASE_TRANSCRICAO = 800;
 
-/** Lagosta 1 — cada imagem GERADA pela Luna (Riverflow) custa ~10 conversas. */
+/** Lagosta 1 — cada imagem GERADA pela Luna (Seedream/Riverflow) custa ~10 conversas. */
 export const CUSTO_IMAGEM_GERADA = 30_000;
 /** Lagosta 2 — uma pesquisa profunda (dossiê web) custa ~5 conversas. */
 export const CUSTO_PESQUISA_PROFUNDA = 15_000;
@@ -87,6 +87,24 @@ export function estimarTokensImagensGeradas(quantidade: number): number {
 /** Custo extra de uma pesquisa profunda que rodou de fato no turno. */
 export function estimarTokensPesquisaProfunda(rodou: boolean): number {
   return rodou ? CUSTO_PESQUISA_PROFUNDA : 0;
+}
+
+/**
+ * Pedido parece ser de DESENHAR (não «ver» anexo)? Reserva a lagosta no pré-cheque
+ * pra não gastar Seedream/Riverflow e só descobrir depois que a carteira não aguentava.
+ */
+export function mensagemSugereGerarImagem(mensagem: string): boolean {
+  const t = mensagem.trim();
+  if (!t) return false;
+  if (/\b(desenh\w+|ilustr\w+)\b/i.test(t)) return true;
+  return /\b(cria\w*|crie|faz|fa[cç]a|gera\w*|gere|manda\w*|mande|quero)\b[^.?!\n]{0,40}\b(imagem|arte|ilustra|desenho|foto|logo|capa|wallpaper|pintura|poster|avatar|cena)\b/i.test(
+    t,
+  );
+}
+
+/** Tokens a reservar no pré-cheque quando o pedido cheira a geração de imagem. */
+export function reservaTokensImagemSePedido(mensagem: string): number {
+  return mensagemSugereGerarImagem(mensagem) ? CUSTO_IMAGEM_GERADA : 0;
 }
 
 /** Converte contadores legados (mensagens/tipos) para tokens. */

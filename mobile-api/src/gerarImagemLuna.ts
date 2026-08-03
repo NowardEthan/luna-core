@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { escolherModeloEdicao, escolherModeloGeracao } from "./billing/rotearModeloImagem.js";
 import { getAdminBucket, urlDownloadStorage } from "./firebaseAdmin.js";
 
 /**
@@ -9,21 +10,19 @@ import { getAdminBucket, urlDownloadStorage } from "./firebaseAdmin.js";
  * inverso: manda texto e recebe imagem. E não é a via `modalities` do /chat/completions — a
  * OpenRouter expõe um endpoint DEDICADO `/api/v1/images`.
  *
- * Dois modos, MESMO modelo por padrão — o Seedream 4.5 (ByteDance) é text-to-image E
- * image-to-image, com boa consistência na edição, anime e texto pequeno (~US$ 0,04/img):
+ * Roteamento inteligente (ver `billing/rotearModeloImagem.ts`):
+ *  - Seedream 4.5 — arte / ilustração / anime (default).
+ *  - Riverflow V2.5 Fast — foto / realismo.
  *  - GERAR (do zero): texto → imagem nova.
- *  - EDITAR (preservando): a imagem anterior vai em `input_references` (URL do Storage) e o modelo
- *    mexe no que o prompt pede — «adiciona um sachê» deve virar a MESMA xícara com o sachê.
- * Prefira URL (não base64) nas refs: payload leve e estável.
+ *  - EDITAR (preservando): a imagem anterior vai em `input_references` (URL do Storage).
  *
- * Override: `OPENROUTER_IMAGE_MODEL` / `OPENROUTER_IMAGE_EDIT_MODEL` (ex. voltar pro Riverflow Fast).
+ * Override: `OPENROUTER_IMAGE_MODEL` / `OPENROUTER_IMAGE_EDIT_MODEL` forçam um modelo único.
  *
  * O byte não trafega pelo chat: a imagem volta em base64, sobe pro Firebase Storage, e o que segue
  * pro app é só a URL (leve, e o chat pode persistir sem carregar megabytes por mensagem).
  */
 
 const OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images";
-const MODELO_PADRAO = "bytedance-seed/seedream-4.5";
 
 /** Aspectos que o OpenRouter/Seedream aceitam de forma estável. */
 export type AspectRatioOpenRouter =
@@ -44,19 +43,14 @@ export type ImagemGerada = {
   aspectRatio?: AspectRatioOpenRouter;
   /** Custo em dólares reportado pela OpenRouter (pra telemetria/log). */
   custoUsd?: number;
+  /** Modelo OpenRouter usado neste desenho. */
+  model?: string;
+  /** Rota: arte (Seedream) ou realista (Riverflow). */
+  estilo?: "arte" | "realista";
 };
 
 function apiKey(): string | undefined {
   return process.env.OPENROUTER_API_KEY?.trim() || undefined;
-}
-
-function modelo(): string {
-  return process.env.OPENROUTER_IMAGE_MODEL?.trim() || MODELO_PADRAO;
-}
-
-/** O modelo de edição; por padrão o MESMO da geração (Seedream edita). Overridável se um dia quiser. */
-function modeloEdicao(): string {
-  return process.env.OPENROUTER_IMAGE_EDIT_MODEL?.trim() || modelo();
 }
 
 type RespostaImagens = {
@@ -334,16 +328,20 @@ export async function gerarImagemLuna(
   const key = apiKey();
   const aspect_ratio =
     normalizarAspectRatio(opts?.aspectRatio) ?? extrairAspectoDeTexto(texto);
+  const escolha = escolherModeloGeracao(texto);
   if (key) {
     try {
       bytes = await pedirImagem(key, {
-        model: modelo(),
+        model: escolha.model,
         prompt: texto,
         n: 1,
         ...(aspect_ratio ? { aspect_ratio } : {}),
       });
     } catch (err) {
-      console.warn("[Imagem] OpenRouter falhou, gerando via fallback Pollinations:", err);
+      console.warn(
+        `[Imagem] OpenRouter falhou (${escolha.model}/${escolha.estilo}), fallback Pollinations:`,
+        err,
+      );
       bytes = await pedirImagemPollinations(texto, aspect_ratio);
     }
   } else {
@@ -351,7 +349,15 @@ export async function gerarImagemLuna(
   }
 
   const { id, url } = await subirImagem(uid, bytes);
-  return { id, url, prompt: texto, aspectRatio: aspect_ratio, custoUsd: bytes.custoUsd };
+  return {
+    id,
+    url,
+    prompt: texto,
+    aspectRatio: aspect_ratio,
+    custoUsd: bytes.custoUsd,
+    model: escolha.model,
+    estilo: escolha.estilo,
+  };
 }
 
 /**
@@ -423,9 +429,10 @@ export async function editarImagemLuna(
       "Edição de imagem precisa do OpenRouter (a base i2i não funciona no fallback). Tenta de novo já já.",
     );
   }
+  const escolha = escolherModeloEdicao(texto, prompt);
   try {
     bytes = await pedirImagem(key, {
-      model: modeloEdicao(),
+      model: escolha.model,
       prompt,
       input_references,
       n: 1,
@@ -433,14 +440,25 @@ export async function editarImagemLuna(
     });
   } catch (err) {
     // Sem fallback Pollinations na edição — redesenharia do zero e perderia o personagem.
-    console.warn("[Imagem] OpenRouter edição falhou (sem fallback i2i):", err);
+    console.warn(
+      `[Imagem] OpenRouter edição falhou (${escolha.model}/${escolha.estilo}, sem fallback i2i):`,
+      err,
+    );
     throw err instanceof Error
       ? err
       : new Error("Não consegui editar a imagem no OpenRouter.");
   }
 
   const { id, url } = await subirImagem(uid, bytes);
-  return { id, url, prompt: texto, aspectRatio: aspect_ratio, custoUsd: bytes.custoUsd };
+  return {
+    id,
+    url,
+    prompt: texto,
+    aspectRatio: aspect_ratio,
+    custoUsd: bytes.custoUsd,
+    model: escolha.model,
+    estilo: escolha.estilo,
+  };
 }
 
 /**

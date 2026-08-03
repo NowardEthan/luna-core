@@ -864,9 +864,11 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
     "objeto de uma imagem que já existe nesta conversa (mesmo que peça outra cena, outro ângulo, " +
     "«mais trabalhada», «em perspectiva»), NÃO uses isto — pintarias do zero e sairia OUTRO. Aí é " +
     "`editar_imagem`, que parte da imagem anterior como referência e mantém o personagem. Demora " +
-    "alguns segundos. NÃO uses para responder algo que é texto, nem para «ver» uma imagem que ELE " +
-    "mandou (isso é a visão, não isto). Depois de gerar, comenta na tua voz — o cartão já mostra a " +
-    "imagem, não a descrevas inteira.",
+    "alguns segundos. O servidor escolhe o motor: arte/ilustração/anime → Seedream; foto/realista → " +
+    "Riverflow — então no `prompt` deixa claro o estilo («foto realista…» ou «ilustração watercolor…»). " +
+    "NÃO uses para responder algo que é texto, nem para «ver» uma imagem que ELE mandou (isso é a " +
+    "visão, não isto). Depois de gerar, comenta na tua voz — o cartão já mostra a imagem, não a " +
+    "descrevas inteira.",
   parametros: {
     type: "object",
     properties: {
@@ -874,8 +876,9 @@ const FERRAMENTA_GERAR_IMAGEM: DefinicaoFerramenta = {
         type: "string",
         description:
           "A descrição visual do que desenhar — assunto + estilo + cores/atmosfera + " +
-          "enquadramento. Ex.: «uma raposa origami dourada sobre fundo grafite, luz suave, " +
-          "minimalista». Se quiseres texto dentro da imagem, escreve-o entre aspas no prompt.",
+          "enquadramento. Ex. arte: «uma raposa origami dourada sobre fundo grafite, luz suave, " +
+          "minimalista». Ex. foto: «foto realista de uma mulher numa rua ao entardecer, dslr 50mm». " +
+          "Se quiseres texto dentro da imagem, escreve-o entre aspas no prompt.",
       },
       aspect_ratio: {
         type: "string",

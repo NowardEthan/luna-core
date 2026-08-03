@@ -264,6 +264,8 @@ export type HealthResponse = {
     quotaResetsAtMs: boolean;
     /** Bolha da Luna no Firestore traz imagens[]; guarda corta narração sem URL. */
     imagemPersistidaComGuarda: boolean;
+    /** Imagem gerada conta na cota (mesmo com overdraft) + roteamento arte/realista. */
+    imagemCotaERoteamento: boolean;
   };
   /**
    * O commit que está a correr AQUI.
