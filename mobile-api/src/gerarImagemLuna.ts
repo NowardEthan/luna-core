@@ -251,13 +251,26 @@ function dimensoesPollinations(aspect?: AspectRatioOpenRouter): {
 
 /**
  * Prefixo de continuidade: edição é i2i, não desenho novo.
- * Vai SEMPRE no começo — o Seedream senão redesenha outro personagem.
+ * Vai SEMPRE no começo — sem isto Seedream/Riverflow redesenham OUTRO assunto
+ * (ex.: sofá → rosto de mulher quando o pedido é só «faz realista»).
+ *
+ * Neutro quanto ao tipo de sujeito: objeto, cena, animal ou pessoa — o que está
+ * na Image 1 manda; o texto só descreve a mudança.
  */
-function prefixoIdentidadeEdicao(temEstiloExtra: boolean): string {
+function prefixoIdentidadeEdicao(
+  temEstiloExtra: boolean,
+  briefOriginal?: string,
+): string {
+  const brief = briefOriginal?.trim();
+  const ancoraBrief = brief
+    ? `The subject of Image 1 is: «${brief.slice(0, 280)}». Keep THAT subject — do not invent a different one. `
+    : "";
   return (
-    "Image 1 is the BASE to EDIT (image-to-image). This is NOT a new illustration from scratch. " +
-    "Keep the SAME subject/character identity, face, body, clothes, colors, line style and mood as Image 1. " +
-    "Do not replace them with a different character or redesign the scene from zero. " +
+    "Image 1 is the BASE to EDIT (image-to-image). This is NOT a new image from scratch. " +
+    "Preserve the SAME subject that appears in Image 1 (object, product, scene, animal or person — whatever is there). " +
+    "Keep composition, framing and main elements; only apply the requested change (style, detail, lighting, etc.). " +
+    "Do NOT replace the subject with a different person, face, character or unrelated scene. " +
+    ancoraBrief +
     (temEstiloExtra
       ? "Image 2+ are STYLE references only (palette/stroke/lighting) — never replace the subject from Image 1. "
       : "")
@@ -379,6 +392,11 @@ export type OpcoesEditarImagem = {
   aspectRatioBase?: string;
   /** true = usuário pediu mudar proporção; false/omitido = preservar. */
   mudarProporcao?: boolean;
+  /**
+   * Prompt/brief da arte original (quando conhecido). Ancora o sujeito no i2i —
+   * especialmente útil em mudança só de estilo («faz realista»).
+   */
+  briefOriginal?: string;
 };
 
 export async function editarImagemLuna(
@@ -413,7 +431,7 @@ export async function editarImagemLuna(
       : texto;
 
   const prompt =
-    prefixoIdentidadeEdicao(extras.length > 0) +
+    prefixoIdentidadeEdicao(extras.length > 0, opts?.briefOriginal) +
     reforcarAspectoNoPrompt(pedido, aspect_ratio, modo);
 
   const input_references = [

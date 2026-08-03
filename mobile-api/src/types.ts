@@ -268,6 +268,11 @@ export type HealthResponse = {
     imagemCotaERoteamento: boolean;
     /** Plano no teto → 429 (sem continuar falando de graça no OpenRouter). */
     cotaHardStop: boolean;
+    /**
+     * Referência/swipe + «faz realista» → edita a base (i2i), não gera do zero.
+     * Evita Riverflow inventar outro assunto (ex. sofá → rosto).
+     */
+    imagemRefContinuidade: boolean;
   };
   /**
    * O commit que está a correr AQUI.

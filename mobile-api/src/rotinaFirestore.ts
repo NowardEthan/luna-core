@@ -442,6 +442,23 @@ export function maosDaRotina(
 
     // ── A mão que DESENHA (e EDITA) ──
     gerarImagem: async (prompt: string, opts?: { aspectRatio?: string }) => {
+      // Se o turno já trouxe uma arte dela referenciada (swipe), NUNCA gerar do zero —
+      // o LLM às vezes chama gerar_imagem em «faz realista» e o Riverflow inventa outro
+      // assunto (sofá → rosto). Redireciona pra i2i na base do turno.
+      if (baseDoTurno) {
+        const previa = ultimaImagemDe(chaveImagem);
+        const brief =
+          previa?.url === baseDoTurno ? previa.prompt : undefined;
+        console.warn(
+          `[Imagem] gerar_imagem com imagemBaseEdicao → redirecionando pra editar (${baseDoTurno.slice(0, 64)}…)`,
+        );
+        const img = await editarImagemLuna(uid, prompt, baseDoTurno, [], {
+          aspectRatioBase: previa?.url === baseDoTurno ? previa.aspectRatio : undefined,
+          briefOriginal: brief,
+        });
+        registrarUltimaImagem(chaveImagem, img);
+        return img;
+      }
       const img = await gerarImagemLuna(uid, prompt, { aspectRatio: opts?.aspectRatio });
       registrarUltimaImagem(chaveImagem, img);
       return img;
@@ -465,10 +482,16 @@ export function maosDaRotina(
         );
       }
       const mudando = Boolean(opts?.mudarProporcao);
+      // Ancora o sujeito com o brief da arte quando a base é a última conhecida.
+      const briefOriginal =
+        previa?.url === baseUrl && previa.prompt.trim()
+          ? previa.prompt
+          : undefined;
       const img = await editarImagemLuna(uid, instrucao, baseUrl, opts?.referenciaUrls ?? [], {
         aspectRatio: mudando ? opts?.aspectRatio : undefined,
-        aspectRatioBase: previa?.aspectRatio,
+        aspectRatioBase: previa?.url === baseUrl ? previa.aspectRatio : undefined,
         mudarProporcao: mudando,
+        briefOriginal,
       });
       registrarUltimaImagem(chaveImagem, img);
       return img;

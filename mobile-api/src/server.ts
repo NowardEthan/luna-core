@@ -532,6 +532,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         imagemCotaERoteamento: true,
         /** Cota estourada = 429 duro (sem bypass «modo reduzido» no OpenRouter). */
         cotaHardStop: true,
+        /** Swipe/ref + estilo → i2i na base (não gerar_imagem do zero). */
+        imagemRefContinuidade: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
