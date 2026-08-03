@@ -125,8 +125,16 @@ function isGroqChatEnabled(): boolean {
   return false;
 }
 
-/** Modo reduzido (quota) continua existindo — mas roda no OpenRouter, como tudo. */
+/**
+ * Modo reduzido (quota estourada → continua falando).
+ *
+ * Era o fallback Cerebras free. Depois do A0 virou OpenRouter pago — e virava
+ * furo: plano free no teto e a mensagem AINDA passava (o Ethan reportou).
+ * Desligado por padrão. Opt-in só com `LUNA_REDUCED_FALLBACK=1` (+ chave OR).
+ */
 export function isCerebrasReducedFallbackEnabled(): boolean {
+  const raw = process.env.LUNA_REDUCED_FALLBACK?.trim().toLowerCase();
+  if (raw !== "1" && raw !== "true" && raw !== "on") return false;
   return Boolean(openrouterApiKey());
 }
 

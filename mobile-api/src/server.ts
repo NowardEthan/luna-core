@@ -530,6 +530,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         imagemPersistidaComGuarda: true,
         /** Imagem gerada debita de verdade (overdraft pós-turno) + rota Seedream/Riverflow. */
         imagemCotaERoteamento: true,
+        /** Cota estourada = 429 duro (sem bypass «modo reduzido» no OpenRouter). */
+        cotaHardStop: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

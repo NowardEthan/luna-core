@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   isCerebrasChatPrimary,
+  isCerebrasReducedFallbackEnabled,
   isOpenrouterChatPrimary,
   normalizeLegacyProviderSelection,
   REDUCED_LLM_SELECTION,
@@ -102,6 +103,15 @@ describe("roteamento LLM mobile-api — A0: só OpenRouter", () => {
     expect(REDUCED_LLM_SELECTION.providerId).toBe("openrouter");
     const config = resolveLlmConfig(REDUCED_LLM_SELECTION);
     expect(config?.baseUrl).toContain("openrouter.ai");
+  });
+
+  it("fallback reduzido fica OFF por padrão (cota hard-stop)", () => {
+    process.env.OPENROUTER_API_KEY = "sk-or-test";
+    delete process.env.LUNA_REDUCED_FALLBACK;
+    expect(isCerebrasReducedFallbackEnabled()).toBe(false);
+
+    process.env.LUNA_REDUCED_FALLBACK = "1";
+    expect(isCerebrasReducedFallbackEnabled()).toBe(true);
   });
 
   it("sem OPENROUTER_API_KEY não há chat — nada de cair calado em outro provedor", () => {
