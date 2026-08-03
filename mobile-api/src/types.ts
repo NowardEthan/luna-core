@@ -262,6 +262,8 @@ export type HealthResponse = {
     carteiraLagostas: boolean;
     /** Erro de cota traz resetsAtMs/cycle — o app mostra "renova em X". */
     quotaResetsAtMs: boolean;
+    /** Bolha da Luna no Firestore traz imagens[]; guarda corta narração sem URL. */
+    imagemPersistidaComGuarda: boolean;
   };
   /**
    * O commit que está a correr AQUI.

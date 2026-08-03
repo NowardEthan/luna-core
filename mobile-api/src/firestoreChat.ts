@@ -28,6 +28,8 @@ export type PersistChatTurnInput = {
     narrativa?: string;
     accessibilityLabel: string;
   };
+  /** Arte que a Luna desenhou neste turno — sem isto o cartão some no sync do app. */
+  imagens?: Array<{ url: string; prompt?: string }>;
 };
 
 export type AnexoVisualHistorico = {
@@ -141,12 +143,20 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<bool
     { merge: true },
   );
 
+  const imagens = (input.imagens ?? [])
+    .filter((img) => typeof img?.url === "string" && img.url.trim().length > 0)
+    .map((img) => ({
+      url: img.url.trim(),
+      ...(img.prompt?.trim() ? { prompt: img.prompt.trim() } : {}),
+    }));
+
   batch.set(
     lunaRef,
     {
       role: "luna",
       text: lunaReply.trim(),
       ...(input.humor_atual ? { humor_atual: input.humor_atual } : {}),
+      ...(imagens.length > 0 ? { imagens } : {}),
       createdAt: FieldValue.serverTimestamp(),
     },
     { merge: true },

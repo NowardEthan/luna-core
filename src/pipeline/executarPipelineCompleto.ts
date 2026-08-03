@@ -58,6 +58,7 @@ import {
 } from "../estado/neuronioObjecao.js";
 import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
 import { confabulouAcao, blocoReexecucaoAcao } from "../estado/guardaAcaoRotina.js";
+import { confabulouImagem, textoDesculpaImagem } from "../estado/guardaImagem.js";
 import type { DependenciasRotina } from "../ferramentas/maosDaRotina.js";
 import {
   agoraNoFusoDele,
@@ -935,8 +936,20 @@ export async function executarPipelineCompleto(
     // estraga.
     const urlsDoTurno: string[] = [];
 
+    // Imagens com URL real neste turno — a guarda de imagem usa isto pra distinguir
+    // «chamou gerar_imagem» (loading) de «cartão chegou de verdade».
+    let imagensComUrlNoTurno = 0;
+
     const onAcaoComRegisto = (acao: AcaoAgenticoChat) => {
       if (acao.tipo === "inicio_ferramenta") ferramentasDoTurno.push(acao.ferramenta);
+      if (
+        acao.tipo === "fim_ferramenta" &&
+        (acao.ferramenta === "gerar_imagem" || acao.ferramenta === "editar_imagem") &&
+        typeof acao.imagem?.url === "string" &&
+        acao.imagem.url.trim().length > 0
+      ) {
+        imagensComUrlNoTurno += 1;
+      }
       for (const f of acao.fontes ?? []) {
         if (f.url) urlsDoTurno.push(f.url);
       }
@@ -1313,6 +1326,19 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;
+    }
+
+    // ── Guarda da imagem ────────────────────────────────────────────────────────
+    // Pediu desenho, ela alegou ter mandado, e nenhuma URL real nasceu → troca a
+    // narração pela desculpa honesta. Sem reexecução (Flash falharia de novo).
+    if (
+      usarModoAgentico &&
+      confabulouImagem(resposta.texto, imagensComUrlNoTurno, mensagem)
+    ) {
+      if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+        console.error("[guarda] alegou imagem sem URL real — trocando pela desculpa.");
+      }
+      resposta = { ...resposta, texto: textoDesculpaImagem() };
     }
 
     if (resposta.texto.trim() && !(usarStream && !usarModoAgentico)) {

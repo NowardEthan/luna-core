@@ -368,6 +368,7 @@ async function resolverTurnoChat(params: {
       userMessageId: parsed.userMessageId,
       lunaMessageId: parsed.lunaMessageId,
       humor_atual: result.humor_atual,
+      imagens: result.imagens,
     });
     if (quotaMode === "plan") {
       await chargeTokens(
@@ -517,6 +518,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         carteiraLagostas: true,
         /** Resposta de cota inclui resetsAtMs/cycle pro cliente mostrar "renova em X". */
         quotaResetsAtMs: true,
+        /** Persiste imagens[] no Firestore + guarda anti-mentira sem URL. */
+        imagemPersistidaComGuarda: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -771,6 +774,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           userMessageId: parsed.userMessageId,
           lunaMessageId: parsed.lunaMessageId,
           humor_atual: result.humor_atual,
+          imagens: result.imagens,
         });
 
         // O usuário saiu do app antes da resposta chegar: avisa por notificação.
