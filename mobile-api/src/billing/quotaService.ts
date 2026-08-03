@@ -314,13 +314,28 @@ export async function resolveQuotaForRequest(
   }
 }
 
+export type ConsumeTokensOpts = {
+  /**
+   * Cobrança pós-turno de algo que JÁ aconteceu (ex.: imagem gerada).
+   * Sem isto, um desenho de 30k com 10k restantes ESTOURAVA e o `throw` fazia
+   * a imagem «não contar» — o saque-a-descoberto é de propósito: a lagosta
+   * pesa na carteira mesmo que passe um pouco do teto.
+   */
+  allowOverdraft?: boolean;
+};
+
 /** Consome tokens após operação bem-sucedida. */
-export async function consumeTokens(uid: string, amount: number): Promise<QuotaUsageSnapshot> {
+export async function consumeTokens(
+  uid: string,
+  amount: number,
+  opts?: ConsumeTokensOpts,
+): Promise<QuotaUsageSnapshot> {
   if (amount < 1) amount = 1;
 
   // Criador: conta os tokens normalmente (incrementa os contadores abaixo), mas
   // NUNCA é barrado por teto — os throws de limite são pulados só para ele.
   const criador = ehCriadorVerificado(uid);
+  const allowOverdraft = Boolean(opts?.allowOverdraft);
 
   const db = requireFirestore();
   const userRef = db.doc(`users/${uid}`);
@@ -345,7 +360,7 @@ export async function consumeTokens(uid: string, amount: number): Promise<QuotaU
     const usageSnap = await tx.get(usageRef);
     const window = readWindowTokens(usageSnap.data(), now);
 
-    if (!criador && window.tokens + amount > windowLimit) {
+    if (!criador && !allowOverdraft && window.tokens + amount > windowLimit) {
       throw new QuotaExceededError(
         window.tokens,
         windowLimit,
@@ -359,7 +374,7 @@ export async function consumeTokens(uid: string, amount: number): Promise<QuotaU
     const weeklySnap = await tx.get(weeklyRef);
     const weekly = readWeeklyTokens(weeklySnap.data(), now);
 
-    if (!criador && weekly.tokens + amount > weeklyLimit) {
+    if (!criador && !allowOverdraft && weekly.tokens + amount > weeklyLimit) {
       throw new QuotaExceededError(
         weekly.tokens,
         weeklyLimit,
