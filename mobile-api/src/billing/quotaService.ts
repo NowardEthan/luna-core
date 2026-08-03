@@ -289,8 +289,9 @@ export async function assertTokensAvailable(uid: string, amount: number): Promis
 }
 
 /**
- * Resolve se o pedido usa quota do plano ou modo reduzido Cerebras (free).
- * Devolve erro só quando ambos estão indisponíveis.
+ * Resolve se o pedido usa quota do plano ou (opt-in) modo reduzido.
+ * Por padrão, cota estourada = erro duro (429). O fallback reduzido só liga
+ * com `LUNA_REDUCED_FALLBACK=1` — senão a carteira free vira buraco sem fundo.
  */
 export async function resolveQuotaForRequest(
   uid: string,

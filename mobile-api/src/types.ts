@@ -266,6 +266,8 @@ export type HealthResponse = {
     imagemPersistidaComGuarda: boolean;
     /** Imagem gerada conta na cota (mesmo com overdraft) + roteamento arte/realista. */
     imagemCotaERoteamento: boolean;
+    /** Plano no teto → 429 (sem continuar falando de graça no OpenRouter). */
+    cotaHardStop: boolean;
   };
   /**
    * O commit que está a correr AQUI.
