@@ -1,3 +1,16 @@
+import {
+  SCHEMA_ARTEFATO_BLOCOS,
+  blocosToMd,
+  editarBlocoNaLista,
+  inserirBlocosApos,
+  mdToBlocos,
+  novoIdBloco,
+  normalizarDocumentoBlocos,
+  type BlocoArtefato,
+  type PropsBlocoArtefato,
+  type TipoBlocoArtefato,
+} from "./artefatoBlocos.js";
+
 /**
  * As mãos dela nos artefatos.
  *
@@ -24,6 +37,9 @@ export type DocumentoConteudo = {
   id: string;
   titulo: string;
   conteudo: string;
+  /** Blocos tipados (schema 2). Ausente em docs legados ainda não migrados. */
+  blocos?: BlocoArtefato[];
+  schemaVersion?: number;
   /** A «bíblia» do artefato — os fatos fixos (nomes, idades, relações). `""` quando ainda não há. */
   canone?: string;
 };
@@ -32,6 +48,7 @@ export type DependenciasDocumentos = {
   criarDocumento: (dados: {
     titulo: string;
     conteudo: string;
+    blocos?: BlocoArtefato[];
   }) => Promise<{ id: string; titulo: string }>;
   /** Lista a estante do usuário (id + título; preferir marcar `destaConversa`). */
   listarDocumentos: () => Promise<DocumentoResumo[]>;
@@ -42,10 +59,24 @@ export type DependenciasDocumentos = {
     id: string;
     titulo?: string;
     conteudo?: string;
+    blocos?: BlocoArtefato[];
     /** A bíblia dos fatos fixos — metadado, gravado sem tocar no corpo nem gerar versão. */
     canone?: string;
   }) => Promise<{ id: string; titulo: string } | null>;
 };
+
+/** Garante blocos + MD coerentes a partir do que a dep devolveu. */
+function corpoComBlocos(doc: DocumentoConteudo): {
+  blocos: BlocoArtefato[];
+  conteudo: string;
+  schemaVersion: number;
+} {
+  return normalizarDocumentoBlocos({
+    conteudo: doc.conteudo,
+    blocos: doc.blocos,
+    schemaVersion: doc.schemaVersion,
+  });
+}
 
 /** Conta quantas vezes `alvo` aparece (sem sobreposição) em `texto`. */
 function contarOcorrencias(texto: string, alvo: string): number {
@@ -229,22 +260,33 @@ export async function lerEstruturaDocumento(
     if (!doc) {
       return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
     }
-    const secoes = mapearSecoes(doc.conteudo);
-    const totalPalavras = contarPalavras(doc.conteudo);
-    if (secoes.length === 0) {
+    const { blocos, conteudo } = corpoComBlocos(doc);
+    const secoes = mapearSecoes(conteudo);
+    const totalPalavras = contarPalavras(conteudo);
+    const headings = blocos.filter((b) => b.type === "heading");
+    if (secoes.length === 0 && headings.length === 0) {
+      const preview = blocos
+        .slice(0, 12)
+        .map((b) => `- ${b.id} · ${b.type} · «${(b.text || "").slice(0, 48)}»`)
+        .join("\n");
       return (
-        `O artefato «${doc.titulo}» (id: ${doc.id}) não tem seções — nenhum título (## ) pra dividir. ` +
-        `É um texto corrido de ~${totalPalavras} palavras; para o ler use ler_artefato.`
+        `O artefato «${doc.titulo}» (id: ${doc.id}) não tem seções com título — texto corrido ` +
+        `de ~${totalPalavras} palavras (${blocos.length} blocos).\n` +
+        `Blocos (preview):\n${preview}\n\n` +
+        `Para ler um bloco: ler_bloco. Para CONTINUAR o texto: inserir_blocos (after_id = último bloco).`
       );
     }
     const linhas = secoes
-      .map((s) => `${s.numero}. ${"  ".repeat(Math.max(0, s.nivel - 1))}${s.titulo}  (~${s.palavras} palavras)`)
+      .map((s, i) => {
+        const hid = headings[i]?.id ? ` blocoId=${headings[i]!.id}` : "";
+        return `${s.numero}. ${"  ".repeat(Math.max(0, s.nivel - 1))}${s.titulo}  (~${s.palavras} palavras)${hid}`;
+      })
       .join("\n");
     return (
       `Estrutura do artefato «${doc.titulo}» (id: ${doc.id}) — o índice, SEM o corpo ` +
-      `(${secoes.length} seções, ~${totalPalavras} palavras no total):\n${linhas}\n\n` +
-      `Para ler UMA seção sem carregar o resto, use ler_secao com este id e o número (ou o título) ` +
-      `da seção. Assim você só puxa o pedaço que precisa — não o artefato inteiro.`
+      `(${secoes.length} seções, ${blocos.length} blocos, ~${totalPalavras} palavras no total):\n${linhas}\n\n` +
+      `Para ler UMA seção: ler_secao. Para CONTINUAR um capítulo: inserir_blocos depois do último ` +
+      `heading (after_id = blocoId). Para mudar um bloco: editar_bloco_artefato. NÃO reescreva o livro inteiro.`
     );
   } catch (error) {
     return `ERRO ao ler a estrutura do artefato: ${error instanceof Error ? error.message : String(error)}`;
@@ -584,3 +626,193 @@ export async function editarTrechoDocumento(
     return `ERRO ao editar trecho: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
+
+const TIPOS_BLOCO_OK = new Set<TipoBlocoArtefato>([
+  "paragraph",
+  "heading",
+  "bullet",
+  "numbered",
+  "todo",
+  "quote",
+  "code",
+  "divider",
+  "callout",
+]);
+
+function parseBlocoArg(raw: unknown): BlocoArtefato | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const type = String(o.type ?? "paragraph") as TipoBlocoArtefato;
+  if (!TIPOS_BLOCO_OK.has(type)) return null;
+  const text = typeof o.text === "string" ? o.text : String(o.text ?? "");
+  const propsIn = o.props && typeof o.props === "object" ? (o.props as PropsBlocoArtefato) : undefined;
+  const props: PropsBlocoArtefato | undefined = propsIn
+    ? {
+        level: propsIn.level === 1 || propsIn.level === 2 || propsIn.level === 3 ? propsIn.level : undefined,
+        checked: typeof propsIn.checked === "boolean" ? propsIn.checked : undefined,
+        language: typeof propsIn.language === "string" ? propsIn.language : undefined,
+      }
+    : type === "heading"
+      ? { level: 2 }
+      : undefined;
+  return {
+    id: typeof o.id === "string" && o.id.trim() ? o.id.trim() : novoIdBloco(),
+    type,
+    props,
+    text,
+  };
+}
+
+/**
+ * Lê UM bloco pelo id — o «abrir arquivo» da página de blocos.
+ */
+export async function lerBlocoDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const blocoId = String(args.bloco_id ?? args.blocoId ?? "").trim();
+  if (!id) return "ERRO: preciso do id do artefato.";
+  if (!blocoId) return "ERRO: preciso do `bloco_id` (vem de ler_estrutura / listagem de blocos).";
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) return `ERRO: não achei artefato com id ${id}.`;
+    const { blocos } = corpoComBlocos(doc);
+    const b = blocos.find((x) => x.id === blocoId);
+    if (!b) {
+      return (
+        `ERRO: não achei bloco ${blocoId} em «${doc.titulo}». ` +
+        `Chame ler_estrutura pra ver os blocoId dos headings.`
+      );
+    }
+    return (
+      `Artefato «${doc.titulo}» (id: ${doc.id}) — bloco ${b.id} (${b.type}):\n` +
+      `${JSON.stringify({ type: b.type, props: b.props ?? {}, text: b.text }, null, 2)}\n\n` +
+      `Pra mudar: editar_bloco_artefato. Pra acrescentar depois: inserir_blocos com after_id=${b.id}.`
+    );
+  } catch (error) {
+    return `ERRO ao ler bloco: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * CONTINUAÇÃO de capítulo — insere blocos novos sem reescrever o livro.
+ * Preferida para «continua o capítulo», «escreve o epílogo no mesmo artefato».
+ */
+export async function inserirBlocosDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento" | "editarDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const afterIdRaw = args.after_id ?? args.afterId ?? args.depois_de ?? null;
+  const afterId =
+    afterIdRaw === null || afterIdRaw === undefined || afterIdRaw === ""
+      ? null
+      : String(afterIdRaw).trim();
+
+  if (!id) return "ERRO: preciso do id do artefato.";
+
+  const listaRaw = args.blocos;
+  let novos: BlocoArtefato[] = [];
+  if (Array.isArray(listaRaw)) {
+    novos = listaRaw.map(parseBlocoArg).filter((b): b is BlocoArtefato => b != null);
+  } else if (typeof args.markdown === "string" && args.markdown.trim()) {
+    novos = mdToBlocos(args.markdown);
+  } else if (typeof args.conteudo === "string" && args.conteudo.trim()) {
+    novos = mdToBlocos(args.conteudo);
+  }
+
+  if (novos.length === 0) {
+    return (
+      "ERRO: passe `blocos` (array de {type, text, props?}) ou `markdown` com o trecho novo a inserir."
+    );
+  }
+
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) return `ERRO: não achei artefato com id ${id}.`;
+    const { blocos } = corpoComBlocos(doc);
+    if (afterId && !blocos.some((b) => b.id === afterId)) {
+      const ultimos = blocos
+        .filter((b) => b.type === "heading")
+        .slice(-5)
+        .map((b) => `${b.id} «${b.text}»`)
+        .join("; ");
+      return (
+        `ERRO: after_id «${afterId}» não existe neste artefato. ` +
+        `Headings recentes: ${ultimos || "(nenhum)"}. Use ler_estrutura.`
+      );
+    }
+    const next = inserirBlocosApos(blocos, afterId, novos);
+    const resultado = await deps.editarDocumento({ id, blocos: next, conteudo: blocosToMd(next) });
+    if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+    return (
+      `Inseridos ${novos.length} bloco(s) no artefato «${resultado.titulo}» (id: ${resultado.id})` +
+      (afterId ? ` depois de ${afterId}` : " no fim") +
+      `. O cartão já mostra a versão nova. Conte ao Ethan o que acrescentou — não repita o livro inteiro.`
+    );
+  } catch (error) {
+    return `ERRO ao inserir blocos: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
+ * Edita UM bloco por id (texto/tipo/props) — sem tocar nos outros.
+ * Nome da tool: `editar_bloco_artefato` (evita colisão com `editar_bloco` da rotina).
+ */
+export async function editarBlocoDocumento(
+  deps: Pick<DependenciasDocumentos, "lerDocumento" | "editarDocumento">,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const id = String(args.id ?? "").trim();
+  const blocoId = String(args.bloco_id ?? args.blocoId ?? "").trim();
+  if (!id) return "ERRO: preciso do id do artefato.";
+  if (!blocoId) return "ERRO: preciso do `bloco_id`.";
+
+  const patch: {
+    text?: string;
+    type?: TipoBlocoArtefato;
+    props?: PropsBlocoArtefato;
+  } = {};
+  if (typeof args.text === "string") patch.text = args.text;
+  if (typeof args.type === "string" && TIPOS_BLOCO_OK.has(args.type as TipoBlocoArtefato)) {
+    patch.type = args.type as TipoBlocoArtefato;
+  }
+  if (args.props && typeof args.props === "object") {
+    patch.props = args.props as PropsBlocoArtefato;
+  }
+  if (typeof args.checked === "boolean") {
+    patch.props = { ...patch.props, checked: args.checked };
+  }
+  if (args.level === 1 || args.level === 2 || args.level === 3) {
+    patch.props = { ...patch.props, level: args.level };
+  }
+
+  if (patch.text === undefined && patch.type === undefined && patch.props === undefined) {
+    return "ERRO: nada pra mudar — passe `text` e/ou `type`/`props`.";
+  }
+
+  try {
+    const doc = await deps.lerDocumento(id);
+    if (!doc) return `ERRO: não achei artefato com id ${id}.`;
+    const { blocos } = corpoComBlocos(doc);
+    const next = editarBlocoNaLista(blocos, blocoId, patch);
+    if (!next) {
+      return `ERRO: não achei bloco ${blocoId} em «${doc.titulo}». Use ler_estrutura.`;
+    }
+    const resultado = await deps.editarDocumento({
+      id,
+      blocos: next,
+      conteudo: blocosToMd(next),
+    });
+    if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+    return (
+      `Bloco ${blocoId} atualizado no artefato «${resultado.titulo}» (id: ${resultado.id}). ` +
+      `Conte ao Ethan o que mudou — sem repetir o texto inteiro.`
+    );
+  } catch (error) {
+    return `ERRO ao editar bloco: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+export { SCHEMA_ARTEFATO_BLOCOS, blocosToMd, mdToBlocos };

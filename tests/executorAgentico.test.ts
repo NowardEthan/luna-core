@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { executorAgentico } from "../src/agente/executorAgentico.js";
 import type { OpcoeExecutor } from "../src/agente/executorAgentico.js";
-import type { ConfigLuna } from "../src/providers/tipos.js";
+import type { ConfigLuna, ProvedorAgente } from "../src/providers/tipos.js";
 import { FERRAMENTAS_IDE } from "../src/agente/ferramentas/definicoes.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -198,7 +198,55 @@ describe("failsafe", () => {
 
     expect(resultado.rodadas).toBe(3);
     expect(resultado.concluido).toBe(false);
-    expect(resultado.resposta_final).toContain("3 rodadas");
+    expect(resultado.resposta_final).toMatch(/limite de passos|continue/i);
+  });
+});
+
+// ─── Narração (content + tools na mesma rodada) ───────────────────────────────
+
+describe("narração progressiva", () => {
+  it("emite ponte + executa tools + junta na resposta final", async () => {
+    const onNarracao = vi.fn();
+    let rodada = 0;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada === 1) {
+          return {
+            conteudo: "Vou ler o arquivo pra me informar.",
+            chamadas: [{ id: "c1", nome: "read_file", argumentos: { path: "a.ts" } }],
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 10,
+          };
+        }
+        return {
+          conteudo: "Entendi. É um módulo pequeno.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 10,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        toolExecutor: vi.fn().mockResolvedValue("export {}"),
+        onNarracaoRodada: onNarracao,
+      }),
+    );
+
+    expect(onNarracao).toHaveBeenCalledTimes(2);
+    expect(onNarracao.mock.calls[0]![0]).toContain("Vou ler o arquivo");
+    expect(onNarracao.mock.calls[1]![0]).toContain("Entendi");
+    expect(resultado.resposta_final).toContain("Vou ler o arquivo");
+    expect(resultado.resposta_final).toContain("Entendi");
+    expect(resultado.passos).toHaveLength(1);
+    // Histórico: assistant com content + tool_calls
+    const msgs = provedor.completarComFerramentas.mock.calls[1]![0].mensagens;
+    expect(msgs[2].papel).toBe("assistant");
+    expect(msgs[2].conteudo).toContain("Vou ler");
+    expect(msgs[2].chamadas_ferramenta).toBeDefined();
   });
 });
 

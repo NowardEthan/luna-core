@@ -107,18 +107,30 @@ export type DependenciasRotina = {
   verIdeias?: () => Promise<any[]>;
   // ── Estante de Documentos ──
   // Nasce da conversa: a conversaId já vem presa na closure (montada em maosDaRotina).
-  criarDocumento?: (dados: { titulo: string; conteudo: string }) => Promise<{ id: string; titulo: string }>;
+  criarDocumento?: (dados: {
+    titulo: string;
+    conteudo: string;
+    blocos?: import("./artefatoBlocos.js").BlocoArtefato[];
+  }) => Promise<{ id: string; titulo: string }>;
   // Listar: estante inteira (com `destaConversa`). Ler/editar: por id (qualquer conversa).
   listarDocumentos?: () => Promise<
     Array<{ id: string; titulo: string; destaConversa?: boolean }>
   >;
   lerDocumento?: (
     id: string,
-  ) => Promise<{ id: string; titulo: string; conteudo: string; canone?: string } | null>;
+  ) => Promise<{
+    id: string;
+    titulo: string;
+    conteudo: string;
+    canone?: string;
+    blocos?: import("./artefatoBlocos.js").BlocoArtefato[];
+    schemaVersion?: number;
+  } | null>;
   editarDocumento?: (dados: {
     id: string;
     titulo?: string;
     conteudo?: string;
+    blocos?: import("./artefatoBlocos.js").BlocoArtefato[];
     canone?: string;
   }) => Promise<{ id: string; titulo: string } | null>;
   // ── Finanças (OrbitLab) ──

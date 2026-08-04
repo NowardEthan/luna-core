@@ -42,6 +42,11 @@ export type OpcoeExecutor = {
   onStatusHint?: (hint: string) => void;
   /** Texto de raciocínio do modelo por rodada (antes das ferramentas). */
   onRaciocinioRodada?: (rodada: number, texto: string, emProgresso: boolean) => void;
+  /**
+   * Ponte visível entre ações («Vou ler o documento…») — streama pro cliente via SSE `content`
+   * sem encerrar o loop. Também entra na resposta final persistida.
+   */
+  onNarracaoRodada?: (texto: string) => void;
   abortSignal?: AbortSignal;
 };
 
@@ -74,6 +79,12 @@ function montarMensagemInicial(mensagemUsuario: string, plano?: PlanoExecucao): 
   return linhas.join("\n");
 }
 
+const FALLBACK_COM_PASSOS =
+  "Fiz o que dava com as ferramentas, mas não consegui fechar a resposta. Quer que eu tente de outro jeito?";
+const FALLBACK_SEM_PASSOS = "Não consegui obter uma resposta agora. Pode repetir o pedido?";
+const FALLBACK_LIMITE =
+  "Cheguei no limite de passos desta tarefa. Me diz se quer que eu continue de onde parei.";
+
 // ─── Executor agêntico ────────────────────────────────────────────────────────
 
 export async function executorAgentico(opcoes: OpcoeExecutor): Promise<ResultadoExecutor> {
@@ -91,6 +102,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     onToolCallComplete,
     onStatusHint,
     onRaciocinioRodada,
+    onNarracaoRodada,
     abortSignal,
   } = opcoes;
 
@@ -100,12 +112,26 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   ];
 
   const passos: PassoExecucao[] = [];
+  /** Partes visíveis já streamadas (pontes + resposta final) — viram o texto persistido. */
+  const partesVisiveis: string[] = [];
+  let narracaoJaEnviada = false;
   let rodada = 0;
+
+  const emitirNarracao = (texto: string) => {
+    const t = texto.trim();
+    if (!t) return;
+    partesVisiveis.push(t);
+    const delta = narracaoJaEnviada ? `\n\n${t}` : t;
+    narracaoJaEnviada = true;
+    onNarracaoRodada?.(delta);
+  };
 
   while (rodada < maxRodadas) {
     if (abortSignal?.aborted) {
       return {
-        resposta_final: "Execução cancelada pelo usuário.",
+        resposta_final: partesVisiveis.length > 0
+          ? partesVisiveis.join("\n\n")
+          : "Execução cancelada pelo usuário.",
         passos,
         rodadas: rodada,
         concluido: false,
@@ -133,25 +159,21 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       onRaciocinioRodada?.(rodada, raciocinio, false);
     }
 
-    // Modelo respondeu com texto → fim do loop
-    if (resposta.conteudo !== undefined) {
-      return {
-        resposta_final: resposta.conteudo,
-        passos,
-        rodadas: rodada,
-        concluido: true,
-      };
-    }
+    const conteudo = typeof resposta.conteudo === "string" ? resposta.conteudo.trim() : "";
+    const temTools = Boolean(resposta.chamadas && resposta.chamadas.length > 0);
 
-    // Modelo pediu ferramentas → executar e continuar
-    if (resposta.chamadas && resposta.chamadas.length > 0) {
-      // Registra a mensagem do assistant com as tool_calls
+    // Tools (+ ponte opcional) → narrar, executar, continuar o loop
+    if (temTools && resposta.chamadas) {
+      if (conteudo) {
+        emitirNarracao(conteudo);
+      }
+
       mensagens.push({
         papel: "assistant",
+        ...(conteudo ? { conteudo } : {}),
         chamadas_ferramenta: resposta.chamadas,
       });
 
-      // Executa cada ferramenta em sequência
       for (const chamada of resposta.chamadas) {
         onToolCallStart?.(chamada.nome, chamada.argumentos, rodada);
         onStatusHint?.(`Executando ${chamada.nome}…`);
@@ -185,7 +207,6 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         passos.push(passo);
         onToolCallComplete?.(passo);
 
-        // Injeta resultado como mensagem de ferramenta
         mensagens.push({
           papel: "ferramenta",
           id_chamada: chamada.id,
@@ -194,24 +215,38 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         });
       }
 
-      // Continua o loop — modelo decide se pede mais ferramentas ou responde
       continue;
+    }
+
+    // Só texto → resposta final (fim do loop)
+    if (conteudo) {
+      emitirNarracao(conteudo);
+      return {
+        resposta_final: partesVisiveis.join("\n\n"),
+        passos,
+        rodadas: rodada,
+        concluido: true,
+      };
     }
 
     // Modelo não respondeu com texto nem com ferramentas (modelo fraco / sem suporte)
     return {
-      resposta_final: passos.length > 0
-        ? `Executei ${passos.length} ação(ões) no workspace.`
-        : "Não foi possível obter resposta do modelo.",
+      resposta_final:
+        partesVisiveis.length > 0
+          ? partesVisiveis.join("\n\n")
+          : passos.length > 0
+            ? FALLBACK_COM_PASSOS
+            : FALLBACK_SEM_PASSOS,
       passos,
       rodadas: rodada,
-      concluido: passos.length > 0,
+      concluido: passos.length > 0 || partesVisiveis.length > 0,
     };
   }
 
   // Failsafe: maxRodadas atingido
   return {
-    resposta_final: `Limite de ${maxRodadas} rodadas atingido. Verifique o resultado no workspace.`,
+    resposta_final:
+      partesVisiveis.length > 0 ? `${partesVisiveis.join("\n\n")}\n\n${FALLBACK_LIMITE}` : FALLBACK_LIMITE,
     passos,
     rodadas: rodada,
     concluido: false,
