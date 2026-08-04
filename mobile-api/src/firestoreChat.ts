@@ -99,7 +99,12 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<bool
   const { uid, sessionId, userMessage, lunaReply } = input;
   const displayText = (input.userDisplayText ?? userMessage).trim();
   const convRef = db.doc(`users/${uid}/conversations/${sessionId}`);
-  const title = deriveTitle(displayText);
+  // Se o cliente já batizou (titleLocked), não sobrescreve com o truncado da 1ª fala.
+  const convSnap = await convRef.get();
+  const titleLocked = convSnap.data()?.titleLocked === true;
+  const title = titleLocked
+    ? String(convSnap.data()?.title ?? "").trim() || deriveTitle(displayText)
+    : deriveTitle(displayText);
   const preview = lunaReply.trim().slice(0, 120) || displayText.slice(0, 120);
 
   // O par user+luna vai no MESMO batch, com o MESMO serverTimestamp — empata no `createdAt`.
@@ -124,7 +129,7 @@ export async function persistChatTurn(input: PersistChatTurnInput): Promise<bool
   batch.set(
     convRef,
     {
-      title,
+      ...(titleLocked ? {} : { title }),
       preview,
       lunaSessaoId: sessionId,
       updatedAt: FieldValue.serverTimestamp(),

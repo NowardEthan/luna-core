@@ -219,6 +219,25 @@ export type RosaryReflectionResponse =
   | { ok: true; text: string }
   | { ok: false; error: string };
 
+/** Batizar conversa — espelho do antigo LunaTitler (cliente). */
+export const TituloConversaRequestSchema = z.object({
+  mensagens: z
+    .array(
+      z.object({
+        papel: z.enum(["user", "luna"]),
+        texto: z.string().max(500),
+      }),
+    )
+    .min(1)
+    .max(10),
+});
+
+export type TituloConversaRequest = z.infer<typeof TituloConversaRequestSchema>;
+
+export type TituloConversaResponse =
+  | { ok: true; title: string }
+  | { ok: false; error: string };
+
 export type HealthResponse = {
   ok: true;
   service: "luna-mobile-api";
@@ -278,6 +297,8 @@ export type HealthResponse = {
     imagemRefContinuidade: boolean;
     /** Middleware in-memory uid+IP; 429 com `code: "rate_limited"` (≠ cota). */
     rateLimit: boolean;
+    /** POST /v1/conversa/titulo — batiza a conversa no servidor (sem OpenRouter no APK). */
+    tituloConversa: boolean;
   };
   /**
    * O commit que está a correr AQUI.
