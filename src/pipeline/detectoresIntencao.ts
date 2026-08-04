@@ -2,17 +2,50 @@
  * Detectores leves de intenção na mensagem do usuário.
  * Vivem fora do pipeline completo pra o respondedor agêntico poder importar
  * sem ciclo (pipeline → agentico → pipeline).
+ *
+ * A2 — soft router: preferir FN raro a FP caro (abrir agêntico no “oi” / metáfora).
  */
 
 /** Pedidos que pedem busca na web — não todo papo casual. */
 export function mensagemSugerePesquisaWeb(mensagem: string): boolean {
-  return /\b(pesquisa|pesquisar|busca|buscar|procure|procura|google|bing|not[ií]cias?|pre[cç]o|cota[cç][aã]o|quem ganhou|resultado do|o que (?:rolou|aconteceu) (?:com|sobre)|atualiza[cç][aã]o sobre|últimas? not[ií]cias)\b/i.test(
-    mensagem,
+  // FP: «minha pesquisa da faculdade» — substantivo possessivo, não pedido de busca.
+  const semPesquisaSubstantivo = mensagem.replace(
+    /\b(minha|sua|nossa|essa|esta|uma|a)\s+pesquisa\b/gi,
+    " ",
+  );
+  // «pesquisa» solto / possessivo já foi filtrado acima (A2 anti-FP).
+  return /\b(pesquisar|pesquisa\s+(?:o|a|os|as|um|uma|isso|isto|sobre|pra|para|no|na|em)|busca|buscar|procure|procura\s+(?:o|a|os|as|um|uma|isso|isto|sobre|pra|para)|google|bing|not[ií]cias?|pre[cç]o|cota[cç][aã]o|quem ganhou|resultado do|o que (?:rolou|aconteceu) (?:com|sobre)|atualiza[cç][aã]o sobre|últimas? not[ií]cias)\b/i.test(
+    semPesquisaSubstantivo,
   );
 }
 
 export function mensagemContemUrl(mensagem: string): boolean {
   return /https?:\/\/\S+/i.test(mensagem);
+}
+
+function mensagemTemValorMonetario(mensagem: string): boolean {
+  return (
+    /\b\d+([.,]\d{1,2})?\s*(reais?|r\$)\b/i.test(mensagem) ||
+    /\br\$\s*\d/i.test(mensagem)
+  );
+}
+
+/**
+ * Valor em R$ que parece lançamento rápido («50 reais no almoço», «R$ 32»),
+ * não metáfora («vale 50 reais de aprendizado»).
+ */
+export function mensagemPareceLancamentoRapido(mensagem: string): boolean {
+  if (!mensagemTemValorMonetario(mensagem)) return false;
+  if (
+    /\b(no|na|em|pro|pra|para|com|ontem|hoje|semana|m[eê]s|almo[cç]o|jantar|caf[eé]|uber|ifood|mercado|padaria|farm[aá]cia|gasolina|netflix|spotify|aluguel|sal[aá]rio)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  // Só o valor (mensagem curtinha): «50 reais», «R$ 32».
+  const limpa = mensagem.replace(/\s+/g, " ").trim();
+  return limpa.length <= 40 && /^(r\$\s*)?\d/i.test(limpa);
 }
 
 /**
@@ -53,9 +86,76 @@ export function mensagemPedeFinancas(mensagem: string): boolean {
   ) {
     return true;
   }
-  // «R$ 32» / «32 reais» perto de verbo de anotar/gastar já coberto acima; aqui o atalho
-  // «registre 50 reais no almoço» sem o verbo na primeira cláusula.
-  if (/\b\d+([.,]\d{1,2})?\s*(reais?|r\$)\b/i.test(mensagem)) return true;
-  if (/\br\$\s*\d/i.test(mensagem)) return true;
+  if (mensagemPareceLancamentoRapido(mensagem)) return true;
   return false;
+}
+
+/**
+ * A3 — pedido de profundidade/rigor neste turno (sem chip «Técnico»).
+ * Small talk e pedidos rasos ficam de fora de propósito.
+ */
+export function mensagemPedeProfundidade(mensagem: string): boolean {
+  const m = mensagem.trim();
+  if (m.length < 12) return false;
+  // Small talk curto — nunca profundidade.
+  if (
+    /^(oi|ol[áa]|e a[ií]|tudo bem|td bem|obrigad[oa]|valeu|kk+|haha|bom dia|boa tarde|boa noite)\b/i.test(
+      m,
+    ) &&
+    m.length < 40
+  ) {
+    return false;
+  }
+  if (
+    /\b(explica|explique|explica[cç][aã]o|detalha|detalhe|a fundo|em detalhe|em profundidade|passo a passo|como funciona|por que|porque|analisa|analise|compara|compare|diferen[cç]a entre|trade-?off|arquitetura|implementa[cç][aã]o|algoritmo|complexidade|rigor|parecer t[eé]cnico|a fundo)\b/i.test(
+      m,
+    )
+  ) {
+    return true;
+  }
+  if (/\b(t[eé]cnico|t[eé]cnica|did[aá]tico|did[aá]tica)\b/i.test(m) && m.length > 20) {
+    return true;
+  }
+  // Pedido longo analítico sem verbo explícito — heurística fraca: mensagem longa + interrogação.
+  if (m.length >= 160 && /\?/.test(m) && !/\b(kk+|haha|rsrs)\b/i.test(m)) {
+    return true;
+  }
+  return false;
+}
+
+/** Motivo opaco do gate agêntico (telemetria / testes — sem texto de chat). */
+export type MotivoGateAgentico =
+  | "forcado"
+  | "vision"
+  | "documento_anexo"
+  | "web"
+  | "pede_documento"
+  | "edita_documento"
+  | "financas"
+  | "gerar_imagem";
+
+export type SinaisGateAgentico = {
+  forcar: boolean;
+  vision: boolean;
+  documentoAnexo: boolean;
+  web: boolean;
+  pedeDocumento: boolean;
+  editaDocumento: boolean;
+  financas: boolean;
+  gerarImagem: boolean;
+};
+
+/** Decide se abre o caminho agêntico e por quê (ordem = prioridade de telemetria). */
+export function decidirGateAgentico(
+  sinais: SinaisGateAgentico,
+): { usar: boolean; motivo: MotivoGateAgentico | null } {
+  if (sinais.forcar) return { usar: true, motivo: "forcado" };
+  if (sinais.documentoAnexo) return { usar: true, motivo: "documento_anexo" };
+  if (sinais.financas) return { usar: true, motivo: "financas" };
+  if (sinais.pedeDocumento) return { usar: true, motivo: "pede_documento" };
+  if (sinais.editaDocumento) return { usar: true, motivo: "edita_documento" };
+  if (sinais.gerarImagem) return { usar: true, motivo: "gerar_imagem" };
+  if (sinais.vision) return { usar: true, motivo: "vision" };
+  if (sinais.web) return { usar: true, motivo: "web" };
+  return { usar: false, motivo: null };
 }

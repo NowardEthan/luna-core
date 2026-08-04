@@ -15,12 +15,20 @@ import { responderComoLuna, responderComoLunaStream, type ResultadoResposta } fr
 import { responderComoLunaAgentico, type AcaoAgenticoChat } from "../responder/responderComoLunaAgentico.js";
 import { webSearchDisponivel } from "../ferramentas/pesquisaWeb.js";
 import {
+  decidirGateAgentico,
   mensagemContemUrl,
   mensagemPedeFinancas,
+  mensagemPedeProfundidade,
   mensagemSugerePesquisaWeb,
+  type MotivoGateAgentico,
 } from "./detectoresIntencao.js";
 
-export { mensagemPedeFinancas, mensagemSugerePesquisaWeb } from "./detectoresIntencao.js";
+export {
+  mensagemPedeFinancas,
+  mensagemPedeProfundidade,
+  mensagemSugerePesquisaWeb,
+} from "./detectoresIntencao.js";
+export type { MotivoGateAgentico } from "./detectoresIntencao.js";
 import { carregarConfig, type ConfigLuna, type ProvedorAgente, type ProvedorLlm } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 import { providerSupportsStream, type ChunkStreamLlm } from "../providers/completarStream.js";
@@ -254,38 +262,59 @@ function deveUsarModoAgentico(
   conversaTemDocumentos = false,
   forcarAgentico = false,
 ): boolean {
-  if (!ehProvedorAgente(provedor)) return false;
-  // "Mãos à obra": o interruptor manual vence o detector — ela entra no agêntico sempre.
-  if (forcarAgentico) return true;
+  return avaliarGateAgentico(
+    provedor,
+    mensagem,
+    anexosImagem,
+    anexosDocumento,
+    documentosAtivo,
+    conversaTemDocumentos,
+    forcarAgentico,
+  ).usar;
+}
+
+/**
+ * Soft router A2 — decide + motivo opaco (telemetria/testes, sem texto de chat).
+ * Exportado pro harness da tabela A0.
+ */
+export function avaliarGateAgentico(
+  provedor: ProvedorLlm,
+  mensagem: string,
+  anexosImagem: AnexoImagemChat[],
+  anexosDocumento: AnexoDocumentoChat[] = [],
+  documentosAtivo = false,
+  conversaTemDocumentos = false,
+  forcarAgentico = false,
+): { usar: boolean; motivo: MotivoGateAgentico | null } {
+  if (!ehProvedorAgente(provedor)) return { usar: false, motivo: null };
   const vision =
     featureFlagAgenticoVisionAtiva() &&
     (anexosImagem.length > 0 || mensagemPedeImagem(mensagem));
-  // Documento anexado exige o modo agêntico: é lá que vive o `ler_arquivo`. Sem isto,
-  // ela receberia o cartão do arquivo e não teria como abri-lo.
-  const documento = anexosDocumento.length > 0;
-  // Link colado → `ler_url`. Busca por palavras → só se a flag permitir e o texto pedir.
+  const documentoAnexo = anexosDocumento.length > 0;
   const web =
     mensagemContemUrl(mensagem) ||
     (featureFlagAgenticoWebAtiva() && mensagemSugerePesquisaWeb(mensagem));
-  // PEDIDO DE ARTEFATO (só OrbitLab, via `documentosAtivo`). A ferramenta `criar_artefato`
-  // vive no modo agêntico; a campanha de latência estreitou o gatilho para imagem/anexo/web,
-  // e um "escreve isso num artefato" (texto puro) caía no caminho de stream SEM mãos — ela
-  // narrava «artefato criado» sem criar nada. Reconhecemos a intenção e abrimos o agêntico
-  // para a ferramenta estar na mão. Custo de latência só nestes turnos, não em toda conversa.
   const pedeDocumento = documentosAtivo && mensagemPedeDocumento(mensagem);
-  // EDIÇÃO DE ARTEFATO EXISTENTE. Quando a conversa já tem artefato, um follow-up de revisão
-  // («escreve mais narrativo», «tira os tópicos», «reescreve isso») É pedido de edição — mas não
-  // cita «artefato», então `mensagemPedeDocumento` não o apanha e ela voltava a narrar «editei»
-  // sem chamar a `editar_artefato`. Aqui a régua baixa: já existe estante nesta conversa, então
-  // um verbo de edição/estilo basta para pôr a ferramenta na mão.
   const editaDocumento =
     documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);
-  // Finanças: «gastei 32», «transfere», «resumo do mês» — as tools vivem no agêntico.
-  const pedeFinancas = mensagemPedeFinancas(mensagem);
-  // DESENHAR (só OrbitLab). «desenha um…», «cria uma imagem de…» → a mão `gerar_imagem` vive no
-  // agêntico. Distinto do `vision` acima (que é «vê/descreve» uma imagem que ELE mandou).
-  const pedeGerarImagem = documentosAtivo && mensagemPedeGerarImagem(mensagem);
-  return vision || documento || web || pedeDocumento || editaDocumento || pedeFinancas || pedeGerarImagem;
+  const financas = mensagemPedeFinancas(mensagem);
+  const gerarImagem = documentosAtivo && mensagemPedeGerarImagem(mensagem);
+  const gate = decidirGateAgentico({
+    forcar: forcarAgentico,
+    vision,
+    documentoAnexo,
+    web,
+    pedeDocumento,
+    editaDocumento,
+    financas,
+    gerarImagem,
+  });
+  if (process.env.LUNA_AGENTIC_GATE_LOG === "1") {
+    console.error(
+      `[agentico_gate] usar=${gate.usar ? "sim" : "nao"} motivo=${gate.motivo ?? "nenhum"}`,
+    );
+  }
+  return gate;
 }
 
 /**
@@ -423,9 +452,15 @@ export async function executarPipelineCompleto(
   const usarMemoria = opcoes.usarMemoriaSessao ?? true;
   const neuronioLlm = opcoes.usarNeuronioMemoriaLlm ?? true;
   const raciocinioAtivo = opcoes.raciocinioAtivo !== false;
-  const raciocinioEffort = opcoes.raciocinioEffort;
   const pesquisaProfunda = opcoes.pesquisaProfunda === true;
-  const modoTecnico = opcoes.modoTecnico === true;
+  // A3 — profundidade por turno: pedido analítico liga a diretriz + effort alto,
+  // sem chip sticky «Técnico» no cliente.
+  const modoTecnico =
+    opcoes.modoTecnico === true || mensagemPedeProfundidade(mensagem);
+  const raciocinioEffort =
+    modoTecnico && (!opcoes.raciocinioEffort || opcoes.raciocinioEffort === "medium")
+      ? "high"
+      : opcoes.raciocinioEffort;
   const documentosAtivo = opcoes.documentosAtivo === true;
   const conversaTemDocumentos = opcoes.conversaTemDocumentos === true;
   const forcarAgentico = opcoes.forcarAgentico === true;
