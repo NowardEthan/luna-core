@@ -182,12 +182,15 @@ export type ChatResponseOk = {
 export type ChatResponseErr = {
   ok: false;
   error: string;
-  code?: "quota_exceeded";
+  /** `quota_exceeded` = carteira do plano; `rate_limited` = anti-rajada (≠ cota). */
+  code?: "quota_exceeded" | "rate_limited";
   quotaKind?: string;
   /** Quando a cota renova (epoch ms) — o cliente mostra "renova em X". */
   resetsAtMs?: number;
   /** Qual janela estourou: rolante (5h) ou semanal. */
   cycle?: "window" | "weekly";
+  /** Segundos sugeridos pra retry (só em `rate_limited`). */
+  retryAfterSec?: number;
 };
 
 export type ChatResponse = ChatResponseOk | ChatResponseErr;
@@ -273,6 +276,8 @@ export type HealthResponse = {
      * Evita Riverflow inventar outro assunto (ex. sofá → rosto).
      */
     imagemRefContinuidade: boolean;
+    /** Middleware in-memory uid+IP; 429 com `code: "rate_limited"` (≠ cota). */
+    rateLimit: boolean;
   };
   /**
    * O commit que está a correr AQUI.

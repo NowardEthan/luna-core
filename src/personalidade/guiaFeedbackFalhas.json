@@ -65,6 +65,14 @@
       "includes": ["quota_exceeded", "limite atingido", "voice"]
     },
     {
+      "codigo": "rate_limited",
+      "categoria": "rate_limit",
+      "gravidade": "aviso",
+      "mensagem": "Calma — tô recebendo rápido demais agora.",
+      "sugestao": "Espera uns segundos e manda de novo.",
+      "includes": ["rate_limited", "rápido demais", "recebendo rápido"]
+    },
+    {
       "codigo": "provedor_llm",
       "categoria": "configuracao",
       "gravidade": "erro",
