@@ -96,9 +96,12 @@ export type RequisicaoAgente = {
   maxTokens?: number;
 };
 
-/** Resposta agêntica — texto final OU chamadas de ferramentas a executar. */
+/**
+ * Resposta agêntica — texto final, chamadas de ferramentas, ou os dois
+ * (ponte curta «Vou ler…» + tool na mesma rodada — narração estilo Cursor).
+ */
 export type RespostaAgente = {
-  /** Resposta em texto quando o modelo terminou o loop. */
+  /** Texto visível: resposta final OU ponte entre ações (pode vir junto com `chamadas`). */
   conteudo?: string;
   /** Chamadas de ferramentas quando o modelo quer executar ações. */
   chamadas?: ChamadaFerramenta[];

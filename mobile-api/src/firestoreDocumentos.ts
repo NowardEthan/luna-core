@@ -1,4 +1,12 @@
 import { getAdminFirestore } from "./firebaseAdmin.js";
+import {
+  SCHEMA_ARTEFATO_BLOCOS,
+  SCHEMA_ARTEFATO_MD,
+  blocosToMd,
+  mdToBlocos,
+  normalizarDocumentoBlocos,
+  type BlocoArtefato,
+} from "../../dist/ferramentas/artefatoBlocos.js";
 
 /**
  * A estante de documentos dele.
@@ -9,12 +17,20 @@ import { getAdminFirestore } from "./firebaseAdmin.js";
  *
  * Fica em `users/{uid}/documentos`, ao lado da rotina e da caixa de ideias. `conversaId` guarda
  * de QUAL conversa ele nasceu — é isso que deixa o cartão aparecer no chat onde foi criado.
+ *
+ * Schema v2 (Notion da Luna): `blocos` é a verdade; `conteudo` é projeção Markdown (export +
+ * tools legadas). Docs antigos (sem schemaVersion / v1) convertem MD → blocos na leitura e
+ * gravam v2 no próximo save.
  */
 export type Documento = {
   id: string;
   titulo: string;
-  /** Corpo do documento, em Markdown. */
+  /** Projeção Markdown do corpo (sempre coerente com `blocos` em schema ≥ 2). */
   conteudo: string;
+  /** Lista ordenada de blocos tipados — verdade do documento em schema 2. */
+  blocos?: BlocoArtefato[];
+  /** 1 = MD legado; 2 = blocos. */
+  schemaVersion?: number;
   /**
    * A «bíblia» do artefato: os fatos fixos que não podem se contradizer entre trechos (nomes,
    * idades, relações, decisões de mundo). É METADADO — fica FORA do corpo (não vaza na exportação
@@ -34,9 +50,18 @@ export type Documento = {
 export type NovoDocumento = {
   titulo: string;
   conteudo: string;
+  blocos?: BlocoArtefato[];
   conversaId?: string | null;
   origem: "luna" | "user";
 };
+
+function materializarCorpo(dados: {
+  conteudo?: string;
+  blocos?: BlocoArtefato[] | null;
+  schemaVersion?: number | null;
+}): { schemaVersion: number; blocos: BlocoArtefato[]; conteudo: string } {
+  return normalizarDocumentoBlocos(dados);
+}
 
 /**
  * Cria um documento na estante do usuário e devolve o id + o título (para a Luna confirmar).
@@ -49,10 +74,17 @@ export async function criarDocumento(
   if (!db) throw new Error("Firestore admin indisponível — não consegui guardar o documento.");
   const ref = db.collection("users").doc(uid).collection("documentos").doc();
   const agora = Date.now();
+  const corpo = materializarCorpo({
+    conteudo: dados.conteudo,
+    blocos: dados.blocos,
+    schemaVersion: dados.blocos?.length ? SCHEMA_ARTEFATO_BLOCOS : SCHEMA_ARTEFATO_MD,
+  });
   const doc: Documento = {
     id: ref.id,
     titulo: dados.titulo,
-    conteudo: dados.conteudo,
+    conteudo: corpo.conteudo,
+    blocos: corpo.blocos,
+    schemaVersion: corpo.schemaVersion,
     conversaId: dados.conversaId ?? null,
     origem: dados.origem,
     createdAt: agora,
@@ -110,6 +142,7 @@ export async function conversaTemDocumentos(
 
 /**
  * Lê um documento pelo id. `null` se não existe (id inventado / apagado).
+ * Docs legados (sem blocos) são normalizados em memória — a migração persistente ocorre no save.
  */
 export async function lerDocumento(uid: string, id: string): Promise<Documento | null> {
   const db = getAdminFirestore();
@@ -117,17 +150,30 @@ export async function lerDocumento(uid: string, id: string): Promise<Documento |
   const ref = db.collection("users").doc(uid).collection("documentos").doc(id);
   const snap = await ref.get();
   if (!snap.exists) return null;
-  return snap.data() as Documento;
+  const bruto = snap.data() as Documento;
+  const corpo = materializarCorpo({
+    conteudo: bruto.conteudo,
+    blocos: bruto.blocos,
+    schemaVersion: bruto.schemaVersion,
+  });
+  return { ...bruto, ...corpo };
 }
 
 /**
  * Atualiza (reescreve) um documento — a mão da Luna numa auditoria/revisão. Só mexe no que veio
- * (título e/ou conteúdo), carimba `updatedAt` e marca quem tocou. Devolve `null` se o id não bate.
+ * (título e/ou conteúdo/blocos), carimba `updatedAt` e marca quem tocou. Devolve `null` se o id não bate.
+ *
+ * Preferir `blocos` quando a edição é por bloco; `conteudo` sozinho re-parseia MD → blocos (ids novos).
  */
 export async function atualizarDocumento(
   uid: string,
   id: string,
-  dados: { titulo?: string; conteudo?: string; canone?: string },
+  dados: {
+    titulo?: string;
+    conteudo?: string;
+    blocos?: BlocoArtefato[];
+    canone?: string;
+  },
   updatedBy: "luna" | "user",
 ): Promise<{ id: string; titulo: string } | null> {
   const db = getAdminFirestore();
@@ -137,15 +183,44 @@ export async function atualizarDocumento(
   if (!snap.exists) return null;
   const atual = snap.data() as Documento;
 
+  let novoCorpo: { schemaVersion: number; blocos: BlocoArtefato[]; conteudo: string } | null = null;
+  if (Array.isArray(dados.blocos)) {
+    novoCorpo = {
+      schemaVersion: SCHEMA_ARTEFATO_BLOCOS,
+      blocos: dados.blocos,
+      conteudo: blocosToMd(dados.blocos),
+    };
+  } else if (typeof dados.conteudo === "string") {
+    // Reescrita MD: parseia de novo (ids novos). Aceitável em editar_artefato / editar_trecho.
+    novoCorpo = {
+      schemaVersion: SCHEMA_ARTEFATO_BLOCOS,
+      blocos: mdToBlocos(dados.conteudo),
+      conteudo: dados.conteudo.endsWith("\n") ? dados.conteudo : `${dados.conteudo}\n`,
+    };
+    // Mantém projeção canônica a partir dos blocos (normaliza whitespace).
+    novoCorpo.conteudo = blocosToMd(novoCorpo.blocos);
+  }
+
+  const mudouCorpo =
+    novoCorpo != null &&
+    (novoCorpo.conteudo !== (atual.conteudo ?? "") ||
+      JSON.stringify(novoCorpo.blocos) !== JSON.stringify(atual.blocos ?? []));
+
   // Antes de sobrescrever, guarda um RETRATO do estado atual em `versoes` — a rede de segurança
   // pra quando a Luna reescreve por cima e o Ethan quer o texto de volta. Só quando o CORPO muda
   // de fato (renome de título não gera versão) e havia conteúdo. O app lê essa subcoleção no
   // «Histórico»; as regras do Firestore precisam liberar a subcoleção à parte (não herdam).
-  const mudouConteudo = typeof dados.conteudo === "string" && dados.conteudo !== atual.conteudo;
-  if (mudouConteudo && atual.conteudo.trim()) {
+  if (mudouCorpo && (atual.conteudo?.trim() || (atual.blocos?.length ?? 0) > 0)) {
+    const atualNorm = materializarCorpo({
+      conteudo: atual.conteudo,
+      blocos: atual.blocos,
+      schemaVersion: atual.schemaVersion,
+    });
     await ref.collection("versoes").add({
       titulo: atual.titulo,
-      conteudo: atual.conteudo,
+      conteudo: atualNorm.conteudo,
+      blocos: atualNorm.blocos,
+      schemaVersion: atualNorm.schemaVersion,
       savedAt: atual.updatedAt,
       autor: atual.updatedBy,
     });
@@ -153,9 +228,16 @@ export async function atualizarDocumento(
 
   const patch: Record<string, unknown> = { updatedAt: Date.now(), updatedBy };
   if (typeof dados.titulo === "string" && dados.titulo.trim()) patch.titulo = dados.titulo.trim();
-  if (typeof dados.conteudo === "string") patch.conteudo = dados.conteudo;
-  // Cânone é metadado independente do corpo — não gera versão (o snapshot acima só olha `conteudo`).
+  if (novoCorpo) {
+    patch.conteudo = novoCorpo.conteudo;
+    patch.blocos = novoCorpo.blocos;
+    patch.schemaVersion = novoCorpo.schemaVersion;
+  }
+  // Cânone é metadado independente do corpo — não gera versão (o snapshot acima só olha o corpo).
   if (typeof dados.canone === "string") patch.canone = dados.canone;
   await ref.update(patch);
   return { id, titulo: (patch.titulo as string) ?? atual.titulo };
 }
+
+export { SCHEMA_ARTEFATO_BLOCOS, SCHEMA_ARTEFATO_MD };
+export type { BlocoArtefato };

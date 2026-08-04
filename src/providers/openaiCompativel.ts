@@ -346,24 +346,29 @@ async function completarComFerramentasUmaVez(
   const raciocinioApi = resolverRaciocinioResposta(mensagem, "").raciocinio;
 
   const toolCalls = mensagem?.tool_calls;
+  let conteudoBruto = typeof mensagem?.content === "string" ? mensagem.content.trim() : "";
+  const resolvido = resolverRaciocinioResposta(mensagem, conteudoBruto);
+  const conteudo = resolvido.conteudo.trim();
+  const raciocinio = resolvido.raciocinio ?? raciocinioApi;
+
   if (toolCalls?.length) {
     const chamadas = parsearChamadas(toolCalls);
     if (chamadas.length > 0) {
+      // Narração estilo Cursor: o modelo pode dizer «Vou ler…» E pedir a tool na mesma
+      // rodada. Antes descartávamos o content — a bolha ficava muda até o done.
       return {
+        ...(conteudo ? { conteudo } : {}),
         chamadas,
-        raciocinio: raciocinioApi,
+        raciocinio,
         modelo,
         latencia_ms,
       };
     }
   }
 
-  let conteudo = mensagem?.content?.trim() ?? "";
-  const resolvido = resolverRaciocinioResposta(mensagem, conteudo);
-  conteudo = resolvido.conteudo;
   return {
     conteudo,
-    raciocinio: resolvido.raciocinio ?? raciocinioApi,
+    raciocinio,
     modelo,
     latencia_ms,
   };

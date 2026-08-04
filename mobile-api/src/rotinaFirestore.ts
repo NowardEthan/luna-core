@@ -400,10 +400,15 @@ export function maosDaRotina(
 
     // ── Estante de Documentos ──
     // Nasce da conversa: o documento já sai preso ao `conversaId` deste turno.
-    criarDocumento: async (dados: { titulo: string; conteudo: string }) => {
+    criarDocumento: async (dados: {
+      titulo: string;
+      conteudo: string;
+      blocos?: import("../../dist/ferramentas/artefatoBlocos.js").BlocoArtefato[];
+    }) => {
       return criarDocumentoNaEstante(uid, {
         titulo: dados.titulo,
         conteudo: dados.conteudo,
+        blocos: dados.blocos,
         conversaId: conversaId ?? null,
         origem: "luna",
       });
@@ -424,18 +429,31 @@ export function maosDaRotina(
     lerDocumento: async (id: string) => {
       const doc = await lerDocumentoDaEstante(uid, id);
       if (!doc) return null;
-      return { id: doc.id, titulo: doc.titulo, conteudo: doc.conteudo, canone: doc.canone ?? "" };
+      return {
+        id: doc.id,
+        titulo: doc.titulo,
+        conteudo: doc.conteudo,
+        canone: doc.canone ?? "",
+        blocos: doc.blocos,
+        schemaVersion: doc.schemaVersion,
+      };
     },
     editarDocumento: async (dados: {
       id: string;
       titulo?: string;
       conteudo?: string;
+      blocos?: import("../../dist/ferramentas/artefatoBlocos.js").BlocoArtefato[];
       canone?: string;
     }) => {
       return atualizarDocumento(
         uid,
         dados.id,
-        { titulo: dados.titulo, conteudo: dados.conteudo, canone: dados.canone },
+        {
+          titulo: dados.titulo,
+          conteudo: dados.conteudo,
+          blocos: dados.blocos,
+          canone: dados.canone,
+        },
         "luna",
       );
     },

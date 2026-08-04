@@ -44,6 +44,9 @@ import {
   editarDocumento as editarDocumentoFerramenta,
   editarTrechoDocumento as editarTrechoDocumentoFerramenta,
   anotarCanone as anotarCanoneFerramenta,
+  lerBlocoDocumento as lerBlocoDocumentoFerramenta,
+  inserirBlocosDocumento as inserirBlocosDocumentoFerramenta,
+  editarBlocoDocumento as editarBlocoDocumentoFerramenta,
   mapearSecoes,
 } from "../ferramentas/maosDosDocumentos.js";
 import { carregarInstrucaoSistema } from "../constitution/carregador.js";
@@ -238,6 +241,10 @@ export type OpcoesResponderAgentico = {
   onAcao?: (acao: AcaoAgenticoChat) => void;
   /** Raciocínio do modelo por rodada (antes de decidir usar ferramentas ou responder). */
   onRaciocinio?: (rodada: number, texto: string, emProgresso: boolean) => void;
+  /**
+   * Ponte visível entre ações («Vou ler…») — vira SSE `content` mid-loop no path agentico.
+   */
+  onNarracao?: (texto: string) => void;
   visaoDeps?: DependenciasVisaoGemma;
 };
 
@@ -373,8 +380,8 @@ const DIRETRIZ_DOCUMENTOS =
   "A estante é DELE, não só desta conversa: `listar_artefatos` mostra artefatos de TODAS as conversas (marca se é desta ou de outra). Se ele perguntar «lembra daquele artefato», citar um nome («meus gastos») ou falar de algo criado noutro chat — LISTA e procura o título. É PROIBIDO dizer que não existe sem ter listado a estante inteira. " +
   "Quando ele pedir um artefato, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_artefato` com o corpo INTEIRO em `conteudo`. Não escrevas o artefato na bolha do chat. " +
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
-  "EDITAR conta a mesma regra, e aqui há DUAS mãos — escolhe a certa. Para mudar um PONTO (uma frase, um parágrafo, um trecho: «corrige essa frase», «reescreve esse parágrafo», «troca esse pedaço») usa `editar_trecho_artefato` — a mão CIRÚRGICA, e a tua ESCOLHA PADRÃO: primeiro `ler_artefato` para ver o texto atual, depois passas só o `trecho_antigo` (cópia EXATA do que está lá) e o `trecho_novo`. O resto do artefato fica intocado — e num texto grande (um livro, um relatório longo) isto é o que te impede de, ao reescrever tudo, alterar sem querer o que não devias. Só usa `editar_artefato` (corpo INTEIRO) quando for mesmo refazer o texto do ZERO — inclusive CONTINUAÇÃO («continua com o capítulo 1», «escreve o epílogo no artefato», «mais uma parte»): lê a estrutura/`ler_artefato`, junta o novo capítulo no corpo e chama `editar_artefato` (ou `editar_trecho_artefato` se for enxertar num ponto). Em ambas: primeiro `listar_artefatos`/`ler_artefato` para o corpo atual. É PROIBIDO dizer «editei», «revisei», «já mudei», «já escrevi o capítulo», «tá no artefato» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e não mudou nada. " +
-  "ARTEFATO GRANDE (um livro, um texto longo, algo com vários capítulos/seções): NÃO o leias inteiro para mexer num ponto — é assim que te perdes e confabulas. Trata-o como quem abre um projeto de código: primeiro `ler_estrutura` para ver o ÍNDICE (os títulos e o tamanho de cada seção, sem o corpo), depois `ler_secao` para abrir SÓ a seção que interessa (pelo número ou pelo título), e aí `editar_trecho_artefato` para mudar o ponto. Se ele falar de algo ESPECÍFICO e tu não sabes em que seção está («onde é que eu falo do orçamento?», «acha a parte do personagem X»), usa `buscar_no_artefato` — o teu «localizar»: diz-te onde o termo aparece e em que seção, mesmo num texto sem títulos; daí vais direto com `ler_secao`/`editar_trecho_artefato`. O mapa e a busca são baratos; o texto todo é caro e satura. Para um artefato pequeno, de uma página, ignora isto — lê direto com `ler_artefato`. " +
+  "EDITAR: escolhe a mão certa. CONTINUAÇÃO («continua o capítulo», «escreve o epílogo no mesmo artefato», «mais uma parte»): usa `inserir_blocos` — lê `ler_estrutura` pra pegar o `blocoId` do último heading, e passa SÓ o trecho novo (em `markdown` ou `blocos`) com `after_id` nesse heading. NÃO reescrevas o livro com `editar_artefato` pra continuar — é assim que confabulas e apagas o que já existia. Para mudar um PONTO (frase/parágrafo): `editar_trecho_artefato` (cópia EXATA do trecho) ou `editar_bloco_artefato` se já tens o `bloco_id`. Só `editar_artefato` (corpo INTEIRO) quando for mesmo refazer do ZERO. Em todas: primeiro `listar_artefatos`/`ler_estrutura`. É PROIBIDO dizer «editei», «já escrevi o capítulo», «tá no artefato» sem ter chamado a ferramenta. " +
+  "ARTEFATO GRANDE: NÃO o leias inteiro. Primeiro `ler_estrutura` (índice + blocoId dos headings), depois `ler_secao`/`ler_bloco`, e aí `inserir_blocos` ou `editar_trecho_artefato`/`editar_bloco_artefato`. Se ele fala de algo específico e não sabes a seção: `buscar_no_artefato`. O mapa é barato; o texto todo satura. Artefato pequeno: podes ler com `ler_artefato`. " +
   "CÂNONE (a bíblia do artefato): num texto grande tu não vês o livro todo — é assim que não saturas — mas por isso podes «esquecer» que a personagem se chama Marina e chamá-la de Mariana no capítulo 8. Para não te contradizeres, guarda os FATOS FIXOS (nomes, idades, relações, decisões de mundo) com `anotar_canone` — é o `AGENTS.md` do teu texto. Quando ele ESTABELECE algo do mundo/personagens, ou quando TU fixas um fato ao escrever, anota-o. Esses fatos aparecem sempre à tua frente (na pré-carga, mesmo quando só vês o índice): antes de escrever ou editar, OLHA o CÂNONE e respeita-o. Passa sempre a lista COMPLETA e atualizada (tu já a tens no contexto) — junta o novo, corrige o que mudou. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
@@ -475,8 +482,22 @@ const DIRETRIZ_PLANO =
   "montar vários blocos; pesquisar e depois cruzar as fontes), começa por `planejar` com 2 a 5 passos curtos — a " +
   "lista fica visível pra ele conferir o teu caminho. Depois executa UM passo de cada vez e, a cada passo realmente " +
   "feito, chama `concluir_passo(nº)`; se descobrires que falta algo, `adicionar_passo`. Enquanto houver passo por " +
-  "marcar, NÃO escrevas a resposta final — o teu trabalho não acabou. Para um pedido de UMA ação só (uma pergunta, " +
-  "uma criação simples, uma edição de um documento que já tens à frente), NÃO uses o plano: vai direto, é mais rápido.";
+  "marcar, NÃO entregues a RESPOSTA FINAL — o teu trabalho não acabou. Podes (e deves) falar UMA frase curta de ponte " +
+  "antes de cada ação («Vou ler a estrutura…», «Entendi, agora edito o trecho.») na MESMA rodada em que chamas a " +
+  "ferramenta. Para um pedido de UMA ação só (uma pergunta, uma criação simples, uma edição de um documento que já " +
+  "tens à frente), NÃO uses o plano: vai direto, é mais rápido.";
+
+/**
+ * Narração estilo Cursor — pontes curtas entre ações. Complementa (não substitui) o anti-meta
+ * de tom/plano interno: aqui a fala VISÍVEL é «vou fazer X», não o monólogo de raciocínio.
+ */
+const DIRETRIZ_NARRACAO_AGENTICA =
+  "QUANDO fores USAR FERRAMENTAS: fala COM ele em pontes curtas (1 frase), no mesmo turno da tool — " +
+  "como um agente que mostra o que está fazendo. Exemplos bons: «Vou ler o artefato pra me informar.» / " +
+  "«Entendi. Agora ajusto só esse trecho.» / «Deixa eu checar o extrato.» Depois CHAMA a ferramenta. " +
+  "A timeline já mostra o gerúndio (Lendo… / Editando…); a tua frase é a intenção humana, não um relatório. " +
+  "NÃO escrevas monólogos longos entre passos, NÃO narres o teu tom interno, NÃO digas que fez algo " +
+  "sem ter chamado a ferramenta. Small talk sem tools: responde normal, sem teatro de «vou…».";
 
 /**
  * Diretriz de FINANÇAS — a grana DELE vive nas mãos `resumo_financeiro` / `listar_lancamentos` /
@@ -646,7 +667,8 @@ export async function responderComoLunaAgentico(
         }
         blocoDocumentosDaConversa =
           "ARTEFATOS JÁ NA ESTANTE DESTA CONVERSA. Para cada um abaixo: se vês o CORPO, já o tens — não precisas de `ler_artefato`. Se vês só o ÍNDICE (artefato grande), abre a seção que precisas com `ler_secao` ANTES de mexer — não carregues o texto todo (é assim que te perdes). " +
-          "Para mudar um PONTO usa `editar_trecho_artefato` (a mão cirúrgica): copia o `trecho_antigo` EXATO (a frase/parágrafo que sai) e passa o `trecho_novo`. Só aquele ponto muda, o resto fica intacto. Reserva `editar_artefato` (corpo INTEIRO reescrito, MESMO id) para refazer tudo do zero. " +
+          "CONTINUAÇÃO («continua o capítulo», «mais uma parte»): usa `inserir_blocos` com `after_id` no último heading — NÃO reescrevas o livro com `editar_artefato`. " +
+          "Para mudar um PONTO: `editar_trecho_artefato` ou `editar_bloco_artefato`. Reserva `editar_artefato` só pra refazer do zero. " +
           "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e nada mudou.\n\n" +
           partes.join("\n\n---\n\n");
       }
@@ -667,7 +689,8 @@ export async function responderComoLunaAgentico(
     // parecia que ela tinha respondido duas vezes. Aqui separamos os dois:
     "A tua RESPOSTA visível é só o que dizes À PESSOA, falando COM ela na 2ª pessoa (você/tu) — nunca SOBRE ela em 3ª pessoa (\"ele\", \"ele perguntou\", \"ele quer\"). " +
       "Se precisares planear o tom, decidir o que perguntar ou pensar em voz alta antes de responder, faz isso DENTRO de um bloco <think>…</think> logo no início; a resposta final vem DEPOIS do </think> e a pessoa nunca vê o que está dentro dele. " +
-      "Nunca narres o teu próprio plano nem o teu tom no texto visível (nada de \"o tom é de admiração\", \"vou validar e puxar o fio\", \"aqui ele está a pedir X\"): ou é fala direta com a pessoa, ou vai pra dentro do <think>.",
+      "Nunca narres o teu tom interno nem metasobre o pedido (nada de \"o tom é de admiração\", \"vou validar e puxar o fio\", \"aqui ele está a pedir X\") — isso vai pra dentro do <think>. " +
+      "EXCEÇÃO (ações com ferramentas): podes e deves dizer em 1 frase o que vais fazer AGORA («Vou ler…», «Entendi, edito isso.») junto com a tool — é fala com ele, não monólogo de plano.",
     // A Luna já recebe o relógio real e agora também a hora de cada mensagem do
     // histórico. O que faltava era a POSTURA: ela dizia o dia certo e, ao primeiro
     // empurrão do Ethan, pedia desculpas por um erro que não tinha cometido.
@@ -700,6 +723,8 @@ export async function responderComoLunaAgentico(
     opcoes.modoTecnico ? DIRETRIZ_MODO_TECNICO : null,
     // A coleira do plano — antes da diretriz de documentos, porque rege COMO ela encadeia as mãos.
     planejamentoAtivo ? DIRETRIZ_PLANO : null,
+    // Pontes curtas entre tools (sempre no path agentico — é o que faz parecer Cursor).
+    DIRETRIZ_NARRACAO_AGENTICA,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
     // A mão que desenha — mesma trava (OrbitLab).
@@ -767,6 +792,7 @@ export async function responderComoLunaAgentico(
       });
     },
     onRaciocinioRodada: opcoes.onRaciocinio,
+    onNarracaoRodada: opcoes.onNarracao,
     toolExecutor: async (nome, args) => {
       // ── A mão que PERGUNTA — para o turno e espera a resposta dele ───────────
       // A pergunta+opções viajam no evento fim_ferramenta (o app monta o cartão). Ao modelo,
@@ -917,7 +943,10 @@ export async function responderComoLunaAgentico(
         nome === "ler_artefato" ||
         nome === "ler_estrutura" ||
         nome === "ler_secao" ||
+        nome === "ler_bloco" ||
         nome === "buscar_no_artefato" ||
+        nome === "inserir_blocos" ||
+        nome === "editar_bloco_artefato" ||
         nome === "editar_trecho_artefato" ||
         nome === "anotar_canone" ||
         nome === "editar_artefato" ||
@@ -1096,6 +1125,36 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: o método de ler artefato não foi implementado neste ambiente.";
           }
           return buscarNoDocumentoFerramenta({ lerDocumento: opcoes.rotinaDeps.lerDocumento }, args);
+        }
+        if (nome === "ler_bloco") {
+          if (!opcoes.rotinaDeps.lerDocumento) {
+            return "ERRO FATAL: o método de ler artefato não foi implementado neste ambiente.";
+          }
+          return lerBlocoDocumentoFerramenta({ lerDocumento: opcoes.rotinaDeps.lerDocumento }, args);
+        }
+        if (nome === "inserir_blocos") {
+          if (!opcoes.rotinaDeps.editarDocumento || !opcoes.rotinaDeps.lerDocumento) {
+            return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
+          }
+          return inserirBlocosDocumentoFerramenta(
+            {
+              lerDocumento: opcoes.rotinaDeps.lerDocumento,
+              editarDocumento: opcoes.rotinaDeps.editarDocumento,
+            },
+            args,
+          );
+        }
+        if (nome === "editar_bloco_artefato") {
+          if (!opcoes.rotinaDeps.editarDocumento || !opcoes.rotinaDeps.lerDocumento) {
+            return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
+          }
+          return editarBlocoDocumentoFerramenta(
+            {
+              lerDocumento: opcoes.rotinaDeps.lerDocumento,
+              editarDocumento: opcoes.rotinaDeps.editarDocumento,
+            },
+            args,
+          );
         }
         if (nome === "editar_trecho_artefato") {
           if (!opcoes.rotinaDeps.editarDocumento || !opcoes.rotinaDeps.lerDocumento) {

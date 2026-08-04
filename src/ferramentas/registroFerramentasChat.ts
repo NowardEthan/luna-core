@@ -1167,6 +1167,91 @@ const FERRAMENTA_BUSCAR: DefinicaoFerramenta = {
 } satisfies DefinicaoFerramenta;
 
 /**
+ * Lê um bloco tipado pelo id — par de `inserir_blocos` / `editar_bloco_artefato`.
+ */
+const FERRAMENTA_LER_BLOCO: DefinicaoFerramenta = {
+  nome: "ler_bloco",
+  descricao:
+    "Lê UM bloco de um artefato pelo `bloco_id` (tipo + texto + props). Usa depois de " +
+    "`ler_estrutura` quando precisas do conteúdo daquele bloco sem carregar a página inteira.",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato." },
+      bloco_id: {
+        type: "string",
+        description: "Id estável do bloco (vem de ler_estrutura nos headings, ou de inserções anteriores).",
+      },
+    },
+    required: ["id", "bloco_id"],
+  },
+} satisfies DefinicaoFerramenta;
+
+/**
+ * CONTINUAÇÃO — a mão certa pra acrescentar capítulos sem reescrever o livro.
+ * Nome distinto de `criar_bloco` / `editar_bloco` da rotina.
+ */
+const FERRAMENTA_INSERIR_BLOCOS: DefinicaoFerramenta = {
+  nome: "inserir_blocos",
+  descricao:
+    "Insere blocos NOVOS num artefato existente — CONTINUAÇÃO de capítulo, epílogo, mais uma parte. " +
+    "É a ESCOLHA PADRÃO quando ele pede «continua o capítulo», «escreve mais no mesmo artefato», " +
+    "«acrescenta o epílogo». NÃO uses `editar_artefato` pra isso (reescrever o corpo inteiro é onde " +
+    "tu confabulas e apagas o que já existia). Passa `after_id` com o blocoId do último heading da " +
+    "seção (vê em ler_estrutura) ou omite pra append no fim. O corpo novo vai em `blocos` OU em " +
+    "`markdown` (só o trecho novo, não o livro).",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato." },
+      after_id: {
+        type: "string",
+        description:
+          "Inserir DEPOIS deste blocoId. Omite ou null pra acrescentar no fim. Prefira o último " +
+          "heading do capítulo que estás a continuar.",
+      },
+      markdown: {
+        type: "string",
+        description: "Trecho novo em Markdown (só o que acresce). Alternativa a `blocos`.",
+      },
+      blocos: {
+        type: "array",
+        description:
+          "Lista de blocos {type, text, props?}. types: paragraph|heading|bullet|numbered|todo|quote|code|divider|callout.",
+        items: { type: "object" },
+      },
+    },
+    required: ["id"],
+  },
+} satisfies DefinicaoFerramenta;
+
+/**
+ * Edita um bloco por id. Nome `editar_bloco_artefato` — NÃO confundir com `editar_bloco` da rotina.
+ */
+const FERRAMENTA_EDITAR_BLOCO_ARTEFATO: DefinicaoFerramenta = {
+  nome: "editar_bloco_artefato",
+  descricao:
+    "Muda o texto/tipo/props de UM bloco do artefato (por `bloco_id`), sem tocar nos outros. " +
+    "Usa pra corrigir um parágrafo ou título concreto quando já tens o id. Pra CONTINUAR o " +
+    "capítulo, usa `inserir_blocos`. Não confundas com `editar_bloco` (isso é da ROTINA do dia).",
+  parametros: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "O id do artefato." },
+      bloco_id: { type: "string", description: "Id do bloco a mudar." },
+      text: { type: "string", description: "Novo texto do bloco." },
+      type: {
+        type: "string",
+        description: "Novo tipo: paragraph|heading|bullet|numbered|todo|quote|code|divider|callout.",
+      },
+      level: { type: "number", description: "Nível do heading (1–3), se type=heading." },
+      checked: { type: "boolean", description: "Estado do todo, se type=todo." },
+    },
+    required: ["id", "bloco_id"],
+  },
+} satisfies DefinicaoFerramenta;
+
+/**
  * A bíblia do artefato — os fatos fixos que não podem se contradizer entre trechos. É o `AGENTS.md`
  * do texto: as regras que ela relê SEMPRE antes de mexer, injetadas no contexto a cada turno. Mesma
  * trava `documentosAtivo`.
@@ -1293,7 +1378,10 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
     ferramentas.push(FERRAMENTA_LER_ESTRUTURA);
     ferramentas.push(FERRAMENTA_LER_SECAO);
+    ferramentas.push(FERRAMENTA_LER_BLOCO);
     ferramentas.push(FERRAMENTA_BUSCAR);
+    ferramentas.push(FERRAMENTA_INSERIR_BLOCOS);
+    ferramentas.push(FERRAMENTA_EDITAR_BLOCO_ARTEFATO);
     ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_ANOTAR_CANONE);

@@ -1125,14 +1125,14 @@ export async function executarPipelineCompleto(
           onAcao: onAcaoComRegisto,
           // HÍBRIDO: no caminho agêntico NÃO transmitimos o raciocínio cru.
           //
-          // O executor agêntico devolve a resposta INTEIRA (não há streaming de
-          // conteúdo token-a-token aqui) e o "raciocínio" chega como blocões
-          // completos, 2x por rodada — o que fazia a tira pensar-travar-repensar,
-          // parecer que ela "refez" a resposta e ficar laggada, nada liso como o
-          // caminho normal. A vivacidade do modo pesquisa vem da linha do tempo de
-          // passos (onAcao: Pesquisando → Cruzou as fontes → …), não do pensamento
-          // bruto. Deixamos o pensamento morrer aqui de propósito.
+          // O "raciocínio" chega como blocões completos, 2x por rodada — o que fazia
+          // a tira pensar-travar-repensar. A vivacidade vem da timeline (onAcao) +
+          // pontes curtas (onNarracao → content mid-loop: «Vou ler…»).
+          // Pensamento bruto morre aqui de propósito.
           onRaciocinio: undefined,
+          onNarracao: (texto) => {
+            if (texto) opcoes.onStreamContentDelta?.(texto);
+          },
         },
       );
     } else if (usarStream) {
