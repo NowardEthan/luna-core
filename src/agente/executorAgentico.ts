@@ -47,8 +47,22 @@ export type OpcoeExecutor = {
    * sem encerrar o loop. Também entra na resposta final persistida.
    */
   onNarracaoRodada?: (texto: string) => void;
+  /**
+   * Coleira do plano em passos (OrbitLab): se ainda há ☐, o executor NÃO aceita texto-só como
+   * resposta final — injeta um nudge e continua o loop.
+   */
+  planoAindaAberto?: () => {
+    abertos: number;
+    proximoNumero: number;
+    proximo: string;
+    render: string;
+  } | null;
+  /** Orçamento vivo (sobe quando o plano cresce). Default = maxRodadas fixo. */
+  obterMaxRodadas?: () => number;
   abortSignal?: AbortSignal;
 };
+
+const MAX_NUDGES_PLANO = 3;
 
 // ─── Montagem da mensagem inicial ─────────────────────────────────────────────
 
@@ -103,6 +117,8 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     onStatusHint,
     onRaciocinioRodada,
     onNarracaoRodada,
+    planoAindaAberto,
+    obterMaxRodadas,
     abortSignal,
   } = opcoes;
 
@@ -116,6 +132,9 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   const partesVisiveis: string[] = [];
   let narracaoJaEnviada = false;
   let rodada = 0;
+  let nudgesPlano = 0;
+
+  const tetoRodadas = () => obterMaxRodadas?.() ?? maxRodadas;
 
   const emitirNarracao = (texto: string) => {
     const t = texto.trim();
@@ -126,7 +145,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     onNarracaoRodada?.(delta);
   };
 
-  while (rodada < maxRodadas) {
+  while (rodada < tetoRodadas()) {
     if (abortSignal?.aborted) {
       return {
         resposta_final: partesVisiveis.length > 0
@@ -218,8 +237,30 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       continue;
     }
 
-    // Só texto → resposta final (fim do loop)
+    // Só texto → resposta final (fim do loop), EXCETO se a checklist ainda tem ☐.
+    // Sem isto o modelo larga o plano no meio («pronto») e o turno morre.
+    // Exceção: acabou de `perguntar` — aí o turno PARA de propósito até ele responder.
     if (conteudo) {
+      const ultimo = passos[passos.length - 1];
+      const esperandoResposta =
+        ultimo?.ferramenta === "perguntar" && ultimo.sucesso === true;
+      const aberto = !esperandoResposta ? planoAindaAberto?.() ?? null : null;
+
+      if (aberto && aberto.abertos > 0 && nudgesPlano < MAX_NUDGES_PLANO) {
+        nudgesPlano++;
+        mensagens.push({ papel: "assistant", conteudo });
+        mensagens.push({
+          papel: "user",
+          conteudo:
+            `Ainda há ${aberto.abertos} passo(s) ☐ no plano — o trabalho NÃO acabou.\n` +
+            `${aberto.render}\n\n` +
+            `Executa AGORA o passo ${aberto.proximoNumero}: ${aberto.proximo}. ` +
+            `Depois marca com \`concluir_passo(${aberto.proximoNumero})\`. ` +
+            `NÃO entregues a resposta final enquanto houver ☐.`,
+        });
+        continue;
+      }
+
       emitirNarracao(conteudo);
       return {
         resposta_final: partesVisiveis.join("\n\n"),

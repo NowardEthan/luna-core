@@ -250,6 +250,90 @@ describe("narração progressiva", () => {
   });
 });
 
+// ─── Coleira do plano (não encerrar com ☐) ────────────────────────────────────
+
+describe("coleira do plano", () => {
+  it("não encerra com texto-só enquanto há ☐ — nudge e continua", async () => {
+    let rodada = 0;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada === 1) {
+          return {
+            conteudo: "Pronto, já terminei tudo.",
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 5,
+          };
+        }
+        return {
+          conteudo: "Agora sim, fechei o passo que faltava.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    let abertos = 1;
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        planoAindaAberto: () => {
+          // Depois do nudge, o «modelo» fecha o ☐ (simula concluir_passo).
+          if (rodada >= 2) abertos = 0;
+          return abertos > 0
+            ? {
+                abertos,
+                proximoNumero: 2,
+                proximo: "reescrever o trecho",
+                render: "PLANO:\n☑ 1. ler\n☐ 2. reescrever o trecho",
+              }
+            : null;
+        },
+      }),
+    );
+
+    // 1ª rodada: texto prematuro → nudge (sem narrar como final); 2ª: fecha
+    expect(provedor.completarComFerramentas).toHaveBeenCalledTimes(2);
+    const msgsRodada2 = provedor.completarComFerramentas.mock.calls[1]![0].mensagens;
+    const nudge = msgsRodada2.find(
+      (m: { papel: string; conteudo?: string }) =>
+        m.papel === "user" && typeof m.conteudo === "string" && m.conteudo.includes("☐"),
+    );
+    expect(nudge?.conteudo).toMatch(/passo 2|reescrever/i);
+    expect(resultado.resposta_final).toContain("fechei o passo");
+    expect(resultado.resposta_final).not.toContain("já terminei tudo");
+  });
+
+  it("respeita obterMaxRodadas dinâmico", async () => {
+    let teto = 2;
+    const toolExecutor = vi.fn().mockResolvedValue("ok");
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        teto = 4; // sobe no meio (como planejar faria)
+        return {
+          chamadas: [{ id: "c1", nome: "read_file", argumentos: { path: "a.ts" } }],
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        toolExecutor,
+        maxRodadas: 2,
+        obterMaxRodadas: () => teto,
+      }),
+    );
+
+    expect(resultado.rodadas).toBe(4);
+    expect(resultado.concluido).toBe(false);
+  });
+});
+
 // ─── Abort signal ────────────────────────────────────────────────────────────
 
 describe("abort signal", () => {
