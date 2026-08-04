@@ -68,6 +68,7 @@ import {
 } from "./llmProviders.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import { generateRosaryReflection } from "./rosaryReflection.js";
+import { gerarTituloConversa } from "./gerarTituloConversa.js";
 import {
   checkRateLimit,
   clientIp,
@@ -82,6 +83,8 @@ import {
   type HealthResponse,
   RosaryReflectionRequestSchema,
   type RosaryReflectionResponse,
+  TituloConversaRequestSchema,
+  type TituloConversaResponse,
   type TranscribeResponse,
   type VisionResponse,
 } from "./types.js";
@@ -504,6 +507,26 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
   }
 
+  if (method === "POST" && url.pathname === "/v1/conversa/titulo") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        return sendJson(res, 401, {
+          ok: false,
+          error: "Autenticação Firebase obrigatória.",
+        } satisfies TituloConversaResponse);
+      }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "titulo" })) return;
+      const body = await readJson(req);
+      const parsed = TituloConversaRequestSchema.parse(body);
+      const title = await gerarTituloConversa(parsed.mensagens);
+      return sendJson(res, 200, { ok: true, title } satisfies TituloConversaResponse);
+    } catch (err) {
+      const message = friendlyErrorMessage(err);
+      return sendJson(res, 400, { ok: false, error: message } satisfies TituloConversaResponse);
+    }
+  }
+
   if (method === "POST" && url.pathname === "/v1/rosary/reflection") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
@@ -573,6 +596,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         imagemRefContinuidade: true,
         /** Anti-rajada uid+IP; 429 `rate_limited` ≠ `quota_exceeded`. */
         rateLimit: true,
+        /** Batiza conversa no servidor (sem OpenRouter no APK). */
+        tituloConversa: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -1030,6 +1055,7 @@ server.listen(PORT, HOST, () => {
   console.log("  POST /v1/chat/stream SSE — status | reasoning | content | done | error");
   console.log("  POST /v1/billing/checkout | sync | trial/sync | credit-pack");
   console.log("  POST /v1/billing/webhook/asaas");
+  console.log("  POST /v1/conversa/titulo   { mensagens[] } → title");
   console.log("  POST /v1/transcribe { audioBase64, mimeType?, language? }");
   console.log("  POST /v1/vision            { images[], userPrompt? }");
   console.log("  POST /v1/extract-documents { files[] }");

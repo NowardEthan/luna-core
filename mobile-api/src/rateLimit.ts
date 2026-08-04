@@ -13,6 +13,7 @@ import type { IncomingMessage } from "node:http";
  * - LUNA_RL_EXTRACT_PER_MIN (20)
  * - LUNA_RL_BUSCAR_PER_MIN (30)
  * - LUNA_RL_ROSARY_PER_MIN (20)
+ * - LUNA_RL_TITULO_PER_MIN (30)
  * - LUNA_RL_IP_PER_MIN (120) — teto por IP em rotas caras
  * - LUNA_RL_WINDOW_MS (60000)
  * - LUNA_RL_DISABLED=1 — desliga (dev/teste)
@@ -24,7 +25,8 @@ export type RateLimitBucket =
   | "vision"
   | "extract"
   | "buscar"
-  | "rosary";
+  | "rosary"
+  | "titulo";
 
 export type RateLimitOk = { ok: true };
 export type RateLimitDenied = {
@@ -72,6 +74,8 @@ export function rateLimitForBucket(bucket: RateLimitBucket): number {
       return envInt("LUNA_RL_BUSCAR_PER_MIN", 30);
     case "rosary":
       return envInt("LUNA_RL_ROSARY_PER_MIN", 20);
+    case "titulo":
+      return envInt("LUNA_RL_TITULO_PER_MIN", 30);
   }
 }
 
