@@ -357,29 +357,48 @@ export function mensagemPedeGerarImagem(mensagem: string): boolean {
 }
 
 /**
+ * Tipos de texto que costumam virar artefato (criação). Inclui livro/capítulo — sem isso,
+ * «escreve o primeiro capítulo» caía no caminho leve e ela só papava no chat.
+ */
+const TIPOS_ARTEFATO =
+  "texto|carta|plano|planos|rascunho|resumo|relat[óo]rio|ensaio|ata|roteiro|documento|" +
+  "cap[íi]tulo|ep[íi]logo|pr[óo]logo|livro|conto|hist[óo]ria|novela|romance|cr[ôo]nica";
+
+/**
  * Pedido explícito de DOCUMENTO/artefato — o sinal para abrir o modo agêntico no OrbitLab.
  * Deliberadamente ancorado no substantivo ("documento", "artifact") OU num verbo de criar/reescrever
- * perto de um tipo de texto que vale guardar (texto, carta, plano, rascunho, resumo, relatório…).
+ * perto de um tipo de texto que vale guardar (texto, carta, plano, capítulo, livro…).
  * Fica focado de propósito: alargar demais traria de volta a regressão de latência que a campanha
  * cortou. Uma vez no agêntico, quem decide de facto é a `DIRETRIZ_DOCUMENTOS` + a própria ferramenta.
  */
 export function mensagemPedeDocumento(mensagem: string): boolean {
   if (/\b(documento|documentos|artifact|artefato)\b/i.test(mensagem)) return true;
-  return /\b(escrev\w+|redij\w+|redig\w+|faz|faça|faca|cria\w*|crie|monta\w*|monte|gera\w*|gere|guarda\w*|guarde|salva\w*|salve|reescrev\w+|revis\w+)\b[^.?!\n]{0,40}\b(texto|carta|plano|planos|rascunho|resumo|relat[óo]rio|ensaio|ata|roteiro|documento)\b/i.test(
-    mensagem,
-  );
+  return new RegExp(
+    String.raw`\b(escrev\w+|redij\w+|redig\w+|faz|faça|faca|cria\w*|crie|monta\w*|monte|gera\w*|gere|guarda\w*|guarde|salva\w*|salve|reescrev\w+|revis\w+|continu\w*)\b[^.?!\n]{0,48}\b(${TIPOS_ARTEFATO})\b`,
+    "i",
+  ).test(mensagem);
 }
 
 /**
- * Pedido de EDIÇÃO/estilo de um documento que já existe — o sinal para reabrir o agêntico num
- * follow-up. Só entra em jogo quando a conversa JÁ TEM documento (`conversaTemDocumentos`), então
- * pode ser generoso sem custar latência ao papo normal: verbo de reescrita/ajuste OU um pedido de
- * forma («mais narrativo», «menos tópicos», «em prosa»). Fora de uma conversa com estante, isto
- * nunca dispara — quem manda lá é o detector estrito `mensagemPedeDocumento`.
+ * Pedido de EDIÇÃO/estilo/CONTINUAÇÃO de um documento que já existe — o sinal para reabrir o
+ * agêntico num follow-up. Só entra em jogo quando a conversa JÁ TEM documento
+ * (`conversaTemDocumentos`), então pode ser generoso sem custar latência ao papo normal.
+ *
+ * Bug clássico: «gostei, continua com o primeiro capítulo» — sem verbo de «editar» no detector
+ * antigo o gate ficava FECHADO, ela raciocinava no caminho leve, jurava que escreveu, e o
+ * artefato continuava igual (sem badge de ferramenta).
  */
 export function mensagemPareceEdicaoDocumento(mensagem: string): boolean {
   if (
-    /\b(revis\w+|reescrev\w+|refaz|refaça|refaca|reformul\w+|ajust\w+|corrig\w+|corrija|melhor\w+|aprimor\w+|expand\w+|amplia\w+|encurt\w+|resum\w+|detalh\w+|acrescent\w+|adicion\w+|remov\w+|tir(?:a|e|ar)|troc\w+|substitu\w+|transform\w+|muda|mude|mudar|alter\w+|edita\w*|edite)\b/i.test(
+    /\b(revis\w+|reescrev\w+|refaz|refaça|refaca|reformul\w+|ajust\w+|corrig\w+|corrija|melhor\w+|aprimor\w+|expand\w+|amplia\w+|encurt\w+|resum\w+|detalh\w+|acrescent\w+|adicion\w+|remov\w+|tir(?:a|e|ar)|troc\w+|substitu\w+|transform\w+|muda|mude|mudar|alter\w+|edita\w*|edite|continu\w*|prossegu\w*|segu(?:e|ir)|completa\w*|completar|escrev\w+|redij\w+|redig\w+)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  // Continuação de obra / peça do livro — só faz sentido com estante já aberta.
+  if (
+    /\b(cap[íi]tulo|ep[íi]logo|pr[óo]logo|pr[óo]xim\w*\s+(parte|se[cç][aã]o|cap)|mais\s+um\s+cap|parte\s+\d+)\b/i.test(
       mensagem,
     )
   ) {

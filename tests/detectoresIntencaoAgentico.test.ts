@@ -6,6 +6,10 @@ import {
   mensagemPedeProfundidade,
   mensagemSugerePesquisaWeb,
 } from "../src/pipeline/detectoresIntencao.js";
+import {
+  mensagemPareceEdicaoDocumento,
+  mensagemPedeDocumento,
+} from "../src/pipeline/executarPipelineCompleto.js";
 
 describe("mensagemSugerePesquisaWeb (A2)", () => {
   it("não marca papo casual", () => {
@@ -54,6 +58,47 @@ describe("mensagemPedeProfundidade (A3)", () => {
     expect(mensagemPedeProfundidade("oi")).toBe(false);
     expect(mensagemPedeProfundidade("tudo bem?")).toBe(false);
     expect(mensagemPedeProfundidade("obrigado")).toBe(false);
+  });
+});
+
+describe("mensagemPedeDocumento / mensagemPareceEdicaoDocumento (artefato)", () => {
+  it("marca criação de capítulo/livro como pedido de artefato", () => {
+    expect(mensagemPedeDocumento("escreve o epílogo num artefato")).toBe(true);
+    expect(mensagemPedeDocumento("cria o primeiro capítulo do livro")).toBe(true);
+    expect(mensagemPedeDocumento("faz um conto sobre a lua")).toBe(true);
+  });
+
+  it("não marca small talk como pedido de artefato", () => {
+    expect(mensagemPedeDocumento("oi")).toBe(false);
+    expect(mensagemPedeDocumento("gostei demais")).toBe(false);
+  });
+
+  it("marca continuação de obra na conversa que já tem estante", () => {
+    // O caso do bug: ela jurava que escreveu o capítulo sem tool — gate estava fechado.
+    expect(
+      mensagemPareceEdicaoDocumento(
+        "gostei demais, continua com um primeiro capítulo",
+      ),
+    ).toBe(true);
+    expect(mensagemPareceEdicaoDocumento("escreve o capítulo 2 no artefato")).toBe(true);
+    expect(mensagemPareceEdicaoDocumento("agora o epílogo")).toBe(true);
+    expect(mensagemPareceEdicaoDocumento("prossegue a história")).toBe(true);
+  });
+
+  it("gate liga edita_documento nesse follow-up", () => {
+    const g = decidirGateAgentico({
+      forcar: false,
+      vision: false,
+      documentoAnexo: false,
+      web: false,
+      pedeDocumento: false,
+      editaDocumento: mensagemPareceEdicaoDocumento(
+        "gostei demais, continua com um primeiro capítulo",
+      ),
+      financas: false,
+      gerarImagem: false,
+    });
+    expect(g).toEqual({ usar: true, motivo: "edita_documento" });
   });
 });
 
