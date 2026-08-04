@@ -69,6 +69,12 @@ import {
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import { generateRosaryReflection } from "./rosaryReflection.js";
 import {
+  checkRateLimit,
+  clientIp,
+  rateLimitedPayload,
+  type RateLimitBucket,
+} from "./rateLimit.js";
+import {
   ChatRequestSchema,
   type ChatRequest,
   type ChatResponse,
@@ -162,12 +168,41 @@ function friendlyErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function sendJson(res: ServerResponse, status: number, payload: unknown): void {
+function sendJson(
+  res: ServerResponse,
+  status: number,
+  payload: unknown,
+  extraHeaders?: Record<string, string>,
+): void {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    ...corsHeaders(),
+    ...corsHeaders(extraHeaders),
   });
   res.end(JSON.stringify(payload));
+}
+
+/**
+ * Anti-rajada (uid + IP). Devolve true se já respondeu 429 `rate_limited`.
+ * Não confundir com `quota_exceeded` (carteira do plano).
+ */
+function denyIfRateLimited(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: { uid?: string | null; bucket: RateLimitBucket },
+): boolean {
+  const decision = checkRateLimit({
+    uid: opts.uid,
+    ip: clientIp(req),
+    bucket: opts.bucket,
+  });
+  if (decision.ok) return false;
+  sendJson(
+    res,
+    429,
+    rateLimitedPayload(decision) satisfies ChatResponse,
+    { "retry-after": String(decision.retryAfterSec) },
+  );
+  return true;
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -455,6 +490,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (isFirebaseAuthRequired() && !auth) {
         return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." });
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "buscar" })) return;
       const body = (await readJson(req)) as {
         query?: unknown;
         mensagens?: unknown;
@@ -474,6 +510,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (isFirebaseAuthRequired() && !auth) {
         return sendJson(res, 401, { ok: false, error: "Autenticação Firebase obrigatória." } satisfies RosaryReflectionResponse);
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "rosary" })) return;
       const body = await readJson(req);
       const parsed = RosaryReflectionRequestSchema.parse(body);
       const text = await generateRosaryReflection(parsed);
@@ -534,6 +571,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         cotaHardStop: true,
         /** Swipe/ref + estilo → i2i na base (não gerar_imagem do zero). */
         imagemRefContinuidade: true,
+        /** Anti-rajada uid+IP; 429 `rate_limited` ≠ `quota_exceeded`. */
+        rateLimit: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -562,6 +601,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         };
         return sendJson(res, 401, payload);
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "chat" })) return;
 
       const body = await readJson(req);
       const parsed = ChatRequestSchema.parse(body);
@@ -651,6 +691,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         };
         return sendJson(res, 401, payload);
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "chat" })) return;
 
       const body = await readJson(req);
       const parsed = ChatRequestSchema.parse(body);
@@ -862,6 +903,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         };
         return sendJson(res, 401, payload);
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "stt" })) return;
 
       const body = await readJson(req);
       const parsed = TranscribeRequestSchema.parse(body);
@@ -893,6 +935,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         };
         return sendJson(res, 401, payload);
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "vision" })) return;
 
       const body = await readJson(req);
       const parsed = VisionRequestSchema.parse(body);
@@ -931,6 +974,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         };
         return sendJson(res, 401, payload);
       }
+      if (denyIfRateLimited(req, res, { uid: auth?.uid, bucket: "extract" })) return;
 
       const body = await readJson(req);
       console.log(`[server] /v1/extract-documents body`, { files: (body as { files?: unknown[] })?.files?.length ?? 0 });

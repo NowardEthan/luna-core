@@ -138,7 +138,13 @@ export function mapearErroUsuario(erro: unknown): ErroUsuarioMapeado {
   const quotaKind = extrairQuotaKind(erro);
   const texto = normalizarTexto(detalhe);
 
-  if (status === 429 || code === "quota_exceeded") {
+  // Anti-rajada ≠ cota do plano. Tem de vir ANTES do atalho genérico de 429.
+  if (code === "rate_limited") {
+    const regraRl = buscarRegraPorCodigo("rate_limited", guia);
+    if (regraRl) return mapearRegra(regraRl, { status, quotaKind, detalhe });
+  }
+
+  if (code === "quota_exceeded" || (status === 429 && code !== "rate_limited")) {
     const regraQuota = buscarRegraPorCodigo(escolherRegraQuota(quotaKind), guia);
     if (regraQuota) return mapearRegra(regraQuota, { status, quotaKind, detalhe });
   }
