@@ -546,7 +546,12 @@ export async function responderComoLunaAgentico(
   // Planejamento em passos: por ora anda junto com os documentos (só o OrbitLab liga). Quando o
   // seletor de modos chegar ao app, é este flag que o modo agêntico vai acender por conta própria.
   const planejamentoAtivo = opcoes.documentosAtivo === true;
-  const maxRodadas = planejamentoAtivo ? MAX_RODADAS_PLANEJAMENTO : MAX_RODADAS_AGENTICO;
+  // Orçamento vivo: sobe quando o plano cresce (planejar / adicionar_passo).
+  let maxRodadas = planejamentoAtivo ? MAX_RODADAS_PLANEJAMENTO : MAX_RODADAS_AGENTICO;
+  const recalcularMaxRodadas = () => {
+    if (!planejamentoAtivo) return;
+    maxRodadas = Math.max(MAX_RODADAS_PLANEJAMENTO, 3 + plano.length * 2 + 2);
+  };
   const pedeFinancas = mensagemPedeFinancas(mensagemUsuario);
   // Grana pessoal ≠ pesquisa web. Se o turno é financeiro e ele NÃO pediu busca/URL,
   // tira `web_search` da mão — o prompt sozinho não segura o deepseek.
@@ -583,6 +588,22 @@ export async function responderComoLunaAgentico(
     plano.length === 0
       ? "(plano vazio)"
       : "PLANO:\n" + plano.map((p, i) => `${p.feito ? "☑" : "☐"} ${i + 1}. ${p.texto}`).join("\n");
+  const planoAindaAberto = (): {
+    abertos: number;
+    proximoNumero: number;
+    proximo: string;
+    render: string;
+  } | null => {
+    if (plano.length === 0) return null;
+    const idx = plano.findIndex((p) => !p.feito);
+    if (idx === -1) return null;
+    return {
+      abertos: plano.filter((p) => !p.feito).length,
+      proximoNumero: idx + 1,
+      proximo: plano[idx].texto,
+      render: renderPlano(),
+    };
+  };
 
   // Dossiê do turno: os trechos que ela realmente leu (web_search/ler_url). É contra ISTO
   // que `verificar_fontes` cruza — não contra o palpite do modelo. Só se acumula no modo
@@ -755,6 +776,8 @@ export async function responderComoLunaAgentico(
     raciocinioAtivo: opcoes.raciocinioAtivo !== false,
     raciocinioEffort: opcoes.raciocinioEffort,
     maxRodadas,
+    obterMaxRodadas: () => maxRodadas,
+    planoAindaAberto,
     onToolCallStart: (nome, argumentos, rodada) => {
       opcoes.onAcao?.({
         tipo: "inicio_ferramenta",
@@ -828,8 +851,15 @@ export async function responderComoLunaAgentico(
         if (passos.length === 0) {
           return "Passa em `passos` a lista de passos curtos que vais seguir (2 a 5).";
         }
+        if (passos.length > 5) {
+          return (
+            `No máximo 5 passos (recebi ${passos.length}). Resume a lista em 2–5 ações concretas e chama ` +
+            "`planejar` de novo."
+          );
+        }
         plano.length = 0;
         for (const texto of passos) plano.push({ texto, feito: false });
+        recalcularMaxRodadas();
         emitirPlano();
         return (
           renderPlano() +
@@ -862,7 +892,14 @@ export async function responderComoLunaAgentico(
       if (nome === "adicionar_passo") {
         const texto = typeof args.texto === "string" ? args.texto.trim() : "";
         if (!texto) return "Passa o `texto` do passo a acrescentar.";
+        if (plano.length >= 5) {
+          return (
+            `O plano já tem ${plano.length} passos (máximo 5). Conclui os ☐ em aberto antes de acrescentar; ` +
+            "se precisas mudar o caminho, usa `planejar` de novo com a lista enxuta."
+          );
+        }
         plano.push({ texto, feito: false });
+        recalcularMaxRodadas();
         emitirPlano();
         return renderPlano() + `\n\nPasso acrescentado (nº ${plano.length}).`;
       }
