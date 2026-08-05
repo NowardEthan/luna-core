@@ -315,6 +315,8 @@ export type HealthResponse = {
     canoneCrud: boolean;
     /** Bloqueia ler_secao em ping-pong no mesmo turno agentico. */
     antiLoopSecaoArtefato: boolean;
+    /** Coleira do plano exige marcar todos os ? e falar o fecho com o usu·rio. */
+    planoFechoComFala: boolean;
   };
   /**
    * O commit que est√° a correr AQUI.

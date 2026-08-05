@@ -309,6 +309,100 @@ describe("coleira do plano", () => {
     expect(resultado.resposta_final).not.toContain("já terminei tudo");
   });
 
+  it("não aceita texto-só com ☐ mesmo após vários nudges (sem teto frouxo)", async () => {
+    let rodada = 0;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada <= 4) {
+          return {
+            conteudo: `Pronto ${rodada}, já terminei.`,
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 5,
+          };
+        }
+        return {
+          conteudo: "Marquei o que faltava e te conto: li e reescrevi.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    let abertos = 1;
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        maxRodadas: 8,
+        planoAindaAberto: () => {
+          if (rodada >= 5) abertos = 0;
+          return abertos > 0
+            ? {
+                abertos: 1,
+                proximoNumero: 3,
+                proximo: "conferir",
+                render: "PLANO:\n☑ 1.\n☑ 2.\n☐ 3. conferir",
+              }
+            : null;
+        },
+        planoTemPassos: () => true,
+      }),
+    );
+
+    expect(provedor.completarComFerramentas.mock.calls.length).toBeGreaterThanOrEqual(5);
+    expect(resultado.resposta_final).toContain("Marquei o que faltava");
+    expect(resultado.resposta_final).not.toMatch(/Pronto 1, já terminei/);
+  });
+
+  it("com plano todo ☑, exige fala de fecho (não some só com tools)", async () => {
+    let rodada = 0;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada === 1) {
+          return {
+            chamadas: [
+              { id: "c1", nome: "concluir_passo", argumentos: { numero: 3 } },
+            ],
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 5,
+          };
+        }
+        if (rodada === 2) {
+          // Todos ☑ mas some sem falar.
+          return { modelo: CONFIG.modeloMaior, latencia_ms: 5 };
+        }
+        return {
+          conteudo: "Pronto — li, editei e conferi o capítulo.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        toolExecutor: vi.fn().mockResolvedValue("PLANO:\n☑ 1.\n☑ 2.\n☑ 3.\n\nTodos ✓"),
+        planoAindaAberto: () => null,
+        planoTemPassos: () => true,
+      }),
+    );
+
+    expect(provedor.completarComFerramentas).toHaveBeenCalledTimes(3);
+    const msgsRodada3 = provedor.completarComFerramentas.mock.calls[2]![0].mensagens;
+    const nudge = msgsRodada3.find(
+      (m: { papel: string; conteudo?: string }) =>
+        m.papel === "user" &&
+        typeof m.conteudo === "string" &&
+        m.conteudo.includes("FALA com o Ethan"),
+    );
+    expect(nudge).toBeDefined();
+    expect(resultado.resposta_final).toContain("li, editei e conferi");
+  });
+
   it("não encerra com texto-só enquanto artefatoPendenteAuditoria — nudge e continua", async () => {
     let rodada = 0;
     let pendente = true;

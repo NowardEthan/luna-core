@@ -62,6 +62,8 @@ export type OpcoeExecutor = {
     proximo: string;
     render: string;
   } | null;
+  /** True se este turno tem (ou teve) um plano com ≥1 passo — pra exigir fala no fecho. */
+  planoTemPassos?: () => boolean;
   /**
    * Coleira de auditoria de artefato: depois de escrever/editar, exige releitura antes
    * de aceitar texto-só como resposta final.
@@ -72,10 +74,16 @@ export type OpcoeExecutor = {
   abortSignal?: AbortSignal;
 };
 
-const MAX_NUDGES_PLANO = 3;
 const MAX_NUDGES_AUDITORIA_ARTEFATO = 2;
 /** Uma chance de fechar a fala quando o modelo some após tools (sem texto/tools). */
 const MAX_NUDGES_RESPOSTA_VAZIA = 1;
+/**
+ * Plano completo (todos ☑) mas ela sumiu sem falar com o usuário.
+ * Sem isto o turno acaba só com badges e zero prosa.
+ */
+const MAX_NUDGES_FECHO_FALA = 3;
+
+const META_PLANO = new Set(["planejar", "concluir_passo", "adicionar_passo", "perguntar"]);
 
 const FERRAMENTAS_LEITURA_ARTEFATO = new Set([
   "ler_estrutura",
@@ -133,10 +141,15 @@ function nudgePlanoMsg(aberto: {
     `Ainda há ${aberto.abertos} passo(s) ☐ no plano — o trabalho NÃO acabou.\n` +
     `${aberto.render}\n\n` +
     `Executa AGORA o passo ${aberto.proximoNumero}: ${aberto.proximo}. ` +
-    `Depois marca com \`concluir_passo(${aberto.proximoNumero})\`. ` +
-    `NÃO entregues a resposta final enquanto houver ☐.`
+    `Quando ESTE passo estiver feito de verdade, marca com \`concluir_passo(${aberto.proximoNumero})\`. ` +
+    `NÃO entregues a resposta final enquanto houver ☐ — marque TODOS, depois fale com o Ethan.`
   );
 }
+
+const NUDGE_FECHO_FALA_MSG =
+  "Todos os passos do plano estão ☑ — ótimo. Agora FALA com o Ethan: em 2–4 frases, " +
+  "na tua voz, o que você fez / conferiu / deixou pronto. Sem mais tools de trabalho neste " +
+  "fecho — só a resposta final pra ele. Não sumas em silêncio.";
 
 const NUDGE_AUDITORIA_MSG =
   "Você alterou o artefato e ainda NÃO conferiu. Prefira `ler_estrutura` UMA vez " +
@@ -196,6 +209,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     onRaciocinioRodada,
     onNarracaoRodada,
     planoAindaAberto,
+    planoTemPassos,
     artefatoPendenteAuditoria,
     obterMaxRodadas,
     abortSignal,
@@ -214,6 +228,9 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   let nudgesPlano = 0;
   let nudgesAuditoria = 0;
   let nudgesRespostaVazia = 0;
+  let nudgesFechoFala = 0;
+  /** Depois de todos ☑, exige pelo menos uma fala-só (não só pontes mid-tool). */
+  let fechoFalaCumprido = false;
   /** Anti-piripaque: bloqueia ler_secao em loop 1↔2 no mesmo turno. */
   const guardaSecao = criarGuardaLeituraSecao();
 
@@ -239,7 +256,8 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     if (esperandoResposta) return false;
 
     const aberto = planoAindaAberto?.() ?? null;
-    if (aberto && aberto.abertos > 0 && nudgesPlano < MAX_NUDGES_PLANO) {
+    // Sem teto baixo: ☐ aberto NÃO pode virar resposta final (antes 3 nudges e ela escapava).
+    if (aberto && aberto.abertos > 0) {
       nudgesPlano++;
       if (conteudoAssistant) {
         mensagens.push({ papel: "assistant", conteudo: conteudoAssistant });
@@ -255,6 +273,24 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       }
       mensagens.push({ papel: "user", conteudo: NUDGE_AUDITORIA_MSG });
       return true;
+    }
+
+    // Plano todo ☑ mas ainda não houve fala de fecho (só tools / pontes).
+    const tevePlano = planoTemPassos?.() ?? false;
+    if (tevePlano && !fechoFalaCumprido) {
+      // Texto-só = prosa de fecho → aceita.
+      if (conteudoAssistant && conteudoAssistant.trim() && !aposVazio) {
+        fechoFalaCumprido = true;
+        return false;
+      }
+      if (nudgesFechoFala < MAX_NUDGES_FECHO_FALA) {
+        nudgesFechoFala++;
+        if (conteudoAssistant) {
+          mensagens.push({ papel: "assistant", conteudo: conteudoAssistant });
+        }
+        mensagens.push({ papel: "user", conteudo: NUDGE_FECHO_FALA_MSG });
+        return true;
+      }
     }
 
     if (
@@ -352,6 +388,21 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
             } else if (ehEscritaArtefato(chamada.nome)) {
               guardaSecao.aposEscrita(chamada.argumentos);
             }
+            // Lembrete vivo: fez a mão de trabalho mas o ☐ ainda está aberto.
+            if (
+              sucesso &&
+              !META_PLANO.has(chamada.nome) &&
+              !/^\s*ERRO\b/i.test(resultado) &&
+              !/^\s*PARADA\b/i.test(resultado)
+            ) {
+              const abertoAgora = planoAindaAberto?.() ?? null;
+              if (abertoAgora && abertoAgora.abertos > 0) {
+                resultado +=
+                  `\n\n(Plano: passo ${abertoAgora.proximoNumero} ainda ☐ — «${abertoAgora.proximo}». ` +
+                  `Quando ESTE passo estiver feito, marca com \`concluir_passo(${abertoAgora.proximoNumero})\`. ` +
+                  `No fim, com todos ☑, fala com o Ethan o que você fez.)`;
+              }
+            }
           }
         } catch (erro) {
           resultado = `ERRO: ${erro instanceof Error ? erro.message : String(erro)}`;
@@ -418,9 +469,18 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   }
 
   // Failsafe: maxRodadas atingido
+  const abertoFinal = planoAindaAberto?.() ?? null;
+  const extraPlano =
+    abertoFinal && abertoFinal.abertos > 0
+      ? `\n\nAinda ficaram ${abertoFinal.abertos} passo(s) ☐:\n${abertoFinal.render}`
+      : planoTemPassos?.() && !fechoFalaCumprido
+        ? "\n\nConsegui avançar nas ferramentas, mas não fechei contando pra você o que fiz — me pergunta que eu retomo."
+        : "";
   return {
     resposta_final:
-      partesVisiveis.length > 0 ? `${partesVisiveis.join("\n\n")}\n\n${FALLBACK_LIMITE}` : FALLBACK_LIMITE,
+      partesVisiveis.length > 0
+        ? `${partesVisiveis.join("\n\n")}\n\n${FALLBACK_LIMITE}${extraPlano}`
+        : `${FALLBACK_LIMITE}${extraPlano}`,
     passos,
     rodadas: rodada,
     concluido: false,

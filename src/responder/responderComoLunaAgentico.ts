@@ -499,10 +499,11 @@ const DIRETRIZ_PLANO =
   "TAREFA EM PASSOS: se o pedido exigir MAIS DE UMA ação encadeada (ler um documento e depois reescrevê-lo; " +
   "montar vários blocos; pesquisar e depois cruzar as fontes), começa por `planejar` com 2 a 5 passos curtos — a " +
   "lista fica visível pra ele conferir o teu caminho. Depois executa UM passo de cada vez e, a cada passo realmente " +
-  "feito, chama `concluir_passo(nº)`; se descobrires que falta algo, `adicionar_passo`. Enquanto houver passo por " +
-  "marcar, NÃO entregues a RESPOSTA FINAL — o teu trabalho não acabou. Podes (e deves) falar UMA frase curta de ponte " +
-  "antes de cada ação («Vou ler a estrutura…», «Entendi, agora edito o trecho.») na MESMA rodada em que chamas a " +
-  "ferramenta. Para um pedido de UMA ação só (uma pergunta, uma criação simples, uma edição de um documento que já " +
+  "feito, chama `concluir_passo(nº)` — marque TODOS os ☐, sem pular o último. Se descobrires que falta algo, " +
+  "`adicionar_passo`. Enquanto houver ☐, NÃO entregues a RESPOSTA FINAL. Quando TODOS estiverem ☑, FALA com ele: " +
+  "2–4 frases na tua voz dizendo o que fez / conferiu / deixou pronto (não sumas só com as tools). Podes (e deves) " +
+  "falar UMA frase curta de ponte antes de cada ação («Vou ler a estrutura…») na MESMA rodada da ferramenta. " +
+  "Para um pedido de UMA ação só (uma pergunta, uma criação simples, uma edição de um documento que já " +
   "tens à frente), NÃO uses o plano: vai direto, é mais rápido.";
 
 /**
@@ -913,6 +914,7 @@ export async function responderComoLunaAgentico(
     maxRodadas,
     obterMaxRodadas: () => maxRodadas,
     planoAindaAberto,
+    planoTemPassos: () => plano.length > 0,
     artefatoPendenteAuditoria: () => artefatoPendenteAuditoriaFlag,
     onToolCallStart: (nome, argumentos, rodada) => {
       opcoes.onAcao?.({
@@ -1038,18 +1040,34 @@ export async function responderComoLunaAgentico(
       }
 
       if (nome === "concluir_passo") {
-        const numero = typeof args.numero === "number" ? Math.trunc(args.numero) : NaN;
         if (plano.length === 0) {
           return "Ainda não há plano. Se a tarefa tem vários passos, chama `planejar` primeiro; se não, ignora isto.";
         }
-        if (!Number.isFinite(numero) || numero < 1 || numero > plano.length) {
+        let numero = typeof args.numero === "number" ? Math.trunc(args.numero) : NaN;
+        // Sem número → marca o primeiro ☐ (modelo tímido esquece o índice).
+        if (!Number.isFinite(numero)) {
+          const idxAberto = plano.findIndex((p) => !p.feito);
+          if (idxAberto === -1) {
+            return (
+              renderPlano() +
+              "\n\nTodos os passos já estão ☑. FALA com o Ethan agora (2–4 frases), sem mais tools."
+            );
+          }
+          numero = idxAberto + 1;
+        }
+        if (numero < 1 || numero > plano.length) {
           return `Número inválido — o plano tem ${plano.length} passo(s). ${renderPlano()}`;
         }
         plano[numero - 1].feito = true;
         emitirPlano();
         const idxRestante = plano.findIndex((p) => !p.feito);
         if (idxRestante === -1) {
-          return renderPlano() + "\n\nTodos os passos feitos ✓. Agora escreve a resposta final, na tua voz.";
+          return (
+            renderPlano() +
+            "\n\nTodos os passos feitos ✓. Agora FALA com o Ethan: 2–4 frases na tua voz " +
+            "dizendo o que você fez / conferiu / deixou pronto. Sem mais tools de trabalho — " +
+            "só a resposta final. Não sumas em silêncio."
+          );
         }
         return (
           renderPlano() +
