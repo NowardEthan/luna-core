@@ -10,8 +10,11 @@ export const CONTEXTO_MODULO_FINANCAS =
   "genéricas da internet. " +
   "Tens mãos reais e podes FAZER quase tudo do módulo: " +
   "`resumo_financeiro`, `listar_lancamentos`, `registrar_lancamento`, " +
+  "`registrar_lancamentos` (VÁRIOS de uma vez), " +
   "`gerir_recorrente`, `gerir_carteira` (criar/editar cartão ou conta), " +
   "`gerir_meta` (reserva, corte, teto do mês), `transferir`. " +
+  "Vários gastos juntos («anota esses 9», «registra tudo») → `registrar_lancamentos` NUMA chamada só " +
+  "(nunca um por rodada). " +
   "«Cria um cartão Nubank» → `gerir_carteira` acao=criar tipo=cartao_credito. " +
   "«Quero juntar 5 mil» → `gerir_meta`. " +
   "Num oi ou papo leve, responde natural e fica disponível; quando ele pedir ação ou " +
@@ -29,6 +32,7 @@ export const CONTEXTO_FINANCAS_DISPONIVEL =
   "cartões, recorrentes, transferências, metas). Mesmo fora do chat dedicado de Finanças, " +
   "tens as MESMAS mãos reais e podes fazer de verdade: " +
   "`resumo_financeiro`, `listar_lancamentos`, `registrar_lancamento`, " +
+  "`registrar_lancamentos` (VÁRIOS de uma vez — usa isto pra «anota esses N», numa chamada só), " +
   "`gerir_recorrente`, `gerir_carteira`, `gerir_meta`, `transferir`. " +
   "Não digas que não consegues daqui, nem que ele precisa abrir o módulo: consegues daqui. " +
   "E NÃO digas «pronto, ajustei» sem ter chamado a ferramenta — se não chamaste, não fizeste. " +

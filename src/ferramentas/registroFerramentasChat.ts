@@ -543,6 +543,57 @@ const FERRAMENTA_REGISTRAR_LANCAMENTO: DefinicaoFerramenta = {
   },
 };
 
+const FERRAMENTA_REGISTRAR_LANCAMENTOS: DefinicaoFerramenta = {
+  nome: "registrar_lancamentos",
+  descricao:
+    "Registra VÁRIOS lançamentos DE UMA VEZ (lote). Usa SEMPRE que ele lista mais de um gasto/entrada " +
+    "juntos («anota esses 9 gastos», «registra tudo isso», «lança essas contas») — PREFERE isto a chamar " +
+    "`registrar_lancamento` várias vezes, porque é uma chamada só (não gasta uma rodada por item). " +
+    "Cada item é um lançamento com os mesmos campos de `registrar_lancamento`. " +
+    "Não digas que registaste sem chamar esta ferramenta.",
+  parametros: {
+    type: "object",
+    properties: {
+      itens: {
+        type: "array",
+        description:
+          "Lista de lançamentos a registrar de uma vez. Cada item PRECISA de `tipo` e `valor`; " +
+          "o resto é opcional.",
+        items: {
+          type: "object",
+          properties: {
+            tipo: {
+              type: "string",
+              enum: ["entrada", "saida"],
+              description:
+                'OBRIGATÓRIO. "saida" pra gasto/pagamento; "entrada" pra dinheiro que entrou.',
+            },
+            valor: {
+              type: "number",
+              description: "OBRIGATÓRIO. Valor em reais (ex.: 32 ou 32.5). Nunca em centavos.",
+            },
+            descricao: { type: "string", description: "Nota curta (ex.: Almoço iFood)." },
+            categoria: {
+              type: "string",
+              description:
+                "Id: alimentacao, transporte, moradia, saude, lazer, contas, renda, outros.",
+            },
+            carteira: {
+              type: "string",
+              description: "Apelido ou id da carteira (ex.: Nubank). Opcional.",
+            },
+            data: {
+              type: "string",
+              description: "Data opcional: YYYY-MM-DD ou DD/MM. Default = hoje.",
+            },
+          },
+        },
+      },
+    },
+    required: ["itens"],
+  },
+};
+
 const FERRAMENTA_LISTAR_LANCAMENTOS: DefinicaoFerramenta = {
   nome: "listar_lancamentos",
   descricao:
@@ -1425,6 +1476,7 @@ export function listarFerramentasChat(
     FERRAMENTA_ANOTAR_IDEIA,
     FERRAMENTA_VER_IDEIAS,
     FERRAMENTA_REGISTRAR_LANCAMENTO,
+    FERRAMENTA_REGISTRAR_LANCAMENTOS,
     FERRAMENTA_LISTAR_LANCAMENTOS,
     FERRAMENTA_RESUMO_FINANCEIRO,
     FERRAMENTA_GERIR_RECORRENTE,

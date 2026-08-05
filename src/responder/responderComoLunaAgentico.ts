@@ -32,6 +32,7 @@ import {
   gerirRecorrente,
   listarLancamentosFinanca,
   registrarLancamento,
+  registrarLancamentosLote,
   resumoFinanceiro,
   transferirEntreCarteiras,
   type DependenciasFinancas,
@@ -641,9 +642,12 @@ const FERRAMENTAS_ESCRITA_ARTEFATO = new Set([
  */
 const DIRETRIZ_FINANCAS =
   "FINANÇAS DELE (módulo Finanças do app): tens mãos REAIS — `resumo_financeiro`, `listar_lancamentos`, " +
-  "`registrar_lancamento`, `gerir_recorrente`, `gerir_carteira`, `gerir_meta`, `transferir`. " +
+  "`registrar_lancamento`, `registrar_lancamentos` (VÁRIOS de uma vez), `gerir_recorrente`, `gerir_carteira`, " +
+  "`gerir_meta`, `transferir`. " +
   "Quando ele pergunta quanto GASTOU / SAIU / ENTROU, pede extrato, resumo, fatura, cartão, carteira, " +
   "meta, orçamento, ou pede pra anotar gasto / criar cartão / criar meta / transferir — CHAMA essas mãos. " +
+  "Vários gastos/entradas de uma vez («anota esses 9», «registra tudo») → `registrar_lancamentos` NUMA " +
+  "chamada só (NUNCA um por rodada — estoura o orçamento e paras no meio). " +
   "Criar CARTÃO = `gerir_carteira` (acao=criar, tipo=cartao_credito). Criar CONTA = tipo=conta_debito. " +
   "Criar META = `gerir_meta`. É PROIBIDO usar `web_search` ou `ler_url` pra a grana DELE. " +
   "`web_search` só se ele pedir algo público (cotação, notícia). Não inventes números. " +
@@ -1237,6 +1241,7 @@ export async function responderComoLunaAgentico(
         nome === "anotar_ideia" ||
         nome === "ver_ideias" ||
         nome === "registrar_lancamento" ||
+        nome === "registrar_lancamentos" ||
         nome === "listar_lancamentos" ||
         nome === "resumo_financeiro" ||
         nome === "gerir_recorrente" ||
@@ -1512,6 +1517,16 @@ export async function responderComoLunaAgentico(
             return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
           }
           return registrarLancamento(montarDepsFinancas(opcoes.rotinaDeps), args);
+        }
+        if (nome === "registrar_lancamentos") {
+          if (
+            !opcoes.rotinaDeps.criarLancamento ||
+            !opcoes.rotinaDeps.listarCarteiras ||
+            !opcoes.rotinaDeps.reaisParaCentavos
+          ) {
+            return "ERRO FATAL: as finanças não estão disponíveis neste ambiente.";
+          }
+          return registrarLancamentosLote(montarDepsFinancas(opcoes.rotinaDeps), args);
         }
         if (nome === "listar_lancamentos") {
           if (

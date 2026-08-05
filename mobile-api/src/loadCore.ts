@@ -24,6 +24,7 @@ import { conversaTemDocumentos } from "./firestoreDocumentos.js";
 import { lerRotina, lerRegistosRotina, lerRotinaSets, maosDaRotina } from "./rotinaFirestore.js";
 import { montarBlocoFinancasPrevia } from "./firestoreFinancas.js";
 import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronioRotina.js";
+import { mensagemPedeFinancas } from "../../dist/pipeline/detectoresIntencao.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 
 export type ChatStreamCallbacks = {
@@ -529,6 +530,9 @@ async function prepararChatMobile(
     documentosAtivo: documentosAtivo === true || modoAgentico === true || moduloFinancas === true,
     forcarAgentico: modoAgentico === true || moduloFinancas === true,
     moduloFinancas: moduloFinancas === true,
+    // Grounding fora do módulo: se o turno cheira a grana, monta a pré-carga das
+    // carteiras também — senão ela fica sem chão e gasta rodadas em reconhecimento.
+    financasNoTurno: moduloFinancas === true || mensagemPedeFinancas(message),
     detalheAmbiente,
     interlocutor,
     anexosImagem,
@@ -695,7 +699,7 @@ export async function executarChatMobile(
         ? await conversaTemDocumentos(uid, sessionId)
         : false;
     const blocoFinancasPrevia =
-      prep.moduloFinancas && uid
+      prep.financasNoTurno && uid
         ? await montarBlocoFinancasPrevia(uid, prep.timeZone)
         : undefined;
 
@@ -850,7 +854,7 @@ export async function executarChatMobileStream(
         ? await conversaTemDocumentos(uid, sessionId)
         : false;
     const blocoFinancasPrevia =
-      prep.moduloFinancas && uid
+      prep.financasNoTurno && uid
         ? await montarBlocoFinancasPrevia(uid, prep.timeZone)
         : undefined;
 

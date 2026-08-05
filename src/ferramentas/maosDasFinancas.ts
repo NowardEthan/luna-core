@@ -298,6 +298,47 @@ export async function registrarLancamento(
   }
 }
 
+/**
+ * Registra VÁRIOS lançamentos numa chamada só (lote). Sem isto, «anota esses 9 gastos»
+ * virava 9 chamadas de `registrar_lancamento` — uma por rodada — e o turno estourava o
+ * orçamento de rodadas antes de terminar. Reusa a mão singular por item (mesma validação
+ * e resolução de carteira), e devolve um resumo com o resultado de cada um. Sucesso parcial
+ * é ok: os que falharem vêm marcados pra ela reconciliar.
+ */
+export async function registrarLancamentosLote(
+  deps: DependenciasFinancas,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const itensRaw = Array.isArray(args.itens)
+    ? args.itens
+    : Array.isArray(args.lancamentos)
+      ? args.lancamentos
+      : null;
+  if (!itensRaw || itensRaw.length === 0) {
+    return "ERRO: passa em `itens` a lista de lançamentos (cada um com tipo e valor, e opcional descricao/categoria/carteira/data).";
+  }
+  if (itensRaw.length > 50) {
+    return "ERRO: no máximo 50 lançamentos por lote — divide em partes.";
+  }
+  const linhas: string[] = [];
+  let ok = 0;
+  let falhas = 0;
+  for (let i = 0; i < itensRaw.length; i++) {
+    const item = itensRaw[i];
+    if (!item || typeof item !== "object") {
+      linhas.push(`${i + 1}. ERRO: item inválido (esperava um objeto com tipo e valor).`);
+      falhas++;
+      continue;
+    }
+    const r = await registrarLancamento(deps, item as Record<string, unknown>);
+    if (/^\s*ERRO\b/i.test(r)) falhas++;
+    else ok++;
+    linhas.push(`${i + 1}. ${r}`);
+  }
+  const cabec = `Lote concluído: ${ok} registrado(s)${falhas > 0 ? `, ${falhas} com erro (vê abaixo e refaz só esses)` : ""}.`;
+  return `${cabec}\n${linhas.join("\n")}`;
+}
+
 export async function listarLancamentosFinanca(
   deps: DependenciasFinancas,
   args: Record<string, unknown>,
