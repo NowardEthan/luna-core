@@ -5,6 +5,7 @@ import {
   blocoPromptIdiomaRaciocinio,
   modeloSuportaRaciocinioExplicito,
   precisaRaciocinioPorPrompt,
+  sanitizarRaciocinioParaCliente,
 } from "../src/providers/raciocinioApi.js";
 
 describe("modeloSuportaRaciocinioExplicito OpenRouter Qwen", () => {
@@ -25,6 +26,29 @@ describe("modeloSuportaRaciocinioExplicito OpenRouter Qwen", () => {
     const corpo: Record<string, unknown> = {};
     aplicarCorpoRaciocinio(corpo, "qwen/qwen3.6-plus", or, true, true, "medium");
     expect(corpo.reasoning).toEqual({ effort: "medium" });
+  });
+});
+
+describe("sanitizarRaciocinioParaCliente", () => {
+  it("descarta dump em inglês que cita o prompt e a localização", () => {
+    const dump = `
+Thinking Process
+
+1. Analyze the User's Input:
+Context tracking: He said "Sim pq?" after I said "Luna? Oi, uai!".
+The user's location is São José dos Pinhais - PR, so "uai" is a bit odd.
+Wait, the prompt says: "Gíria leve é natural: «tipo», «meio que». Proibido gíria de personagem forçada (mano, parça, chefia)."
+
+2. Determine the Response Strategy:
+Acknowledge the question playfully. Match their brevity. I should roll with it.
+`.trim();
+    expect(sanitizarRaciocinioParaCliente(dump)).toBeUndefined();
+  });
+
+  it("mantém pensamento curto em pt-BR na voz da Luna", () => {
+    const ok =
+      "ele perguntou «sim pq?» — acho que foi pelo uai. vou responder leve, sem enrolar.";
+    expect(sanitizarRaciocinioParaCliente(ok)).toBe(ok);
   });
 });
 

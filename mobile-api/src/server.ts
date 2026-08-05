@@ -604,6 +604,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         qwenPlusAgentico: true,
         /** Raciocínio interno (thinking) pedido em pt-BR. */
         thinkingPtBr: true,
+        /** Sem stream cru de reasoning; sanitiza vazamento de prompt/localização. */
+        thinkingSanitizado: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

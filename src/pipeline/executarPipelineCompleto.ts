@@ -1149,7 +1149,10 @@ export async function executarPipelineCompleto(
         {
           onChunk: (chunk: ChunkStreamLlm) => {
             if (chunk.tipo === "reasoning") {
-              opcoes.onStreamReasoningDelta?.(chunk.delta);
+              // NÃO streama reasoning cru. Qwen/DeepSeek despejam system prompt,
+              // localização e meta em inglês no canal thinking — o app acumulava isso
+              // e ainda fazia fallback pro buffer se o done viesse limpo.
+              // O texto sanitizado sobe só no `done.reasoning` (resolverRaciocinioResposta).
             } else {
               opcoes.onStreamContentDelta?.(chunk.delta);
             }

@@ -49,13 +49,18 @@ export function precisaRaciocinioPorPrompt(
 }
 
 /**
- * Idioma do pensamento — vale pro canal nativo (reasoning/thinking) E pro bloco XML.
- * Sem isto, Qwen/DeepSeek costumam raciocinar em inglês mesmo respondendo em pt-BR.
+ * Idioma + higiene do pensamento — vale pro canal nativo (reasoning/thinking) E pro XML.
+ * Sem isto, Qwen/DeepSeek costumam raciocinar em inglês e ainda despejam o system prompt.
  */
 const BLOCO_IDIOMA_RACIOCINIO =
-  "IDIOMA DO PENSAMENTO: o raciocínio interno (tokens de thinking/reasoning, blocos <think>, " +
-  "e qualquer planejamento antes da fala) é SEMPRE em português do Brasil — nunca em inglês " +
-  "nem em chinês. A resposta visível também é pt-BR. Pensa como a Luna pensa: em português.";
+  "IDIOMA E HIGIENE DO PENSAMENTO: o raciocínio interno (tokens de thinking/reasoning, " +
+  "blocos <think>, planejamento) é SEMPRE em português do Brasil — nunca em inglês nem chinês. " +
+  "Pensa em voz própria, 1ª pessoa, como a Luna. " +
+  "PROIBIDO no pensamento: citar/quotar o system prompt ou briefing («the prompt says», " +
+  "«Wait, the prompt», listas de gíria permitida/proibida, rótulos tipo Perfil de escrita); " +
+  "analisar a pessoa em 3ª pessoa em inglês (Analyze the user's input, Response strategy); " +
+  "despejar metadados (cidade, UF, localização, clima) como se fosse relatório. " +
+  "Se precisa do lugar pra falar natural, usa sem narrar a fonte. A resposta visível também é pt-BR.";
 
 /** Injeta sempre que o raciocínio estiver ligado (nativo ou por prompt). */
 export function blocoPromptIdiomaRaciocinio(): string {
@@ -125,10 +130,52 @@ const META_INSTRUCTION_TERMS = [
   /antipadr[õo]es/i,
   /o usu[áa]rio disse/i,
   /o usu[áa]rio [ée]/i,
-  /vou responder/i,
-  /resposta final/i,
+  // «vou responder» é fala natural da Luna — NÃO bloquear.
+  /\bresposta final\b/i,
   /\bbriefing\b/i,
+  // Vazamentos típicos do Qwen (inglês + citação do system)
+  /the prompt says/i,
+  /wait,\s*the prompt/i,
+  /system prompt/i,
+  /analyze the user'?s input/i,
+  /determine (the )?response strategy/i,
+  /response strategy/i,
+  /thinking process/i,
+  /user'?s location/i,
+  /user'?s input/i,
+  /match their brevity/i,
+  /g[ií]ria leve [ée] natural/i,
+  /proibido g[ií]ria/i,
+  /mano,\s*par[cç]a,\s*chefia/i,
+  /localiza[cç][aã]o (do|da) (usu[aá]rio|pessoa)/i,
 ];
+
+/** Heurística: CoT em inglês estruturado (quase sempre dump de prompt + meta). */
+function raciocinioPareceMetaIngles(texto: string): boolean {
+  const t = texto.trim();
+  if (t.length < 40) return false;
+  const sinais = [
+    /\b(analyze|determine|strategy|acknowledge|context tracking)\b/i,
+    /\b(the prompt says|user'?s (input|location|message))\b/i,
+    /\b(I should|I'll|I will|Let me)\b/,
+    /\b(Thinking Process|Response Strategy)\b/i,
+  ];
+  const hits = sinais.filter((re) => re.test(t)).length;
+  // Letras latinas sem acento + poucas palavras pt comuns → inglês dominante
+  const palavras = t.split(/\s+/).filter(Boolean);
+  const ptComuns =
+    palavras.filter((p) =>
+      /^(eu|você|voce|não|nao|tá|ta|pra|porque|então|entao|isso|aqui|nossa|eita|cara)$/i.test(
+        p.replace(/[^\p{L}]/gu, ""),
+      ),
+    ).length;
+  const enComuns = palavras.filter((p) =>
+    /^(the|and|user|prompt|should|their|this|that|with|from|what|why)$/i.test(
+      p.replace(/[^\p{L}]/gu, ""),
+    ),
+  ).length;
+  return hits >= 2 || (enComuns >= 8 && ptComuns <= 2);
+}
 
 function raciocinioPareceDumpDeInstrucoes(texto: string): boolean {
   const linhas = texto.split(/\n+/).filter((l) => l.trim());
@@ -136,12 +183,18 @@ function raciocinioPareceDumpDeInstrucoes(texto: string): boolean {
   for (const linha of linhas) {
     if (META_INSTRUCTION_TERMS.some((re) => re.test(linha))) matches++;
   }
-  return matches >= 2 || matches / Math.max(linhas.length, 1) > 0.25;
+  if (matches >= 2 || matches / Math.max(linhas.length, 1) > 0.25) return true;
+  return raciocinioPareceMetaIngles(texto);
 }
 
 /** Remove parágrafos que reproduzem o briefing / meta-instruções. */
 export function sanitizarRaciocinioParaCliente(raciocinio?: string): string | undefined {
   if (!raciocinio?.trim()) return undefined;
+
+  // Dump óbvio: some tudo — melhor caixa vazia do que vazar system/localização.
+  if (raciocinioPareceDumpDeInstrucoes(raciocinio) || raciocinioPareceMetaIngles(raciocinio)) {
+    return undefined;
+  }
 
   const paragrafos = raciocinio
     .split(/\n{2,}/)
@@ -151,12 +204,14 @@ export function sanitizarRaciocinioParaCliente(raciocinio?: string): string | un
   const limpos = paragrafos.filter((p) => {
     const primeiraLinha = p.split(/\n/)[0] ?? "";
     const pareceMeta = META_INSTRUCTION_TERMS.some((re) => re.test(p) || re.test(primeiraLinha));
-    const soMarcador = /^\s*[-–—•]\s*/.test(p);
+    const soMarcador = /^\s*[-–—•*\d.]+\s*$/.test(p) || /^\s*[-–—•]\s*/.test(p) && p.length < 8;
     return !pareceMeta && !soMarcador;
   });
 
-  const resultado = limpos.join("\n\n");
-  if (!resultado.trim() || raciocinioPareceDumpDeInstrucoes(raciocinio)) {
+  const resultado = limpos.join("\n\n").trim();
+  if (!resultado) return undefined;
+  // Re-checa o que sobrou (às vezes o dump fica num parágrafo só).
+  if (raciocinioPareceDumpDeInstrucoes(resultado) || raciocinioPareceMetaIngles(resultado)) {
     return undefined;
   }
   return resultado;
