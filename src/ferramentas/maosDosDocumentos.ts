@@ -259,6 +259,11 @@ export async function listarDocumentos(
   }
 }
 
+/** Acima disto, `ler_artefato` devolve o índice em vez do livro inteiro. */
+const LIMITE_LER_ARTEFATO_CHARS = 8000;
+/** Acima disto, `ler_secao` corta o retorno com aviso. */
+const LIMITE_LER_SECAO_CHARS = 6000;
+
 export async function lerDocumento(
   deps: Pick<DependenciasDocumentos, "lerDocumento">,
   args: Record<string, unknown>,
@@ -272,10 +277,20 @@ export async function lerDocumento(
     if (!doc) {
       return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
     }
+    const corpo = doc.conteudo ?? "";
+    if (corpo.length > LIMITE_LER_ARTEFATO_CHARS) {
+      // Não satura o contexto — mapa + ordem de abrir seção.
+      const estrutura = await lerEstruturaDocumento(deps, { id });
+      return (
+        `Artefato «${doc.titulo}» (id: ${doc.id}) é GRANDE (~${corpo.length} chars) — ` +
+        `não devolvo o corpo inteiro (estoura o contexto). Use \`ler_secao\` / \`ler_bloco\`.\n\n` +
+        estrutura
+      );
+    }
     return (
       `Artefato «${doc.titulo}» (id: ${doc.id}). Corpo atual em Markdown abaixo — ` +
       `leia para auditar/revisar; para salvar mudanças use editar_artefato com este id.\n\n` +
-      `${doc.conteudo}`
+      `${corpo}`
     );
   } catch (error) {
     return `ERRO ao ler artefato: ${error instanceof Error ? error.message : String(error)}`;
@@ -378,10 +393,19 @@ export async function lerSecaoDocumento(
       );
     }
 
-    const texto = doc.conteudo.slice(secao.inicio, secao.fim).trim();
+    const textoCompleto = doc.conteudo.slice(secao.inicio, secao.fim).trim();
+    const truncado = textoCompleto.length > LIMITE_LER_SECAO_CHARS;
+    const texto = truncado
+      ? textoCompleto.slice(0, LIMITE_LER_SECAO_CHARS)
+      : textoCompleto;
+    const avisoTrunc =
+      truncado
+        ? `\n\n(Seção grande — mostrei só os primeiros ~${LIMITE_LER_SECAO_CHARS} chars. ` +
+          `Refine com \`buscar_no_artefato\` / \`ler_bloco\`, ou peça outra fatia do tema.)`
+        : "";
     return (
       `Artefato «${doc.titulo}» (id: ${doc.id}) — seção ${secao.numero} «${secao.titulo}» ` +
-      `(~${secao.palavras} palavras), só este pedaço:\n\n${texto}\n\n` +
+      `(~${secao.palavras} palavras), só este pedaço:\n\n${texto}${avisoTrunc}\n\n` +
       `Para mudar um ponto AQUI, use editar_trecho_artefato com este id e o trecho copiado tal e qual. ` +
       `Para ver outra seção, chame ler_secao de novo; para o mapa todo, ler_estrutura.`
     );
