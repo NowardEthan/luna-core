@@ -301,8 +301,10 @@ export type HealthResponse = {
     tituloConversa: boolean;
     /** Orientação + autoauditoria de artefatos (ler antes, conferir depois, coleiras). */
     auditoriaArtefato: boolean;
-    /** Cérebro pago = Qwen 3.6 Plus (tools/agentico); surface MD/seção nos artefatos. */
+    /** Legado: Qwen 3.6 Plus como default pago (agora false — DeepSeek V4 Pro). */
     qwenPlusAgentico: boolean;
+    /** Cérebro pago = DeepSeek V4 Pro (prosa/livro); coleiras de artefato ativas. */
+    deepseekV4ProAgentico: boolean;
     /** Thinking/reasoning pedido em pt-BR (Qwen nativo incluso). */
     thinkingPtBr: boolean;
     /** Reasoning não é streamado cru; done só leva texto sanitizado (anti-vazamento). */

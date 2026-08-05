@@ -600,8 +600,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         tituloConversa: true,
         /** Orientação + autoauditoria de artefatos (coleiras pré/pós + índice no retorno). */
         auditoriaArtefato: true,
-        /** Qwen 3.6 Plus no modelo pago + mãos MD/seção. */
-        qwenPlusAgentico: true,
+        /** Qwen 3.6 Plus — desligado; default pago voltou pro DeepSeek V4 Pro. */
+        qwenPlusAgentico: false,
+        /** DeepSeek V4 Pro no modelo pago (prosa/livro) + coleiras de artefato. */
+        deepseekV4ProAgentico: true,
         /** Raciocínio interno (thinking) pedido em pt-BR. */
         thinkingPtBr: true,
         /** Stream de thinking com porteiro anti-vazamento + done sanitizado. */
