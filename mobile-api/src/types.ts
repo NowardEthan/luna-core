@@ -301,6 +301,8 @@ export type HealthResponse = {
     tituloConversa: boolean;
     /** Orientação + autoauditoria de artefatos (ler antes, conferir depois, coleiras). */
     auditoriaArtefato: boolean;
+    /** Cérebro pago = Qwen 3.6 Plus (tools/agentico); surface MD/seção nos artefatos. */
+    qwenPlusAgentico: boolean;
   };
   /**
    * O commit que está a correr AQUI.
