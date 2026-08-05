@@ -636,6 +636,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         visaoFalhaHonesta: true,
         /** Se video_url falhar no provedor, o core tenta reenviar o vídeo como data URL. */
         videoUrlBase64Retry: true,
+        /** Se o vídeo inteiro falhar, a Luna analisa o frame JPEG enviado pelo app. */
+        videoFrameFallback: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

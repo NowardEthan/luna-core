@@ -9,6 +9,8 @@ export type AnexoImagemChat = {
   mimeType?: string;
   /** URL pública (Firebase Storage) — o modelo de visão busca o arquivo direto. */
   url?: string;
+  /** Frame JPEG extraído no app para fallback quando o provedor não processa o vídeo inteiro. */
+  thumbnailUrl?: string;
   /** Alternativa ao `url` quando não há nuvem. Vídeo grande não cabe aqui. */
   imageBase64?: string;
   /** Anexo de um turno anterior da conversa — ela pode voltar nele quando quiser. */

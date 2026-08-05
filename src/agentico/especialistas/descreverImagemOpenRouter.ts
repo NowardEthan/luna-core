@@ -141,27 +141,60 @@ export async function descreverImagemOpenRouter(entrada: {
   if (referer) headers["HTTP-Referer"] = referer;
   if (title) headers["X-Title"] = title;
 
-  const chamarOpenRouter = (fonteMidia: string) => fetch(OPENROUTER_URL, {
+  const chamarOpenRouter = (
+    fonteMidia: string,
+    opcoes: {
+      midiaVideo?: boolean;
+      instrucaoAtual?: string;
+      modeloAtual?: string;
+    } = {},
+  ) => {
+    const midiaVideo = opcoes.midiaVideo ?? ehVideo;
+    return fetch(OPENROUTER_URL, {
     method: "POST",
     headers,
     body: JSON.stringify({
-      model: entrada.modelo?.trim() || modeloVisao(ehVideo),
+      model: opcoes.modeloAtual?.trim() || entrada.modelo?.trim() || modeloVisao(midiaVideo),
       messages: [
         {
           role: "user",
-          content: [{ type: "text", text: instrucao }, conteudoMidia(ehVideo, fonteMidia)],
+          content: [
+            { type: "text", text: opcoes.instrucaoAtual ?? instrucao },
+            conteudoMidia(midiaVideo, fonteMidia),
+          ],
         },
       ],
       temperature: 0.2,
       max_tokens: 1200,
     }),
   });
+  };
+
+  const tentarFrameFallback = async (motivo: string): Promise<Response | null> => {
+    if (!ehVideo || !imagem.thumbnailUrl?.trim()) return null;
+    const instrucaoFrame = [
+      instrucaoBase(false),
+      "",
+      "O processamento do vídeo inteiro falhou. Este anexo é um frame JPEG extraído do vídeo.",
+      "Use o frame para responder ao que for visível, mas deixe claro quando algo dependeria de movimento/áudio ou de outros momentos do vídeo.",
+      `Falha do vídeo: ${motivo}`,
+      pergunta?.trim()
+        ? `Pergunta específica sobre o vídeo/frame: ${pergunta.trim()}`
+        : "Descreva o que aparece no frame e o que isso permite inferir com segurança.",
+    ].join("\n");
+    return chamarOpenRouter(imagem.thumbnailUrl.trim(), {
+      midiaVideo: false,
+      instrucaoAtual: instrucaoFrame,
+      modeloAtual: modeloVisao(false),
+    });
+  };
 
   let res = await chamarOpenRouter(fonte);
 
   if (!res.ok) {
     const statusPrimario = res.status;
     const corpo = (await res.text()).slice(0, 240);
+    const erroPrimario = `Visão falhou (${statusPrimario}): ${corpo}`;
     if (ehVideo && imagem.url?.trim() && !fonte.startsWith("data:")) {
       try {
         const dataUri = await videoUrlParaDataUri(imagem.url.trim(), mime);
@@ -174,10 +207,22 @@ export async function descreverImagemOpenRouter(entrada: {
         }
       } catch (erroRetry) {
         const motivoRetry = erroRetry instanceof Error ? erroRetry.message : String(erroRetry);
-        throw new Error(`Visão falhou (${statusPrimario}): ${corpo}; ${motivoRetry}`);
+        const frame = await tentarFrameFallback(`${erroPrimario}; ${motivoRetry}`);
+        if (frame?.ok) {
+          res = frame;
+        } else {
+          const motivoFrame = frame ? `; frame falhou (${frame.status}): ${(await frame.text()).slice(0, 240)}` : "";
+          throw new Error(`${erroPrimario}; ${motivoRetry}${motivoFrame}`);
+        }
       }
     } else {
-      throw new Error(`Visão falhou (${statusPrimario}): ${corpo}`);
+      const frame = await tentarFrameFallback(erroPrimario);
+      if (frame?.ok) {
+        res = frame;
+      } else {
+        const motivoFrame = frame ? `; frame falhou (${frame.status}): ${(await frame.text()).slice(0, 240)}` : "";
+        throw new Error(`${erroPrimario}${motivoFrame}`);
+      }
     }
   }
 

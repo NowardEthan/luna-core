@@ -84,6 +84,8 @@ export type ChatAttachmentInput = {
   mimeType?: string;
   /** URL no Storage — preferida: sem teto de tamanho e o payload fica leve. */
   url?: string;
+  /** Frame JPEG do vídeo para fallback quando video_url falha no provedor. */
+  thumbnailUrl?: string;
   /** Alternativa sem nuvem. */
   imageBase64?: string;
 };
@@ -485,6 +487,7 @@ async function prepararChatMobile(
     nome: att.name?.trim() || undefined,
     mimeType: att.mimeType?.trim() || "image/jpeg",
     url: att.url?.trim() || undefined,
+    thumbnailUrl: att.thumbnailUrl?.trim() || undefined,
     imageBase64: att.imageBase64?.trim() || undefined,
   }));
 

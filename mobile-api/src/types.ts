@@ -124,6 +124,7 @@ export const ChatRequestSchema = z.object({
           name: z.string().min(1).max(256).optional(),
           mimeType: z.string().min(1).max(64).optional(),
           url: z.string().url().max(2_048).optional(),
+          thumbnailUrl: z.string().url().max(2_048).optional(),
           imageBase64: z.string().min(32).max(20_000_000).optional(),
         })
         .refine((a) => Boolean(a.url || a.imageBase64), {
@@ -335,6 +336,8 @@ export type HealthResponse = {
     visaoFalhaHonesta: boolean;
     /** If video_url fails at the provider, core retries the video as a data URL. */
     videoUrlBase64Retry: boolean;
+    /** If full video analysis fails, Luna analyzes the JPEG frame sent by the app. */
+    videoFrameFallback: boolean;
   };
   /**
    * O commit que está a correr AQUI.
