@@ -305,6 +305,8 @@ export type HealthResponse = {
     qwenPlusAgentico: boolean;
     /** Thinking/reasoning pedido em pt-BR (Qwen nativo incluso). */
     thinkingPtBr: boolean;
+    /** Reasoning não é streamado cru; done só leva texto sanitizado (anti-vazamento). */
+    thinkingSanitizado: boolean;
   };
   /**
    * O commit que está a correr AQUI.
