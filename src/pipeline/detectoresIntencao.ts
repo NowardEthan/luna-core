@@ -74,7 +74,17 @@ export function mensagemPedeFinancas(mensagem: string): boolean {
     return true;
   }
   if (
-    /\b(lan[cç]amento|lan[cç]amentos|extrato|fatura|carteira|carteiras|cart[aã]o|cart[oõ]es|recorrente|recorrentes|or[cç]amento|finan[cç]as|meta|metas|conta\s+a\s+pagar|contas\s+a\s+pagar)\b/i.test(
+    /\b(lan[cç]amento|lan[cç]amentos|extrato|fatura|carteira|carteiras|cart[aã]o|cart[oõ]es|recorrente|recorrentes|or[cç]amento|finan[cç]as|financeir[oa]|meta|metas|conta\s+a\s+pagar|contas\s+a\s+pagar)\b/i.test(
+      mensagem,
+    )
+  ) {
+    return true;
+  }
+  // «ajusta no financeiro», «atualiza minhas contas», «acerta o saldo», «lança no Nubank» —
+  // pedido de AÇÃO financeira em linguagem de conversa (sem verbo de grana explícito), que
+  // o detector antigo perdia fora do chat de Finanças.
+  if (
+    /\b(ajust\w+|atualiz\w+|corrig\w+|acert\w+|abat\w+|debit\w+|credit\w+|lan[cç]\w+)\b[^.?!\n]{0,40}\b(financeir[oa]|finan[cç]as?|conta|contas|gasto|gastos|despesa|despesas|receita|receitas|saldo|saldos|d[ií]vida|d[ií]vidas|grana|carteira|cart[aã]o)\b/i.test(
       mensagem,
     )
   ) {

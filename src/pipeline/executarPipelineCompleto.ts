@@ -50,7 +50,10 @@ import {
   orcamentoPorProfundidade,
 } from "../contexto/compiladorContexto.js";
 import { montarBlocoPoliticaSituacional } from "../responder/montarPoliticaSituacional.js";
-import { CONTEXTO_MODULO_FINANCAS } from "../responder/contextoModuloFinancas.js";
+import {
+  CONTEXTO_MODULO_FINANCAS,
+  CONTEXTO_FINANCAS_DISPONIVEL,
+} from "../responder/contextoModuloFinancas.js";
 import { gerarBlocoTempo } from "../contexto/gerarBlocoTempo.js";
 import { gerarBlocoLocalClima, type LocalClima } from "../contexto/gerarBlocoLocalClima.js";
 import { gerarBlocoPersonalidade } from "../personalidade/gerarBlocoPersonalidade.js";
@@ -958,8 +961,14 @@ export async function executarPipelineCompleto(
     contextoCompilado = compilarContexto(entradas, orcamento);
     // Módulo Finanças: ela precisa saber ONDE está em todo turno desta conversa —
     // não só quando a mensagem cita «gastei». Pré-carga do mês vem do mobile-api.
-    if (opcoes.moduloFinancas && contextoCompilado) {
-      const extras = [CONTEXTO_MODULO_FINANCAS, opcoes.blocoFinancasPrevia?.trim()]
+    // Fora do chat dedicado, se o turno CHEIRA a grana, injeta a variante neutra: ela
+    // tem as mesmas mãos em qualquer conversa e não pode confabular que já ajustou.
+    const financasNoTurno = opcoes.moduloFinancas || mensagemPedeFinancas(mensagem);
+    if (financasNoTurno && contextoCompilado) {
+      const diretriz = opcoes.moduloFinancas
+        ? CONTEXTO_MODULO_FINANCAS
+        : CONTEXTO_FINANCAS_DISPONIVEL;
+      const extras = [diretriz, opcoes.blocoFinancasPrevia?.trim()]
         .filter(Boolean)
         .join("\n\n");
       contextoCompilado = {

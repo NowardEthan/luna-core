@@ -53,6 +53,23 @@ describe("mensagemPedeFinancas (A2)", () => {
     expect(mensagemPedeFinancas("oi")).toBe(false);
     expect(mensagemPedeFinancas("obrigado")).toBe(false);
   });
+
+  it("marca pedido de ação em linguagem de conversa fora do módulo", () => {
+    // O caso do bug: ele fez contas no chat comum e pediu «ajusta no financeiro» —
+    // o detector antigo perdia («financeiro» ≠ «finanças», «ajustar» não era verbo),
+    // o gate ficava fechado e ela confabulava que tinha ajustado.
+    expect(mensagemPedeFinancas("ajusta isso no financeiro pra mim")).toBe(true);
+    expect(mensagemPedeFinancas("pode ajustar no financeiro?")).toBe(true);
+    expect(mensagemPedeFinancas("atualiza minhas contas")).toBe(true);
+    expect(mensagemPedeFinancas("acerta o saldo do Nubank")).toBe(true);
+    expect(mensagemPedeFinancas("corrige o gasto de ontem")).toBe(true);
+  });
+
+  it("não marca «ajustar/atualizar» fora de grana (FP)", () => {
+    expect(mensagemPedeFinancas("me ajusta esse texto aqui")).toBe(false);
+    expect(mensagemPedeFinancas("atualiza o app por favor")).toBe(false);
+    expect(mensagemPedeFinancas("vamos ajustar o desenho")).toBe(false);
+  });
 });
 
 describe("mensagemPedeProfundidade (A3)", () => {
