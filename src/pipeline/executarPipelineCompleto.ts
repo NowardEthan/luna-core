@@ -32,6 +32,7 @@ export type { MotivoGateAgentico } from "./detectoresIntencao.js";
 import { carregarConfig, type ConfigLuna, type ProvedorAgente, type ProvedorLlm } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 import { providerSupportsStream, type ChunkStreamLlm } from "../providers/completarStream.js";
+import { criarPorteiroStreamRaciocinio } from "../providers/raciocinioApi.js";
 import { buscarFatosDePerfil, buscarFatosPorSimilaridade } from "../memoria/longa/storeSqlite.js";
 import { entrarComTransicao, atualizarAtividade } from "../presenca/gerenciadorPresenca.js";
 import type { Ambiente, EstadoPresenca } from "../presenca/esquemaPresenca.js";
@@ -1146,18 +1147,22 @@ export async function executarPipelineCompleto(
         contextoCompilado,
         historico,
         raciocinioNaVoz,
-        {
-          onChunk: (chunk: ChunkStreamLlm) => {
-            if (chunk.tipo === "reasoning") {
-              // NÃO streama reasoning cru. Qwen/DeepSeek despejam system prompt,
-              // localização e meta em inglês no canal thinking — o app acumulava isso
-              // e ainda fazia fallback pro buffer se o done viesse limpo.
-              // O texto sanitizado sobe só no `done.reasoning` (resolverRaciocinioResposta).
-            } else {
-              opcoes.onStreamContentDelta?.(chunk.delta);
-            }
-          },
-        },
+        (() => {
+          // Stream com porteiro: segura ~64 chars; se for dump (prompt/EN/localização)
+          // nunca emite. Senão catch-up + deltas. O done ainda sanitiza.
+          const porteiro = criarPorteiroStreamRaciocinio((delta) => {
+            opcoes.onStreamReasoningDelta?.(delta);
+          });
+          return {
+            onChunk: (chunk: ChunkStreamLlm) => {
+              if (chunk.tipo === "reasoning") {
+                porteiro.receberDelta(chunk.delta);
+              } else {
+                opcoes.onStreamContentDelta?.(chunk.delta);
+              }
+            },
+          };
+        })(),
         opcoes.interlocutor,
         analise.analise.intencao,
         raciocinioEffort,

@@ -187,6 +187,52 @@ function raciocinioPareceDumpDeInstrucoes(texto: string): boolean {
   return raciocinioPareceMetaIngles(texto);
 }
 
+/** Gate do stream: 1 sinal forte já basta pra nunca liberar o thinking. */
+export function raciocinioDeveSerSuprimido(texto: string): boolean {
+  if (!texto.trim()) return false;
+  if (META_INSTRUCTION_TERMS.some((re) => re.test(texto))) return true;
+  return raciocinioPareceDumpDeInstrucoes(texto) || raciocinioPareceMetaIngles(texto);
+}
+
+const MIN_CHARS_LIBERAR_STREAM = 64;
+
+export type PorteiroStreamRaciocinio = {
+  receberDelta: (delta: string) => void;
+  foiSuprimido: () => boolean;
+};
+
+/**
+ * Stream de thinking com porteiro: segura ~64 chars, se parecer vazamento
+ * (inglês meta / prompt / localização) nunca emite; senão faz catch-up e segue.
+ * O `done.reasoning` continua passando por `sanitizarRaciocinioParaCliente`.
+ */
+export function criarPorteiroStreamRaciocinio(
+  emitir: (delta: string) => void,
+): PorteiroStreamRaciocinio {
+  let buf = "";
+  let liberado = false;
+  let suprimido = false;
+
+  return {
+    foiSuprimido: () => suprimido,
+    receberDelta(delta: string) {
+      if (!delta || suprimido) return;
+      buf += delta;
+      if (raciocinioDeveSerSuprimido(buf)) {
+        suprimido = true;
+        return;
+      }
+      if (!liberado) {
+        if (buf.length < MIN_CHARS_LIBERAR_STREAM) return;
+        liberado = true;
+        emitir(buf);
+        return;
+      }
+      emitir(delta);
+    },
+  };
+}
+
 /** Remove parágrafos que reproduzem o briefing / meta-instruções. */
 export function sanitizarRaciocinioParaCliente(raciocinio?: string): string | undefined {
   if (!raciocinio?.trim()) return undefined;

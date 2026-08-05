@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   aplicarCorpoRaciocinio,
   blocoPromptIdiomaRaciocinio,
+  criarPorteiroStreamRaciocinio,
   modeloSuportaRaciocinioExplicito,
   precisaRaciocinioPorPrompt,
   sanitizarRaciocinioParaCliente,
@@ -49,6 +50,30 @@ Acknowledge the question playfully. Match their brevity. I should roll with it.
     const ok =
       "ele perguntou «sim pq?» — acho que foi pelo uai. vou responder leve, sem enrolar.";
     expect(sanitizarRaciocinioParaCliente(ok)).toBe(ok);
+  });
+});
+
+describe("criarPorteiroStreamRaciocinio", () => {
+  it("suprime dump em inglês antes de emitir qualquer delta", () => {
+    const emitidos: string[] = [];
+    const p = criarPorteiroStreamRaciocinio((d) => emitidos.push(d));
+    p.receberDelta("Thinking Process\n\n1. Analyze the user's input: ");
+    p.receberDelta("the prompt says gíria leve. user's location is Curitiba.");
+    expect(emitidos).toEqual([]);
+    expect(p.foiSuprimido()).toBe(true);
+  });
+
+  it("libera stream pt-BR depois da janela mínima", () => {
+    const emitidos: string[] = [];
+    const p = criarPorteiroStreamRaciocinio((d) => emitidos.push(d));
+    const base =
+      "ele perguntou sim pq — acho que foi pelo uai que eu usei. ";
+    p.receberDelta(base); // ainda < 64? let's check - that's about 55 chars
+    p.receberDelta("vou responder leve sem enrolação nenhuma.");
+    expect(p.foiSuprimido()).toBe(false);
+    expect(emitidos.join("").length).toBeGreaterThanOrEqual(64);
+    p.receberDelta(" eita.");
+    expect(emitidos.at(-1)).toBe(" eita.");
   });
 });
 
