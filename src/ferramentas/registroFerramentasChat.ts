@@ -1374,13 +1374,15 @@ const FERRAMENTA_CONSULTAR_NEURONIO: DefinicaoFerramenta = {
     "Consulta um neurônio-especialista (subagente curto) e recebe conselho pra decidir o próximo passo. " +
     "Use `orientacao` quando estiver em dúvida em artefato grande (qual seção ler / se já pode escrever). " +
     "Use `auditoria` depois de editar, se quiser uma segunda opinião antes de fechar. " +
-    "NÃO uses em small talk. NÃO uses em loop — uma consulta, depois age.",
+    "Use `canone` pra decidir o que anotar/editar/apagar nos fatos fixos. " +
+    "Use `pesquisa` pra decidir SE precisa de web_search e com qual query. " +
+    "NÃO uses em small talk. NÃO uses em loop — no máx. 2 consultas por turno; depois age.",
   parametros: {
     type: "object",
     properties: {
       especialidade: {
         type: "string",
-        enum: ["orientacao", "auditoria"],
+        enum: ["orientacao", "auditoria", "canone", "pesquisa"],
         description: "Qual neurônio chamar.",
       },
       pergunta: {

@@ -41,6 +41,8 @@ export type ChatStreamCallbacks = {
     imagem?: { url: string; prompt: string };
     pergunta?: { texto: string; opcoes: string[] };
     plano?: Array<{ texto: string; feito: boolean }>;
+    papelUi?: "luna" | "neuronio";
+    neuronio?: { especialidade: string };
   }) => void;
 };
 
@@ -221,6 +223,8 @@ export type LunaCoreModule = {
         imagem?: { url: string; prompt: string };
         pergunta?: { texto: string; opcoes: string[] };
         plano?: Array<{ texto: string; feito: boolean }>;
+    papelUi?: "luna" | "neuronio";
+    neuronio?: { especialidade: string };
       }) => void;
     },
   ) => Promise<{

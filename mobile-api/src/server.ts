@@ -620,6 +620,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         streamAgenticoFino: true,
         /** A6.2 — tool consultar_neuronio (orientação/auditoria). */
         neuronioSubagente: true,
+        /** A6.3 — canone + pesquisa no consultar_neuronio. */
+        neuronioEspecialistas: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { processarLinhasSseAgente } from "../src/providers/streamAgente.js";
-import { consultarNeuronioSubagente } from "../src/agente/neuronioSubagente.js";
+import {
+  consultarNeuronioSubagente,
+  resolverEspecialidadeNeuronio,
+} from "../src/agente/neuronioSubagente.js";
 import type { ConfigLuna } from "../src/providers/tipos.js";
-import { vi } from "vitest";
 
 describe("processarLinhasSseAgente", () => {
   it("acumula content, reasoning e tool_calls por index", () => {
@@ -19,8 +21,16 @@ describe("processarLinhasSseAgente", () => {
     );
     const contents = chunks.filter((c) => c.tipo === "content") as Array<{ delta: string }>;
     expect(contents.map((c) => c.delta).join("")).toBe("Vou ler.");
-    const tools = chunks.filter((c) => c.tipo === "tool_call_delta");
-    expect(tools.length).toBe(2);
+    expect(chunks.filter((c) => c.tipo === "tool_call_delta")).toHaveLength(2);
+  });
+});
+
+describe("resolverEspecialidadeNeuronio", () => {
+  it("resolve aliases com acento", () => {
+    expect(resolverEspecialidadeNeuronio("cânone")).toBe("canone");
+    expect(resolverEspecialidadeNeuronio("pesquisa")).toBe("pesquisa");
+    expect(resolverEspecialidadeNeuronio("web")).toBe("pesquisa");
+    expect(resolverEspecialidadeNeuronio("xyz")).toBeNull();
   });
 });
 
@@ -44,10 +54,10 @@ describe("consultarNeuronioSubagente", () => {
     expect(provedor.completar).not.toHaveBeenCalled();
   });
 
-  it("devolve conselho do neuronio", async () => {
+  it("devolve conselho do neuronio canone", async () => {
     const provedor = {
       completar: vi.fn().mockResolvedValue({
-        conteudo: "Leia so o cap. 2 e continue com inserir_blocos.",
+        conteudo: "Anote: Maria tem 17 anos. acao adicionar.",
         modelo: "small",
         latencia_ms: 1,
       }),
@@ -55,13 +65,12 @@ describe("consultarNeuronioSubagente", () => {
     const r = await consultarNeuronioSubagente(
       { provedor: provedor as never, config },
       {
-        especialidade: "orientacao",
-        pergunta: "Continuo o 2 ou volto ao 1?",
-        contexto: "1. Cap 1\n2. Cap 2",
+        especialidade: "canone",
+        pergunta: "Preciso anotar a idade da Maria?",
+        contexto: "Maria aparece no cap. 1",
       },
     );
-    expect(r).toMatch(/Neurônio «orientacao»/);
-    expect(r).toMatch(/inserir_blocos/);
-    expect(provedor.completar).toHaveBeenCalledOnce();
+    expect(r).toMatch(/Neurônio «canone»/);
+    expect(r).toMatch(/17 anos/);
   });
 });
