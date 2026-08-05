@@ -622,6 +622,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         neuronioSubagente: true,
         /** A6.3 — canone + pesquisa no consultar_neuronio. */
         neuronioEspecialistas: true,
+        /** Diretriz: fato do mundo → web_search antes de afirmar (treino não é fonte atual). */
+        pesquisaPreferencialWeb: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

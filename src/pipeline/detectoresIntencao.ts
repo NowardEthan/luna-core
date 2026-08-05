@@ -13,8 +13,17 @@ export function mensagemSugerePesquisaWeb(mensagem: string): boolean {
     /\b(minha|sua|nossa|essa|esta|uma|a)\s+pesquisa\b/gi,
     " ",
   );
-  // «pesquisa» solto / possessivo já foi filtrado acima (A2 anti-FP).
-  return /\b(pesquisar|pesquisa\s+(?:o|a|os|as|um|uma|isso|isto|sobre|pra|para|no|na|em)|busca|buscar|procure|procura\s+(?:o|a|os|as|um|uma|isso|isto|sobre|pra|para)|google|bing|not[ií]cias?|pre[cç]o|cota[cç][aã]o|quem ganhou|resultado do|o que (?:rolou|aconteceu) (?:com|sobre)|atualiza[cç][aã]o sobre|últimas? not[ií]cias)\b/i.test(
+  // Pedido explícito (A2). `\b` do JS é ASCII — âncoras acentuadas ficam no 2º bloco.
+  if (
+    /\b(pesquisar|pesquisa\s+(?:o|a|os|as|um|uma|isso|isto|sobre|pra|para|no|na|em)|busca|buscar|procure|procura\s+(?:o|a|os|as|um|uma|isso|isto|sobre|pra|para)|google|bing|not[ií]cias?|pre[cç]o|cota[cç][aã]o|quem ganhou|resultado do|o que (?:rolou|aconteceu) (?:com|sobre)|atualiza[cç][aã]o sobre)\b/i.test(
+      semPesquisaSubstantivo,
+    )
+  ) {
+    return true;
+  }
+  // Fato público/atualizável sem verbo «pesquisar» — abre agentico com web.
+  // «como você está» fica de fora (exige artigo o/a/os/as depois de «está»).
+  return /[uú]ltimas?\s+not[ií]cias|[uú]ltima\s+vers[aã]o|vers[aã]o\s+atual|\bquanto\s+custa|cota[cç][aã]o\s+do|d[oó]lar\s+hoje|como\s+est[aá]\s+(?:o|a|os|as)\b|\bstatus\s+(?:do|da|de)\b|lan[cç]amento\s+do|ainda\s+(?:existe|funciona|est[aá]|saiu)|\bem\s+20(?:2[4-9]|[3-9]\d)\b/i.test(
     semPesquisaSubstantivo,
   );
 }

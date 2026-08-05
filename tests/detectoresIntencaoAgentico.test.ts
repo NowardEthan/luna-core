@@ -27,6 +27,13 @@ describe("mensagemSugerePesquisaWeb (A2)", () => {
     expect(mensagemSugerePesquisaWeb("busca notícias sobre o lançamento")).toBe(true);
     expect(mensagemSugerePesquisaWeb("google isso pra mim")).toBe(true);
   });
+
+  it("marca fato público/atualizável sem verbo «pesquisar»", () => {
+    expect(mensagemSugerePesquisaWeb("qual a última versão do Node?")).toBe(true);
+    expect(mensagemSugerePesquisaWeb("quanto custa o ChatGPT Plus")).toBe(true);
+    expect(mensagemSugerePesquisaWeb("como está o dólar hoje")).toBe(true);
+    expect(mensagemSugerePesquisaWeb("status do lançamento do iPhone")).toBe(true);
+  });
 });
 
 describe("mensagemPedeFinancas (A2)", () => {

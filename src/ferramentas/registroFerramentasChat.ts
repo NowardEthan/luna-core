@@ -74,14 +74,17 @@ const FERRAMENTAS_BASE: DefinicaoFerramenta[] = [
 const FERRAMENTA_WEB_SEARCH: DefinicaoFerramenta = {
   nome: "web_search",
   descricao:
-    "Pesquisa na web informação actual (notícias, preços, eventos, factos recentes). Usa o ano actual na query quando pedirem «hoje» ou «recente».",
+    "Pesquisa na web fatos públicos atualizados (notícias, preços, eventos, versões, leis). " +
+    "Prefira esta ferramenta ao teu treino sempre que fores afirmar algo que pode ter mudado. " +
+    "Usa o ano atual na query quando pedirem «hoje», «recente» ou «atual». " +
+    "NÃO uses pra grana pessoal dele (aí são as mãos financeiras).",
   parametros: {
     type: "object",
     properties: {
       query: {
         type: "string",
         description:
-          "Consulta em português; para notícias recentes inclui o ano actual (ex.: «notícias IA 2026»).",
+          "Consulta em português; para notícias recentes inclui o ano atual (ex.: «notícias IA 2026»).",
       },
     },
     required: ["query"],
@@ -1375,7 +1378,8 @@ const FERRAMENTA_CONSULTAR_NEURONIO: DefinicaoFerramenta = {
     "Use `orientacao` quando estiver em dúvida em artefato grande (qual seção ler / se já pode escrever). " +
     "Use `auditoria` depois de editar, se quiser uma segunda opinião antes de fechar. " +
     "Use `canone` pra decidir o que anotar/editar/apagar nos fatos fixos. " +
-    "Use `pesquisa` pra decidir SE precisa de web_search e com qual query. " +
+    "Use `pesquisa` pra montar a query / confirmar o caminho — viés: fato do mundo → buscar na web, " +
+    "não confiar no treino. " +
     "NÃO uses em small talk. NÃO uses em loop — no máx. 2 consultas por turno; depois age.",
   parametros: {
     type: "object",

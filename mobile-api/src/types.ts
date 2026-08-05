@@ -323,6 +323,8 @@ export type HealthResponse = {
     neuronioSubagente: boolean;
     /** A6.3 — especialidades canone/pesquisa. */
     neuronioEspecialistas: boolean;
+    /** Preferir web_search ao treino pra fatos públicos atualizáveis. */
+    pesquisaPreferencialWeb: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.
