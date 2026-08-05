@@ -69,6 +69,11 @@ export type OpcoeExecutor = {
    * de aceitar texto-só como resposta final.
    */
   artefatoPendenteAuditoria?: () => boolean;
+  /**
+   * Coleira pesquisa profunda: buscou/leu na web mas ainda não chamou `verificar_fontes`.
+   * Impede fechar o relatório só com o primeiro achado.
+   */
+  pesquisaPendenteCruzamento?: () => boolean;
   /** Orçamento vivo (sobe quando o plano cresce). Default = maxRodadas fixo. */
   obterMaxRodadas?: () => number;
   abortSignal?: AbortSignal;
@@ -82,6 +87,14 @@ const MAX_NUDGES_RESPOSTA_VAZIA = 1;
  * Sem isto o turno acaba só com badges e zero prosa.
  */
 const MAX_NUDGES_FECHO_FALA = 3;
+/** Pesquisa profunda: 1 empurrão pra cruzar fontes antes do relatório final. */
+const MAX_NUDGES_VERIFICAR_FONTES = 1;
+
+const NUDGE_VERIFICAR_FONTES_MSG =
+  "PESQUISA PROFUNDA: você já buscou/leu fontes, mas ainda NÃO chamou `verificar_fontes`. " +
+  "Antes da resposta final, chama UMA vez com as afirmações factuais que pretende dizer " +
+  "(números, datas, versões, alegações). Depois escreve reconciliando o que voltar — " +
+  "não feche o relatório só com o primeiro achado.";
 
 const META_PLANO = new Set(["planejar", "concluir_passo", "adicionar_passo", "perguntar"]);
 
@@ -211,6 +224,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     planoAindaAberto,
     planoTemPassos,
     artefatoPendenteAuditoria,
+    pesquisaPendenteCruzamento,
     obterMaxRodadas,
     abortSignal,
   } = opcoes;
@@ -229,6 +243,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   let nudgesAuditoria = 0;
   let nudgesRespostaVazia = 0;
   let nudgesFechoFala = 0;
+  let nudgesVerificarFontes = 0;
   /** Depois de todos ☑, exige pelo menos uma fala-só (não só pontes mid-tool). */
   let fechoFalaCumprido = false;
   /** Anti-piripaque: bloqueia ler_secao em loop 1↔2 no mesmo turno. */
@@ -291,6 +306,18 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         mensagens.push({ papel: "assistant", conteudo: conteudoAssistant });
       }
       mensagens.push({ papel: "user", conteudo: NUDGE_AUDITORIA_MSG });
+      return true;
+    }
+
+    if (
+      (pesquisaPendenteCruzamento?.() ?? false) &&
+      nudgesVerificarFontes < MAX_NUDGES_VERIFICAR_FONTES
+    ) {
+      nudgesVerificarFontes++;
+      if (conteudoAssistant) {
+        mensagens.push({ papel: "assistant", conteudo: conteudoAssistant });
+      }
+      mensagens.push({ papel: "user", conteudo: NUDGE_VERIFICAR_FONTES_MSG });
       return true;
     }
 

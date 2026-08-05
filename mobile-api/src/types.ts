@@ -327,6 +327,8 @@ export type HealthResponse = {
     pesquisaPreferencialWeb: boolean;
     /** SSE `ready` (geração ok) antes de persistir; `done` depois — unlock sem fechar cedo. */
     streamReadyAntesPersistir: boolean;
+    /** Pesquisa profunda: mais rodadas + coleira verificar_fontes + timeout 360s. */
+    pesquisaProfundaCompleta: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.
