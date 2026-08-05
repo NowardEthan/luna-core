@@ -104,6 +104,13 @@ export type AcaoAgenticoChat = {
   pergunta?: { texto: string; opcoes: string[] };
   /** Snapshot da lista de passos — presente só quando `tipo: "plano"`. */
   plano?: PassoPlano[];
+  /**
+   * A6.4 — quem “aparece” na timeline: Luna (mãos) vs neurônio (subagente).
+   * O Lab pode estilizar diferente sem adivinhar pelo nome da tool.
+   */
+  papelUi?: "luna" | "neuronio";
+  /** Presente quando `papelUi === "neuronio"`. */
+  neuronio?: { especialidade: string };
 };
 
 type ResultadoFerramentaAnalisado = { ok: boolean; fontes?: FonteAgentico[] };
@@ -684,6 +691,9 @@ export async function responderComoLunaAgentico(
   // (`adicionar_passo`). Cada marca devolve o próximo passo e re-injeta a ordem de continuar —
   // é isso que traz o modelo tímido de volta ao loop em vez de largar tudo na bolha.
   const plano: PassoPlano[] = [];
+  /** A6.3 — teto de consultas a neurônios no turno (evita comitê). */
+  let consultasNeuronioNoTurno = 0;
+  const MAX_CONSULTAS_NEURONIO_TURNO = 2;
   const emitirPlano = () => {
     opcoes.onAcao?.({
       tipo: "plano",
@@ -918,12 +928,18 @@ export async function responderComoLunaAgentico(
     planoTemPassos: () => plano.length > 0,
     artefatoPendenteAuditoria: () => artefatoPendenteAuditoriaFlag,
     onToolCallStart: (nome, argumentos, rodada) => {
+      const ehNeuronio = nome === "consultar_neuronio";
+      const especialidade = ehNeuronio
+        ? String(argumentos.especialidade ?? "orientacao").trim() || "orientacao"
+        : "";
       opcoes.onAcao?.({
         tipo: "inicio_ferramenta",
         ferramenta: nomeFerramentaParaUi(nome, argumentos),
         argumentos,
         rodada,
         maxRodadas,
+        papelUi: ehNeuronio ? "neuronio" : "luna",
+        neuronio: ehNeuronio ? { especialidade } : undefined,
       });
     },
     onToolCallComplete: (passo) => {
@@ -949,6 +965,10 @@ export async function responderComoLunaAgentico(
         passo.ferramenta === "perguntar" && passo.sucesso
           ? extrairPerguntaDoResultado(passo.resultado)
           : null;
+      const ehNeuronio = passo.ferramenta === "consultar_neuronio";
+      const especialidade = ehNeuronio
+        ? String(passo.argumentos.especialidade ?? "orientacao").trim() || "orientacao"
+        : "";
       opcoes.onAcao?.({
         tipo: "fim_ferramenta",
         ferramenta: nomeFerramentaParaUi(passo.ferramenta, passo.argumentos),
@@ -959,6 +979,8 @@ export async function responderComoLunaAgentico(
         fontes: analise.fontes,
         imagem: imagem ?? undefined,
         pergunta: pergunta ?? undefined,
+        papelUi: ehNeuronio ? "neuronio" : "luna",
+        neuronio: ehNeuronio ? { especialidade } : undefined,
       });
     },
     onRaciocinioRodada: opcoes.onRaciocinio,
@@ -1093,6 +1115,13 @@ export async function responderComoLunaAgentico(
       }
 
       if (nome === "consultar_neuronio") {
+        if (consultasNeuronioNoTurno >= MAX_CONSULTAS_NEURONIO_TURNO) {
+          return (
+            `PARADA: já consultou ${MAX_CONSULTAS_NEURONIO_TURNO} neurônios neste turno. ` +
+            `Agora AGE (escrever/ler/marcar passo) ou FALA com o Ethan — sem mais subagentes.`
+          );
+        }
+        consultasNeuronioNoTurno++;
         return consultarNeuronioSubagente({ provedor, config }, args);
       }
 

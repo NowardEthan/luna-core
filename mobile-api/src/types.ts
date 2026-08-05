@@ -321,6 +321,8 @@ export type HealthResponse = {
     streamAgenticoFino: boolean;
     /** Tool consultar_neuronio (subagente orientacao/auditoria). */
     neuronioSubagente: boolean;
+    /** A6.3 ó especialidades canone/pesquisa. */
+    neuronioEspecialistas: boolean;
   };
   /**
    * O commit que est√° a correr AQUI.
