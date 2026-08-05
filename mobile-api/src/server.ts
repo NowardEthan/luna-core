@@ -631,6 +631,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         streamReadyAntesPersistir: true,
         /** Pesquisa profunda não corta no meio (rodadas/timeout/cruzar fontes). */
         pesquisaProfundaCompleta: true,
+        /** Não vaza «já terminei» antes da coleira; marca último ☐ se teimar. */
+        planoFechoSemVazarStream: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

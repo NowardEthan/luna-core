@@ -962,6 +962,12 @@ export async function responderComoLunaAgentico(
     artefatoPendenteAuditoria: () => artefatoPendenteAuditoriaFlag,
     pesquisaPendenteCruzamento: () =>
       pesquisaProfundaAtiva && usouPesquisaWebNesteTurno && !cruzouFontesNesteTurno,
+    marcarPassoAberto: (numero) => {
+      if (numero < 1 || numero > plano.length) return;
+      if (plano[numero - 1]!.feito) return;
+      plano[numero - 1]!.feito = true;
+      emitirPlano();
+    },
     onToolCallStart: (nome, argumentos, rodada) => {
       const ehNeuronio = nome === "consultar_neuronio";
       const especialidade = ehNeuronio
