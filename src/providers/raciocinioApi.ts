@@ -29,7 +29,11 @@ export function modeloSuportaRaciocinioExplicito(modelo: string, baseUrl: string
     return /zai-glm|glm-4|gpt-oss|gemma-4/i.test(m);
   }
   if (/openrouter\.ai/i.test(baseUrl)) {
-    return /ring|deepseek.*r[1-9]|deepseek.*flash|deepseek.*pro|qwen.*thinking|mai-ds-r|thinking/i.test(m);
+    // qwen3* (inclui qwen3.6-plus) tem thinking nativo no OpenRouter — sem isso
+    // o fallback XML pedía pt-BR enquanto o canal reasoning vinha em inglês.
+    return /ring|deepseek.*r[1-9]|deepseek.*flash|deepseek.*pro|qwen3|qwen.*thinking|mai-ds-r|thinking/i.test(
+      m,
+    );
   }
   return /thinking|r1|gpt-oss|qwen3/i.test(m);
 }
@@ -44,14 +48,28 @@ export function precisaRaciocinioPorPrompt(
   return !modeloSuportaRaciocinioExplicito(modelo, baseUrl);
 }
 
+/**
+ * Idioma do pensamento — vale pro canal nativo (reasoning/thinking) E pro bloco XML.
+ * Sem isto, Qwen/DeepSeek costumam raciocinar em inglês mesmo respondendo em pt-BR.
+ */
+const BLOCO_IDIOMA_RACIOCINIO =
+  "IDIOMA DO PENSAMENTO: o raciocínio interno (tokens de thinking/reasoning, blocos <think>, " +
+  "e qualquer planejamento antes da fala) é SEMPRE em português do Brasil — nunca em inglês " +
+  "nem em chinês. A resposta visível também é pt-BR. Pensa como a Luna pensa: em português.";
+
+/** Injeta sempre que o raciocínio estiver ligado (nativo ou por prompt). */
+export function blocoPromptIdiomaRaciocinio(): string {
+  return BLOCO_IDIOMA_RACIOCINIO;
+}
+
 const BLOCO_RACIOCINIO_PROMPT =
-  "Antes da resposta visível ao usuario, escreve o teu raciocinio em portugues do Brasil " +
-  "num bloco de raciocinio delimitado (tags XML think de abertura e fecho). " +
-  "Esse bloco tambem e lido pela pessoa — continua na primeira pessoa, dentro da personagem, " +
-  "sem citar rotulos do briefing (ex.: 'Olhando para o briefing', 'Perfil de escrita', 'Familias de humor', 'Calor textual'), " +
-  "sem listar marcacoes de sistema e sem falar de ti mesma como um processo, modelo ou codigo. " +
-  "Pensa em voz propria: o que sentiu, o que percebeu na mensagem, o que pretende responder. " +
-  "Depois escreve a resposta final — sem repetir o bloco de raciocinio.";
+  "Antes da resposta visível ao usuário, escreve o seu raciocínio em português do Brasil " +
+  "num bloco de raciocínio delimitado (tags XML think de abertura e fecho). " +
+  "Esse bloco também é lido pela pessoa — continua na primeira pessoa, dentro da personagem, " +
+  "sem citar rótulos do briefing (ex.: 'Olhando para o briefing', 'Perfil de escrita', 'Famílias de humor', 'Calor textual'), " +
+  "sem listar marcações de sistema e sem falar de si mesma como um processo, modelo ou código. " +
+  "Pensa em voz própria: o que sentiu, o que percebeu na mensagem, o que pretende responder. " +
+  "Depois escreve a resposta final — sem repetir o bloco de raciocínio.";
 
 export function blocoPromptRaciocinioInline(): string {
   return BLOCO_RACIOCINIO_PROMPT;

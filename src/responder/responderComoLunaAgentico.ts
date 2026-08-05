@@ -1,4 +1,5 @@
 import { executorAgentico } from "../agente/executorAgentico.js";
+import { blocoPromptIdiomaRaciocinio } from "../providers/raciocinioApi.js";
 import { DIRETRIZ_MODO_TECNICO } from "./diretrizModoTecnico.js";
 import type { EntradaVisaoGemma, DependenciasVisaoGemma } from "../agentico/especialistas/visaoGemma.js";
 import { visaoGemma } from "../agentico/especialistas/visaoGemma.js";
@@ -799,6 +800,7 @@ export async function responderComoLunaAgentico(
     carregarInstrucaoSistema(),
     compilarGuiaFerramentasPrompt(),
     contextoCompilado.briefing,
+    opcoes.raciocinioAtivo !== false ? blocoPromptIdiomaRaciocinio() : null,
     // Trava anti-vazamento: a resposta é só a FALA, na 2ª pessoa.
     //
     // No modo pesquisa a Luna despejava o rascunho no texto visível — falava DELE em 3ª

@@ -602,6 +602,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         auditoriaArtefato: true,
         /** Qwen 3.6 Plus no modelo pago + mãos MD/seção. */
         qwenPlusAgentico: true,
+        /** Raciocínio interno (thinking) pedido em pt-BR. */
+        thinkingPtBr: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
