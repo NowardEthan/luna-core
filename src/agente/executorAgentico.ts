@@ -69,6 +69,19 @@ export type OpcoeExecutor = {
 
 const MAX_NUDGES_PLANO = 3;
 const MAX_NUDGES_AUDITORIA_ARTEFATO = 2;
+/** Uma chance de fechar a fala quando o modelo some após tools (sem texto/tools). */
+const MAX_NUDGES_RESPOSTA_VAZIA = 1;
+
+const FERRAMENTAS_LEITURA_ARTEFATO = new Set([
+  "ler_estrutura",
+  "ler_secao",
+  "ler_artefato",
+  "buscar_no_artefato",
+  "ler_bloco",
+]);
+
+const STUB_LEITURA_ANTIGA =
+  "(leitura anterior omitida — use o índice ou a leitura mais recente deste artefato.)";
 
 // ─── Montagem da mensagem inicial ─────────────────────────────────────────────
 
@@ -104,6 +117,60 @@ const FALLBACK_COM_PASSOS =
 const FALLBACK_SEM_PASSOS = "Não consegui obter uma resposta agora. Pode repetir o pedido?";
 const FALLBACK_LIMITE =
   "Cheguei no limite de passos desta tarefa. Me diz se quer que eu continue de onde parei.";
+
+function nudgePlanoMsg(aberto: {
+  abertos: number;
+  proximoNumero: number;
+  proximo: string;
+  render: string;
+}): string {
+  return (
+    `Ainda há ${aberto.abertos} passo(s) ☐ no plano — o trabalho NÃO acabou.\n` +
+    `${aberto.render}\n\n` +
+    `Executa AGORA o passo ${aberto.proximoNumero}: ${aberto.proximo}. ` +
+    `Depois marca com \`concluir_passo(${aberto.proximoNumero})\`. ` +
+    `NÃO entregues a resposta final enquanto houver ☐.`
+  );
+}
+
+const NUDGE_AUDITORIA_MSG =
+  "Você alterou o artefato e ainda NÃO conferiu. Chame `ler_estrutura` " +
+  "(ou `ler_secao` do trecho mexido), compare o índice/trecho com o que existia, " +
+  "pergunte-se se ficou bom pro pedido e o que melhorar, e corrija com mão " +
+  "cirúrgica se precisar. Só depois entregue a resposta final.";
+
+/**
+ * Mantém só a leitura mais recente de cada artefato no histórico do loop —
+ * corpos antigos viram stub pra não estourar contexto.
+ */
+export function trimLeiturasArtefatoAntigas(mensagens: MensagemChatAgente[]): void {
+  const ultimaPorId = new Map<string, number>();
+  for (let i = 0; i < mensagens.length; i++) {
+    const m = mensagens[i]!;
+    if (m.papel !== "ferramenta") continue;
+    if (!FERRAMENTAS_LEITURA_ARTEFATO.has(m.nome)) continue;
+    const id = extrairIdArtefatoDoResultado(m.conteudo);
+    if (!id) continue;
+    ultimaPorId.set(id, i);
+  }
+  for (let i = 0; i < mensagens.length; i++) {
+    const m = mensagens[i]!;
+    if (m.papel !== "ferramenta") continue;
+    if (!FERRAMENTAS_LEITURA_ARTEFATO.has(m.nome)) continue;
+    const id = extrairIdArtefatoDoResultado(m.conteudo);
+    if (!id) continue;
+    if (ultimaPorId.get(id) !== i && m.conteudo.length > 120) {
+      m.conteudo = STUB_LEITURA_ANTIGA;
+    }
+  }
+}
+
+function extrairIdArtefatoDoResultado(conteudo: string): string | null {
+  const m =
+    /\(id:\s*([a-zA-Z0-9_-]+)\)/.exec(conteudo) ||
+    /id:\s*([a-zA-Z0-9_-]+)/.exec(conteudo);
+  return m?.[1] ?? null;
+}
 
 // ─── Executor agêntico ────────────────────────────────────────────────────────
 
@@ -141,6 +208,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   let rodada = 0;
   let nudgesPlano = 0;
   let nudgesAuditoria = 0;
+  let nudgesRespostaVazia = 0;
 
   const tetoRodadas = () => obterMaxRodadas?.() ?? maxRodadas;
 
@@ -151,6 +219,53 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     const delta = narracaoJaEnviada ? `\n\n${t}` : t;
     narracaoJaEnviada = true;
     onNarracaoRodada?.(delta);
+  };
+
+  const tentarNudgePendente = (
+    conteudoAssistant: string | null,
+    /** Só no branch vazio: também pede fechar a fala se já houve tools. */
+    aposVazio = false,
+  ): boolean => {
+    const ultimo = passos[passos.length - 1];
+    const esperandoResposta =
+      ultimo?.ferramenta === "perguntar" && ultimo.sucesso === true;
+    if (esperandoResposta) return false;
+
+    const aberto = planoAindaAberto?.() ?? null;
+    if (aberto && aberto.abertos > 0 && nudgesPlano < MAX_NUDGES_PLANO) {
+      nudgesPlano++;
+      if (conteudoAssistant) {
+        mensagens.push({ papel: "assistant", conteudo: conteudoAssistant });
+      }
+      mensagens.push({ papel: "user", conteudo: nudgePlanoMsg(aberto) });
+      return true;
+    }
+
+    if ((artefatoPendenteAuditoria?.() ?? false) && nudgesAuditoria < MAX_NUDGES_AUDITORIA_ARTEFATO) {
+      nudgesAuditoria++;
+      if (conteudoAssistant) {
+        mensagens.push({ papel: "assistant", conteudo: conteudoAssistant });
+      }
+      mensagens.push({ papel: "user", conteudo: NUDGE_AUDITORIA_MSG });
+      return true;
+    }
+
+    if (
+      aposVazio &&
+      passos.length > 0 &&
+      nudgesRespostaVazia < MAX_NUDGES_RESPOSTA_VAZIA
+    ) {
+      nudgesRespostaVazia++;
+      mensagens.push({
+        papel: "user",
+        conteudo:
+          "Você usou ferramentas mas não fechou a resposta. Diz agora, em 1–3 frases, " +
+          "o que fez / o que conferiu — sem repetir o artefato inteiro.",
+      });
+      return true;
+    }
+
+    return false;
   };
 
   while (rodada < tetoRodadas()) {
@@ -242,46 +357,14 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         });
       }
 
+      trimLeiturasArtefatoAntigas(mensagens);
       continue;
     }
 
-    // Só texto → resposta final (fim do loop), EXCETO se a checklist ainda tem ☐.
-    // Sem isto o modelo larga o plano no meio («pronto») e o turno morre.
-    // Exceção: acabou de `perguntar` — aí o turno PARA de propósito até ele responder.
+    // Só texto → resposta final (fim do loop), EXCETO se a checklist ainda tem ☐
+    // ou auditoria pendente. Exceção: acabou de `perguntar` — turno PARA de propósito.
     if (conteudo) {
-      const ultimo = passos[passos.length - 1];
-      const esperandoResposta =
-        ultimo?.ferramenta === "perguntar" && ultimo.sucesso === true;
-      const aberto = !esperandoResposta ? planoAindaAberto?.() ?? null : null;
-
-      if (aberto && aberto.abertos > 0 && nudgesPlano < MAX_NUDGES_PLANO) {
-        nudgesPlano++;
-        mensagens.push({ papel: "assistant", conteudo });
-        mensagens.push({
-          papel: "user",
-          conteudo:
-            `Ainda há ${aberto.abertos} passo(s) ☐ no plano — o trabalho NÃO acabou.\n` +
-            `${aberto.render}\n\n` +
-            `Executa AGORA o passo ${aberto.proximoNumero}: ${aberto.proximo}. ` +
-            `Depois marca com \`concluir_passo(${aberto.proximoNumero})\`. ` +
-            `NÃO entregues a resposta final enquanto houver ☐.`,
-        });
-        continue;
-      }
-
-      const pendenteAuditoria =
-        !esperandoResposta && (artefatoPendenteAuditoria?.() ?? false);
-      if (pendenteAuditoria && nudgesAuditoria < MAX_NUDGES_AUDITORIA_ARTEFATO) {
-        nudgesAuditoria++;
-        mensagens.push({ papel: "assistant", conteudo });
-        mensagens.push({
-          papel: "user",
-          conteudo:
-            "Você alterou o artefato e ainda NÃO conferiu. Chame `ler_estrutura` " +
-            "(ou `ler_secao` do trecho mexido), compare o índice/trecho com o que existia, " +
-            "pergunte-se se ficou bom pro pedido e o que melhorar, e corrija com mão " +
-            "cirúrgica se precisar. Só depois entregue a resposta final.",
-        });
+      if (tentarNudgePendente(conteudo)) {
         continue;
       }
 
@@ -294,7 +377,12 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       };
     }
 
-    // Modelo não respondeu com texto nem com ferramentas (modelo fraco / sem suporte)
+    // Modelo não respondeu com texto nem com ferramentas — se ainda há trabalho
+    // pendente (plano/auditoria) ou só «sumiu» após tools, NÃO encerra: nudge e continua.
+    if (tentarNudgePendente(null, true)) {
+      continue;
+    }
+
     return {
       resposta_final:
         partesVisiveis.length > 0

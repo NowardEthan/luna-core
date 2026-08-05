@@ -768,6 +768,16 @@ export async function responderComoLunaAgentico(
               `(este id + o número) e só então \`editar_trecho_artefato\`. NÃO carregues o texto todo.` +
               blocoCanone,
             );
+          } else if (corpo.length > LIMITE_ARTEFATO_GRANDE) {
+            // Grande SEM headings: nunca cola o livro — preview curto + ordem de fatiar.
+            const preview = corpo.slice(0, 2000);
+            partes.push(
+              `— id: ${d.id} · «${d.titulo}» — ARTEFATO GRANDE (texto corrido, sem ## ). ` +
+              `Preview (~2k chars), NÃO o corpo todo:\n\n${preview}\n\n` +
+              `  …(+${corpo.length - 2000} chars omitidos). Use \`ler_estrutura\` / \`buscar_no_artefato\` / ` +
+              `\`ler_bloco\` antes de editar. NÃO chame \`ler_artefato\` neste id.` +
+              blocoCanone,
+            );
           } else {
             // Pequeno: o corpo inteiro à frente (editar vira um passo só).
             partes.push(`— id: ${d.id} · «${d.titulo}»${blocoCanone}\n\n${corpo || "(vazio)"}`);

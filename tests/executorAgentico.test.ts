@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { executorAgentico } from "../src/agente/executorAgentico.js";
+import {
+  executorAgentico,
+  trimLeiturasArtefatoAntigas,
+} from "../src/agente/executorAgentico.js";
 import type { OpcoeExecutor } from "../src/agente/executorAgentico.js";
 import type { ConfigLuna, ProvedorAgente } from "../src/providers/tipos.js";
+import type { MensagemChatAgente } from "../src/providers/tipos.js";
 import { FERRAMENTAS_IDE } from "../src/agente/ferramentas/definicoes.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -348,6 +352,79 @@ describe("coleira do plano", () => {
     expect(nudge).toBeDefined();
     expect(resultado.resposta_final).toContain("Confirmei o índice");
     expect(resultado.resposta_final).not.toContain("já escrevi o capítulo");
+  });
+
+  it("não encerra em resposta vazia após tools — nudge e continua", async () => {
+    let rodada = 0;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada === 1) {
+          return {
+            conteudo: "Vou conferir agora.",
+            chamadas: [
+              { id: "c1", nome: "ler_estrutura", argumentos: { id: "doc1" } },
+            ],
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 5,
+          };
+        }
+        if (rodada === 2) {
+          // Modelo «some» — sem texto nem tools (bug clássico pós-conferência).
+          return { modelo: CONFIG.modeloMaior, latencia_ms: 5 };
+        }
+        return {
+          conteudo: "Confirmei — ficou bom.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        toolExecutor: vi.fn().mockResolvedValue(
+          "Estrutura do artefato «Livro» (id: doc1) — índice…",
+        ),
+        artefatoPendenteAuditoria: () => false,
+      }),
+    );
+
+    expect(provedor.completarComFerramentas).toHaveBeenCalledTimes(3);
+    const msgsRodada3 = provedor.completarComFerramentas.mock.calls[2]![0].mensagens;
+    const nudge = msgsRodada3.find(
+      (m: { papel: string; conteudo?: string }) =>
+        m.papel === "user" &&
+        typeof m.conteudo === "string" &&
+        m.conteudo.includes("não fechou a resposta"),
+    );
+    expect(nudge).toBeDefined();
+    expect(resultado.resposta_final).toContain("Confirmei — ficou bom");
+    expect(resultado.resposta_final).toContain("Vou conferir agora");
+  });
+
+  it("trimLeiturasArtefatoAntigas stubba leituras antigas do mesmo id", () => {
+    const mensagens: MensagemChatAgente[] = [
+      { papel: "system", conteudo: "sys" },
+      {
+        papel: "ferramenta",
+        id_chamada: "a",
+        nome: "ler_secao",
+        conteudo:
+          "Artefato «Livro» (id: doc1) — seção 1 «Cap 1»:\n\n" + "x".repeat(200),
+      },
+      {
+        papel: "ferramenta",
+        id_chamada: "b",
+        nome: "ler_estrutura",
+        conteudo: "Estrutura do artefato «Livro» (id: doc1) — o índice…",
+      },
+    ];
+    trimLeiturasArtefatoAntigas(mensagens);
+    expect(mensagens[1]!.conteudo).toMatch(/leitura anterior omitida/i);
+    expect(mensagens[2]!.conteudo).toContain("índice");
   });
 
   it("respeita obterMaxRodadas dinâmico", async () => {
