@@ -342,8 +342,9 @@ export async function lerEstruturaDocumento(
     return (
       `Estrutura do artefato «${doc.titulo}» (id: ${doc.id}) — o índice, SEM o corpo ` +
       `(${secoes.length} seções, ${blocos.length} blocos, ~${totalPalavras} palavras no total):\n${linhas}\n\n` +
-      `Para ler UMA seção: ler_secao. Para CONTINUAR um capítulo: inserir_blocos depois do último ` +
-      `heading (after_id = blocoId). Para mudar um bloco: editar_bloco_artefato. NÃO reescreva o livro inteiro.`
+      `Para ler UMA seção: ler_secao (número ou título). Para CONTINUAR: inserir_blocos com ` +
+      `markdown + after_secao (número/título da seção, ou omite pro fim). ` +
+      `Pra mudar um trecho: editar_trecho_artefato. NÃO reescreva o livro inteiro.`
     );
   } catch (error) {
     return `ERRO ao ler a estrutura do artefato: ${error instanceof Error ? error.message : String(error)}`;
@@ -765,8 +766,52 @@ export async function lerBlocoDocumento(
 }
 
 /**
- * CONTINUAÇÃO de capítulo — insere blocos novos sem reescrever o livro.
- * Preferida para «continua o capítulo», «escreve o epílogo no mesmo artefato».
+ * Resolve âncora humana (número/título da seção) → id do ÚLTIMO bloco dessa seção.
+ * Assim a continuação entra no fim do capítulo, não logo após o heading.
+ */
+function resolverAfterSecao(
+  blocos: BlocoArtefato[],
+  conteudo: string,
+  alvo: string,
+): { afterId: string; rotulo: string } | { erro: string } {
+  const secoes = mapearSecoes(conteudo);
+  if (secoes.length === 0) {
+    return {
+      erro:
+        "Este artefato não tem seções (## ). Omita after_secao pra acrescentar no fim, " +
+        "ou use after_id de um bloco de ler_estrutura.",
+    };
+  }
+  const secao = acharSecao(secoes, alvo);
+  if (!secao) {
+    const indice = secoes.map((s) => `${s.numero}. ${s.titulo}`).join("\n");
+    return {
+      erro: `Não achei a seção «${alvo}». Índice:\n${indice}`,
+    };
+  }
+  const headings = blocos.filter((b) => b.type === "heading");
+  const heading = headings[secao.numero - 1];
+  if (!heading) {
+    return { erro: `Seção ${secao.numero} «${secao.titulo}» sem heading correspondente nos blocos.` };
+  }
+  const startIdx = blocos.findIndex((b) => b.id === heading.id);
+  if (startIdx < 0) return { erro: "Heading da seção não encontrado na lista de blocos." };
+  let endIdx = blocos.length - 1;
+  for (let i = startIdx + 1; i < blocos.length; i++) {
+    if (blocos[i]!.type === "heading") {
+      endIdx = i - 1;
+      break;
+    }
+  }
+  return {
+    afterId: blocos[endIdx]!.id,
+    rotulo: `seção ${secao.numero} «${secao.titulo}»`,
+  };
+}
+
+/**
+ * CONTINUAÇÃO — preferir `markdown` + `after_secao` (número/título).
+ * `after_id` / `blocos` tipados ficam como legado avançado.
  */
 export async function inserirBlocosDocumento(
   deps: Pick<DependenciasDocumentos, "lerDocumento" | "editarDocumento">,
@@ -774,34 +819,47 @@ export async function inserirBlocosDocumento(
 ): Promise<string> {
   const id = String(args.id ?? "").trim();
   const afterIdRaw = args.after_id ?? args.afterId ?? args.depois_de ?? null;
-  const afterId =
+  let afterId =
     afterIdRaw === null || afterIdRaw === undefined || afterIdRaw === ""
       ? null
       : String(afterIdRaw).trim();
+  const afterSecaoRaw = args.after_secao ?? args.afterSecao ?? null;
+  const afterSecao =
+    afterSecaoRaw === null || afterSecaoRaw === undefined || afterSecaoRaw === ""
+      ? ""
+      : String(afterSecaoRaw).trim();
 
   if (!id) return "ERRO: preciso do id do artefato.";
 
   const listaRaw = args.blocos;
   let novos: BlocoArtefato[] = [];
-  if (Array.isArray(listaRaw)) {
-    novos = listaRaw.map(parseBlocoArg).filter((b): b is BlocoArtefato => b != null);
-  } else if (typeof args.markdown === "string" && args.markdown.trim()) {
+  if (typeof args.markdown === "string" && args.markdown.trim()) {
     novos = mdToBlocos(args.markdown);
   } else if (typeof args.conteudo === "string" && args.conteudo.trim()) {
     novos = mdToBlocos(args.conteudo);
+  } else if (Array.isArray(listaRaw)) {
+    novos = listaRaw.map(parseBlocoArg).filter((b): b is BlocoArtefato => b != null);
   }
 
   if (novos.length === 0) {
-    return (
-      "ERRO: passe `blocos` (array de {type, text, props?}) ou `markdown` com o trecho novo a inserir."
-    );
+    return "ERRO: passe `markdown` com o trecho novo a inserir (preferido).";
   }
 
   try {
     const doc = await deps.lerDocumento(id);
     if (!doc) return `ERRO: não achei artefato com id ${id}.`;
-    const { blocos } = corpoComBlocos(doc);
-    if (afterId && !blocos.some((b) => b.id === afterId)) {
+    const { blocos, conteudo } = corpoComBlocos(doc);
+
+    let ancoraHumana = "";
+    // Preferência: after_secao (humano) > after_id (legado).
+    if (afterSecao && !/^fim$/i.test(afterSecao)) {
+      const resolvido = resolverAfterSecao(blocos, conteudo, afterSecao);
+      if ("erro" in resolvido) {
+        return `ERRO: ${resolvido.erro}`;
+      }
+      afterId = resolvido.afterId;
+      ancoraHumana = resolvido.rotulo;
+    } else if (afterId && !blocos.some((b) => b.id === afterId)) {
       const ultimos = blocos
         .filter((b) => b.type === "heading")
         .slice(-5)
@@ -809,17 +867,21 @@ export async function inserirBlocosDocumento(
         .join("; ");
       return (
         `ERRO: after_id «${afterId}» não existe neste artefato. ` +
-        `Headings recentes: ${ultimos || "(nenhum)"}. Use ler_estrutura.`
+        `Prefira after_secao com o número/título (ex.: 3 ou «Capítulo 2»). ` +
+        `Headings recentes: ${ultimos || "(nenhum)"}.`
       );
     }
+
     const next = inserirBlocosApos(blocos, afterId, novos);
     const md = blocosToMd(next);
     const resultado = await deps.editarDocumento({ id, blocos: next, conteudo: md });
     if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+    const onde =
+      ancoraHumana ||
+      (afterId ? `depois de ${afterId}` : "no fim");
     return (
-      `Inseridos ${novos.length} bloco(s) no artefato «${resultado.titulo}» (id: ${resultado.id})` +
-      (afterId ? ` depois de ${afterId}` : " no fim") +
-      `. O cartão já mostra a versão nova. Conte ao Ethan o que acrescentou — não repita o livro inteiro.` +
+      `Inseridos ${novos.length} bloco(s) no artefato «${resultado.titulo}» (id: ${resultado.id}) ` +
+      `${onde}. O cartão já mostra a versão nova. Conte ao Ethan o que acrescentou — não repita o livro inteiro.` +
       anexoAuditoriaPosEdit(resultado.titulo, resultado.id, md, next)
     );
   } catch (error) {

@@ -1027,12 +1027,10 @@ const FERRAMENTA_LER_DOCUMENTO: DefinicaoFerramenta = {
 const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
   nome: "editar_artefato",
   descricao:
-    "Reescreve um artefato do ZERO — o corpo INTEIRO. Usa isto SÓ quando for mesmo refazer tudo " +
-    "(mudar o título, ou reescrever o texto todo de cabo a rabo). NÃO uses pra CONTINUAÇÃO " +
-    "(«continua», «mais uma parte», «acrescenta») — aí é `inserir_blocos`. Para mudar UM ponto — " +
-    "uma frase, um parágrafo — usa `editar_trecho_artefato`. LÊ antes (`ler_estrutura` / " +
-    "`ler_artefato`) e manda o CORPO INTEIRO em `conteudo`. Depois CONFERE (releia) e pergunte se " +
-    "ficou bom / o que melhorar. NÃO repitas o texto inteiro no chat.",
+    "Reescreve um artefato do ZERO — o corpo INTEIRO em Markdown. SÓ quando for refazer tudo. " +
+    "NÃO uses pra CONTINUAÇÃO — aí é `inserir_blocos` com markdown + after_secao. Ponto pontual: " +
+    "`editar_trecho_artefato`. LÊ antes (`ler_estrutura` / `ler_artefato`) e manda o CORPO INTEIRO. " +
+    "Depois CONFERE. NÃO repita o texto inteiro no chat.",
   parametros: {
     type: "object",
     properties: {
@@ -1193,34 +1191,31 @@ const FERRAMENTA_LER_BLOCO: DefinicaoFerramenta = {
 const FERRAMENTA_INSERIR_BLOCOS: DefinicaoFerramenta = {
   nome: "inserir_blocos",
   descricao:
-    "Insere blocos NOVOS num artefato existente — CONTINUAÇÃO (capítulo, seção de plano, epílogo, " +
-    "mais uma parte). ESCOLHA PADRÃO pra «continua», «escreve mais no mesmo artefato», «acrescenta». " +
-    "NÃO uses `editar_artefato` pra isso. ORIENTE-SE antes (`ler_estrutura` + `ler_secao`). Passa " +
-    "`after_id` com o blocoId do último heading (vê em ler_estrutura) ou omite pra append no fim. " +
-    "Corpo novo em `blocos` OU `markdown` (só o trecho novo). Depois CONFERE o índice e pergunte se " +
-    "ficou bom / o que melhorar.",
+    "Acrescenta texto NOVO num artefato (continuação de seção/capítulo/plano). ESCOLHA PADRÃO pra " +
+    "«continua», «escreve mais», «acrescenta». NÃO uses `editar_artefato`. Oriente-se antes " +
+    "(`ler_estrutura` + `ler_secao`). Passe `markdown` com SÓ o trecho novo, e `after_secao` com o " +
+    "NÚMERO ou TÍTULO da seção (do índice) — o servidor coloca no fim dessa seção. Omita " +
+    "`after_secao` pra append no fim do artefato. Depois CONFERE e pergunte se ficou bom.",
   parametros: {
     type: "object",
     properties: {
       id: { type: "string", description: "O id do artefato." },
-      after_id: {
-        type: "string",
-        description:
-          "Inserir DEPOIS deste blocoId. Omite ou null pra acrescentar no fim. Prefira o último " +
-          "heading do capítulo que estás a continuar.",
-      },
       markdown: {
         type: "string",
-        description: "Trecho novo em Markdown (só o que acresce). Alternativa a `blocos`.",
+        description: "Trecho novo em Markdown (só o que acresce). Preferido.",
       },
-      blocos: {
-        type: "array",
+      after_secao: {
+        type: "string",
         description:
-          "Lista de blocos {type, text, props?}. types: paragraph|heading|bullet|numbered|todo|quote|code|divider|callout.",
-        items: { type: "object" },
+          "Número (ex.: «3») ou título da seção depois da qual inserir (no FIM dela). " +
+          "Omite pra acrescentar no fim do artefato.",
+      },
+      after_id: {
+        type: "string",
+        description: "Legado: blocoId interno. Prefira after_secao.",
       },
     },
-    required: ["id"],
+    required: ["id", "markdown"],
   },
 } satisfies DefinicaoFerramenta;
 
@@ -1372,15 +1367,15 @@ export function listarFerramentasChat(
   ];
   // Documentos: só no ambiente que os ativa (OrbitLab). Fora dele, as ferramentas nem existem.
   if (opcoes.documentosAtivo) {
+    // Surface MD/seção pra Luna — mãos de bloco tipado (ler_bloco / editar_bloco_artefato)
+    // ficam fora do catálogo: confundem o modelo; o Lab humano continua em blocos no storage.
     ferramentas.push(FERRAMENTA_CRIAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_LISTAR_DOCUMENTOS);
     ferramentas.push(FERRAMENTA_LER_DOCUMENTO);
     ferramentas.push(FERRAMENTA_LER_ESTRUTURA);
     ferramentas.push(FERRAMENTA_LER_SECAO);
-    ferramentas.push(FERRAMENTA_LER_BLOCO);
     ferramentas.push(FERRAMENTA_BUSCAR);
     ferramentas.push(FERRAMENTA_INSERIR_BLOCOS);
-    ferramentas.push(FERRAMENTA_EDITAR_BLOCO_ARTEFATO);
     ferramentas.push(FERRAMENTA_EDITAR_TRECHO);
     ferramentas.push(FERRAMENTA_EDITAR_DOCUMENTO);
     ferramentas.push(FERRAMENTA_ANOTAR_CANONE);
