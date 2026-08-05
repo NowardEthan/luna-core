@@ -612,6 +612,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         escolhaArtefato: true,
         /** Cânone com CRUD pontual (adicionar/editar/apagar/ler/limpar). */
         canoneCrud: true,
+        /** Anti-loop: bloqueia ping-pong de ler_secao no mesmo turno agentico. */
+        antiLoopSecaoArtefato: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

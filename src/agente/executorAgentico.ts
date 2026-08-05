@@ -5,6 +5,11 @@ import type {
   MensagemChatAgente,
 } from "../providers/tipos.js";
 import type { PlanoExecucao } from "./planejadorIde.js";
+import {
+  criarGuardaLeituraSecao,
+  ehEscritaArtefato,
+  ehLeituraSecao,
+} from "./guardaLeituraSecao.js";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -134,10 +139,10 @@ function nudgePlanoMsg(aberto: {
 }
 
 const NUDGE_AUDITORIA_MSG =
-  "Você alterou o artefato e ainda NÃO conferiu. Chame `ler_estrutura` " +
-  "(ou `ler_secao` do trecho mexido), compare o índice/trecho com o que existia, " +
-  "pergunte-se se ficou bom pro pedido e o que melhorar, e corrija com mão " +
-  "cirúrgica se precisar. Só depois entregue a resposta final.";
+  "Você alterou o artefato e ainda NÃO conferiu. Prefira `ler_estrutura` UMA vez " +
+  "(mapa barato) ou `ler_secao` SÓ do trecho que mexeu — sem ping-pong 1↔2. " +
+  "Compare, corrija com mão cirúrgica se precisar, e entregue a resposta final. " +
+  "NÃO fique relendo capítulos.";
 
 /**
  * Mantém só a leitura mais recente de cada artefato no histórico do loop —
@@ -209,6 +214,8 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   let nudgesPlano = 0;
   let nudgesAuditoria = 0;
   let nudgesRespostaVazia = 0;
+  /** Anti-piripaque: bloqueia ler_secao em loop 1↔2 no mesmo turno. */
+  const guardaSecao = criarGuardaLeituraSecao();
 
   const tetoRodadas = () => obterMaxRodadas?.() ?? maxRodadas;
 
@@ -325,12 +332,26 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         let sucesso = true;
 
         try {
-          resultado = await toolExecutor(chamada.nome, chamada.argumentos);
-          // Muitas mãos devolvem «ERRO: …» em string (sem throw). Sem isto o badge do app
-          // marcava sucesso («Lançamento registrado») e ela ainda podia narrar que gravou
-          // — enquanto o Extrato ficava vazio de verdade.
-          if (/^\s*ERRO\b/i.test(resultado)) {
+          const bloqueio =
+            ehLeituraSecao(chamada.nome)
+              ? guardaSecao.tentarBloquear(chamada.argumentos)
+              : null;
+          if (bloqueio) {
+            resultado = bloqueio;
             sucesso = false;
+            onStatusHint?.("Anti-loop: parou de reler seções");
+          } else {
+            resultado = await toolExecutor(chamada.nome, chamada.argumentos);
+            // Muitas mãos devolvem «ERRO: …» em string (sem throw). Sem isto o badge do app
+            // marcava sucesso («Lançamento registrado») e ela ainda podia narrar que gravou
+            // — enquanto o Extrato ficava vazio de verdade.
+            if (/^\s*ERRO\b/i.test(resultado) || /^\s*PARADA\b/i.test(resultado)) {
+              sucesso = false;
+            } else if (ehLeituraSecao(chamada.nome)) {
+              guardaSecao.registrarLeituraOk(chamada.argumentos);
+            } else if (ehEscritaArtefato(chamada.nome)) {
+              guardaSecao.aposEscrita(chamada.argumentos);
+            }
           }
         } catch (erro) {
           resultado = `ERRO: ${erro instanceof Error ? erro.message : String(erro)}`;

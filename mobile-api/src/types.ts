@@ -313,6 +313,8 @@ export type HealthResponse = {
     escolhaArtefato: boolean;
     /** Canone com CRUD pontual (adicionar/editar/apagar). */
     canoneCrud: boolean;
+    /** Bloqueia ler_secao em ping-pong no mesmo turno agentico. */
+    antiLoopSecaoArtefato: boolean;
   };
   /**
    * O commit que está a correr AQUI.

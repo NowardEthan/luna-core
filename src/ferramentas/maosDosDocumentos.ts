@@ -408,7 +408,8 @@ export async function lerSecaoDocumento(
       `Artefato «${doc.titulo}» (id: ${doc.id}) — seção ${secao.numero} «${secao.titulo}» ` +
       `(~${secao.palavras} palavras), só este pedaço:\n\n${texto}${avisoTrunc}\n\n` +
       `Para mudar um ponto AQUI, use editar_trecho_artefato com este id e o trecho copiado tal e qual. ` +
-      `Para ver outra seção, chame ler_secao de novo; para o mapa todo, ler_estrutura.`
+      `Se já tem o que precisa: ESCREVA ou RESPONDA — não fique relendo capítulos em ping-pong. ` +
+      `Outra seção só se for necessária; mapa: ler_estrutura.`
     );
   } catch (error) {
     return `ERRO ao ler a seção do artefato: ${error instanceof Error ? error.message : String(error)}`;
