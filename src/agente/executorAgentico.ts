@@ -74,6 +74,11 @@ export type OpcoeExecutor = {
    * Impede fechar o relatório só com o primeiro achado.
    */
   pesquisaPendenteCruzamento?: () => boolean;
+  /**
+   * Marca um ☐ do plano (1-based). Usado quando o modelo teima em fechar a fala
+   * sem `concluir_passo` no último item — depois do 1º nudge.
+   */
+  marcarPassoAberto?: (numero: number) => void;
   /** Orçamento vivo (sobe quando o plano cresce). Default = maxRodadas fixo. */
   obterMaxRodadas?: () => number;
   abortSignal?: AbortSignal;
@@ -225,6 +230,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     planoTemPassos,
     artefatoPendenteAuditoria,
     pesquisaPendenteCruzamento,
+    marcarPassoAberto,
     obterMaxRodadas,
     abortSignal,
   } = opcoes;
@@ -257,25 +263,6 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     partesVisiveis.push(t);
     const delta = narracaoJaEnviada ? `\n\n${t}` : t;
     narracaoJaEnviada = true;
-    onNarracaoRodada?.(delta);
-  };
-
-  /** A6.1 — token a token (sem meter \n\n entre deltas da MESMA rodada). */
-  let separarProximaNarracao = false;
-  const emitirNarracaoDelta = (delta: string) => {
-    if (!delta) return;
-    if (separarProximaNarracao && narracaoJaEnviada) {
-      partesVisiveis.push("");
-      onNarracaoRodada?.("\n\n");
-      separarProximaNarracao = false;
-    }
-    if (!narracaoJaEnviada) {
-      partesVisiveis.push(delta);
-      narracaoJaEnviada = true;
-    } else {
-      const i = partesVisiveis.length - 1;
-      partesVisiveis[i] = (partesVisiveis[i] ?? "") + delta;
-    }
     onNarracaoRodada?.(delta);
   };
 
@@ -371,8 +358,26 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
 
     rodada++;
 
-    let narracaoStreamedNestaRodada = false;
+    /**
+     * A6.1 + coleira: NÃO streama content pro cliente até saber se a rodada é
+     * ponte+tool (ok flushar) ou texto-só barrado por ☐ (senão vaza «já terminei»
+     * e o turno parece fechado sem marcar o último passo).
+     */
+    let bufferNarracaoRodada = "";
+    let narracaoRecebidaNestaRodada = false;
     let raciocinioStreamedNestaRodada = false;
+
+    const flushNarracaoBuffer = () => {
+      const bruto = bufferNarracaoRodada.trim();
+      bufferNarracaoRodada = "";
+      if (!bruto) return;
+      // Emite de uma vez (cliente typewrita o delta grande). Evita vazar fala
+      // prematura que a coleira do plano ainda pode barrar.
+      emitirNarracao(bruto);
+    };
+    const descartarNarracaoBuffer = () => {
+      bufferNarracaoRodada = "";
+    };
 
     const resposta = await provedor.completarComFerramentas({
       modelo: config.modeloMaior,
@@ -385,8 +390,8 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       onDelta: onNarracaoRodada || onRaciocinioRodada
         ? (chunk) => {
             if (chunk.tipo === "content" && chunk.delta) {
-              narracaoStreamedNestaRodada = true;
-              emitirNarracaoDelta(chunk.delta);
+              narracaoRecebidaNestaRodada = true;
+              bufferNarracaoRodada += chunk.delta;
             }
             if (chunk.tipo === "reasoning" && chunk.delta && raciocinioAtivo) {
               raciocinioStreamedNestaRodada = true;
@@ -409,7 +414,9 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
 
     // Tools (+ ponte opcional) → narrar, executar, continuar o loop
     if (temTools && resposta.chamadas) {
-      if (conteudo && !narracaoStreamedNestaRodada) {
+      if (bufferNarracaoRodada) {
+        flushNarracaoBuffer();
+      } else if (conteudo && !narracaoRecebidaNestaRodada) {
         emitirNarracao(conteudo);
       }
 
@@ -490,18 +497,31 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       }
 
       trimLeiturasArtefatoAntigas(mensagens);
-      separarProximaNarracao = true;
       continue;
     }
 
     // Só texto → resposta final (fim do loop), EXCETO se a checklist ainda tem ☐
     // ou auditoria pendente. Exceção: acabou de `perguntar` — turno PARA de propósito.
     if (conteudo) {
+      // Teima em fechar sem marcar o ÚLTIMO ☐: depois do 1º nudge, marca por ela.
+      const abertoAgora = planoAindaAberto?.() ?? null;
+      if (
+        abertoAgora &&
+        abertoAgora.abertos === 1 &&
+        nudgesPlano >= 1 &&
+        marcarPassoAberto
+      ) {
+        marcarPassoAberto(abertoAgora.proximoNumero);
+      }
+
       if (tentarNudgePendente(conteudo)) {
+        descartarNarracaoBuffer();
         continue;
       }
 
-      if (!narracaoStreamedNestaRodada) {
+      if (bufferNarracaoRodada) {
+        flushNarracaoBuffer();
+      } else if (!narracaoRecebidaNestaRodada) {
         emitirNarracao(conteudo);
       }
       return {
@@ -511,6 +531,9 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         concluido: true,
       };
     }
+
+    // Sem content/tools — descarta buffer vazio residual.
+    descartarNarracaoBuffer();
 
     // Modelo não respondeu com texto nem com ferramentas — se ainda há trabalho
     // pendente (plano/auditoria) ou só «sumiu» após tools, NÃO encerra: nudge e continua.

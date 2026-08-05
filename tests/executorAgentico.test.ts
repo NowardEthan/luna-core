@@ -309,6 +309,50 @@ describe("coleira do plano", () => {
     expect(resultado.resposta_final).not.toContain("já terminei tudo");
   });
 
+  it("depois do 1º nudge, marca sozinha o último ☐ se ela teimar com texto-só", async () => {
+    let rodada = 0;
+    let passo3Feito = false;
+    const marcar = vi.fn((numero: number) => {
+      if (numero === 3) passo3Feito = true;
+    });
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        return {
+          conteudo:
+            rodada === 1
+              ? "Pronto, já fiz tudo — o último passo também."
+              : "Pronto — li, ajustei e conferi. Tá no fim do cap.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        maxRodadas: 6,
+        planoAindaAberto: () =>
+          passo3Feito
+            ? null
+            : {
+                abertos: 1,
+                proximoNumero: 3,
+                proximo: "conferir",
+                render: "PLANO:\n☑ 1.\n☑ 2.\n☐ 3. conferir",
+              },
+        planoTemPassos: () => true,
+        marcarPassoAberto: marcar,
+      }),
+    );
+
+    expect(marcar).toHaveBeenCalledWith(3);
+    expect(resultado.resposta_final).toContain("Tá no fim do cap");
+    expect(resultado.resposta_final).not.toContain("já fiz tudo");
+  });
+
   it("não aceita texto-só com ☐ mesmo após vários nudges (sem teto frouxo)", async () => {
     let rodada = 0;
     const provedor = {

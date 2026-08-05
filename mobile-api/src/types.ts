@@ -329,6 +329,8 @@ export type HealthResponse = {
     streamReadyAntesPersistir: boolean;
     /** Pesquisa profunda: mais rodadas + coleira verificar_fontes + timeout 360s. */
     pesquisaProfundaCompleta: boolean;
+    /** Buffer de narracao + auto-marca último ? após nudge (anti-sumiço). */
+    planoFechoSemVazarStream: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.
