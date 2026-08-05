@@ -1028,12 +1028,11 @@ const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
   nome: "editar_artefato",
   descricao:
     "Reescreve um artefato do ZERO — o corpo INTEIRO. Usa isto SÓ quando for mesmo refazer tudo " +
-    "(mudar o título, ou reescrever o texto todo de cabo a rabo). Para mudar UM ponto — uma frase, " +
-    "um parágrafo, um trecho — NÃO uses isto: usa `editar_trecho_artefato`, que troca só aquele " +
-    "pedaço e deixa o resto intocado (num texto grande, reescrever tudo é onde tu alteras sem querer " +
-    "o que não devias). LÊ o artefato antes (ler_artefato) e manda o CORPO INTEIRO reescrito em " +
-    "`conteudo`. Opcionalmente muda o `titulo`. Depois, na tua voz, conta o que mudaste — NÃO " +
-    "repitas o texto inteiro no chat.",
+    "(mudar o título, ou reescrever o texto todo de cabo a rabo). NÃO uses pra CONTINUAÇÃO " +
+    "(«continua», «mais uma parte», «acrescenta») — aí é `inserir_blocos`. Para mudar UM ponto — " +
+    "uma frase, um parágrafo — usa `editar_trecho_artefato`. LÊ antes (`ler_estrutura` / " +
+    "`ler_artefato`) e manda o CORPO INTEIRO em `conteudo`. Depois CONFERE (releia) e pergunte se " +
+    "ficou bom / o que melhorar. NÃO repitas o texto inteiro no chat.",
   parametros: {
     type: "object",
     properties: {
@@ -1194,12 +1193,12 @@ const FERRAMENTA_LER_BLOCO: DefinicaoFerramenta = {
 const FERRAMENTA_INSERIR_BLOCOS: DefinicaoFerramenta = {
   nome: "inserir_blocos",
   descricao:
-    "Insere blocos NOVOS num artefato existente — CONTINUAÇÃO de capítulo, epílogo, mais uma parte. " +
-    "É a ESCOLHA PADRÃO quando ele pede «continua o capítulo», «escreve mais no mesmo artefato», " +
-    "«acrescenta o epílogo». NÃO uses `editar_artefato` pra isso (reescrever o corpo inteiro é onde " +
-    "tu confabulas e apagas o que já existia). Passa `after_id` com o blocoId do último heading da " +
-    "seção (vê em ler_estrutura) ou omite pra append no fim. O corpo novo vai em `blocos` OU em " +
-    "`markdown` (só o trecho novo, não o livro).",
+    "Insere blocos NOVOS num artefato existente — CONTINUAÇÃO (capítulo, seção de plano, epílogo, " +
+    "mais uma parte). ESCOLHA PADRÃO pra «continua», «escreve mais no mesmo artefato», «acrescenta». " +
+    "NÃO uses `editar_artefato` pra isso. ORIENTE-SE antes (`ler_estrutura` + `ler_secao`). Passa " +
+    "`after_id` com o blocoId do último heading (vê em ler_estrutura) ou omite pra append no fim. " +
+    "Corpo novo em `blocos` OU `markdown` (só o trecho novo). Depois CONFERE o índice e pergunte se " +
+    "ficou bom / o que melhorar.",
   parametros: {
     type: "object",
     properties: {

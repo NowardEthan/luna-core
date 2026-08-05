@@ -57,12 +57,18 @@ export type OpcoeExecutor = {
     proximo: string;
     render: string;
   } | null;
+  /**
+   * Coleira de auditoria de artefato: depois de escrever/editar, exige releitura antes
+   * de aceitar texto-só como resposta final.
+   */
+  artefatoPendenteAuditoria?: () => boolean;
   /** Orçamento vivo (sobe quando o plano cresce). Default = maxRodadas fixo. */
   obterMaxRodadas?: () => number;
   abortSignal?: AbortSignal;
 };
 
 const MAX_NUDGES_PLANO = 3;
+const MAX_NUDGES_AUDITORIA_ARTEFATO = 2;
 
 // ─── Montagem da mensagem inicial ─────────────────────────────────────────────
 
@@ -118,6 +124,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     onRaciocinioRodada,
     onNarracaoRodada,
     planoAindaAberto,
+    artefatoPendenteAuditoria,
     obterMaxRodadas,
     abortSignal,
   } = opcoes;
@@ -133,6 +140,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   let narracaoJaEnviada = false;
   let rodada = 0;
   let nudgesPlano = 0;
+  let nudgesAuditoria = 0;
 
   const tetoRodadas = () => obterMaxRodadas?.() ?? maxRodadas;
 
@@ -257,6 +265,22 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
             `Executa AGORA o passo ${aberto.proximoNumero}: ${aberto.proximo}. ` +
             `Depois marca com \`concluir_passo(${aberto.proximoNumero})\`. ` +
             `NÃO entregues a resposta final enquanto houver ☐.`,
+        });
+        continue;
+      }
+
+      const pendenteAuditoria =
+        !esperandoResposta && (artefatoPendenteAuditoria?.() ?? false);
+      if (pendenteAuditoria && nudgesAuditoria < MAX_NUDGES_AUDITORIA_ARTEFATO) {
+        nudgesAuditoria++;
+        mensagens.push({ papel: "assistant", conteudo });
+        mensagens.push({
+          papel: "user",
+          conteudo:
+            "Você alterou o artefato e ainda NÃO conferiu. Chame `ler_estrutura` " +
+            "(ou `ler_secao` do trecho mexido), compare o índice/trecho com o que existia, " +
+            "pergunte-se se ficou bom pro pedido e o que melhorar, e corrija com mão " +
+            "cirúrgica se precisar. Só depois entregue a resposta final.",
         });
         continue;
       }
