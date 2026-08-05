@@ -325,8 +325,8 @@ export type HealthResponse = {
     neuronioEspecialistas: boolean;
     /** Preferir web_search ao treino pra fatos públicos atualizáveis. */
     pesquisaPreferencialWeb: boolean;
-    /** SSE `done` antes de persistir/cobrar — composer não espera Firestore. */
-    streamDoneAntesPersistir: boolean;
+    /** SSE `ready` (geração ok) antes de persistir; `done` depois — unlock sem fechar cedo. */
+    streamReadyAntesPersistir: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.

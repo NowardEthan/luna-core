@@ -624,8 +624,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         neuronioEspecialistas: true,
         /** Diretriz: fato do mundo → web_search antes de afirmar (treino não é fonte atual). */
         pesquisaPreferencialWeb: true,
-        /** Stream: `done` libera o app antes de Firestore/billing. */
-        streamDoneAntesPersistir: true,
+        /** Stream: `ready` antes do persist; `done` depois (Lab novo ouve ready). */
+        streamReadyAntesPersistir: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -874,15 +874,12 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       clearInterval(heartbeat);
 
       // Rede de segurança: se o provedor não streamou (ex.: flag antiga), ainda
-      // emite um content antes do done — o cliente/harness mede TTFT pelo content.
+      // emite um content antes do fecho — o cliente/harness mede TTFT pelo content.
       if (!contentEnviado && result.text.trim()) {
         sendSseEvent(res, "content", { delta: result.text });
       }
 
-      // `done` ANTES de Firestore/billing: o Lab só libera o composer no Idle, que
-      // chega com este evento. Persistência/cota não podem segurar a UI depois
-      // da fala já ter sido streamada.
-      sendSseEvent(res, "done", {
+      const payloadFecho = {
         text: result.text,
         reasoning: result.reasoning,
         sessionId: result.sessionId,
@@ -894,51 +891,50 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         humor_atual: result.humor_atual,
         quotaMode: streamQuotaMode,
         idempotent: false,
-      });
+      };
+
+      // `ready` = geração acabou (texto/tools). Clientes novos liberam o composer aqui,
+      // sem esperar Firestore/billing. APK antigo ignora e só reage ao `done`.
+      sendSseEvent(res, "ready", payloadFecho);
+
+      // Quem saiu ANTES do ready ainda não viu a fala — aí sim push depois de persistir.
+      const desconectouAntesDoReady = clientGone;
 
       if (auth) {
-        try {
-          await persistChatTurn({
-            uid: auth.uid,
-            sessionId: result.sessionId,
-            userMessage: parsed.message,
-            userDisplayText: parsed.displayMessage,
-            lunaReply: result.text,
-            userMessageId: parsed.userMessageId,
-            lunaMessageId: parsed.lunaMessageId,
-            humor_atual: result.humor_atual,
-            imagens: result.imagens,
-          });
+        await persistChatTurn({
+          uid: auth.uid,
+          sessionId: result.sessionId,
+          userMessage: parsed.message,
+          userDisplayText: parsed.displayMessage,
+          lunaReply: result.text,
+          userMessageId: parsed.userMessageId,
+          lunaMessageId: parsed.lunaMessageId,
+          humor_atual: result.humor_atual,
+          imagens: result.imagens,
+        });
 
-          // O usuário saiu do app antes da resposta chegar: avisa por notificação.
-          // (Se ele ainda estiver com o app aberto, não notificamos — seria redundante.)
-          if (clientGone) {
-            void notifyLunaReply(auth.uid, result.sessionId, result.text);
-          }
+        if (desconectouAntesDoReady) {
+          void notifyLunaReply(auth.uid, result.sessionId, result.text);
+        }
 
-          if (streamQuotaMode === "plan") {
-            const lagostas = custoExtrasLagostas(result);
-            await chargeTokens(
-              auth,
-              estimarTokensChat(parsed.message, result.text, streamAttCount) + lagostas,
-              { allowOverdraft: lagostas > 0 },
-            );
-          } else {
-            await consumeReducedTokens(
-              auth.uid,
-              estimarApiTokensChat(parsed.message, result.text, streamAttCount),
-              estimarInputTokensChat(parsed.message, streamAttCount),
-            );
-          }
-        } catch (posErr) {
-          // Já mandamos `done` — não dá pra devolver erro SSE sem confundir o cliente.
-          console.error(
-            "[server] /v1/chat/stream pós-done (persist/billing):",
-            posErr instanceof Error ? posErr.stack ?? posErr.message : String(posErr),
+        if (streamQuotaMode === "plan") {
+          const lagostas = custoExtrasLagostas(result);
+          await chargeTokens(
+            auth,
+            estimarTokensChat(parsed.message, result.text, streamAttCount) + lagostas,
+            { allowOverdraft: lagostas > 0 },
+          );
+        } else {
+          await consumeReducedTokens(
+            auth.uid,
+            estimarApiTokensChat(parsed.message, result.text, streamAttCount),
+            estimarInputTokensChat(parsed.message, streamAttCount),
           );
         }
       }
 
+      // `done` depois do persist — compatível com Lab que ainda não ouve `ready`.
+      sendSseEvent(res, "done", payloadFecho);
       res.end();
     } catch (err) {
       clearInterval(heartbeat);
