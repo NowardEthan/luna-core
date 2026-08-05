@@ -307,6 +307,8 @@ export type HealthResponse = {
     thinkingPtBr: boolean;
     /** Reasoning não é streamado cru; done só leva texto sanitizado (anti-vazamento). */
     thinkingSanitizado: boolean;
+    /** Pedido ambíguo com artefato na conversa → perguntar continuar vs criar outro. */
+    escolhaArtefato: boolean;
   };
   /**
    * O commit que está a correr AQUI.
