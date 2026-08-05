@@ -32,7 +32,7 @@ export type DependenciasVisaoGemma = {
  */
 function semVisaoDisponivel(imagem: AnexoImagemChat): string {
   const nome = imagem.nome?.trim() || "a imagem";
-  return `NÃO consegui analisar ${nome}: o modelo de visão não está disponível agora. Diga isso claramente ao usuário e NÃO tente adivinhar o conteúdo da imagem.`;
+  return `VISUAL_ANALYSIS_FAILED: não consegui analisar ${nome}: o modelo de visão não está disponível agora. Diga isso claramente ao usuário e NÃO tente adivinhar o conteúdo da imagem ou vídeo.`;
 }
 
 /**
@@ -64,7 +64,7 @@ export async function visaoGemma(
     } catch (erro) {
       const motivo = erro instanceof Error ? erro.message : String(erro);
       descricoes.push(
-        `NÃO consegui analisar ${imagem.nome?.trim() || "a imagem"} (${motivo}). Diga isso ao usuário e NÃO adivinhe o conteúdo.`,
+        `VISUAL_ANALYSIS_FAILED: não consegui analisar ${imagem.nome?.trim() || "a imagem"} (${motivo}). Diga isso ao usuário e NÃO adivinhe o conteúdo da imagem ou vídeo.`,
       );
     }
   }

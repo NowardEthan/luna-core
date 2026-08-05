@@ -35,7 +35,7 @@ describe("modeloVisao — modelo por tipo de mídia", () => {
     const imagem = modeloVisao(false);
     const video = modeloVisao(true);
     expect(imagem).not.toBe(video);
-    expect(video).toContain("qwen"); // vídeo mantém o multimodal com video_url
+    expect(video).toBe("qwen/qwen3.7-flash"); // vídeo mantém multimodal atual com video_url
   });
 
   it("override específico do tipo tem prioridade", () => {

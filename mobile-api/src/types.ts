@@ -331,6 +331,10 @@ export type HealthResponse = {
     pesquisaProfundaCompleta: boolean;
     /** Buffer de narracao + auto-marca último ? após nudge (anti-sumiço). */
     planoFechoSemVazarStream: boolean;
+    /** Visual/video failure is honest: no analysed badge and no guessing. */
+    visaoFalhaHonesta: boolean;
+    /** If video_url fails at the provider, core retries the video as a data URL. */
+    videoUrlBase64Retry: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.

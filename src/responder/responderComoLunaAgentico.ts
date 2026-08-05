@@ -118,12 +118,27 @@ export type AcaoAgenticoChat = {
 
 type ResultadoFerramentaAnalisado = { ok: boolean; fontes?: FonteAgentico[] };
 
+function resultadoVisaoFalhou(resultado: string): boolean {
+  const r = resultado.trim().toLowerCase();
+  return (
+    r.startsWith("visual_analysis_failed:") ||
+    r.startsWith("erro:") ||
+    r.includes("não consegui analisar") ||
+    r.includes("nao consegui analisar")
+  );
+}
+
 /**
  * web_search/ler_url nunca lançam exceção ao falhar (devolvem {ok:false} em vez
  * disso), então `passo.sucesso` do executor não reflete se a busca funcionou de
- * verdade. Reanalisa o JSON bruto pra decidir o `sucesso` que vai pro cliente.
+ * verdade. A visão também devolve falha em texto para o modelo ler sem quebrar
+ * o turno. Reanalisa o bruto pra decidir o `sucesso` que vai pro cliente.
  */
 function analisarResultadoFerramenta(ferramenta: string, resultadoJson: string): ResultadoFerramentaAnalisado {
+  if (ferramenta === "ver_imagem") {
+    return { ok: !resultadoVisaoFalhou(resultadoJson) };
+  }
+
   try {
     const parsed = JSON.parse(resultadoJson) as {
       ok?: boolean;
@@ -890,6 +905,8 @@ export async function responderComoLunaAgentico(
     "Se há imagem ou vídeo anexado NESTE turno, use `ver_imagem` ANTES de responder — sempre, mesmo que a pessoa não peça nada. " +
       "Ela mandou o anexo justamente para que tu visses; pedir que ela descreva o que acabou de te enviar é o oposto de estar presente. " +
       "E podes olhar mais de uma vez, com perguntas diferentes: é uma conversa com quem vê, não um scanner.",
+    "Se `ver_imagem` devolver `VISUAL_ANALYSIS_FAILED` ou disser que não conseguiu analisar, NÃO complete pelo contexto, pela legenda, pela conversa, pela thumbnail nem por palpite. " +
+      "A resposta final deve assumir a falha de visão de forma curta e honesta, sem afirmar o que há na imagem ou no vídeo.",
     "Usa `ler_url` quando o usuário colar um link e quiser que você leia, resuma ou analise aquela página específica.",
     webSearchDisponivel() && !(pedeFinancas && !pedeWebExplicita)
       ? "DEFAULT: pra fato do mundo (notícias, preços públicos, versões, eventos, leis, status), use `web_search` " +
@@ -1004,7 +1021,7 @@ export async function responderComoLunaAgentico(
       }
       const ehFerramentaDePesquisa = passo.ferramenta === "web_search" || passo.ferramenta === "ler_url";
       const analise =
-        passo.sucesso && ehFerramentaDePesquisa
+        passo.sucesso && (ehFerramentaDePesquisa || passo.ferramenta === "ver_imagem")
           ? analisarResultadoFerramenta(passo.ferramenta, passo.resultado)
           : { ok: passo.sucesso };
       const imagem =

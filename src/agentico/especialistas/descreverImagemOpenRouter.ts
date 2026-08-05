@@ -21,8 +21,9 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  * placa pequena) — nenhum modelo cura isso sozinho —, por isso a leitura de números/
  * placas passa por uma REVISÃO com um segundo modelo (ver `descreverImagemComRevisao`).
  *
- * VÍDEO: precisa de suporte a `video_url` — nem todo modelo de imagem aceita vídeo —,
- * então mantém-se o multimodal barato com 1M de contexto.
+ * VÍDEO: precisa de suporte a `video_url` — nem todo modelo/provedor aceita buscar
+ * vídeo por URL —, então usa um multimodal barato com 1M de contexto e retry por
+ * data URL quando o provedor não consegue abrir a URL do Storage.
  *
  * REVISOR: um segundo modelo, DIFERENTE do de imagem, para a segunda leitura. Só o que
  * os dois leem igual é afirmado com confiança; o resto vira "não consigo confirmar". Foi
@@ -32,8 +33,9 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
  * saía mais caro e menos preciso com `gpt-4o-mini`.
  */
 const MODELO_VISAO_IMAGEM_PADRAO = "google/gemini-2.5-flash-lite";
-const MODELO_VISAO_VIDEO_PADRAO = "qwen/qwen3.5-flash-02-23";
+const MODELO_VISAO_VIDEO_PADRAO = "qwen/qwen3.7-flash";
 const MODELO_VISAO_REVISOR_PADRAO = "mistralai/mistral-small-3.2-24b-instruct";
+const MAX_VIDEO_BYTES_DATA_URI_RETRY = 18 * 1024 * 1024;
 
 function instrucaoBase(ehVideo: boolean): string {
   const midia = ehVideo ? "este vídeo" : "esta imagem";
@@ -78,6 +80,31 @@ export function visaoOpenRouterDisponivel(): boolean {
   return Boolean(apiKey());
 }
 
+function conteudoMidia(ehVideo: boolean, fonte: string): Record<string, unknown> {
+  return ehVideo
+    ? { type: "video_url", video_url: { url: fonte } }
+    : { type: "image_url", image_url: { url: fonte } };
+}
+
+async function videoUrlParaDataUri(url: string, mime: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`download do vídeo falhou (${res.status})`);
+  }
+
+  const contentLength = Number(res.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_VIDEO_BYTES_DATA_URI_RETRY) {
+    throw new Error(`vídeo grande demais para retry base64 (${contentLength} bytes)`);
+  }
+
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.byteLength > MAX_VIDEO_BYTES_DATA_URI_RETRY) {
+    throw new Error(`vídeo grande demais para retry base64 (${bytes.byteLength} bytes)`);
+  }
+
+  return `data:${mime};base64,${bytes.toString("base64")}`;
+}
+
 export async function descreverImagemOpenRouter(entrada: {
   imagem: AnexoImagemChat;
   pergunta?: string;
@@ -105,11 +132,6 @@ export async function descreverImagemOpenRouter(entrada: {
     ? `${base}\n\nPergunta específica sobre ${ehVideo ? "o vídeo" : "a imagem"}: ${pergunta.trim()}\nResponda a essa pergunta primeiro; depois acrescente o que mais for relevante.`
     : base;
 
-  // O OpenRouter distingue os tipos: vídeo entra como `video_url`, não `image_url`.
-  const conteudoMidia = ehVideo
-    ? { type: "video_url", video_url: { url: fonte } }
-    : { type: "image_url", image_url: { url: fonte } };
-
   const headers: Record<string, string> = {
     Authorization: `Bearer ${key}`,
     "Content-Type": "application/json",
@@ -119,7 +141,7 @@ export async function descreverImagemOpenRouter(entrada: {
   if (referer) headers["HTTP-Referer"] = referer;
   if (title) headers["X-Title"] = title;
 
-  const res = await fetch(OPENROUTER_URL, {
+  const chamarOpenRouter = (fonteMidia: string) => fetch(OPENROUTER_URL, {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -127,7 +149,7 @@ export async function descreverImagemOpenRouter(entrada: {
       messages: [
         {
           role: "user",
-          content: [{ type: "text", text: instrucao }, conteudoMidia],
+          content: [{ type: "text", text: instrucao }, conteudoMidia(ehVideo, fonteMidia)],
         },
       ],
       temperature: 0.2,
@@ -135,9 +157,28 @@ export async function descreverImagemOpenRouter(entrada: {
     }),
   });
 
+  let res = await chamarOpenRouter(fonte);
+
   if (!res.ok) {
+    const statusPrimario = res.status;
     const corpo = (await res.text()).slice(0, 240);
-    throw new Error(`Visão falhou (${res.status}): ${corpo}`);
+    if (ehVideo && imagem.url?.trim() && !fonte.startsWith("data:")) {
+      try {
+        const dataUri = await videoUrlParaDataUri(imagem.url.trim(), mime);
+        res = await chamarOpenRouter(dataUri);
+        if (res.ok) {
+          // Segue para o parse normal abaixo; a falha por URL ficou transparente para a Luna.
+        } else {
+          const corpoRetry = (await res.text()).slice(0, 240);
+          throw new Error(`retry base64 falhou (${res.status}): ${corpoRetry}`);
+        }
+      } catch (erroRetry) {
+        const motivoRetry = erroRetry instanceof Error ? erroRetry.message : String(erroRetry);
+        throw new Error(`Visão falhou (${statusPrimario}): ${corpo}; ${motivoRetry}`);
+      }
+    } else {
+      throw new Error(`Visão falhou (${statusPrimario}): ${corpo}`);
+    }
   }
 
   const data = (await res.json()) as {

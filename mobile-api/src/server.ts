@@ -633,6 +633,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         pesquisaProfundaCompleta: true,
         /** Não vaza «já terminei» antes da coleira; marca último ☐ se teimar. */
         planoFechoSemVazarStream: true,
+        visaoFalhaHonesta: true,
+        /** Se video_url falhar no provedor, o core tenta reenviar o vídeo como data URL. */
+        videoUrlBase64Retry: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
