@@ -466,12 +466,29 @@ const DIRETRIZ_PERGUNTAR =
   "tocáveis (ele toca numa ou escreve a dele) e ESPERA a resposta. Usa-a de forma consultiva: SEMPRE " +
   "que houver uma escolha de GOSTO/direção que molda o que vais produzir — estilo, tom, ângulo, " +
   "paleta, formato, rumo, nível de detalhe —, pergunta em vez de chutar, mesmo que conseguisses " +
-  "adivinhar. É melhor acertar uma pergunta do que entregar dez versões erradas; é assim que colaboras " +
-  "com ele em vez de despejar. Dá 2 a 4 opções curtas e concretas (ele sempre pode escrever a dele — " +
-  "não ponhas «outro»). Regras: (1) NÃO uses pra pedir permissão óbvia («posso desenhar?»), pra fugir " +
-  "de fazer o que já dá com bom senso, nem pra pedir algo que ele já disse; (2) DEPOIS de `perguntar`, " +
-  "PARA — no máximo uma frase de contexto, NUNCA respondas por ele nem sigas adivinhando; (3) uma " +
-  "pergunta de cada vez, não empilhes três cartões. Quando ele responder, segue com a escolha dele.";
+  "adivinhar. Também usa quando já há artefato na conversa e o pedido seguinte pode ser CONTINUAR " +
+  "no mesmo OU CRIAR outro (ver ESCOLHA DE ARTEFATO). É melhor acertar uma pergunta do que entregar " +
+  "dez versões erradas; é assim que colaboras com ele em vez de despejar. Dá 2 a 4 opções curtas e " +
+  "concretas (ele sempre pode escrever a dele — não ponhas «outro»). Regras: (1) NÃO uses pra pedir " +
+  "permissão óbvia («posso desenhar?»), pra fugir de fazer o que já dá com bom senso, nem pra pedir " +
+  "algo que ele já disse; (2) DEPOIS de `perguntar`, PARA — no máximo uma frase de contexto, NUNCA " +
+  "respondas por ele nem sigas adivinhando; (3) uma pergunta de cada vez, não empilhes três cartões. " +
+  "Quando ele responder, segue com a escolha dele.";
+
+/**
+ * Ambiguidade clássica: já tem artefato na conversa + pedido novo de «escreve / faz um plano…».
+ * Em vez de chutar criar_artefato ou editar, pergunta com o cartão tocável.
+ */
+const DIRETRIZ_ESCOLHA_ARTEFATO =
+  "ESCOLHA DE ARTEFATO (quando JÁ existe artefato nesta conversa — estão no bloco da estante): " +
+  "se ele pede algo que PODE ser continuação/edição do que já está OU um artefato NOVO separado, " +
+  "e NÃO deixou claro («continua o…», «no mesmo», «nesse plano», «cria outro», «novo artefato», " +
+  "citou o título), ANTES de `criar_artefato` / `inserir_blocos` / `editar_*` chama `perguntar`. " +
+  "Exemplo: pergunta «Isso entra no «Título do artefato» ou é outro?» com opções " +
+  "[«Continuar no mesmo», «Criar outro»] (ajusta os rótulos ao título real; 2 opções bastam). " +
+  "DEPOIS de `perguntar`, PARA e espera. Se ele JÁ disse qual (continua / outro / citou o nome), " +
+  "NÃO pergunte de novo — siga: continuação → mãos de edição/inserção; outro/novo → `criar_artefato`. " +
+  "Pedido óbvio de small talk ou ação sem escrita de artefato: ignore esta regra.";
 
 /**
  * Diretriz do PLANO EM PASSOS — a coleira que segura um modelo one-shot na cadeia. Só entra com
@@ -788,6 +805,7 @@ export async function responderComoLunaAgentico(
           "ARTEFATOS JÁ NA ESTANTE DESTA CONVERSA. Para cada um abaixo: se vês o CORPO, já o tens — não precisas de `ler_artefato`. Se vês só o ÍNDICE (artefato grande), abre a seção que precisas com `ler_secao` ANTES de mexer — não carregues o texto todo (é assim que te perdes). " +
           "CONTINUAÇÃO: `inserir_blocos` com `markdown` + `after_secao` (número/título) — NÃO reescreva com `editar_artefato`. " +
           "Ponto pontual: `editar_trecho_artefato`. Reserva `editar_artefato` só pra refazer do zero. " +
+          "PEDIDO AMBÍGUO (pode ser o mesmo artefato ou um novo): usa `perguntar` — «Continuar no mesmo» vs «Criar outro» — antes de escrever. " +
           "É PROIBIDO dizer «editei», «revisei», «já mudei» sem ter chamado a ferramenta — se não chamaste, o artefato continua igual e ele reabre e nada mudou.\n\n" +
           partes.join("\n\n---\n\n");
       }
@@ -851,6 +869,8 @@ export async function responderComoLunaAgentico(
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
     opcoes.documentosAtivo ? DIRETRIZ_ORIENTACAO_ESCRITA : null,
     opcoes.documentosAtivo ? DIRETRIZ_AUDITORIA_ARTEFATO : null,
+    // Só quando já há artefato pré-carregado nesta conversa — senão a escolha não existe.
+    blocoDocumentosDaConversa ? DIRETRIZ_ESCOLHA_ARTEFATO : null,
     // A mão que desenha — mesma trava (OrbitLab).
     opcoes.documentosAtivo ? DIRETRIZ_IMAGEM : null,
     // A mão que pergunta antes de agir — mesma trava (OrbitLab).
