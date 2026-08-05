@@ -1364,6 +1364,39 @@ const FERRAMENTA_ADICIONAR_PASSO: DefinicaoFerramenta = {
   },
 };
 
+/**
+ * A6.2 — neurônio como subagente. A Luna ORQUESTRA; o especialista aconselha em poucas frases.
+ * Só no OrbitLab (documentosAtivo) — é onde a orientação de artefato importa.
+ */
+const FERRAMENTA_CONSULTAR_NEURONIO: DefinicaoFerramenta = {
+  nome: "consultar_neuronio",
+  descricao:
+    "Consulta um neurônio-especialista (subagente curto) e recebe conselho pra decidir o próximo passo. " +
+    "Use `orientacao` quando estiver em dúvida em artefato grande (qual seção ler / se já pode escrever). " +
+    "Use `auditoria` depois de editar, se quiser uma segunda opinião antes de fechar. " +
+    "NÃO uses em small talk. NÃO uses em loop — uma consulta, depois age.",
+  parametros: {
+    type: "object",
+    properties: {
+      especialidade: {
+        type: "string",
+        enum: ["orientacao", "auditoria"],
+        description: "Qual neurônio chamar.",
+      },
+      pergunta: {
+        type: "string",
+        description:
+          "O que você quer saber (1–3 frases). Ex.: «Já li o índice; continuo o cap. 2 ou releio o 1?»",
+      },
+      contexto: {
+        type: "string",
+        description: "Opcional: índice, trecho curto ou estado do plano pra ele situar.",
+      },
+    },
+    required: ["especialidade", "pergunta"],
+  },
+};
+
 /** Ferramentas disponíveis no chat mobile (avalia env em runtime). */
 export function listarFerramentasChat(
   opcoes: { pesquisaProfunda?: boolean; documentosAtivo?: boolean; planejamentoAtivo?: boolean } = {},
@@ -1410,6 +1443,7 @@ export function listarFerramentasChat(
     ferramentas.push(FERRAMENTA_GERAR_IMAGEM);
     ferramentas.push(FERRAMENTA_EDITAR_IMAGEM);
     ferramentas.push(FERRAMENTA_PERGUNTAR);
+    ferramentas.push(FERRAMENTA_CONSULTAR_NEURONIO);
   }
   // Plano em passos: a coleira que segura o modelo na cadeia de ferramentas. Também só no OrbitLab.
   if (opcoes.planejamentoAtivo) {

@@ -18,6 +18,8 @@ import {
   resolverRaciocinioResposta,
 } from "./raciocinioApi.js";
 import { serializarCorpoLlm } from "./cerebrasPayload.js";
+import { lerCorpoSseStreamAgente } from "./streamAgente.js";
+import { randomUUID } from "node:crypto";
 
 type OpcoesOpenAi = {
   apiKey: string;
@@ -289,6 +291,145 @@ async function completarComFerramentasUmaVez(
   requisicao: RequisicaoAgente,
   maxTentativas: number,
 ): Promise<RespostaAgente> {
+  // A6.1: com onDelta, streama content/reasoning ao vivo e acumula tool_calls.
+  if (requisicao.onDelta) {
+    try {
+      return await completarComFerramentasStream(url, apiKey, requisicao, maxTentativas);
+    } catch (erro) {
+      // Fallback: alguns provedores rejeitam stream+tools — tenta sem stream.
+      const msg = erro instanceof Error ? erro.message : String(erro);
+      if (!/LLM|stream|tools|400|404/i.test(msg)) throw erro;
+    }
+  }
+  return completarComFerramentasJson(url, apiKey, requisicao, maxTentativas);
+}
+
+async function completarComFerramentasStream(
+  url: string,
+  apiKey: string,
+  requisicao: RequisicaoAgente,
+  maxTentativas: number,
+): Promise<RespostaAgente> {
+  const inicio = Date.now();
+
+  const corpo: Record<string, unknown> = {
+    model: requisicao.modelo,
+    messages: requisicao.mensagens.map(serializarMensagemAgente),
+    temperature: requisicao.temperatura,
+    stream: true,
+    ...(requisicao.maxTokens ? { max_tokens: requisicao.maxTokens } : {}),
+  };
+
+  if (requisicao.ferramentas?.length) {
+    corpo.tools = serializarFerramentas(requisicao.ferramentas);
+    corpo.tool_choice = "auto";
+  }
+
+  const raciocinioAtivo = requisicao.raciocinioAtivo !== false;
+  aplicarCorpoRaciocinio(
+    corpo,
+    requisicao.modelo,
+    url,
+    raciocinioAtivo,
+    Boolean(requisicao.ferramentas?.length),
+    requisicao.raciocinioEffort,
+  );
+
+  const { body, headers: bodyHeaders } = serializarCorpoLlm(corpo, url);
+  const headers = { ...buildLlmHeaders(apiKey, url), ...bodyHeaders };
+
+  const resposta = await fetchComRetry(
+    `${url}/chat/completions`,
+    { method: "POST", headers, body },
+    maxTentativas,
+    url,
+  );
+
+  let conteudo = "";
+  let raciocinio = "";
+  let modelo = requisicao.modelo;
+  const toolAcc = new Map<
+    number,
+    { id: string; nome: string; argumentosJson: string }
+  >();
+
+  await lerCorpoSseStreamAgente(resposta.body, (chunk) => {
+    if (chunk.tipo === "modelo") {
+      modelo = chunk.modelo;
+      return;
+    }
+    if (chunk.tipo === "content") {
+      conteudo += chunk.delta;
+      requisicao.onDelta?.({ tipo: "content", delta: chunk.delta });
+      return;
+    }
+    if (chunk.tipo === "reasoning") {
+      raciocinio += chunk.delta;
+      requisicao.onDelta?.({ tipo: "reasoning", delta: chunk.delta });
+      return;
+    }
+    if (chunk.tipo === "tool_call_delta") {
+      const cur = toolAcc.get(chunk.index) ?? {
+        id: "",
+        nome: "",
+        argumentosJson: "",
+      };
+      if (chunk.id) cur.id = chunk.id;
+      if (chunk.nome) cur.nome = chunk.nome;
+      if (chunk.argumentosDelta) cur.argumentosJson += chunk.argumentosDelta;
+      toolAcc.set(chunk.index, cur);
+    }
+  });
+
+  const latencia_ms = Date.now() - inicio;
+  const resolvido = resolverRaciocinioResposta(
+    { content: conteudo, reasoning: raciocinio || undefined },
+    conteudo,
+  );
+  const conteudoFinal = resolvido.conteudo.trim();
+  const raciocinioFinal = resolvido.raciocinio ?? (raciocinio.trim() || undefined);
+
+  const chamadas: ChamadaFerramenta[] = [...toolAcc.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, tc]) => {
+      let argumentos: Record<string, unknown> = {};
+      try {
+        argumentos = JSON.parse(tc.argumentosJson || "{}") as Record<string, unknown>;
+      } catch {
+        argumentos = {};
+      }
+      return {
+        id: tc.id || randomUUID(),
+        nome: tc.nome,
+        argumentos,
+      };
+    })
+    .filter((c) => c.nome.length > 0);
+
+  if (chamadas.length > 0) {
+    return {
+      ...(conteudoFinal ? { conteudo: conteudoFinal } : {}),
+      chamadas,
+      raciocinio: raciocinioFinal,
+      modelo,
+      latencia_ms,
+    };
+  }
+
+  return {
+    conteudo: conteudoFinal,
+    raciocinio: raciocinioFinal,
+    modelo,
+    latencia_ms,
+  };
+}
+
+async function completarComFerramentasJson(
+  url: string,
+  apiKey: string,
+  requisicao: RequisicaoAgente,
+  maxTentativas: number,
+): Promise<RespostaAgente> {
   const inicio = Date.now();
 
   const corpo: Record<string, unknown> = {
@@ -354,8 +495,6 @@ async function completarComFerramentasUmaVez(
   if (toolCalls?.length) {
     const chamadas = parsearChamadas(toolCalls);
     if (chamadas.length > 0) {
-      // Narração estilo Cursor: o modelo pode dizer «Vou ler…» E pedir a tool na mesma
-      // rodada. Antes descartávamos o content — a bolha ficava muda até o done.
       return {
         ...(conteudo ? { conteudo } : {}),
         chamadas,

@@ -616,6 +616,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         antiLoopSecaoArtefato: true,
         /** Plano: marca todos os ☐ + exige fala de fecho com o usuário. */
         planoFechoComFala: true,
+        /** A6.1 — stream de content/reasoning no loop com tools. */
+        streamAgenticoFino: true,
+        /** A6.2 — tool consultar_neuronio (orientação/auditoria). */
+        neuronioSubagente: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
