@@ -66,11 +66,15 @@ const CEREBRAS_GLM_47 = {
   modelId: "zai-glm-4.7",
 };
 
-/** Cérebro principal (pago): Qwen 3.6 Plus — forte em tools/agentico/escrita. */
-const OPENROUTER_QWEN_PLUS = {
+/**
+ * Cérebro principal (pago): DeepSeek V4 Pro — prosa/livro forte.
+ * Coleiras de artefato (orientação, after_secao, auditoria) seguram o agentico.
+ * Qwen 3.6 Plus ficou de reserva (melhor em tools); troca via OPENROUTER_MODEL.
+ */
+const OPENROUTER_DEEPSEEK_PRO = {
   label: LUNA_BRAND_CORE.fullName,
   description: LUNA_BRAND_CORE.description,
-  modelId: "qwen/qwen3.6-plus",
+  modelId: "deepseek/deepseek-v4-pro",
 };
 
 const CEREBRAS_GPT_OSS_120B = {
@@ -94,7 +98,7 @@ const MODELS: Record<
     "gpt-oss-120b": CEREBRAS_GPT_OSS_120B,
   },
   openrouter: {
-    default: OPENROUTER_QWEN_PLUS,
+    default: OPENROUTER_DEEPSEEK_PRO,
   },
 };
 
@@ -198,7 +202,7 @@ function groqMaiorModelId(): string {
 }
 
 function resolveOpenrouterModelId(): string {
-  return process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_QWEN_PLUS.modelId;
+  return process.env.OPENROUTER_MODEL?.trim() || OPENROUTER_DEEPSEEK_PRO.modelId;
 }
 
 /**

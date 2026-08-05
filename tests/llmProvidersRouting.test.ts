@@ -95,6 +95,8 @@ describe("roteamento LLM mobile-api — A0: só OpenRouter", () => {
     // Free responde no modelo leve; pago responde no Pro.
     expect(configFree?.modeloMaior).toBe(configFree?.modeloMenor);
     expect(configPro?.modeloMaior).not.toBe(configPro?.modeloMenor);
+    expect(configPro?.modeloMaior).toBe("deepseek/deepseek-v4-pro");
+    expect(configFree?.modeloMaior).toBe("deepseek/deepseek-v4-flash");
   });
 
   it("modo reduzido (quota) fica no OpenRouter — nunca mais Cerebras", () => {
