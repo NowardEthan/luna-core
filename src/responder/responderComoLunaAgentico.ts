@@ -80,6 +80,8 @@ const MAX_RODADAS_AGENTICO = 4;
 // (executar+`concluir_passo`) por passo. Um teto de 4 estrangularia a cadeia logo no 2º passo.
 // Só sobe quando o planejamento está ativo (OrbitLab); o chat comum continua enxuto em 4.
 const MAX_RODADAS_PLANEJAMENTO = 12;
+/** Pesquisa profunda: busca + ler_url + cruzar fontes + relatório — 12 ainda apertava. */
+const MAX_RODADAS_PESQUISA_PROFUNDA = 18;
 
 /** Um passo do plano do turno: o texto e se já foi marcado como feito. */
 export type PassoPlano = { texto: string; feito: boolean };
@@ -678,11 +680,19 @@ export async function responderComoLunaAgentico(
   // Planejamento em passos: por ora anda junto com os documentos (só o OrbitLab liga). Quando o
   // seletor de modos chegar ao app, é este flag que o modo agêntico vai acender por conta própria.
   const planejamentoAtivo = opcoes.documentosAtivo === true;
+  const pesquisaProfundaAtiva = opcoes.pesquisaProfunda === true;
   // Orçamento vivo: sobe quando o plano cresce (planejar / adicionar_passo).
-  let maxRodadas = planejamentoAtivo ? MAX_RODADAS_PLANEJAMENTO : MAX_RODADAS_AGENTICO;
+  let maxRodadas = pesquisaProfundaAtiva
+    ? MAX_RODADAS_PESQUISA_PROFUNDA
+    : planejamentoAtivo
+      ? MAX_RODADAS_PLANEJAMENTO
+      : MAX_RODADAS_AGENTICO;
   const recalcularMaxRodadas = () => {
-    if (!planejamentoAtivo) return;
-    maxRodadas = Math.max(MAX_RODADAS_PLANEJAMENTO, 3 + plano.length * 2 + 2);
+    if (!planejamentoAtivo && !pesquisaProfundaAtiva) return;
+    const piso = pesquisaProfundaAtiva
+      ? MAX_RODADAS_PESQUISA_PROFUNDA
+      : MAX_RODADAS_PLANEJAMENTO;
+    maxRodadas = Math.max(piso, 3 + plano.length * 2 + 2);
   };
   const pedeFinancas = mensagemPedeFinancas(mensagemUsuario);
   // Grana pessoal ≠ pesquisa web. Se o turno é financeiro e ele NÃO pediu busca/URL,
@@ -927,6 +937,9 @@ export async function responderComoLunaAgentico(
   /** Orientação/auditoria de artefato neste turno (coleiras pré e pós). */
   let leuArtefatoNesteTurno = false;
   let artefatoPendenteAuditoriaFlag = false;
+  /** Pesquisa profunda: buscou na web mas ainda não cruzou com `verificar_fontes`. */
+  let usouPesquisaWebNesteTurno = false;
+  let cruzouFontesNesteTurno = false;
 
   const resultado = await executorAgentico({
     mensagemUsuario: montarMensagemUsuario(
@@ -947,6 +960,8 @@ export async function responderComoLunaAgentico(
     planoAindaAberto,
     planoTemPassos: () => plano.length > 0,
     artefatoPendenteAuditoria: () => artefatoPendenteAuditoriaFlag,
+    pesquisaPendenteCruzamento: () =>
+      pesquisaProfundaAtiva && usouPesquisaWebNesteTurno && !cruzouFontesNesteTurno,
     onToolCallStart: (nome, argumentos, rodada) => {
       const ehNeuronio = nome === "consultar_neuronio";
       const especialidade = ehNeuronio
@@ -969,6 +984,12 @@ export async function responderComoLunaAgentico(
           artefatoPendenteAuditoriaFlag = false;
         } else if (FERRAMENTAS_ESCRITA_ARTEFATO.has(passo.ferramenta)) {
           artefatoPendenteAuditoriaFlag = true;
+        }
+        if (passo.ferramenta === "web_search" || passo.ferramenta === "ler_url") {
+          usouPesquisaWebNesteTurno = true;
+        }
+        if (passo.ferramenta === "verificar_fontes") {
+          cruzouFontesNesteTurno = true;
         }
       }
       const ehFerramentaDePesquisa = passo.ferramenta === "web_search" || passo.ferramenta === "ler_url";

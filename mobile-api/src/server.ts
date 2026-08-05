@@ -253,11 +253,14 @@ function chatTimeoutMs(): number {
 }
 
 // Timeout do streaming SSE — a escada mais folgada (LLM 120s < servidor 150s < streaming).
-// Configurável por env; default 180s pra caber respostas profundas do v4-pro.
-function streamTimeoutMs(): number {
+// Configurável por env; default 180s (360s na pesquisa profunda — várias buscas + cruzar fontes).
+function streamTimeoutMs(pesquisaProfunda = false): number {
   const raw = process.env.LUNA_STREAM_TIMEOUT_MS?.trim();
-  const n = raw ? Number.parseInt(raw, 10) : 180_000;
-  return Number.isFinite(n) && n > 0 ? n : 180_000;
+  if (raw) {
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return pesquisaProfunda ? 360_000 : 180_000;
 }
 
 async function comTimeoutChat<T>(promise: Promise<T>, ms = chatTimeoutMs()): Promise<T> {
@@ -626,6 +629,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         pesquisaPreferencialWeb: true,
         /** Stream: `ready` antes do persist; `done` depois (Lab novo ouve ready). */
         streamReadyAntesPersistir: true,
+        /** Pesquisa profunda não corta no meio (rodadas/timeout/cruzar fontes). */
+        pesquisaProfundaCompleta: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -828,7 +833,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // mesmo no turno fundo. Também força o flush dos headers do SSE por proxies que bufferizam.
       sendSseEvent(res, "status", { phase: "analysing" });
 
-      const streamMs = streamTimeoutMs();
+      const streamMs = streamTimeoutMs(parsed.pesquisaProfunda === true);
       const streamTimeout = setTimeout(() => {
         clearInterval(heartbeat);
         sendMappedSseError(res, new Error(`Timeout de streaming (${Math.round(streamMs / 1000)}s).`));

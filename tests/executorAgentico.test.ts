@@ -448,6 +448,51 @@ describe("coleira do plano", () => {
     expect(resultado.resposta_final).not.toContain("já escrevi o capítulo");
   });
 
+  it("pesquisa profunda: não encerra sem verificar_fontes — nudge e continua", async () => {
+    let rodada = 0;
+    let pendenteCruzamento = true;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada === 1) {
+          return {
+            conteudo: "Achei na busca: a versão atual é X.",
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 5,
+          };
+        }
+        return {
+          conteudo: "Depois de cruzar as fontes: a versão sustentada é Y.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        pesquisaPendenteCruzamento: () => {
+          if (rodada >= 2) pendenteCruzamento = false;
+          return pendenteCruzamento;
+        },
+      }),
+    );
+
+    expect(provedor.completarComFerramentas).toHaveBeenCalledTimes(2);
+    const msgsRodada2 = provedor.completarComFerramentas.mock.calls[1]![0].mensagens;
+    const nudge = msgsRodada2.find(
+      (m: { papel: string; conteudo?: string }) =>
+        m.papel === "user" &&
+        typeof m.conteudo === "string" &&
+        m.conteudo.includes("verificar_fontes"),
+    );
+    expect(nudge).toBeDefined();
+    expect(resultado.resposta_final).toContain("versão sustentada");
+    expect(resultado.resposta_final).not.toContain("versão atual é X");
+  });
+
   it("não encerra em resposta vazia após tools — nudge e continua", async () => {
     let rodada = 0;
     const provedor = {
