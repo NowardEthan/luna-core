@@ -1257,25 +1257,45 @@ const FERRAMENTA_EDITAR_BLOCO_ARTEFATO: DefinicaoFerramenta = {
 const FERRAMENTA_ANOTAR_CANONE: DefinicaoFerramenta = {
   nome: "anotar_canone",
   descricao:
-    "Guarda os FATOS FIXOS de um artefato — os nomes, idades, relações e decisões de mundo que não " +
-    "podem se contradizer entre um trecho e outro (ex.: «Marina: arquiteta, 30 anos, mora em Lisboa; " +
-    "Pedro é irmão dela»). Esses fatos aparecem à tua frente sempre que mexeres neste artefato, mesmo " +
-    "num livro grande onde só vês o índice — é assim que não trocas o nome de um personagem entre " +
-    "capítulos. Passa a lista COMPLETA e atualizada (tu já tens o cânone atual no contexto): junta o " +
-    "fato novo, corrige o que mudou. Usa quando ele ESTABELECE algo do mundo/personagens, ou quando " +
-    "tu mesma fixas um fato ao escrever.",
+    "Manipula o CÂNONE (fatos FIXOS do artefato: nomes, idades, relações, decisões de mundo). " +
+    "É o AGENTS.md do texto — aparece sempre na pré-carga. USE SEMPRE QUE PUDER: quando ele " +
+    "estabelece um fato, quando TU fixa algo ao escrever, quando algo muda ou deixa de valer. " +
+    "Prefira ações pontuais: adicionar (um fato), editar (numero ou fato_antigo + fato_novo), " +
+    "apagar (numero ou fato), ler, limpar. `substituir` + `notas` reescreve a lista inteira " +
+    "(legado). NÃO hesite em anotar — cânone curto e atualizado evita contradição entre capítulos.",
   parametros: {
     type: "object",
     properties: {
       id: { type: "string", description: "O id do artefato (de listar_artefatos)." },
+      acao: {
+        type: "string",
+        description:
+          "adicionar | editar | apagar | substituir | limpar | ler. " +
+          "Sem acao + notas = substituir (legado). Sem acao + fato = adicionar.",
+      },
+      fato: {
+        type: "string",
+        description: "Uma linha de fato (adicionar) ou texto pra achar a linha (apagar/editar).",
+      },
+      fato_antigo: {
+        type: "string",
+        description: "Texto da linha a trocar (editar), se não usar numero.",
+      },
+      fato_novo: {
+        type: "string",
+        description: "Novo texto da linha (editar).",
+      },
+      numero: {
+        type: "number",
+        description: "Índice 1-based da linha no cânone (editar/apagar).",
+      },
       notas: {
         type: "string",
         description:
-          "A lista COMPLETA e atualizada dos fatos fixos, em Markdown curto (um fato por linha). " +
-          "Substitui o cânone anterior — reescreve-o inteiro com o que mudou.",
+          "Lista COMPLETA (só em substituir). Um fato por linha. Vazio = limpar.",
       },
     },
-    required: ["id", "notas"],
+    required: ["id"],
   },
 } satisfies DefinicaoFerramenta;
 

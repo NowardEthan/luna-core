@@ -566,51 +566,173 @@ export async function editarDocumento(
 }
 
 /**
- * A BÍBLIA do artefato — a memória fixa que impede a contradição entre trechos.
- *
- * O problema: num texto grande a Luna não vê o livro todo (é assim que ela não satura). Mas então,
- * ao escrever o capítulo 8, ela pode «esquecer» que a personagem se chama Marina e chamá-la de
- * Mariana. É o mesmo furo que um agente de código teria sem um `AGENTS.md` — as regras fixas que
- * ele relê SEMPRE antes de mexer.
- *
- * `anotar_canone` guarda esses fatos fixos (nomes, idades, relações, decisões de mundo) num
- * METADADO à parte do corpo — logo NÃO vaza na exportação nem na contagem de palavras — e a
- * pré-carga injeta o cânone no contexto dela a CADA turno naquele artefato (é curto, cabe inteiro
- * mesmo num livro). Assim os fatos estão sempre à frente dela quando vai escrever ou editar.
- *
- * Semântica de ESTADO COMPLETO (igual a editar_documento reescreve o corpo inteiro): a Luna já tem
- * o cânone atual no contexto; ela passa a lista COMPLETA e atualizada — adiciona o fato novo,
- * corrige/remove o que mudou — e isto substitui o cânone. Reaproveita a dep `editarDocumento`
- * (grava só o campo `canone`, sem tocar no corpo nem gerar versão) — nada de Firestore novo.
+ * A BÍBLIA do artefato — fatos fixos (metadado, fora do corpo).
+ * CRUD pontual: adicionar | editar | apagar | substituir | limpar | ler.
+ * Prefira adicionar/editar/apagar — full-replace costuma ser abandonado no loop.
  */
+function linhasCanone(raw: string): string[] {
+  return raw
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^\s*[-*•]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function formatarCanoneNumerado(linhas: string[]): string {
+  if (linhas.length === 0) return "(cânone vazio)";
+  return linhas.map((l, i) => `${i + 1}. ${l}`).join("\n");
+}
+
 export async function anotarCanone(
-  deps: Pick<DependenciasDocumentos, "editarDocumento">,
+  deps: Pick<DependenciasDocumentos, "editarDocumento" | "lerDocumento">,
   args: Record<string, unknown>,
 ): Promise<string> {
   const id = String(args.id ?? "").trim();
-  const temNotas = typeof args.notas === "string";
-  const notas = temNotas ? String(args.notas).trim() : "";
-
   if (!id) {
     return "ERRO: preciso do id do artefato. Chame listar_artefatos se não souber.";
   }
-  if (!temNotas) {
+
+  const acaoRaw = String(args.acao ?? "").trim().toLowerCase();
+  const temNotas = typeof args.notas === "string";
+  const acao =
+    acaoRaw ||
+    (temNotas ? "substituir" : "") ||
+    (typeof args.fato === "string" && String(args.fato).trim() ? "adicionar" : "");
+
+  if (!acao) {
     return (
-      "ERRO: preciso das `notas` — a lista COMPLETA e atualizada dos fatos fixos do artefato " +
-      "(nomes, idades, relações, decisões de mundo). Você já tem o cânone atual no contexto: " +
-      "reescreva-o inteiro com o que mudou. Para limpar o cânone, passe `notas` vazio."
+      "ERRO: diga a `acao` — adicionar | editar | apagar | substituir | limpar | ler. " +
+      "Ex.: adicionar + `fato`; apagar + `numero` ou `fato`; editar + `numero`/`fato_antigo` + `fato_novo`; " +
+      "substituir + `notas` (lista completa)."
     );
   }
 
   try {
-    const resultado = await deps.editarDocumento({ id, canone: notas });
-    if (!resultado) {
+    if (
+      !deps.lerDocumento &&
+      (acao === "adicionar" || acao === "editar" || acao === "apagar" || acao === "ler")
+    ) {
+      return "ERRO FATAL: lerDocumento não disponível pra manipular o cânone.";
+    }
+
+    const doc = deps.lerDocumento ? await deps.lerDocumento(id) : null;
+
+    if (!doc && (acao === "adicionar" || acao === "editar" || acao === "apagar" || acao === "ler")) {
       return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
     }
+
+    const titulo = doc?.titulo ?? id;
+    let linhas = linhasCanone(doc?.canone ?? "");
+
+    if (acao === "ler") {
+      return (
+        `CÂNONE de «${titulo}» (${linhas.length} fato${linhas.length === 1 ? "" : "s"}):\n` +
+        `${formatarCanoneNumerado(linhas)}\n` +
+        `Pra mudar: anotar_canone com acao adicionar/editar/apagar/substituir/limpar.`
+      );
+    }
+
+    if (acao === "limpar") {
+      const resultado = await deps.editarDocumento({ id, canone: "" });
+      if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+      return `Cânone de «${resultado.titulo}» limpo (zerado).`;
+    }
+
+    if (acao === "substituir") {
+      if (!temNotas) {
+        return "ERRO: `substituir` precisa de `notas` (lista completa; string vazia = limpar).";
+      }
+      const notas = String(args.notas).trim();
+      const resultado = await deps.editarDocumento({ id, canone: notas });
+      if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+      const n = linhasCanone(notas).length;
+      return (
+        `Cânone de «${resultado.titulo}» substituído (${n} fato${n === 1 ? "" : "s"}).\n` +
+        `${formatarCanoneNumerado(linhasCanone(notas))}`
+      );
+    }
+
+    if (acao === "adicionar") {
+      const fato = String(args.fato ?? args.notas ?? "").trim();
+      if (!fato) return "ERRO: `adicionar` precisa de `fato` (uma linha).";
+      if (linhas.some((l) => l.toLowerCase() === fato.toLowerCase())) {
+        return (
+          `Esse fato já está no cânone de «${titulo}» — nada mudou.\n` +
+          `${formatarCanoneNumerado(linhas)}`
+        );
+      }
+      linhas = [...linhas, fato];
+      const resultado = await deps.editarDocumento({ id, canone: linhas.join("\n") });
+      if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+      return (
+        `Fato adicionado ao cânone de «${resultado.titulo}».\n` +
+        `${formatarCanoneNumerado(linhas)}`
+      );
+    }
+
+    if (acao === "editar") {
+      const fatoNovo = String(args.fato_novo ?? args.fatoNovo ?? "").trim();
+      if (!fatoNovo) return "ERRO: `editar` precisa de `fato_novo`.";
+      const numero = Number(args.numero ?? args.n ?? NaN);
+      const fatoAntigo = String(args.fato_antigo ?? args.fatoAntigo ?? args.fato ?? "").trim();
+      let idx = -1;
+      if (Number.isFinite(numero) && numero >= 1 && numero <= linhas.length) {
+        idx = Math.floor(numero) - 1;
+      } else if (fatoAntigo) {
+        idx = linhas.findIndex(
+          (l) =>
+            l.toLowerCase() === fatoAntigo.toLowerCase() ||
+            l.toLowerCase().includes(fatoAntigo.toLowerCase()),
+        );
+      }
+      if (idx < 0) {
+        return (
+          `ERRO: não achei o fato pra editar. Use \`numero\` (1…${linhas.length}) ou \`fato_antigo\`.\n` +
+          `${formatarCanoneNumerado(linhas)}`
+        );
+      }
+      const antes = linhas[idx]!;
+      linhas = linhas.map((l, i) => (i === idx ? fatoNovo : l));
+      const resultado = await deps.editarDocumento({ id, canone: linhas.join("\n") });
+      if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+      return (
+        `Fato ${idx + 1} editado em «${resultado.titulo}»:\n` +
+        `antes: ${antes}\n` +
+        `agora: ${fatoNovo}\n` +
+        `${formatarCanoneNumerado(linhas)}`
+      );
+    }
+
+    if (acao === "apagar") {
+      const numero = Number(args.numero ?? args.n ?? NaN);
+      const fato = String(args.fato ?? args.fato_antigo ?? args.fatoAntigo ?? "").trim();
+      let idx = -1;
+      if (Number.isFinite(numero) && numero >= 1 && numero <= linhas.length) {
+        idx = Math.floor(numero) - 1;
+      } else if (fato) {
+        idx = linhas.findIndex(
+          (l) =>
+            l.toLowerCase() === fato.toLowerCase() ||
+            l.toLowerCase().includes(fato.toLowerCase()),
+        );
+      }
+      if (idx < 0) {
+        return (
+          `ERRO: não achei o fato pra apagar. Use \`numero\` ou \`fato\`.\n` +
+          `${formatarCanoneNumerado(linhas)}`
+        );
+      }
+      const removido = linhas[idx]!;
+      linhas = linhas.filter((_, i) => i !== idx);
+      const resultado = await deps.editarDocumento({ id, canone: linhas.join("\n") });
+      if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+      return (
+        `Fato removido do cânone de «${resultado.titulo}»: ${removido}\n` +
+        `${formatarCanoneNumerado(linhas)}`
+      );
+    }
+
     return (
-      `Cânone do artefato «${resultado.titulo}» atualizado (id: ${resultado.id}). ` +
-      `Esses fatos vão aparecer à sua frente sempre que mexer neste artefato — respeite-os para ` +
-      `não se contradizer. Conte ao Ethan, na sua voz, o que você fixou — sem repetir a lista toda.`
+      `ERRO: acao «${acao}» desconhecida. Use adicionar | editar | apagar | substituir | limpar | ler.`
     );
   } catch (error) {
     return `ERRO ao anotar o cânone: ${error instanceof Error ? error.message : String(error)}`;
