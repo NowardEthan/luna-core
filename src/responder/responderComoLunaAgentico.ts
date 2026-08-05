@@ -380,7 +380,7 @@ const DIRETRIZ_DOCUMENTOS =
   "A estante é DELE, não só desta conversa: `listar_artefatos` mostra artefatos de TODAS as conversas (marca se é desta ou de outra). Se ele perguntar «lembra daquele artefato», citar um nome («meus gastos») ou falar de algo criado noutro chat — LISTA e procura o título. É PROIBIDO dizer que não existe sem ter listado a estante inteira. " +
   "Quando ele pedir um artefato, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_artefato` com o corpo INTEIRO em `conteudo`. Não escrevas o artefato na bolha do chat. " +
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
-  "EDITAR: escolhe a mão certa. CONTINUAÇÃO («continua o capítulo», «escreve o epílogo no mesmo artefato», «mais uma parte»): usa `inserir_blocos` — lê `ler_estrutura` pra pegar o `blocoId` do último heading, e passa SÓ o trecho novo (em `markdown` ou `blocos`) com `after_id` nesse heading. NÃO reescrevas o livro com `editar_artefato` pra continuar — é assim que confabulas e apagas o que já existia. Para mudar um PONTO (frase/parágrafo): `editar_trecho_artefato` (cópia EXATA do trecho) ou `editar_bloco_artefato` se já tens o `bloco_id`. Só `editar_artefato` (corpo INTEIRO) quando for mesmo refazer do ZERO. Em todas: primeiro `listar_artefatos`/`ler_estrutura`. É PROIBIDO dizer «editei», «já escrevi o capítulo», «tá no artefato» sem ter chamado a ferramenta. " +
+  "EDITAR: escolhe a mão certa. CONTINUAÇÃO («continua o capítulo», «escreve o epílogo no mesmo artefato», «mais uma parte»): usa `inserir_blocos` — lê `ler_estrutura` pra pegar o `blocoId` do último heading, e passa SÓ o trecho novo (em `markdown` ou `blocos`) com `after_id` nesse heading. NÃO reescrevas o livro com `editar_artefato` pra continuar — é assim que confabulas e apagas o que já existia. Para mudar um PONTO (frase/parágrafo): `editar_trecho_artefato` (cópia EXATA do trecho) ou `editar_bloco_artefato` se já tens o `bloco_id`. Só `editar_artefato` (corpo INTEIRO) quando for mesmo refazer do ZERO. Em todas: AMBIENTA primeiro (`listar_artefatos` / `ler_estrutura` / `ler_secao` / `buscar_no_artefato`) — NÃO saltes direto pra mão de escrita. Depois de editar, CONFERE (releia estrutura ou o trecho) antes de dizer que está pronto. É PROIBIDO dizer «editei», «já escrevi o capítulo», «tá no artefato» sem ter chamado a ferramenta. " +
   "ARTEFATO GRANDE: NÃO o leias inteiro. Primeiro `ler_estrutura` (índice + blocoId dos headings), depois `ler_secao`/`ler_bloco`, e aí `inserir_blocos` ou `editar_trecho_artefato`/`editar_bloco_artefato`. Se ele fala de algo específico e não sabes a seção: `buscar_no_artefato`. O mapa é barato; o texto todo satura. Artefato pequeno: podes ler com `ler_artefato`. " +
   "CÂNONE (a bíblia do artefato): num texto grande tu não vês o livro todo — é assim que não saturas — mas por isso podes «esquecer» que a personagem se chama Marina e chamá-la de Mariana no capítulo 8. Para não te contradizeres, guarda os FATOS FIXOS (nomes, idades, relações, decisões de mundo) com `anotar_canone` — é o `AGENTS.md` do teu texto. Quando ele ESTABELECE algo do mundo/personagens, ou quando TU fixas um fato ao escrever, anota-o. Esses fatos aparecem sempre à tua frente (na pré-carga, mesmo quando só vês o índice): antes de escrever ou editar, OLHA o CÂNONE e respeita-o. Passa sempre a lista COMPLETA e atualizada (tu já a tens no contexto) — junta o novo, corrige o que mudou. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
@@ -498,6 +498,18 @@ const DIRETRIZ_NARRACAO_AGENTICA =
   "A timeline já mostra o gerúndio (Lendo… / Editando…); a tua frase é a intenção humana, não um relatório. " +
   "NÃO escrevas monólogos longos entre passos, NÃO narres o teu tom interno, NÃO digas que fez algo " +
   "sem ter chamado a ferramenta. Small talk sem tools: responde normal, sem teatro de «vou…».";
+
+/**
+ * Ambientar → agir → conferir. Corta o salto direto pra edição e lembra que web_search existe
+ * quando o fato não está na estante / no contexto.
+ */
+const DIRETRIZ_AMBIENTAR =
+  "AMBIENTAR antes de AGIR: se o pedido mexe em algo que já existe (artefato, extrato, memória, " +
+  "contexto da conversa), ORIENTA-TE primeiro — lista, lê estrutura/trecho/resumo — e SÓ DEPOIS " +
+  "edita, cria ou conclui. Não saltes direto pra mão de escrita porque «já imaginaste» o conteúdo. " +
+  "DEPOIS de alterar, CONFERE o resultado (releia o ponto mexido ou a estrutura) antes de dizer que " +
+  "está pronto. Se falta fato PÚBLICO (versão, data, notícia, cotação, doc externa) e as mãos locais " +
+  "não bastam, usa `web_search` / `ler_url` — pesquisa de verdade; não inventes links nem números.";
 
 /**
  * Diretriz de FINANÇAS — a grana DELE vive nas mãos `resumo_financeiro` / `listar_lancamentos` /
@@ -746,6 +758,8 @@ export async function responderComoLunaAgentico(
     planejamentoAtivo ? DIRETRIZ_PLANO : null,
     // Pontes curtas entre tools (sempre no path agentico — é o que faz parecer Cursor).
     DIRETRIZ_NARRACAO_AGENTICA,
+    // Ler/conferir antes de editar; web quando o fato não está no contexto.
+    DIRETRIZ_AMBIENTAR,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
     // A mão que desenha — mesma trava (OrbitLab).
