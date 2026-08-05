@@ -598,6 +598,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         rateLimit: true,
         /** Batiza conversa no servidor (sem OpenRouter no APK). */
         tituloConversa: true,
+        /** Orientação + autoauditoria de artefatos (coleiras pré/pós + índice no retorno). */
+        auditoriaArtefato: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

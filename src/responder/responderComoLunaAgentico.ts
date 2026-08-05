@@ -512,6 +512,81 @@ const DIRETRIZ_AMBIENTAR =
   "não bastam, usa `web_search` / `ler_url` — pesquisa de verdade; não inventes links nem números.";
 
 /**
+ * Orientação antes de escrever num artefato que JÁ existe (plano, carta, spec, narrativa…).
+ * Raciocínio com as mãos — ler de verdade — não monólogo meta.
+ */
+const DIRETRIZ_ORIENTACAO_ESCRITA =
+  "ORIENTAÇÃO antes de ESCREVER num artefato que já existe (qualquer tipo — plano, checklist, " +
+  "carta, resumo, notas, spec, roteiro, diário, narrativa…): NÃO invente no vácuo. " +
+  "1) `ler_estrutura` 2) `ler_secao` da seção alvo ou da última (ou `ler_artefato` se for curto) " +
+  "3) olhe o CÂNONE no contexto; se surgir fato fixo novo, `anotar_canone` depois. " +
+  "Absorva o que o doc já estabelece: tom, estrutura, decisões, vocabulário; e, se for ficção, " +
+  "personagens/andamento. Só então escreva no MESMO fio. Proibido continuar «de cabeça» só com " +
+  "títulos do índice. Ponte: 1 frase («Vou olhar a estrutura e o fim pra continuar no mesmo tom.») " +
+  "→ tools → escrita. Artefato NOVO (`criar_artefato`) / bilhete curto: orientação leve.";
+
+/**
+ * Depois de escrever: conferir índice/trecho + perguntar se está bom / o que melhorar.
+ */
+const DIRETRIZ_AUDITORIA_ARTEFATO =
+  "AUDITORIA depois de ESCREVER/EDITAR artefato: releia (`ler_estrutura` ou `ler_secao` do pedaço " +
+  "mexido). Confira se as seções antigas ainda estão e se o novo entrou no lugar certo. " +
+  "Pergunte-se: isso ficou bom pro pedido? está no mesmo tom do resto? falta clareza / sobra " +
+  "enrolação / contradiz o que já estava? Como melhorar AGORA com mão cirúrgica " +
+  "(`editar_trecho_artefato` / `editar_bloco_artefato` / `inserir_blocos` pontual) — sem " +
+  "reescrever o doc inteiro? Se achar falha clara, corrija; se ok, feche curto. Sem teatro de " +
+  "«12 critérios». É PROIBIDO dizer «pronto / escrevi a seção» sem ter releído depois da escrita.";
+
+/** Continuação de conteúdo — NÃO usar `editar_artefato` (reescreve e apaga). */
+function mensagemPedeContinuacaoArtefato(texto: string): boolean {
+  const t = texto.trim();
+  if (!t) return false;
+  if (
+    /\b(continu\w*|prossegu\w*|segu(?:e|ir)\s+(com|o|a|no|na)|completa\w*|completar)\b/i.test(t)
+  ) {
+    return true;
+  }
+  if (
+    /\b(ep[íi]logo|mais\s+uma?\s+parte|mais\s+um\s+cap|pr[óo]xim\w*\s+(parte|se[cç][aã]o|cap)|acrescent\w*|adicion\w*)\b/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  return /\b(escrev\w+|redij\w+)\b[^.?!\n]{0,40}\b(mais|pr[óo]xim|continu|ep[íi]logo|cap[íi]tulo|se[cç][aã]o)\b/i.test(
+    t,
+  );
+}
+
+/** Pedido de mexer em artefato existente — exige leitura antes de escrever. */
+function mensagemPedeMexerArtefatoExistente(texto: string): boolean {
+  if (mensagemPedeContinuacaoArtefato(texto)) return true;
+  return (
+    /\b(revis\w+|reescrev\w+|refaz|refaça|refaca|ajust\w+|corrig\w+|corrija|melhor\w+|expand\w+|amplia\w*|acrescent\w+|adicion\w+|remov\w+|troc\w+|muda|mude|mudar|alter\w+|edita\w*|edite)\b/i.test(
+      texto,
+    ) &&
+    /\b(artefato|documento|cap[íi]tulo|se[cç][aã]o|plano|checklist|carta|resumo|nota|spec|roteiro|texto|estante)\b/i.test(
+      texto,
+    )
+  );
+}
+
+const FERRAMENTAS_LEITURA_ARTEFATO = new Set([
+  "ler_estrutura",
+  "ler_secao",
+  "ler_artefato",
+  "buscar_no_artefato",
+  "ler_bloco",
+]);
+
+const FERRAMENTAS_ESCRITA_ARTEFATO = new Set([
+  "inserir_blocos",
+  "editar_trecho_artefato",
+  "editar_bloco_artefato",
+  "editar_artefato",
+]);
+
+/**
  * Diretriz de FINANÇAS — a grana DELE vive nas mãos `resumo_financeiro` / `listar_lancamentos` /
  * `registrar_lancamento` / etc. Sem isto, o modelo (com `web_search` na mão no modo agêntico)
  * ia pra internet quando ele perguntava «quanto gastei» — inventava fontes públicas em vez de
@@ -762,6 +837,8 @@ export async function responderComoLunaAgentico(
     DIRETRIZ_AMBIENTAR,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
+    opcoes.documentosAtivo ? DIRETRIZ_ORIENTACAO_ESCRITA : null,
+    opcoes.documentosAtivo ? DIRETRIZ_AUDITORIA_ARTEFATO : null,
     // A mão que desenha — mesma trava (OrbitLab).
     opcoes.documentosAtivo ? DIRETRIZ_IMAGEM : null,
     // A mão que pergunta antes de agir — mesma trava (OrbitLab).
@@ -774,6 +851,10 @@ export async function responderComoLunaAgentico(
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  /** Orientação/auditoria de artefato neste turno (coleiras pré e pós). */
+  let leuArtefatoNesteTurno = false;
+  let artefatoPendenteAuditoriaFlag = false;
 
   const resultado = await executorAgentico({
     mensagemUsuario: montarMensagemUsuario(
@@ -792,6 +873,7 @@ export async function responderComoLunaAgentico(
     maxRodadas,
     obterMaxRodadas: () => maxRodadas,
     planoAindaAberto,
+    artefatoPendenteAuditoria: () => artefatoPendenteAuditoriaFlag,
     onToolCallStart: (nome, argumentos, rodada) => {
       opcoes.onAcao?.({
         tipo: "inicio_ferramenta",
@@ -802,6 +884,14 @@ export async function responderComoLunaAgentico(
       });
     },
     onToolCallComplete: (passo) => {
+      if (passo.sucesso) {
+        if (FERRAMENTAS_LEITURA_ARTEFATO.has(passo.ferramenta)) {
+          leuArtefatoNesteTurno = true;
+          artefatoPendenteAuditoriaFlag = false;
+        } else if (FERRAMENTAS_ESCRITA_ARTEFATO.has(passo.ferramenta)) {
+          artefatoPendenteAuditoriaFlag = true;
+        }
+      }
       const ehFerramentaDePesquisa = passo.ferramenta === "web_search" || passo.ferramenta === "ler_url";
       const analise =
         passo.sucesso && ehFerramentaDePesquisa
@@ -831,6 +921,31 @@ export async function responderComoLunaAgentico(
     onRaciocinioRodada: opcoes.onRaciocinio,
     onNarracaoRodada: opcoes.onNarracao,
     toolExecutor: async (nome, args) => {
+      // Coleiras de artefato: orientação antes de escrever; sem rewrite em continuação.
+      if (opcoes.documentosAtivo && FERRAMENTAS_ESCRITA_ARTEFATO.has(nome)) {
+        if (
+          nome === "editar_artefato" &&
+          typeof args.conteudo === "string" &&
+          mensagemPedeContinuacaoArtefato(mensagemUsuario)
+        ) {
+          return (
+            "ERRO: este pedido é CONTINUAÇÃO — não use `editar_artefato` (reescreve o corpo e " +
+            "pode apagar seções). Oriente-se com `ler_estrutura`, pegue o `blocoId` do último " +
+            "heading e use `inserir_blocos` com `after_id` e SÓ o trecho novo."
+          );
+        }
+        if (
+          mensagemPedeMexerArtefatoExistente(mensagemUsuario) &&
+          !leuArtefatoNesteTurno
+        ) {
+          return (
+            "ERRO: oriente-se primeiro. Chame `ler_estrutura` e leia a seção relevante " +
+            "(`ler_secao` ou `ler_artefato` se for curto) — tom, o que já está escrito, " +
+            "decisões abertas — e só depois escreva/edite."
+          );
+        }
+      }
+
       // ── A mão que PERGUNTA — para o turno e espera a resposta dele ───────────
       // A pergunta+opções viajam no evento fim_ferramenta (o app monta o cartão). Ao modelo,
       // devolvo a ordem firme: PARA aqui, não respondas por ele. As opções são normalizadas

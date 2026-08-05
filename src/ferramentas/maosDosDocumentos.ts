@@ -97,6 +97,48 @@ function contarPalavras(texto: string): number {
 }
 
 /**
+ * Índice + lembrete de auditoria depois de escrever/editar.
+ * A Luna «vê» o estado do doc sem depender só de disciplina de prompt.
+ */
+export function anexoAuditoriaPosEdit(
+  titulo: string,
+  id: string,
+  conteudo: string,
+  blocos?: BlocoArtefato[],
+): string {
+  const lista = blocos ?? mdToBlocos(conteudo);
+  const secoes = mapearSecoes(conteudo);
+  const headings = lista.filter((b) => b.type === "heading");
+  const totalPalavras = contarPalavras(conteudo);
+  let indice: string;
+  if (secoes.length === 0 && headings.length === 0) {
+    const preview = lista
+      .slice(0, 8)
+      .map((b) => `- ${b.id} · ${b.type} · «${(b.text || "").slice(0, 40)}»`)
+      .join("\n");
+    indice =
+      `Índice atual (texto corrido, ${lista.length} blocos, ~${totalPalavras} palavras):\n` +
+      (preview || "(vazio)");
+  } else {
+    const linhas = secoes
+      .map((s, i) => {
+        const hid = headings[i]?.id ? ` blocoId=${headings[i]!.id}` : "";
+        return `${s.numero}. ${"  ".repeat(Math.max(0, s.nivel - 1))}${s.titulo}  (~${s.palavras} palavras)${hid}`;
+      })
+      .join("\n");
+    indice =
+      `Índice atual (${secoes.length} seções, ${lista.length} blocos, ~${totalPalavras} palavras):\n${linhas}`;
+  }
+  return (
+    `\n\n${indice}\n\n` +
+    `AUDITORIA PENDENTE no artefato «${titulo}» (id: ${id}): chame \`ler_estrutura\` ` +
+    `(ou \`ler_secao\` do trecho mexido), confira se as seções antigas ainda estão e se o novo ` +
+    `entrou no lugar certo; pergunte-se «isso ficou bom pro pedido? o que melhorar?» e, se ` +
+    `preciso, corrija com mão cirúrgica. Só depois diga que está pronto.`
+  );
+}
+
+/**
  * Uma seção do artefato — o «arquivo» dentro da «codebase» que é o texto.
  *
  * `numero` é o índice estável (1-based) pela ordem de leitura; `inicio`/`fim` são offsets de
@@ -486,11 +528,13 @@ export async function editarDocumento(
     if (!resultado) {
       return `ERRO: não achei artefato com id ${id}. Confira em listar_artefatos.`;
     }
-    return (
+    const corpo = temConteudo ? String(args.conteudo) : "";
+    const base =
       `Artefato «${resultado.titulo}» atualizado na estante (id: ${resultado.id}). ` +
       `O cartão nesta conversa já mostra a versão nova. ` +
-      `Conte ao Ethan, na sua voz, o que você mudou — não repita o texto inteiro aqui.`
-    );
+      `Conte ao Ethan, na sua voz, o que você mudou — não repita o texto inteiro aqui.`;
+    if (!corpo.trim()) return base;
+    return base + anexoAuditoriaPosEdit(resultado.titulo, resultado.id, corpo);
   } catch (error) {
     return `ERRO ao editar artefato: ${error instanceof Error ? error.message : String(error)}`;
   }
@@ -620,7 +664,8 @@ export async function editarTrechoDocumento(
     return (
       `Trecho trocado no artefato «${resultado.titulo}» (id: ${resultado.id}) — só aquele ponto mudou, ` +
       `o resto ficou intacto. O cartão nesta conversa já mostra a versão nova. ` +
-      `Conte ao Ethan, na sua voz, o que você mudou — não repita o texto inteiro aqui.`
+      `Conte ao Ethan, na sua voz, o que você mudou — não repita o texto inteiro aqui.` +
+      anexoAuditoriaPosEdit(resultado.titulo, resultado.id, novoCorpo)
     );
   } catch (error) {
     return `ERRO ao editar trecho: ${error instanceof Error ? error.message : String(error)}`;
@@ -744,12 +789,14 @@ export async function inserirBlocosDocumento(
       );
     }
     const next = inserirBlocosApos(blocos, afterId, novos);
-    const resultado = await deps.editarDocumento({ id, blocos: next, conteudo: blocosToMd(next) });
+    const md = blocosToMd(next);
+    const resultado = await deps.editarDocumento({ id, blocos: next, conteudo: md });
     if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
     return (
       `Inseridos ${novos.length} bloco(s) no artefato «${resultado.titulo}» (id: ${resultado.id})` +
       (afterId ? ` depois de ${afterId}` : " no fim") +
-      `. O cartão já mostra a versão nova. Conte ao Ethan o que acrescentou — não repita o livro inteiro.`
+      `. O cartão já mostra a versão nova. Conte ao Ethan o que acrescentou — não repita o livro inteiro.` +
+      anexoAuditoriaPosEdit(resultado.titulo, resultado.id, md, next)
     );
   } catch (error) {
     return `ERRO ao inserir blocos: ${error instanceof Error ? error.message : String(error)}`;
@@ -806,9 +853,11 @@ export async function editarBlocoDocumento(
       conteudo: blocosToMd(next),
     });
     if (!resultado) return `ERRO: não achei artefato com id ${id}.`;
+    const md = blocosToMd(next);
     return (
       `Bloco ${blocoId} atualizado no artefato «${resultado.titulo}» (id: ${resultado.id}). ` +
-      `Conte ao Ethan o que mudou — sem repetir o texto inteiro.`
+      `Conte ao Ethan o que mudou — sem repetir o texto inteiro.` +
+      anexoAuditoriaPosEdit(resultado.titulo, resultado.id, md, next)
     );
   } catch (error) {
     return `ERRO ao editar bloco: ${error instanceof Error ? error.message : String(error)}`;

@@ -305,6 +305,51 @@ describe("coleira do plano", () => {
     expect(resultado.resposta_final).not.toContain("já terminei tudo");
   });
 
+  it("não encerra com texto-só enquanto artefatoPendenteAuditoria — nudge e continua", async () => {
+    let rodada = 0;
+    let pendente = true;
+    const provedor = {
+      completar: vi.fn(),
+      completarComFerramentas: vi.fn().mockImplementation(async () => {
+        rodada++;
+        if (rodada === 1) {
+          return {
+            conteudo: "Pronto, já escrevi o capítulo.",
+            modelo: CONFIG.modeloMaior,
+            latencia_ms: 5,
+          };
+        }
+        return {
+          conteudo: "Confirmei o índice — ficou bom.",
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 5,
+        };
+      }),
+    };
+
+    const resultado = await executorAgentico(
+      opcoesBase({
+        provedor,
+        artefatoPendenteAuditoria: () => {
+          if (rodada >= 2) pendente = false;
+          return pendente;
+        },
+      }),
+    );
+
+    expect(provedor.completarComFerramentas).toHaveBeenCalledTimes(2);
+    const msgsRodada2 = provedor.completarComFerramentas.mock.calls[1]![0].mensagens;
+    const nudge = msgsRodada2.find(
+      (m: { papel: string; conteudo?: string }) =>
+        m.papel === "user" &&
+        typeof m.conteudo === "string" &&
+        m.conteudo.includes("ainda NÃO conferiu"),
+    );
+    expect(nudge).toBeDefined();
+    expect(resultado.resposta_final).toContain("Confirmei o índice");
+    expect(resultado.resposta_final).not.toContain("já escrevi o capítulo");
+  });
+
   it("respeita obterMaxRodadas dinâmico", async () => {
     let teto = 2;
     const toolExecutor = vi.fn().mockResolvedValue("ok");
