@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
 
-import { aplicarCorpoRaciocinio } from "../src/providers/raciocinioApi.js";
+import {
+  aplicarCorpoRaciocinio,
+  blocoPromptIdiomaRaciocinio,
+  modeloSuportaRaciocinioExplicito,
+  precisaRaciocinioPorPrompt,
+} from "../src/providers/raciocinioApi.js";
+
+describe("modeloSuportaRaciocinioExplicito OpenRouter Qwen", () => {
+  const or = "https://openrouter.ai/api/v1";
+
+  it("reconhece qwen3.6-plus como reasoning nativo", () => {
+    expect(modeloSuportaRaciocinioExplicito("qwen/qwen3.6-plus", or)).toBe(true);
+    expect(precisaRaciocinioPorPrompt("qwen/qwen3.6-plus", or, true)).toBe(false);
+  });
+
+  it("pede idioma pt-BR no bloco de pensamento", () => {
+    const bloco = blocoPromptIdiomaRaciocinio();
+    expect(bloco).toMatch(/português do Brasil/i);
+    expect(bloco).toMatch(/nunca em inglês/i);
+  });
+
+  it("aplica reasoning effort no corpo OpenRouter", () => {
+    const corpo: Record<string, unknown> = {};
+    aplicarCorpoRaciocinio(corpo, "qwen/qwen3.6-plus", or, true, true, "medium");
+    expect(corpo.reasoning).toEqual({ effort: "medium" });
+  });
+});
 
 describe("aplicarCorpoRaciocinio Groq gpt-oss", () => {
   it("usa só reasoning_format (não include_reasoning)", () => {

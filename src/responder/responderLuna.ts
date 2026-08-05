@@ -5,6 +5,7 @@ import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { MensagemChat, ProvedorLlm } from "../providers/tipos.js";
 import {
+  blocoPromptIdiomaRaciocinio,
   blocoPromptRaciocinioInline,
   precisaRaciocinioPorPrompt,
 } from "../providers/raciocinioApi.js";
@@ -53,6 +54,10 @@ export function montarMensagensRespondedor(opcoes: OpcoesMensagensRespondedor): 
   // Este é o caminho que o app usa de facto (stream), então é aqui que o técnico ganha vida.
   if (modoTecnico) {
     partesSystem.push(DIRETRIZ_MODO_TECNICO);
+  }
+  if (raciocinioAtivo) {
+    // Nativo (Qwen/OR) ou XML: o pensamento precisa ser pt-BR — senão vem inglês.
+    partesSystem.push(blocoPromptIdiomaRaciocinio());
   }
   if (precisaRaciocinioPorPrompt(modelo, baseUrl, raciocinioAtivo)) {
     partesSystem.push(blocoPromptRaciocinioInline());

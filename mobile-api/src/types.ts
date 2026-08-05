@@ -303,6 +303,8 @@ export type HealthResponse = {
     auditoriaArtefato: boolean;
     /** Cérebro pago = Qwen 3.6 Plus (tools/agentico); surface MD/seção nos artefatos. */
     qwenPlusAgentico: boolean;
+    /** Thinking/reasoning pedido em pt-BR (Qwen nativo incluso). */
+    thinkingPtBr: boolean;
   };
   /**
    * O commit que está a correr AQUI.
