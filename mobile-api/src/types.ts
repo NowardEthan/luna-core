@@ -311,6 +311,8 @@ export type HealthResponse = {
     thinkingSanitizado: boolean;
     /** Pedido ambíguo com artefato na conversa → perguntar continuar vs criar outro. */
     escolhaArtefato: boolean;
+    /** Canone com CRUD pontual (adicionar/editar/apagar). */
+    canoneCrud: boolean;
   };
   /**
    * O commit que está a correr AQUI.

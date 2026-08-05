@@ -383,7 +383,7 @@ const DIRETRIZ_DOCUMENTOS =
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
   "EDITAR (pensa em Markdown/seções, não em ids de bloco): CONTINUAÇÃO («continua», «mais uma parte», «acrescenta») → `inserir_blocos` com `markdown` (só o trecho novo) + `after_secao` (número ou título do índice; omite = fim do artefato). NÃO uses `editar_artefato` pra continuar — isso apaga o que já existia. PONTO (frase/parágrafo) → `editar_trecho_artefato` com cópia EXATA. Só `editar_artefato` (corpo INTEIRO) pra refazer do ZERO. AMBIENTA primeiro (`ler_estrutura` / `ler_secao` / `buscar_no_artefato`). Depois CONFERE. É PROIBIDO dizer «editei» / «já escrevi» sem ter chamado a ferramenta. " +
   "ARTEFATO GRANDE: NÃO leia o corpo inteiro. `ler_estrutura` → `ler_secao` → `inserir_blocos` ou `editar_trecho_artefato`. Se ele cita algo específico: `buscar_no_artefato`. O mapa é barato. Artefato pequeno: `ler_artefato` ok. " +
-  "CÂNONE (a bíblia do artefato): num texto grande tu não vês o livro todo — é assim que não saturas — mas por isso podes «esquecer» que a personagem se chama Marina e chamá-la de Mariana no capítulo 8. Para não te contradizeres, guarda os FATOS FIXOS (nomes, idades, relações, decisões de mundo) com `anotar_canone` — é o `AGENTS.md` do teu texto. Quando ele ESTABELECE algo do mundo/personagens, ou quando TU fixas um fato ao escrever, anota-o. Esses fatos aparecem sempre à tua frente (na pré-carga, mesmo quando só vês o índice): antes de escrever ou editar, OLHA o CÂNONE e respeita-o. Passa sempre a lista COMPLETA e atualizada (tu já a tens no contexto) — junta o novo, corrige o que mudou. " +
+  "CÂNONE (a bíblia do artefato): fatos FIXOS (nomes, idades, relações, decisões). Anote SEMPRE QUE PUDER com `anotar_canone` — não espere ele pedir. Ao escrever/continuar e surgir um fato novo → `acao: adicionar` + `fato`. Fato mudou → `editar` (`numero` ou `fato_antigo` + `fato_novo`). Deixou de valer → `apagar`. Pode `ler`, `limpar` ou `substituir` a lista. Antes de escrever, OLHA o cânone na pré-carga e respeite-o. Prefira ações pontuais em vez de reescrever tudo. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
 
@@ -537,7 +537,7 @@ const DIRETRIZ_ORIENTACAO_ESCRITA =
   "ORIENTAÇÃO antes de ESCREVER num artefato que já existe (plano, checklist, carta, resumo, " +
   "notas, spec, roteiro, diário, narrativa…): NÃO invente no vácuo. " +
   "1) `ler_estrutura` 2) `ler_secao` da seção alvo ou da última (ou `ler_artefato` se for curto) " +
-  "3) olhe o CÂNONE; fato novo → `anotar_canone` depois. " +
+  "3) olhe o CÂNONE; fato novo/mudou → `anotar_canone` (adicionar/editar/apagar) no mesmo turno. " +
   "Absorva tom, estrutura, decisões, vocabulário (e personagens/andamento se for ficção). " +
   "Continuação: `inserir_blocos` com markdown + after_secao (número/título). " +
   "Proibido continuar «de cabeça» só com títulos. Ponte curta → tools → escrita. " +
@@ -550,7 +550,8 @@ const DIRETRIZ_AUDITORIA_ARTEFATO =
   "AUDITORIA depois de ESCREVER/EDITAR artefato: releia (`ler_estrutura` ou `ler_secao` do pedaço " +
   "mexido). Confira se as seções antigas ainda estão e se o novo entrou no lugar certo. " +
   "Pergunte-se: isso ficou bom pro pedido? está no mesmo tom do resto? falta clareza / sobra " +
-  "enrolação / contradiz o que já estava? Como melhorar AGORA com mão cirúrgica " +
+  "enrolação / contradiz o que já estava ou o CÂNONE? Fato novo no texto → `anotar_canone` " +
+  "(adicionar). Como melhorar AGORA com mão cirúrgica " +
   "(`editar_trecho_artefato` / `editar_bloco_artefato` / `inserir_blocos` pontual) — sem " +
   "reescrever o doc inteiro? Se achar falha clara, corrija; se ok, feche curto. Sem teatro de " +
   "«12 critérios». É PROIBIDO dizer «pronto / escrevi a seção» sem ter releído depois da escrita.";
@@ -772,8 +773,13 @@ export async function responderComoLunaAgentico(
           // dela mesmo quando só damos o índice.
           const canone = doc?.canone?.trim() || "";
           const blocoCanone = canone
-            ? `\n  CÂNONE (fatos FIXOS deste artefato — respeita-os, NÃO os contradigas; se um fato mudar, ` +
-              `atualiza com \`anotar_canone\`):\n${canone.split("\n").map((l) => `    ${l}`).join("\n")}`
+            ? `\n  CÂNONE (fatos FIXOS — respeita; manipule com \`anotar_canone\` acao adicionar/editar/apagar):\n` +
+              canone
+                .split("\n")
+                .map((l) => l.trim())
+                .filter(Boolean)
+                .map((l, i) => `    ${i + 1}. ${l.replace(/^\s*[-*•]\s*/, "")}`)
+                .join("\n")
             : "";
           if (corpo.length > LIMITE_ARTEFATO_GRANDE && secoes.length > 0) {
             // Grande e seccionado: dá o mapa, não o livro.
@@ -1376,7 +1382,13 @@ export async function responderComoLunaAgentico(
           if (!opcoes.rotinaDeps.editarDocumento) {
             return "ERRO FATAL: o método de editar artefato não foi implementado neste ambiente.";
           }
-          return anotarCanoneFerramenta({ editarDocumento: opcoes.rotinaDeps.editarDocumento }, args);
+          return anotarCanoneFerramenta(
+            {
+              editarDocumento: opcoes.rotinaDeps.editarDocumento,
+              lerDocumento: opcoes.rotinaDeps.lerDocumento!,
+            },
+            args,
+          );
         }
         if (nome === "anotar_ideia") {
           if (!opcoes.rotinaDeps.criarIdeia) {
