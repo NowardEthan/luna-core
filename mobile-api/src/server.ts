@@ -606,6 +606,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         thinkingPtBr: true,
         /** Stream de thinking com porteiro anti-vazamento + done sanitizado. */
         thinkingSanitizado: true,
+        /** Artefato na conversa + pedido ambíguo → cartão continuar vs criar outro. */
+        escolhaArtefato: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

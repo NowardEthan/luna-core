@@ -821,8 +821,10 @@ const FERRAMENTA_CRIAR_DOCUMENTO: DefinicaoFerramenta = {
     "rascunho, um resumo, uma auditoria, uma carta. (Não confundas com `ler_arquivo`, que é para " +
     "os ARQUIVOS/PDFs que ELE anexou — isso ele subiu, o artefato tu crias.) Usa quando ele PEDE " +
     "(«escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») OU quando o " +
-    "que vocês construíram na conversa é substancial e vale ter um lugar próprio. NÃO uses para " +
-    "respostas curtas de conversa — só quando há corpo que vale reabrir depois. O artefato nasce " +
+    "que vocês construíram na conversa é substancial e vale ter um lugar próprio. Se JÁ existe " +
+    "artefato nesta conversa e o pedido pode ser CONTINUAR nele OU criar OUTRO — e ele não deixou " +
+    "claro — NÃO chutes: chama `perguntar` («Continuar no mesmo» / «Criar outro») e espera. NÃO uses " +
+    "para respostas curtas de conversa — só quando há corpo que vale reabrir depois. O artefato nasce " +
     "desta conversa (aparece como cartão aqui) e ele poderá abrir, ler e editar. Depois de criar, " +
     "confirma na tua voz que ficou guardado — NÃO repitas o texto inteiro no chat.",
   parametros: {
@@ -969,11 +971,13 @@ const FERRAMENTA_PERGUNTAR: DefinicaoFerramenta = {
     "no chat, ele toca numa (ou escreve a dele) e tu continuas com a resposta. Usa SEMPRE que houver " +
     "uma escolha de GOSTO/direção que muda o que vais produzir e tu não tens como saber a preferência " +
     "dele: estilo, tom, ângulo, paleta, formato, rumo, nível de detalhe («desenho realista ou " +
-    "cartoon?», «resposta curta ou fundo?», «foco em qual dos dois?»). É colaborar em vez de chutar — " +
-    "melhor perguntar uma coisa certa do que entregar dez erradas. Dá 2 a 4 opções curtas e concretas " +
-    "(ele SEMPRE pode escrever a dele, não precisas de uma opção «outro»). DEPOIS de chamar, PARA: não " +
-    "respondas por ele nem sigas adivinhando — espera. NÃO uses pra pedir permissão óbvia, nem pra " +
-    "fugir de fazer o que já dá pra fazer com bom senso, nem pra info que ele já te deu.",
+    "cartoon?», «resposta curta ou fundo?», «foco em qual dos dois?»). Também quando JÁ há artefato " +
+    "na conversa e o pedido seguinte pode ser continuar no mesmo OU criar outro («Continuar no mesmo» " +
+    "/ «Criar outro»). É colaborar em vez de chutar — melhor perguntar uma coisa certa do que entregar " +
+    "dez erradas. Dá 2 a 4 opções curtas e concretas (ele SEMPRE pode escrever a dele, não precisas de " +
+    "uma opção «outro»). DEPOIS de chamar, PARA: não respondas por ele nem sigas adivinhando — espera. " +
+    "NÃO uses pra pedir permissão óbvia, nem pra fugir de fazer o que já dá pra fazer com bom senso, " +
+    "nem pra info que ele já te deu.",
   parametros: {
     type: "object",
     properties: {
