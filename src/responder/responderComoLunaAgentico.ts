@@ -533,10 +533,25 @@ const DIRETRIZ_NARRACAO_AGENTICA =
 const DIRETRIZ_AMBIENTAR =
   "AMBIENTAR antes de AGIR: se o pedido mexe em algo que já existe (artefato, extrato, memória, " +
   "contexto da conversa), ORIENTA-TE primeiro — lista, lê estrutura/trecho/resumo — e SÓ DEPOIS " +
-  "edita, cria ou conclui. Não saltes direto pra mão de escrita porque «já imaginaste» o conteúdo. " +
+  "edita, cria ou conclui. Não salte direto pra mão de escrita porque «já imaginou» o conteúdo. " +
   "DEPOIS de alterar, CONFERE o resultado (releia o ponto mexido ou a estrutura) antes de dizer que " +
   "está pronto. Se falta fato PÚBLICO (versão, data, notícia, cotação, doc externa) e as mãos locais " +
-  "não bastam, usa `web_search` / `ler_url` — pesquisa de verdade; não inventes links nem números.";
+  "não bastam, usa `web_search` / `ler_url` — pesquisa de verdade; não invente links nem números.";
+
+/**
+ * Preferir a web ao treino / “banco mental” pra fatos do mundo que envelhecem.
+ * Dados DELE (finanças, rotina, docs, cânone do artefato) continuam nas mãos locais.
+ */
+const DIRETRIZ_PESQUISA_PREFERENCIAL =
+  "PESQUISA ANTES DE AFIRMAR (fatos do mundo): o teu treino e a memória interna NÃO são fonte " +
+  "atualizada. Sempre que fores afirmar algo público que pode mudar — notícia, preço/cotação, " +
+  "versão de software, lei, evento, status de produto, data, ranking, «hoje/agora/atualmente» — " +
+  "chama `web_search` (e `ler_url` se precisar do detalhe) ANTES da resposta final. " +
+  "Na dúvida entre «já sei» e «vou checar», CHECA. Não invente números, datas, nomes de site " +
+  "nem links. Small talk, opinião e conselho sem fato verificável: sem web. " +
+  "EXCEÇÃO — dado DELE: finanças, rotina, documentos privados e cânone do artefato = mãos do app " +
+  "(`resumo_financeiro`, `ler_secao`, `anotar_canone`…). Aí a verdade é local; web só se ele " +
+  "pedir fato público (ex.: cotação do dólar).";
 
 /**
  * Orientação antes de escrever num artefato que JÁ existe (plano, carta, spec, narrativa…).
@@ -861,14 +876,15 @@ export async function responderComoLunaAgentico(
     "Se há imagem ou vídeo anexado NESTE turno, use `ver_imagem` ANTES de responder — sempre, mesmo que a pessoa não peça nada. " +
       "Ela mandou o anexo justamente para que tu visses; pedir que ela descreva o que acabou de te enviar é o oposto de estar presente. " +
       "E podes olhar mais de uma vez, com perguntas diferentes: é uma conversa com quem vê, não um scanner.",
-    "Usa `ler_url` quando o usuário colar um link e quiser que leias, resumas ou analises aquela página específica.",
+    "Usa `ler_url` quando o usuário colar um link e quiser que você leia, resuma ou analise aquela página específica.",
     webSearchDisponivel() && !(pedeFinancas && !pedeWebExplicita)
-      ? "Usa `web_search` quando precisares de informação actual da internet por palavras-chave (notícias, preços, eventos) — não para abrir um link específico, aí usa `ler_url`. " +
-        "NUNCA uses `web_search` pra responder quanto ELE gastou/recebeu — isso é dado do app (`resumo_financeiro` / `listar_lancamentos`). " +
-        "Não repitas a mesma pesquisa se os resultados já estão nas tool messages deste turno. " +
+      ? "DEFAULT: pra fato do mundo (notícias, preços públicos, versões, eventos, leis, status), use `web_search` " +
+        "ANTES de afirmar — não responda só com o treino como se estivesse atualizado. Link específico → `ler_url`. " +
+        "NUNCA use `web_search` pra quanto ELE gastou/recebeu — isso é dado do app (`resumo_financeiro` / `listar_lancamentos`). " +
+        "Não repita a mesma pesquisa se os resultados já estão nas tool messages deste turno. " +
         "Na resposta final, estrutura em Markdown com links [nome](url) apenas para fontes que realmente vieram no resultado da ferramenta (campo `results`/`url`). " +
-        "Se `web_search` ou `ler_url` devolver `ok: false` ou nenhum resultado, NÃO invente links, nomes de site ou citações. Começa a resposta avisando isso claramente (ex.: \"não encontrei nada na busca sobre X\") antes de qualquer outra coisa — não deixes o aviso escondido no meio ou no fim do texto. " +
-        "Nesse caso, se ainda assim quiseres responder com o que sabes do teu próprio treino, deixa isso bem explícito (\"pelo teu treino, sem confirmar agora\") e evita números, datas, versões ou benchmarks específicos que não consegues verificar — não escrevas uma resposta longa e estruturada em tópicos como se fosse pesquisa real; um resumo curto e visivelmente incerto é mais honesto."
+        "Se `web_search` ou `ler_url` devolver `ok: false` ou nenhum resultado, NÃO invente links, nomes de site ou citações. Comece a resposta avisando isso claramente (ex.: \"não encontrei nada na busca sobre X\") antes de qualquer outra coisa — não deixe o aviso escondido no meio ou no fim do texto. " +
+        "Nesse caso, se ainda assim quiser responder com o que sabe do próprio treino, deixe isso bem explícito (\"pelo meu treino, sem confirmar agora\") e evite números, datas, versões ou benchmarks específicos que não consegue verificar — não escreva uma resposta longa e estruturada em tópicos como se fosse pesquisa real; um resumo curto e visivelmente incerto é mais honesto."
       : null,
     // Modo pesquisa profunda (opcional): a Luna cruza as fontes antes de escrever.
     opcoes.pesquisaProfunda &&
@@ -885,6 +901,10 @@ export async function responderComoLunaAgentico(
     DIRETRIZ_NARRACAO_AGENTICA,
     // Ler/conferir antes de editar; web quando o fato não está no contexto.
     DIRETRIZ_AMBIENTAR,
+    // Preferir web ao treino pra fatos públicos (exceto grana dele sem pedido de cotação).
+    webSearchDisponivel() && !(pedeFinancas && !pedeWebExplicita)
+      ? DIRETRIZ_PESQUISA_PREFERENCIAL
+      : null,
     // Só no OrbitLab (documentosAtivo). A ferramenta só existe aqui; a ordem também.
     opcoes.documentosAtivo ? DIRETRIZ_DOCUMENTOS : null,
     opcoes.documentosAtivo ? DIRETRIZ_ORIENTACAO_ESCRITA : null,
