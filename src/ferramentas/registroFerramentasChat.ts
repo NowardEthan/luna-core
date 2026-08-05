@@ -1334,15 +1334,19 @@ const FERRAMENTA_PLANEJAR: DefinicaoFerramenta = {
 const FERRAMENTA_CONCLUIR_PASSO: DefinicaoFerramenta = {
   nome: "concluir_passo",
   descricao:
-    "Marca um passo do plano como FEITO, pelo número (1, 2, 3…). Chama DEPOIS de realmente executar aquele " +
-    "passo. Recebes de volta a lista atualizada e qual é o próximo. Enquanto houver passo por marcar, NÃO " +
-    "escrevas a resposta final — o trabalho não acabou.",
+    "Marca um passo do plano como FEITO. Passe `numero` (1, 2, 3…) ou omita pra marcar o próximo ☐. " +
+    "Chama DEPOIS de realmente executar aquele passo — inclusive o ÚLTIMO. Recebes a lista atualizada. " +
+    "Enquanto houver ☐, NÃO escrevas a resposta final. Quando todos estiverem ☑, FALA com ele o que fez.",
   parametros: {
     type: "object",
     properties: {
-      numero: { type: "number", description: "O número do passo que acabaste de concluir (1 = o primeiro)." },
+      numero: {
+        type: "number",
+        description:
+          "Número do passo concluído (1 = o primeiro). Se omitir, marca o primeiro ☐ em aberto.",
+      },
     },
-    required: ["numero"],
+    required: [],
   },
 };
 

@@ -614,6 +614,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         canoneCrud: true,
         /** Anti-loop: bloqueia ping-pong de ler_secao no mesmo turno agentico. */
         antiLoopSecaoArtefato: true,
+        /** Plano: marca todos os ☐ + exige fala de fecho com o usuário. */
+        planoFechoComFala: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
