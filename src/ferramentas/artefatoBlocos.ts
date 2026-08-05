@@ -21,7 +21,67 @@ export type PropsBlocoArtefato = {
   level?: 1 | 2 | 3;
   checked?: boolean;
   language?: string;
+  /** Sabor do callout (chave de SABORES_CALLOUT) — dica/atencao/feito/duvida/fixado/info. */
+  callout?: SaborCalloutChave;
+  /** Rótulo opcional no meio de um divisor (ex.: "Parte 2"). */
+  label?: string;
 };
+
+/**
+ * Sabores de callout — espelho de
+ * `OrbitLab/.../data/artefato/ArtefatoBlocos.kt` (enum SaborCallout).
+ * Cada um tem o marcador de markdown (`> [!chave]`), o rótulo pt-BR e o emoji
+ * que também serve de atalho ao escrever.
+ */
+export type SaborCalloutChave = "dica" | "atencao" | "feito" | "duvida" | "fixado" | "info";
+
+export const SABORES_CALLOUT: Record<
+  SaborCalloutChave,
+  { rotulo: string; emoji: string }
+> = {
+  dica: { rotulo: "Dica", emoji: "💡" },
+  atencao: { rotulo: "Atenção", emoji: "⚠️" },
+  feito: { rotulo: "Feito", emoji: "✅" },
+  duvida: { rotulo: "Dúvida", emoji: "❓" },
+  fixado: { rotulo: "Fixado", emoji: "📌" },
+  info: { rotulo: "Nota", emoji: "ℹ️" },
+};
+
+/** Normaliza a chave crua (com apelidos amistosos) pra um sabor válido. Default: info. */
+export function saborCalloutDe(raw: string | null | undefined): SaborCalloutChave {
+  const k = raw?.trim().toLowerCase();
+  if (k && k in SABORES_CALLOUT) return k as SaborCalloutChave;
+  switch (k) {
+    case "aviso":
+    case "warning":
+    case "cuidado":
+      return "atencao";
+    case "ok":
+    case "sucesso":
+    case "done":
+      return "feito";
+    case "pergunta":
+    case "question":
+      return "duvida";
+    case "importante":
+    case "pin":
+      return "fixado";
+    case "tip":
+    case "sacada":
+      return "dica";
+    default:
+      return "info";
+  }
+}
+
+/** Se o texto começa com um dos emojis de sabor, devolve a chave correspondente. */
+export function saborCalloutPorEmoji(texto: string): SaborCalloutChave | null {
+  const t = texto.trimStart();
+  for (const chave of Object.keys(SABORES_CALLOUT) as SaborCalloutChave[]) {
+    if (t.startsWith(SABORES_CALLOUT[chave].emoji)) return chave;
+  }
+  return null;
+}
 
 export type BlocoArtefato = {
   id: string;
@@ -64,7 +124,6 @@ export function blocosToMd(blocos: BlocoArtefato[]): string {
         numbered = 0;
         break;
       case "quote":
-      case "callout":
         out.push(
           b.text
             .split("\n")
@@ -73,16 +132,31 @@ export function blocosToMd(blocos: BlocoArtefato[]): string {
         );
         numbered = 0;
         break;
+      case "callout": {
+        const kind = b.props?.callout?.trim() || null;
+        const linhas = b.text.split("\n");
+        const primeira = linhas[0] ?? "";
+        const marcador = kind ? `[!${kind}] ` : "";
+        const corpo = [
+          `> ${marcador}${primeira}`.trimEnd(),
+          ...linhas.slice(1).map((l) => `> ${l}`),
+        ];
+        out.push(corpo.join("\n"));
+        numbered = 0;
+        break;
+      }
       case "code": {
         const lang = b.props?.language?.trim() ?? "";
         out.push("```" + lang + "\n" + b.text + "\n```");
         numbered = 0;
         break;
       }
-      case "divider":
-        out.push("---");
+      case "divider": {
+        const label = b.props?.label?.trim() || null;
+        out.push(label ? `--- ${label} ---` : "---");
         numbered = 0;
         break;
+      }
       case "paragraph":
       default:
         out.push(b.text);
@@ -137,6 +211,19 @@ export function mdToBlocos(md: string): BlocoArtefato[] {
         props: language ? { language } : undefined,
         text: codeLines.join("\n"),
       });
+      continue;
+    }
+
+    const divRotulado = /^(?:-{3,}|\*{3,}|_{3,})\s+(.+?)\s+(?:-{3,}|\*{3,}|_{3,})$/.exec(trim);
+    if (divRotulado) {
+      flushPara();
+      blocos.push({
+        id: novoIdBloco(),
+        type: "divider",
+        props: { label: divRotulado[1].trim() },
+        text: "",
+      });
+      i += 1;
       continue;
     }
 
@@ -198,13 +285,27 @@ export function mdToBlocos(md: string): BlocoArtefato[] {
         i += 1;
       }
       const body = quoteLines.join("\n");
-      // Callout: primeira linha começa com [! ou emoji comum — senão quote.
-      const isCallout = /^\[!/.test(body.trim()) || /^💡|^⚠️|^ℹ️/.test(body.trim());
-      blocos.push({
-        id: novoIdBloco(),
-        type: isCallout ? "callout" : "quote",
-        text: body,
-      });
+      const bodyTrim = body.trimStart();
+      // Callout: marcador `[!kind]` OU emoji de sabor no início — senão quote.
+      const marcador = /^\[!\s*([\p{L}]+)\s*\]\s?/u.exec(bodyTrim);
+      const saborEmoji = saborCalloutPorEmoji(bodyTrim);
+      if (marcador) {
+        blocos.push({
+          id: novoIdBloco(),
+          type: "callout",
+          props: { callout: saborCalloutDe(marcador[1]) },
+          text: bodyTrim.slice(marcador[0].length).trimStart(),
+        });
+      } else if (saborEmoji) {
+        blocos.push({
+          id: novoIdBloco(),
+          type: "callout",
+          props: { callout: saborEmoji },
+          text: bodyTrim.slice(SABORES_CALLOUT[saborEmoji].emoji.length).trimStart(),
+        });
+      } else {
+        blocos.push({ id: novoIdBloco(), type: "quote", text: body });
+      }
       continue;
     }
 

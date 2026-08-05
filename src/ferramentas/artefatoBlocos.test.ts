@@ -47,6 +47,36 @@ describe("artefatoBlocos", () => {
     expect(outra.map((b) => b.type)).toEqual(blocos.map((b) => b.type));
   });
 
+  it("callouts com sabor: marcador e emoji viram callout com props.callout", () => {
+    const porMarcador = mdToBlocos("> [!dica] Guarda o comprovante.");
+    expect(porMarcador[0].type).toBe("callout");
+    expect(porMarcador[0].props?.callout).toBe("dica");
+    expect(porMarcador[0].text).toBe("Guarda o comprovante.");
+
+    const porEmoji = mdToBlocos("> ⚠️ Isto apaga tudo.");
+    expect(porEmoji[0].type).toBe("callout");
+    expect(porEmoji[0].props?.callout).toBe("atencao");
+    expect(porEmoji[0].text).toBe("Isto apaga tudo.");
+
+    // Apelido amistoso + quote sem marcador continua quote.
+    expect(mdToBlocos("> [!aviso] cuidado")[0].props?.callout).toBe("atencao");
+    expect(mdToBlocos("> só uma citação")[0].type).toBe("quote");
+
+    // Round-trip do callout preserva sabor.
+    const md = blocosToMd(porMarcador);
+    expect(md).toContain("> [!dica] Guarda o comprovante.");
+    expect(mdToBlocos(md)[0].props?.callout).toBe("dica");
+  });
+
+  it("divisor rotulado round-trip", () => {
+    const blocos = mdToBlocos("--- Parte 2 ---");
+    expect(blocos[0].type).toBe("divider");
+    expect(blocos[0].props?.label).toBe("Parte 2");
+    expect(blocosToMd(blocos)).toContain("--- Parte 2 ---");
+    // Divisor nu continua nu.
+    expect(mdToBlocos("---")[0].props?.label).toBeUndefined();
+  });
+
   it("normaliza legado MD pra schema 2", () => {
     const n = normalizarDocumentoBlocos({ conteudo: "## Olá\n\nMundo\n", schemaVersion: 1 });
     expect(n.schemaVersion).toBe(2);
