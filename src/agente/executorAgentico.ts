@@ -245,6 +245,25 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     onNarracaoRodada?.(delta);
   };
 
+  /** A6.1 — token a token (sem meter \n\n entre deltas da MESMA rodada). */
+  let separarProximaNarracao = false;
+  const emitirNarracaoDelta = (delta: string) => {
+    if (!delta) return;
+    if (separarProximaNarracao && narracaoJaEnviada) {
+      partesVisiveis.push("");
+      onNarracaoRodada?.("\n\n");
+      separarProximaNarracao = false;
+    }
+    if (!narracaoJaEnviada) {
+      partesVisiveis.push(delta);
+      narracaoJaEnviada = true;
+    } else {
+      const i = partesVisiveis.length - 1;
+      partesVisiveis[i] = (partesVisiveis[i] ?? "") + delta;
+    }
+    onNarracaoRodada?.(delta);
+  };
+
   const tentarNudgePendente = (
     conteudoAssistant: string | null,
     /** Só no branch vazio: também pede fechar a fala se já houve tools. */
@@ -315,7 +334,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     if (abortSignal?.aborted) {
       return {
         resposta_final: partesVisiveis.length > 0
-          ? partesVisiveis.join("\n\n")
+          ? partesVisiveis.filter(Boolean).join("\n\n")
           : "Execução cancelada pelo usuário.",
         passos,
         rodadas: rodada,
@@ -325,6 +344,9 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
 
     rodada++;
 
+    let narracaoStreamedNestaRodada = false;
+    let raciocinioStreamedNestaRodada = false;
+
     const resposta = await provedor.completarComFerramentas({
       modelo: config.modeloMaior,
       mensagens,
@@ -332,16 +354,27 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       ferramentas,
       raciocinioAtivo,
       raciocinioEffort: opcoes.raciocinioEffort,
-      // O teto do neurónio de registo — igual à temperatura, vem da config do turno.
-      // Ela pode PENSAR à vontade (a reserva de raciocínio está no cálculo); o que o teto
-      // limita é o que ela DIZ.
       maxTokens: config.maxTokensResposta,
+      onDelta: onNarracaoRodada || onRaciocinioRodada
+        ? (chunk) => {
+            if (chunk.tipo === "content" && chunk.delta) {
+              narracaoStreamedNestaRodada = true;
+              emitirNarracaoDelta(chunk.delta);
+            }
+            if (chunk.tipo === "reasoning" && chunk.delta && raciocinioAtivo) {
+              raciocinioStreamedNestaRodada = true;
+              onRaciocinioRodada?.(rodada, chunk.delta, true);
+            }
+          }
+        : undefined,
     });
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";
-    if (raciocinio && raciocinioAtivo) {
+    if (raciocinio && raciocinioAtivo && !raciocinioStreamedNestaRodada) {
       onRaciocinioRodada?.(rodada, raciocinio, true);
       onRaciocinioRodada?.(rodada, raciocinio, false);
+    } else if (raciocinioStreamedNestaRodada) {
+      onRaciocinioRodada?.(rodada, "", false);
     }
 
     const conteudo = typeof resposta.conteudo === "string" ? resposta.conteudo.trim() : "";
@@ -349,7 +382,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
 
     // Tools (+ ponte opcional) → narrar, executar, continuar o loop
     if (temTools && resposta.chamadas) {
-      if (conteudo) {
+      if (conteudo && !narracaoStreamedNestaRodada) {
         emitirNarracao(conteudo);
       }
 
@@ -430,6 +463,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       }
 
       trimLeiturasArtefatoAntigas(mensagens);
+      separarProximaNarracao = true;
       continue;
     }
 
@@ -440,9 +474,11 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
         continue;
       }
 
-      emitirNarracao(conteudo);
+      if (!narracaoStreamedNestaRodada) {
+        emitirNarracao(conteudo);
+      }
       return {
-        resposta_final: partesVisiveis.join("\n\n"),
+        resposta_final: partesVisiveis.filter(Boolean).join("\n\n"),
         passos,
         rodadas: rodada,
         concluido: true,
@@ -458,7 +494,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     return {
       resposta_final:
         partesVisiveis.length > 0
-          ? partesVisiveis.join("\n\n")
+          ? partesVisiveis.filter(Boolean).join("\n\n")
           : passos.length > 0
             ? FALLBACK_COM_PASSOS
             : FALLBACK_SEM_PASSOS,
@@ -479,7 +515,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   return {
     resposta_final:
       partesVisiveis.length > 0
-        ? `${partesVisiveis.join("\n\n")}\n\n${FALLBACK_LIMITE}${extraPlano}`
+        ? `${partesVisiveis.filter(Boolean).join("\n\n")}\n\n${FALLBACK_LIMITE}${extraPlano}`
         : `${FALLBACK_LIMITE}${extraPlano}`,
     passos,
     rodadas: rodada,

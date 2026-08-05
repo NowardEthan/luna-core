@@ -317,6 +317,10 @@ export type HealthResponse = {
     antiLoopSecaoArtefato: boolean;
     /** Coleira do plano exige marcar todos os ? e falar o fecho com o usu·rio. */
     planoFechoComFala: boolean;
+    /** Stream token-a-token no path agentico com tools. */
+    streamAgenticoFino: boolean;
+    /** Tool consultar_neuronio (subagente orientacao/auditoria). */
+    neuronioSubagente: boolean;
   };
   /**
    * O commit que est√° a correr AQUI.

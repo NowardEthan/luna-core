@@ -88,12 +88,17 @@ export type RequisicaoAgente = {
   mensagens: MensagemChatAgente[];
   temperatura: number;
   ferramentas?: DefinicaoFerramenta[];
-  /** Pedir raciocínio explícito à API quando o modelo suporta (default: true no agente). */
+  /** Pedir raciocínio explícito à API quando o modelo suporte (default: true no agente). */
   raciocinioAtivo?: boolean;
   /** low/medium/high — controla profundidade do raciocínio quando suportado. */
   raciocinioEffort?: "low" | "medium" | "high";
   /** Teto de saída — ver RequisicaoCompletacao.maxTokens. */
   maxTokens?: number;
+  /**
+   * A6.1 — deltas ao vivo (content/reasoning) enquanto a rodada com tools ainda roda.
+   * Se presente, o provedor tenta `stream: true` e acumula tool_calls no fim.
+   */
+  onDelta?: (chunk: { tipo: "content" | "reasoning"; delta: string }) => void;
 };
 
 /**

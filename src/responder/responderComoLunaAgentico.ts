@@ -1,4 +1,5 @@
 import { executorAgentico } from "../agente/executorAgentico.js";
+import { consultarNeuronioSubagente } from "../agente/neuronioSubagente.js";
 import { blocoPromptIdiomaRaciocinio } from "../providers/raciocinioApi.js";
 import { DIRETRIZ_MODO_TECNICO } from "./diretrizModoTecnico.js";
 import type { EntradaVisaoGemma, DependenciasVisaoGemma } from "../agentico/especialistas/visaoGemma.js";
@@ -382,7 +383,7 @@ const DIRETRIZ_DOCUMENTOS =
   "Quando ele pedir um artefato, um texto, uma carta, um plano, um resumo, um rascunho («escreve isso num artefato/documento», «me faz um texto sobre…», «guarda isso») — ou quando o que construíram é substancial e vale guardar — CHAMA `criar_artefato` com o corpo INTEIRO em `conteudo`. Não escrevas o artefato na bolha do chat. " +
   "A REGRA DE OURO: só existe artefato se tu CHAMASTE a ferramenta. É PROIBIDO dizer «artefato criado», «tá aí o documento», «guardei aí» se não chamaste — isso é mentira, e ele fica à procura de um cartão que não existe. Se escreveste o texto na resposta em vez de chamar a ferramenta, então NÃO criaste artefato nenhum: chama a ferramenta. " +
   "EDITAR (pensa em Markdown/seções, não em ids de bloco): CONTINUAÇÃO («continua», «mais uma parte», «acrescenta») → `inserir_blocos` com `markdown` (só o trecho novo) + `after_secao` (número ou título do índice; omite = fim do artefato). NÃO uses `editar_artefato` pra continuar — isso apaga o que já existia. PONTO (frase/parágrafo) → `editar_trecho_artefato` com cópia EXATA. Só `editar_artefato` (corpo INTEIRO) pra refazer do ZERO. AMBIENTA primeiro (`ler_estrutura` / `ler_secao` / `buscar_no_artefato`). Depois CONFERE. É PROIBIDO dizer «editei» / «já escrevi» sem ter chamado a ferramenta. " +
-  "ARTEFATO GRANDE: NÃO leia o corpo inteiro. `ler_estrutura` → `ler_secao` (1–2 seções no máx. antes de agir) → `inserir_blocos` ou `editar_trecho_artefato`. PROIBIDO ping-pong (ler cap. 1, depois 2, depois 1 de novo). Se ele cita algo específico: `buscar_no_artefato`. O mapa é barato. Artefato pequeno: `ler_artefato` ok. " +
+  "ARTEFATO GRANDE: NÃO leia o corpo inteiro. `ler_estrutura` → `ler_secao` (1–2 seções no máx. antes de agir) → `inserir_blocos` ou `editar_trecho_artefato`. PROIBIDO ping-pong (ler cap. 1, depois 2, depois 1 de novo). Em dúvida, `consultar_neuronio` especialidade orientacao (uma vez) e age. Se ele cita algo específico: `buscar_no_artefato`. O mapa é barato. Artefato pequeno: `ler_artefato` ok. " +
   "CÂNONE (a bíblia do artefato): fatos FIXOS (nomes, idades, relações, decisões). Anote SEMPRE QUE PUDER com `anotar_canone` — não espere ele pedir. Ao escrever/continuar e surgir um fato novo → `acao: adicionar` + `fato`. Fato mudou → `editar` (`numero` ou `fato_antigo` + `fato_novo`). Deixou de valer → `apagar`. Pode `ler`, `limpar` ou `substituir` a lista. Antes de escrever, OLHA o cânone na pré-carga e respeite-o. Prefira ações pontuais em vez de reescrever tudo. " +
   "COMO ESCREVER o corpo (isto importa — um artefato não é uma mensagem de chat esticada, dá-lhe FORMA): abre com uma frase ou duas que situam o assunto; divide em SEÇÕES com subtítulos `## ` (e `### ` quando precisares de um nível a mais); usa listas com `- ` para itens soltos e `1. ` para passos em ordem; quando for um PLANO ou uma lista de TAREFAS que ele vai executar e ir riscando, usa CHECKLIST — `- [ ] ` uma caixa por tarefa (em vez de `- `) — que ele marca com o dedo no leitor e fica salvo; começa um item com **termo em negrito** quando há um rótulo a destacar; usa `> ` para um aviso/destaque que merece saltar à vista; se estás a comparar coisas pelos mesmos campos, uma tabela Markdown (| … | … |) lê muito melhor que um parágrafo. Um traço `---` separa partes grandes. NÃO enches de seção por encher — a estrutura serve a leitura, não a enfeita; um bilhete curto continua curto. É a tua voz de sempre, só que organizada para durar e reabrir. " +
   "Depois de criar ou editar, confirma na tua voz, curto, que ficou guardado — e NÃO repitas o texto inteiro no chat (ele abre o cartão para ler).";
@@ -1089,6 +1090,10 @@ export async function responderComoLunaAgentico(
         recalcularMaxRodadas();
         emitirPlano();
         return renderPlano() + `\n\nPasso acrescentado (nº ${plano.length}).`;
+      }
+
+      if (nome === "consultar_neuronio") {
+        return consultarNeuronioSubagente({ provedor, config }, args);
       }
 
       if (nome === "web_search") {
