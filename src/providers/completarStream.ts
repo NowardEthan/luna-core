@@ -180,5 +180,7 @@ export function lunaStreamEnabled(): boolean {
  * TTFT ≈ total no harness. Cerebras/OpenRouter já estavam cobertos.
  */
 export function providerSupportsStream(baseUrl: string): boolean {
-  return /cerebras\.ai|openrouter\.ai|groq\.com/i.test(baseUrl) && lunaStreamEnabled();
+  if (!lunaStreamEnabled()) return false;
+  if (/cerebras\.ai|openrouter\.ai|groq\.com/i.test(baseUrl)) return true;
+  return /^https?:\/\//i.test(baseUrl);
 }

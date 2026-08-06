@@ -28,6 +28,16 @@ export const ChatRequestSchema = z.object({
   providerId: LlmProviderIdSchema.optional(),
   /** Variante do modelo (legado: qwen-* → default). */
   modelKey: LlmModelKeySchema.optional(),
+  /** BYOK do criador: provedor OpenAI-compatible enviado pelo app e validado no servidor. */
+  personalProvider: z
+    .object({
+      enabled: z.boolean().optional(),
+      type: z.literal("openai_compatible").optional(),
+      baseUrl: z.string().url().max(2_048),
+      apiKey: z.string().min(8).max(4_096),
+      model: z.string().min(1).max(256),
+    })
+    .optional(),
   /** Nome preferido do utilizador (perfil/conta) — evita confundir com «Luna». */
   userDisplayName: z.string().min(1).max(64).optional(),
   /** Fuso IANA do dispositivo (ex.: "America/Sao_Paulo") — grounding temporal. */
@@ -338,6 +348,8 @@ export type HealthResponse = {
     videoUrlBase64Retry: boolean;
     /** If full video analysis fails, Luna analyzes the JPEG frame sent by the app. */
     videoFrameFallback: boolean;
+    /** BYOK do criador: base URL + API key pessoal para Claude/OpenAI-compatible. */
+    personalClaudeByok: boolean;
   };
   /**
    * O commit que está a correr AQUI.

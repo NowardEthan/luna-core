@@ -15,7 +15,12 @@ import { deveUsarPersistenciaFirestore } from "./persistenciaFirestore.js";
 import { persistChatTurn } from "./firestoreChat.js";
 import { notifyLunaReply } from "./pushNotify.js";
 import { buscarTurnoCacheado } from "./idempotenciaChat.js";
-import { executarChatMobile, executarChatMobileStream, type ChatMobileResult } from "./loadCore.js";
+import {
+  executarChatMobile,
+  executarChatMobileStream,
+  type ChatMobileResult,
+  type PersonalLlmProviderInput,
+} from "./loadCore.js";
 import { isCoreBuilt, resolveLunaCorePath } from "./resolveCorePath.js";
 import { isSttConfigured, transcribeAudio, TranscribeRequestSchema } from "./transcribeStt.js";
 import {
@@ -89,6 +94,7 @@ import {
   type VisionResponse,
 } from "./types.js";
 import { mapearErroParaEventoSse } from "../../dist/ux/mapearErroUsuario.js";
+import { ehCriadorVerificado } from "./criadorVerificado.js";
 
 /**
  * Carrega o .env da luna-core no arranque, para que LUNA_API_KEY (chat + STT)
@@ -308,6 +314,18 @@ async function chargeTokens(
   await consumeTokens(auth.uid, tokens, opts);
 }
 
+function personalProviderDoTurno(
+  auth: Awaited<ReturnType<typeof verifyFirebaseBearer>>,
+  parsed: ChatRequest,
+): PersonalLlmProviderInput | undefined {
+  const personal = parsed.personalProvider;
+  if (!personal || personal.enabled === false) return undefined;
+  if (!auth?.uid || !ehCriadorVerificado(auth.uid)) {
+    throw new Error("Provedor pessoal disponível só para a conta do criador.");
+  }
+  return personal;
+}
+
 /**
  * Custo das duas "lagostas" que o turno de fato consumiu — imagens geradas + pesquisa profunda.
  * A imagem é cobrada aqui (pós-turno) porque a Luna decide gerar no meio do caminho; aceita um
@@ -336,8 +354,9 @@ async function resolverTurnoChat(params: {
   parsed: ChatRequest;
   llmSelection: LlmProviderSelection;
   planId: PlanId;
+  personalProvider?: PersonalLlmProviderInput;
 }): Promise<TurnoResolvido> {
-  const { auth, sessionId, parsed, llmSelection, planId } = params;
+  const { auth, sessionId, parsed, llmSelection, planId, personalProvider } = params;
 
   if (auth && parsed.lunaMessageId) {
     const cached = await buscarTurnoCacheado(auth.uid, sessionId, parsed.lunaMessageId);
@@ -371,7 +390,7 @@ async function resolverTurnoChat(params: {
       estimarInputTokensChat(parsed.message, attCount),
     );
     quotaMode = quota.mode;
-    if (quotaMode === "reduced") {
+    if (quotaMode === "reduced" && !personalProvider) {
       effectiveSelection = REDUCED_LLM_SELECTION;
     }
   }
@@ -400,6 +419,7 @@ async function resolverTurnoChat(params: {
       parsed.modoAgentico,
       parsed.moduloFinancas,
       parsed.reenvio,
+      personalProvider,
       imagemBaseEdicaoEfetiva,
     ),
   );
@@ -638,6 +658,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         videoUrlBase64Retry: true,
         /** Se o vídeo inteiro falhar, a Luna analisa o frame JPEG enviado pelo app. */
         videoFrameFallback: true,
+        personalClaudeByok: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -677,22 +698,27 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         planId = planIdForLlmRouting(auth.uid, await getUserPlanId(auth.uid));
       }
 
-      const resolvedLlm = resolveLlmProviderSelection(
-        {
-          providerId: parsed.providerId,
-          modelKey: parsed.modelKey,
-        } as Partial<LlmProviderSelection>,
-        parsed.message,
-        planId,
-      );
-      if (!resolvedLlm) {
+      const personalProvider = personalProviderDoTurno(auth, parsed);
+      const resolvedLlm = personalProvider
+        ? null
+        : resolveLlmProviderSelection(
+            {
+              providerId: parsed.providerId,
+              modelKey: parsed.modelKey,
+            } as Partial<LlmProviderSelection>,
+            parsed.message,
+            planId,
+          );
+      if (!personalProvider && !resolvedLlm) {
         const payload: ChatResponse = {
           ok: false,
           error: "Nenhum provedor de LLM configurado para este plano.",
         };
         return sendJson(res, 503, payload);
       }
-      const llmSelection = resolvedLlm.selection;
+      const llmSelection = personalProvider
+        ? ({ providerId: "personal", modelKey: "default" } as LlmProviderSelection)
+        : resolvedLlm!.selection;
 
       let turno: TurnoResolvido;
       try {
@@ -702,6 +728,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           parsed,
           llmSelection,
           planId,
+          personalProvider,
         });
       } catch (err) {
         if (err instanceof QuotaExceededError || err instanceof ReducedQuotaExceededError) {
@@ -767,22 +794,27 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         planId = planIdForLlmRouting(auth.uid, await getUserPlanId(auth.uid));
       }
 
-      const resolvedLlm = resolveLlmProviderSelection(
-        {
-          providerId: parsed.providerId,
-          modelKey: parsed.modelKey,
-        } as Partial<LlmProviderSelection>,
-        parsed.message,
-        planId,
-      );
-      if (!resolvedLlm) {
+      const personalProvider = personalProviderDoTurno(auth, parsed);
+      const resolvedLlm = personalProvider
+        ? null
+        : resolveLlmProviderSelection(
+            {
+              providerId: parsed.providerId,
+              modelKey: parsed.modelKey,
+            } as Partial<LlmProviderSelection>,
+            parsed.message,
+            planId,
+          );
+      if (!personalProvider && !resolvedLlm) {
         const payload: ChatResponse = {
           ok: false,
           error: "Nenhum provedor de LLM configurado para este plano.",
         };
         return sendJson(res, 503, payload);
       }
-      const llmSelection = resolvedLlm.selection;
+      const llmSelection = personalProvider
+        ? ({ providerId: "personal", modelKey: "default" } as LlmProviderSelection)
+        : resolvedLlm!.selection;
 
       if (auth && parsed.lunaMessageId) {
         const cached = await buscarTurnoCacheado(auth.uid, sessionId, parsed.lunaMessageId);
@@ -821,7 +853,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
           estimarInputTokensChat(parsed.message, streamAttCount),
         );
         streamQuotaMode = quota.mode;
-        if (streamQuotaMode === "reduced") {
+        if (streamQuotaMode === "reduced" && !personalProvider) {
           streamSelection = REDUCED_LLM_SELECTION;
         }
       }
@@ -878,6 +910,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         parsed.modoAgentico,
         parsed.moduloFinancas,
         parsed.reenvio,
+        personalProvider,
         parsed.imagemBaseEdicao ||
           parsed.attachments?.find((a) => a.mimeType?.startsWith("image/") && a.url)?.url,
       );

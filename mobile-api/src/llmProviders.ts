@@ -33,7 +33,7 @@ type ConfigLuna = {
 
 export type { ConfigLuna };
 
-export type LlmProviderId = "groq" | "cerebras" | "openrouter" | "auto";
+export type LlmProviderId = "groq" | "cerebras" | "openrouter" | "auto" | "personal";
 
 export type LlmModelKey = "default" | "glm-47" | "gpt-oss-120b" | "auto";
 
@@ -83,7 +83,7 @@ const CEREBRAS_GPT_OSS_120B = {
   modelId: "gpt-oss-120b",
 };
 
-type CatalogProviderId = Exclude<LlmProviderId, "auto">;
+type CatalogProviderId = Exclude<LlmProviderId, "auto" | "personal">;
 type CatalogModelKey = Exclude<LlmModelKey, "auto">;
 
 const MODELS: Record<

@@ -127,6 +127,14 @@ export type LocalClimaMobile = {
   };
 };
 
+export type PersonalLlmProviderInput = {
+  enabled?: boolean;
+  type?: "openai_compatible";
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+};
+
 export type LunaCoreModule = {
   executarPipelineCompleto: (
     mensagem: string,
@@ -411,11 +419,34 @@ async function prepararChatMobile(
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
   reenvio?: ReenvioSessaoMobile,
+  personalProvider?: PersonalLlmProviderInput,
 ) {
-  const resolved = resolveLlmProviderSelection(llm, message, planId);
-  const selection = resolved?.selection ?? null;
+  const personalAtivo =
+    personalProvider?.enabled !== false &&
+    personalProvider?.baseUrl.trim() &&
+    personalProvider?.apiKey.trim() &&
+    personalProvider?.model.trim();
+
+  const resolved = personalAtivo ? null : resolveLlmProviderSelection(llm, message, planId);
+  const selection = personalAtivo
+    ? ({ providerId: "personal", modelKey: "default" } as LlmProviderSelection)
+    : resolved?.selection ?? null;
   // A0: o plano decide o MODELO dentro do OpenRouter (free = leve, pago = Pro).
-  const config = selection ? resolveLlmConfig(selection, planId) : null;
+  const config = personalAtivo
+    ? {
+        apiKey: personalProvider!.apiKey.trim(),
+        baseUrl: personalProvider!.baseUrl
+          .trim()
+          .replace(/\/chat\/completions\/?$/i, "")
+          .replace(/\/$/, ""),
+        modeloMenor: personalProvider!.model.trim(),
+        modeloMaior: personalProvider!.model.trim(),
+        temperaturaMenor: 0,
+        temperaturaMaior: Number(process.env.LUNA_PERSONAL_TEMPERATURA ?? process.env.OPENROUTER_TEMPERATURA ?? 1),
+      }
+    : selection
+      ? resolveLlmConfig(selection, planId)
+      : null;
 
   if (!selection || !config) {
     // A0: um provedor só — se falta a chave, o erro diz exatamente qual.
@@ -549,7 +580,7 @@ function resultadoFromPipeline(
   resultado: Awaited<ReturnType<LunaCoreModule["executarPipelineCompleto"]>>,
   sessionId: string | undefined,
   selection: LlmProviderSelection,
-  resolved: ReturnType<typeof resolveLlmProviderSelection>,
+  resolved: ReturnType<typeof resolveLlmProviderSelection> | null,
   custosExtras?: { imagensGeradas: number; pesquisaProfundaRodou: boolean },
   imagens?: Array<{ url: string; prompt: string }>,
 ): ChatMobileResult {
@@ -661,6 +692,7 @@ export async function executarChatMobile(
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
   reenvio?: ReenvioSessaoMobile,
+  personalProvider?: PersonalLlmProviderInput,
   /** Arte dela referenciada neste turno (swipe) — base do `editar_imagem`. */
   imagemBaseEdicao?: string,
 ): Promise<ChatMobileResult> {
@@ -683,6 +715,7 @@ export async function executarChatMobile(
     modoAgentico,
     moduloFinancas,
     reenvio,
+    personalProvider,
   );
 
   const rodarPipeline = async () => {
@@ -783,9 +816,10 @@ export async function executarChatMobileStream(
   modoAgentico?: boolean,
   moduloFinancas?: boolean,
   reenvio?: ReenvioSessaoMobile,
+  personalProvider?: PersonalLlmProviderInput,
   imagemBaseEdicao?: string,
 ): Promise<ChatMobileResult> {
-  if (!isStreamSupported()) {
+  if (!isStreamSupported() && !personalProvider) {
     return executarChatMobile(
       message,
       sessionId,
@@ -805,6 +839,7 @@ export async function executarChatMobileStream(
       modoAgentico,
       moduloFinancas,
       reenvio,
+      personalProvider,
       imagemBaseEdicao,
     );
   }
@@ -828,6 +863,7 @@ export async function executarChatMobileStream(
     modoAgentico,
     moduloFinancas,
     reenvio,
+    personalProvider,
   );
 
   const rodarPipeline = async () => {
