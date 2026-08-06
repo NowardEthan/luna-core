@@ -736,6 +736,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         /** Se o vídeo inteiro falhar, a Luna analisa o frame JPEG enviado pelo app. */
         videoFrameFallback: true,
         personalClaudeByok: true,
+        /** Visao roteada pro provider pessoal (BYOK) quando o cerebro for pessoal. */
+        visaoPersonalProviderRoteada: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

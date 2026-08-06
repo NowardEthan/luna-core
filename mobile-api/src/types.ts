@@ -326,21 +326,21 @@ export type HealthResponse = {
     canoneCrud: boolean;
     /** Bloqueia ler_secao em ping-pong no mesmo turno agentico. */
     antiLoopSecaoArtefato: boolean;
-    /** Coleira do plano exige marcar todos os ? e falar o fecho com o usuário. */
+    /** Coleira do plano exige marcar todos os ? e falar o fecho com o usuï¿½rio. */
     planoFechoComFala: boolean;
     /** Stream token-a-token no path agentico com tools. */
     streamAgenticoFino: boolean;
     /** Tool consultar_neuronio (subagente orientacao/auditoria). */
     neuronioSubagente: boolean;
-    /** A6.3 — especialidades canone/pesquisa. */
+    /** A6.3 ï¿½ especialidades canone/pesquisa. */
     neuronioEspecialistas: boolean;
-    /** Preferir web_search ao treino pra fatos públicos atualizáveis. */
+    /** Preferir web_search ao treino pra fatos pï¿½blicos atualizï¿½veis. */
     pesquisaPreferencialWeb: boolean;
-    /** SSE `ready` (geração ok) antes de persistir; `done` depois — unlock sem fechar cedo. */
+    /** SSE `ready` (geraï¿½ï¿½o ok) antes de persistir; `done` depois ï¿½ unlock sem fechar cedo. */
     streamReadyAntesPersistir: boolean;
     /** Pesquisa profunda: mais rodadas + coleira verificar_fontes + timeout 360s. */
     pesquisaProfundaCompleta: boolean;
-    /** Buffer de narracao + auto-marca último ? após nudge (anti-sumiço). */
+    /** Buffer de narracao + auto-marca ï¿½ltimo ? apï¿½s nudge (anti-sumiï¿½o). */
     planoFechoSemVazarStream: boolean;
     /** Visual/video failure is honest: no analysed badge and no guessing. */
     visaoFalhaHonesta: boolean;
@@ -350,6 +350,8 @@ export type HealthResponse = {
     videoFrameFallback: boolean;
     /** BYOK do criador: base URL + API key pessoal para Claude/OpenAI-compatible. */
     personalClaudeByok: boolean;
+    /** Visao (ver_imagem) roteada pro provider pessoal quando o cerebro for pessoal. */
+    visaoPersonalProviderRoteada: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.

@@ -123,6 +123,7 @@ import { coletarNeuroniosAtivos } from "../neuronios/roteador.js";
 import type { ContextoCompilado } from "../contexto/compiladorContexto.js";
 import type { InterlocutorPipeline } from "../interlocutor/esquemaInterlocutor.js";
 import type { AnexoImagemChat } from "../agentico/especialistas/visaoGemma.js";
+import type { DependenciasVisaoGemma } from "../agentico/especialistas/visaoGemma.js";
 import type { AnexoDocumentoChat } from "../agentico/especialistas/leitorDocumento.js";
 import { simularVidaInterior } from "../mundo/vida/simuladorVida.js";
 import { inferirEFormatarConhecimento } from "../conhecimento/formatarConhecimento.js";
@@ -221,6 +222,8 @@ export type OpcoesPipelineCompleto = {
   anexosImagem?: AnexoImagemChat[];
   /** Documentos do turno (texto já extraído) — lidos por partes via `ler_arquivo`. */
   anexosDocumento?: AnexoDocumentoChat[];
+  /** Dependências do especialista de visão (ex.: descrever via provider pessoal BYOK). */
+  visaoDeps?: DependenciasVisaoGemma;
   onAcaoAgentico?: (acao: AcaoAgenticoChat) => void;
   /** Fuso IANA do dispositivo do usuário (ex.: "America/Sao_Paulo") — para grounding temporal. */
   timeZone?: string;
@@ -1127,6 +1130,8 @@ export async function executarPipelineCompleto(
           anexosImagem,
           anexosDocumento,
           rotinaDeps: opcoes.rotinaDeps,
+          // Visao via provider pessoal (BYOK) quando injetada pelo mobile-api.
+          visaoDeps: opcoes.visaoDeps,
           raciocinioAtivo: raciocinioNaVoz,
           raciocinioEffort,
           pesquisaProfunda,
