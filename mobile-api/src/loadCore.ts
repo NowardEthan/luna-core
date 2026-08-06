@@ -26,6 +26,7 @@ import { montarBlocoFinancasPrevia } from "./firestoreFinancas.js";
 import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronioRotina.js";
 import { mensagemPedeFinancas } from "../../dist/pipeline/detectoresIntencao.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
+import { normalizePersonalProviderBaseUrl } from "./personalProvider.js";
 
 export type ChatStreamCallbacks = {
   onStatus?: (phase: "analysing" | "memory" | "writing", label?: string) => void;
@@ -435,10 +436,7 @@ async function prepararChatMobile(
   const config = personalAtivo
     ? {
         apiKey: personalProvider!.apiKey.trim(),
-        baseUrl: personalProvider!.baseUrl
-          .trim()
-          .replace(/\/chat\/completions\/?$/i, "")
-          .replace(/\/$/, ""),
+        baseUrl: normalizePersonalProviderBaseUrl(personalProvider!.baseUrl),
         modeloMenor: personalProvider!.model.trim(),
         modeloMaior: personalProvider!.model.trim(),
         temperaturaMenor: 0,

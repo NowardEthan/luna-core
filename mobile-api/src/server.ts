@@ -18,6 +18,7 @@ import { buscarTurnoCacheado } from "./idempotenciaChat.js";
 import {
   executarChatMobile,
   executarChatMobileStream,
+  type ChatStreamCallbacks,
   type ChatMobileResult,
   type PersonalLlmProviderInput,
 } from "./loadCore.js";
@@ -71,6 +72,7 @@ import {
   listProviderOptionsForHealth,
   listProviderOptionsForUi,
 } from "./llmProviders.js";
+import { testPersonalProvider } from "./personalProvider.js";
 import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes.js";
 import { generateRosaryReflection } from "./rosaryReflection.js";
 import { gerarTituloConversa } from "./gerarTituloConversa.js";
@@ -326,6 +328,22 @@ function personalProviderDoTurno(
   return personal;
 }
 
+function resolverFallbackPadrao(
+  parsed: ChatRequest,
+  planId: PlanId,
+  quotaMode: QuotaRequestMode,
+): LlmProviderSelection | null {
+  if (quotaMode === "reduced") return REDUCED_LLM_SELECTION;
+  return resolveLlmProviderSelection(
+    {
+      providerId: parsed.providerId,
+      modelKey: parsed.modelKey,
+    } as Partial<LlmProviderSelection>,
+    parsed.message,
+    planId,
+  )?.selection ?? null;
+}
+
 /**
  * Custo das duas "lagostas" que o turno de fato consumiu — imagens geradas + pesquisa profunda.
  * A imagem é cobrada aqui (pós-turno) porque a Luna decide gerar no meio do caminho; aceita um
@@ -399,30 +417,67 @@ async function resolverTurnoChat(params: {
     parsed.imagemBaseEdicao ||
     parsed.attachments?.find((a) => a.mimeType?.startsWith("image/") && a.url)?.url;
 
-  const result = await comTimeoutChat(
-    executarChatMobile(
-      parsed.message,
-      sessionId,
-      parsed.attachments,
-      effectiveSelection,
-      parsed.userDisplayName,
-      auth?.uid ?? null,
-      planId,
-      parsed.timeZone,
-      parsed.reasoningEnabled,
-      parsed.reasoningEffort,
-      parsed.documents,
-      parsed.pesquisaProfunda,
-      parsed.local,
-      parsed.modoTecnico,
-      parsed.documentosAtivo,
-      parsed.modoAgentico,
-      parsed.moduloFinancas,
-      parsed.reenvio,
-      personalProvider,
-      imagemBaseEdicaoEfetiva,
-    ),
-  );
+  let result: ChatMobileResult;
+  try {
+    result = await comTimeoutChat(
+      executarChatMobile(
+        parsed.message,
+        sessionId,
+        parsed.attachments,
+        effectiveSelection,
+        parsed.userDisplayName,
+        auth?.uid ?? null,
+        planId,
+        parsed.timeZone,
+        parsed.reasoningEnabled,
+        parsed.reasoningEffort,
+        parsed.documents,
+        parsed.pesquisaProfunda,
+        parsed.local,
+        parsed.modoTecnico,
+        parsed.documentosAtivo,
+        parsed.modoAgentico,
+        parsed.moduloFinancas,
+        parsed.reenvio,
+        personalProvider,
+        imagemBaseEdicaoEfetiva,
+      ),
+    );
+  } catch (err) {
+    if (!personalProvider) throw err;
+    const fallback = resolverFallbackPadrao(parsed, planId, quotaMode);
+    if (!fallback) throw err;
+    console.warn(
+      `[server] provider pessoal falhou; usando fallback ${fallback.providerId}/${fallback.modelKey}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    effectiveSelection = fallback;
+    result = await comTimeoutChat(
+      executarChatMobile(
+        parsed.message,
+        sessionId,
+        parsed.attachments,
+        fallback,
+        parsed.userDisplayName,
+        auth?.uid ?? null,
+        planId,
+        parsed.timeZone,
+        parsed.reasoningEnabled,
+        parsed.reasoningEffort,
+        parsed.documents,
+        parsed.pesquisaProfunda,
+        parsed.local,
+        parsed.modoTecnico,
+        parsed.documentosAtivo,
+        parsed.modoAgentico,
+        parsed.moduloFinancas,
+        parsed.reenvio,
+        undefined,
+        imagemBaseEdicaoEfetiva,
+      ),
+    );
+  }
 
   if (auth) {
     await persistChatTurn({
@@ -564,6 +619,28 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     } catch (err) {
       const message = friendlyErrorMessage(err);
       return sendJson(res, 400, { ok: false, error: message } satisfies RosaryReflectionResponse);
+    }
+  }
+
+  if (method === "POST" && url.pathname === "/v1/personal-provider/test") {
+    try {
+      const auth = await verifyFirebaseBearer(readAuthHeader(req));
+      if (isFirebaseAuthRequired() && !auth) {
+        return sendJson(res, 401, { ok: false, error: "Autenticacao Firebase obrigatoria." });
+      }
+      const body = await readJson(req);
+      const parsed = ChatRequestSchema.shape.personalProvider.unwrap().parse(body);
+      const personalProvider = personalProviderDoTurno(auth, {
+        message: "teste",
+        personalProvider: parsed,
+      } as ChatRequest);
+      if (!personalProvider) {
+        return sendJson(res, 400, { ok: false, error: "Provedor pessoal nao informado." });
+      }
+      const result = await testPersonalProvider(personalProvider);
+      return sendJson(res, result.ok ? 200 : 400, result);
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: friendlyErrorMessage(err) });
     }
   }
 
@@ -882,38 +959,82 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // Mantém a linha viva mesmo nos silêncios (geração de argumento de tool grande).
       heartbeat = setInterval(() => sendSseHeartbeat(res), 10_000);
 
-      const result = await executarChatMobileStream(
-        parsed.message,
-        {
-          onStatus: (phase, label) => sendSseEvent(res, "status", { phase, label }),
-          onReasoningDelta: (delta) => sendSseEvent(res, "reasoning", { delta }),
-          onContentDelta: (delta) => {
-            if (delta) contentEnviado = true;
-            sendSseEvent(res, "content", { delta });
-          },
-          onAcao: (acao) => sendSseEvent(res, "acao", acao),
+      const streamCallbacks: ChatStreamCallbacks = {
+        onStatus: (phase, label) => sendSseEvent(res, "status", { phase, label }),
+        onReasoningDelta: (delta) => sendSseEvent(res, "reasoning", { delta }),
+        onContentDelta: (delta) => {
+          if (delta) contentEnviado = true;
+          sendSseEvent(res, "content", { delta });
         },
-        sessionId,
-        parsed.attachments,
-        streamSelection,
-        parsed.userDisplayName,
-        auth?.uid ?? null,
-        planId,
-        parsed.timeZone,
-        parsed.reasoningEnabled,
-        parsed.reasoningEffort,
-        parsed.documents,
-        parsed.pesquisaProfunda,
-        parsed.local,
-        parsed.modoTecnico,
-        parsed.documentosAtivo,
-        parsed.modoAgentico,
-        parsed.moduloFinancas,
-        parsed.reenvio,
-        personalProvider,
+        onAcao: (acao) => sendSseEvent(res, "acao", acao),
+      };
+      const imagemBaseEdicaoEfetiva =
         parsed.imagemBaseEdicao ||
-          parsed.attachments?.find((a) => a.mimeType?.startsWith("image/") && a.url)?.url,
-      );
+        parsed.attachments?.find((a) => a.mimeType?.startsWith("image/") && a.url)?.url;
+
+      let result: ChatMobileResult;
+      try {
+        result = await executarChatMobileStream(
+          parsed.message,
+          streamCallbacks,
+          sessionId,
+          parsed.attachments,
+          streamSelection,
+          parsed.userDisplayName,
+          auth?.uid ?? null,
+          planId,
+          parsed.timeZone,
+          parsed.reasoningEnabled,
+          parsed.reasoningEffort,
+          parsed.documents,
+          parsed.pesquisaProfunda,
+          parsed.local,
+          parsed.modoTecnico,
+          parsed.documentosAtivo,
+          parsed.modoAgentico,
+          parsed.moduloFinancas,
+          parsed.reenvio,
+          personalProvider,
+          imagemBaseEdicaoEfetiva,
+        );
+      } catch (err) {
+        if (!personalProvider) throw err;
+        const fallback = resolverFallbackPadrao(parsed, planId, streamQuotaMode);
+        if (!fallback) throw err;
+        console.warn(
+          `[server] provider pessoal stream falhou; usando fallback ${fallback.providerId}/${fallback.modelKey}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        sendSseEvent(res, "status", {
+          phase: "writing",
+          label: "Provider pessoal falhou; usando Orbit padrao...",
+        });
+        streamSelection = fallback;
+        result = await executarChatMobileStream(
+          parsed.message,
+          streamCallbacks,
+          sessionId,
+          parsed.attachments,
+          fallback,
+          parsed.userDisplayName,
+          auth?.uid ?? null,
+          planId,
+          parsed.timeZone,
+          parsed.reasoningEnabled,
+          parsed.reasoningEffort,
+          parsed.documents,
+          parsed.pesquisaProfunda,
+          parsed.local,
+          parsed.modoTecnico,
+          parsed.documentosAtivo,
+          parsed.modoAgentico,
+          parsed.moduloFinancas,
+          parsed.reenvio,
+          undefined,
+          imagemBaseEdicaoEfetiva,
+        );
+      }
 
       clearTimeout(streamTimeout);
       clearInterval(heartbeat);
