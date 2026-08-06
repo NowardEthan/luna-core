@@ -27,6 +27,8 @@ import { blocosDaRotinaVigente, hojeISOnoFuso } from "../../dist/estado/neuronio
 import { mensagemPedeFinancas } from "../../dist/pipeline/detectoresIntencao.js";
 import { carregarDocumentos } from "./carregarDocumentos.js";
 import { normalizePersonalProviderBaseUrl } from "./personalProvider.js";
+import { descreverImagemPersonalProvider } from "../../src/agentico/especialistas/descreverImagemOpenRouter.js";
+import type { DependenciasVisaoGemma } from "../../src/agentico/especialistas/visaoGemma.js";
 
 export type ChatStreamCallbacks = {
   onStatus?: (phase: "analysing" | "memory" | "writing", label?: string) => void;
@@ -576,6 +578,18 @@ async function prepararChatMobile(
     anexosDocumento,
     timeZone,
     local,
+    // Visao via provider pessoal (BYOK do criador). Se o cerebro do turno for o pessoal
+    // (Claude/Fable, OpenAI-compat), a visao tambem vai pelo mesmo provider — senao o
+    // OpenRouter (sem chave/modelo de video) mata o Luna com 'não consegui ver'.
+    // Caso contrario, fica undefined e o core usa o OpenRouter padrao.
+    visaoDeps: personalAtivo && personalProvider ? {
+      descreverImagem: (entrada) =>
+        descreverImagemPersonalProvider(entrada, {
+          apiKey: personalProvider.apiKey.trim(),
+          baseUrl: normalizePersonalProviderBaseUrl(personalProvider.baseUrl),
+          model: personalProvider.model.trim(),
+        }),
+    } : undefined as DependenciasVisaoGemma | undefined,
   };
 }
 
@@ -764,6 +778,9 @@ export async function executarChatMobile(
       contexto_cross_sessao: prep.memoria.contextoCrossSessao,
       anexosImagem: prep.anexosImagem,
       anexosDocumento: prep.anexosDocumento,
+      // Visao roteada pro provider pessoal quando o cerebro e pessoal (Claude/Fable);
+      // undefined pra manter o OpenRouter padrao nos outros paths.
+      visaoDeps: prep.visaoDeps,
       rotina,
       rotina_registos: rotinaRegistos,
       // As mãos dela: sem isto, «monta-me a semana» só podia ser encenado.
