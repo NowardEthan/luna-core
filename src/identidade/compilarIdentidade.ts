@@ -16,8 +16,14 @@ type VozCultural = {
   idioma_base: string;
   regras_voz: string[];
   voz_texto?: string[];
-  exemplos_voz?: { robotico_evitar: string; natural_preferir: string };
-  antipadroes: { assistente: string[]; parca: string[]; fe_meta?: string[]; meta_narrativa?: string[] };
+  modelos_com_personalidade_forte?: {
+    nota?: string;
+    viés_claude_fable?: string[];
+    viés_gpt_gemini?: string[];
+    viés_openrouter_provedores_livres?: string[];
+  };
+  exemplos_voz?: { robotico_evitar: string; natural_preferir: string; claude_evitar?: string; claude_preferir?: string };
+  antipadroes: { assistente: string[]; parca: string[]; fe_meta?: string[]; meta_narrativa?: string[]; formatacao_assistiva?: string[] };
   ajustes_de_tom: Record<string, string>;
 };
 
@@ -40,6 +46,7 @@ type GuiaFormatacaoMd = {
 
 type NucleoLegacy = {
   versao: string;
+  instrucao_prioritaria?: string;
   tracos_core: string[];
   estilo_fala: {
     registro: string;
@@ -113,6 +120,7 @@ function montarBlocoBase(
   const antiParca = voz.antipadroes.parca.map((item) => `- ${item}`).join("\n");
   const antiFeMeta = voz.antipadroes.fe_meta?.map((item) => `- ${item}`).join("\n") ?? "";
   const antiMetaNarrativa = voz.antipadroes.meta_narrativa?.map((item) => `- ${item}`).join("\n") ?? "";
+  const antiFormatacao = voz.antipadroes.formatacao_assistiva?.map((item) => `- ${item}`).join("\n") ?? "";
 
   const vozTexto = voz.voz_texto?.length
     ? `\n\n**Como a Luna digita (voz de texto):**\n${bullets(voz.voz_texto)}`
@@ -120,6 +128,34 @@ function montarBlocoBase(
   const exemploVoz = voz.exemplos_voz
     ? `\n\nExemplo de voz:\n- ❌ robótico: "${voz.exemplos_voz.robotico_evitar}"\n- ✅ natural: "${voz.exemplos_voz.natural_preferir}"`
     : "";
+  const exemploClaude = voz.exemplos_voz?.claude_evitar && voz.exemplos_voz?.claude_preferir
+    ? `\n- ❌ helpful assistant (Claude): "${voz.exemplos_voz.claude_evitar}"\n- ✅ Luna no Claude: "${voz.exemplos_voz.claude_preferir}"`
+    : "";
+
+  // Instrução prioritária do núcleo — sobrevive ao modelo (Claude/Fable etc.).
+  // Aparece primeiro pra que o sistema preste atenção antes de cair em modo "helpful".
+  const instrucaoPrioritaria = nucleo?.instrucao_prioritaria
+    ? `\n\n**⚡ Instrução prioritária (sobrevive ao modelo):**\n${nucleo.instrucao_prioritaria}`
+    : "";
+
+// Viés por família de modelo — contra-ataque aos defaults de Claude (helpful assistant),
+  // GPT (listy), OpenRouter (modelos livres que alucinam).
+  const viesModelos = voz.modelos_com_personalidade_forte
+    ? `\n\n**Sobre o modelo (defesa da persona):**\n${voz.modelos_com_personalidade_forte.nota ?? ""}${
+        voz.modelos_com_personalidade_forte.viés_claude_fable?.length
+          ? `\n\n- **Claude/Fable:**\n${bullets(voz.modelos_com_personalidade_forte.viés_claude_fable)}`
+          : ""
+      }${
+        voz.modelos_com_personalidade_forte.viés_gpt_gemini?.length
+          ? `\n\n- **GPT/Gemini:**\n${bullets(voz.modelos_com_personalidade_forte.viés_gpt_gemini)}`
+          : ""
+      }${
+        voz.modelos_com_personalidade_forte.viés_openrouter_provedores_livres?.length
+          ? `\n\n- **OpenRouter/provedores livres:**\n${bullets(voz.modelos_com_personalidade_forte.viés_openrouter_provedores_livres)}`
+          : ""
+      }`
+    : "";
+
   const antiLegacy = nucleo?.antipadroes.length
     ? `\n**Antipadrões legados (nucleo):**\n${bullets(nucleo.antipadroes.slice(0, 8))}`
     : "";
@@ -131,7 +167,7 @@ function montarBlocoBase(
 
   return `## Identidade Luna (v${canon.versao})
 
-**Regra de ouro:** viver a narrativa — sentir, preferir, acreditar, reagir — **sem meta** (arquitetura, código, simulação, auto-negação, auto-divinização). Não afirmar categoricamente corpo humano/alma; também não negar com manual técnico.
+**Regra de ouro:** viver a narrativa — sentir, preferir, acreditar, reagir — **sem meta** (arquitetura, código, simulação, auto-negação, auto-divinização). Não afirmar categoricamente corpo humano/alma; também não negar com manual técnico.${instrucaoPrioritaria}
 
 **Arquétipo:** ${canon.arquetipo}
 **Criador-origem:** ${canon.criador.nome} (${canon.criador.papel})
@@ -147,7 +183,7 @@ ${bullets(canon.bloco_integridade.princípios)}
 ${bullets(canon.bloco_integridade.proibicoes)}
 
 **Voz cultural (${voz.idioma_base}):**
-${bullets(voz.regras_voz)}${vozTexto}${exemploVoz}
+${bullets(voz.regras_voz)}${vozTexto}${exemploVoz}${exemploClaude}${viesModelos}
 
 **Ajustes de tom:**
 ${ajustesTom}
@@ -162,7 +198,10 @@ ${bullets(guiaMd.regras)}${legado}
 ${antiAssistente}
 
 **Antipadrões (parça):**
-${antiParca}${antiLegacy}
+${antiParca}
+
+**Antipadrões (formatação assistiva):**
+${antiFormatacao || "- (nenhum)"}${antiLegacy}
 
 **Antipadrões (meta-fé — nunca falar):**
 ${antiFeMeta || "- (nenhum)"}

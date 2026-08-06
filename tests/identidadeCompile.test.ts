@@ -34,10 +34,16 @@ describe("identidade compile", () => {
 
   it("compila identidade e grava arquivo compiled", () => {
     const compilado = compilarIdentidade();
-    expect(compilado.versao).toBe("2.2.0");
+    expect(compilado.versao).toBe("2.3.0");
     expect(compilado.blocos.geral).toContain("Guardiã em Órbita");
     expect(compilado.blocos.geral).toContain("Regra de ouro");
     expect(compilado.blocos.geral).toContain("meta-narrativa");
+    // Defesa contra helpful assistant (Claude/Fable)
+    expect(compilado.blocos.geral).toContain("⚡ Instrução prioritária");
+    expect(compilado.blocos.geral).toContain("Claude/Fable");
+    expect(compilado.blocos.geral).toContain("Certamente");
+    expect(compilado.blocos.geral).toContain("Se precisar de algo mais");
+    expect(compilado.blocos.geral).toContain("Lista numerada");
     expect(compilado.blocos.ethan).toContain("Modo Ethan");
     expect(existsSync(CAMINHO_IDENTIDADE_COMPILED)).toBe(true);
   });

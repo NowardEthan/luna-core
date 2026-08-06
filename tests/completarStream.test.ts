@@ -33,7 +33,14 @@ describe("providerSupportsStream", () => {
     expect(providerSupportsStream("https://api.groq.com/openai/v1")).toBe(true);
   });
 
-  it("rejeita base desconhecida", () => {
-    expect(providerSupportsStream("https://api.openai.com/v1")).toBe(false);
+  it("aceita provider pessoal (base OpenAI-compatible em HTTPS)", () => {
+    // O provider pessoal é OpenAI-compatível (Claude/Fable via gateway) — qualquer URL
+    // HTTPS é aceita para stream (commit 40dd9c8: feat(mobile-api): suportar provider pessoal).
+    expect(providerSupportsStream("https://api.openai.com/v1")).toBe(true);
+    expect(providerSupportsStream("https://fable-gateway.exemplo.com/v1")).toBe(true);
+  });
+
+  it("rejeita base não-HTTP", () => {
+    expect(providerSupportsStream("ftp://api.exemplo.com/v1")).toBe(false);
   });
 });

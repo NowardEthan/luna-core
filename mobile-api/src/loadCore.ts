@@ -440,7 +440,12 @@ async function prepararChatMobile(
         modeloMenor: personalProvider!.model.trim(),
         modeloMaior: personalProvider!.model.trim(),
         temperaturaMenor: 0,
-        temperaturaMaior: Number(process.env.LUNA_PERSONAL_TEMPERATURA ?? process.env.OPENROUTER_TEMPERATURA ?? 1),
+        // Provider pessoal (Claude/Fable): temperatura padrão 0.9 — mais expressiva que o
+        // 1.0 default do Claude, ajuda a sair do tom "helpful assistant" certinho. Quem quiser
+        // outro valor pode setar LUNA_PERSONAL_TEMPERATURA no Railway.
+        temperaturaMaior: Number(
+          process.env.LUNA_PERSONAL_TEMPERATURA ?? 0.9,
+        ),
       }
     : selection
       ? resolveLlmConfig(selection, planId)
