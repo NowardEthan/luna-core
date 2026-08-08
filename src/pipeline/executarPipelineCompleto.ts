@@ -1173,6 +1173,7 @@ export async function executarPipelineCompleto(
           pesquisaProfunda,
           modoTecnico,
           documentosAtivo: documentosAtivoNestaRodada,
+          imagemObrigatoria: imagemPendente,
           onAcao: onAcaoComRegisto,
           // HÍBRIDO: no caminho agêntico NÃO transmitimos o raciocínio cru.
           //
@@ -1269,6 +1270,7 @@ export async function executarPipelineCompleto(
               pesquisaProfunda,
               modoTecnico,
               documentosAtivo: documentosAtivoNestaRodada,
+              imagemObrigatoria: imagemPendente,
               onAcao: onAcaoComRegisto,
             })
           : await responderComoLuna(
@@ -1435,6 +1437,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         pesquisaProfunda,
         modoTecnico,
         documentosAtivo: documentosAtivoNestaRodada,
+        imagemObrigatoria: imagemPendente,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;

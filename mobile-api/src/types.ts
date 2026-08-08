@@ -356,6 +356,8 @@ export type HealthResponse = {
     pseudoToolImagemGateStream: boolean;
     /** Turno de imagem desliga reasoning na chamada de tool para preservar tool calling. */
     imagemSemReasoningToolCall: boolean;
+    /** Turno de imagem usa tool_choice forçado para nao virar promessa em texto. */
+    imagemToolChoiceForcado: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.

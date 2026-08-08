@@ -263,6 +263,8 @@ export type OpcoesResponderAgentico = {
   pesquisaProfunda?: boolean;
   /** Artefatos ativos (opcional): habilita a ferramenta `criar_artefato`. Só o OrbitLab liga, por ora. */
   documentosAtivo?: boolean;
+  /** Este turno precisa executar imagem; texto dizendo "vou gerar" nao pode fechar. */
+  imagemObrigatoria?: boolean;
   /** Modo técnico (opcional): troca a voz calorosa/casual de sempre por um registro detalhista, rigoroso e formal (maiúsculas, pontuação, seções). */
   modoTecnico?: boolean;
   onAcao?: (acao: AcaoAgenticoChat) => void;
@@ -976,6 +978,16 @@ export async function responderComoLunaAgentico(
     config,
     raciocinioAtivo: opcoes.raciocinioAtivo !== false,
     raciocinioEffort: opcoes.raciocinioEffort,
+    ferramentaObrigatoria: opcoes.imagemObrigatoria
+      ? {
+          nomes: ["gerar_imagem", "editar_imagem"],
+          maxNudges: 2,
+          instrucao:
+            "Este turno e de IMAGEM. Nao responda que vai gerar, nao prometa e nao descreva resultado. " +
+            "Chame agora uma ferramenta: `gerar_imagem` para imagem nova, ou `editar_imagem` se for alterar imagem existente. " +
+            "Se estiver em duvida, use `gerar_imagem` com um prompt visual concreto baseado no pedido e no historico.",
+        }
+      : undefined,
     maxRodadas,
     obterMaxRodadas: () => maxRodadas,
     planoAindaAberto,

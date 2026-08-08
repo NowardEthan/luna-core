@@ -94,6 +94,8 @@ export type RequisicaoAgente = {
   raciocinioEffort?: "low" | "medium" | "high";
   /** Teto de saída — ver RequisicaoCompletacao.maxTokens. */
   maxTokens?: number;
+  /** Forca chamada de ferramenta ("required") ou uma ferramenta especifica. */
+  toolChoice?: string;
   /**
    * A6.1 — deltas ao vivo (content/reasoning) enquanto a rodada com tools ainda roda.
    * Se presente, o provedor tenta `stream: true` e acumula tool_calls no fim.

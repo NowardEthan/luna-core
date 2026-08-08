@@ -42,6 +42,12 @@ export type OpcoeExecutor = {
   raciocinioAtivo?: boolean;
   /** low/medium/high — controla profundidade do raciocínio quando suportado. */
   raciocinioEffort?: "low" | "medium" | "high";
+  ferramentaObrigatoria?: {
+    nomes: string[];
+    preferida?: string;
+    instrucao: string;
+    maxNudges?: number;
+  };
   onToolCallStart?: (nome: string, args: Record<string, unknown>, rodada: number) => void;
   onToolCallComplete?: (passo: PassoExecucao) => void;
   onStatusHint?: (hint: string) => void;
@@ -233,6 +239,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     marcarPassoAberto,
     obterMaxRodadas,
     abortSignal,
+    ferramentaObrigatoria,
   } = opcoes;
 
   const mensagens: MensagemChatAgente[] = [
@@ -250,12 +257,27 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
   let nudgesRespostaVazia = 0;
   let nudgesFechoFala = 0;
   let nudgesVerificarFontes = 0;
+  let nudgesFerramentaObrigatoria = 0;
   /** Depois de todos ☑, exige pelo menos uma fala-só (não só pontes mid-tool). */
   let fechoFalaCumprido = false;
   /** Anti-piripaque: bloqueia ler_secao em loop 1↔2 no mesmo turno. */
   const guardaSecao = criarGuardaLeituraSecao();
 
   const tetoRodadas = () => obterMaxRodadas?.() ?? maxRodadas;
+  const nomesObrigatorios = new Set(ferramentaObrigatoria?.nomes ?? []);
+  const ferramentaObrigatoriaPendente = () =>
+    nomesObrigatorios.size > 0 && !passos.some((p) => nomesObrigatorios.has(p.ferramenta));
+  const toolChoiceObrigatoria = () => {
+    if (!ferramentaObrigatoriaPendente()) return undefined;
+    const disponiveis = new Set(ferramentas.map((f) => f.nome));
+    const preferida = ferramentaObrigatoria?.preferida;
+    if (preferida && disponiveis.has(preferida)) return preferida;
+    const obrigatoriasDisponiveis = ferramentaObrigatoria?.nomes.filter((nome) =>
+      disponiveis.has(nome),
+    ) ?? [];
+    if (obrigatoriasDisponiveis.length > 1) return "required";
+    return obrigatoriasDisponiveis[0];
+  };
 
   const emitirNarracao = (texto: string) => {
     const t = texto.trim();
@@ -275,6 +297,15 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
     const esperandoResposta =
       ultimo?.ferramenta === "perguntar" && ultimo.sucesso === true;
     if (esperandoResposta) return false;
+
+    if (ferramentaObrigatoriaPendente()) {
+      const maxNudges = ferramentaObrigatoria?.maxNudges ?? 2;
+      if (nudgesFerramentaObrigatoria < maxNudges && ferramentaObrigatoria?.instrucao) {
+        nudgesFerramentaObrigatoria++;
+        mensagens.push({ papel: "user", conteudo: ferramentaObrigatoria.instrucao });
+        return true;
+      }
+    }
 
     const aberto = planoAindaAberto?.() ?? null;
     // Sem teto baixo: ☐ aberto NÃO pode virar resposta final (antes 3 nudges e ela escapava).
@@ -387,6 +418,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
       raciocinioAtivo,
       raciocinioEffort: opcoes.raciocinioEffort,
       maxTokens: config.maxTokensResposta,
+      toolChoice: toolChoiceObrigatoria(),
       onDelta: onNarracaoRodada || onRaciocinioRodada
         ? (chunk) => {
             if (chunk.tipo === "content" && chunk.delta) {

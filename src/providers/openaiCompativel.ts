@@ -457,7 +457,11 @@ async function completarComFerramentasStream(
 
   if (requisicao.ferramentas?.length) {
     corpo.tools = serializarFerramentas(requisicao.ferramentas);
-    corpo.tool_choice = "auto";
+    corpo.tool_choice = requisicao.toolChoice
+      ? requisicao.toolChoice === "required"
+        ? "required"
+        : { type: "function", function: { name: requisicao.toolChoice } }
+      : "auto";
   }
 
   const raciocinioAtivo = requisicao.raciocinioAtivo !== false;
@@ -593,7 +597,11 @@ async function completarComFerramentasJson(
 
   if (requisicao.ferramentas?.length) {
     corpo.tools = serializarFerramentas(requisicao.ferramentas);
-    corpo.tool_choice = "auto";
+    corpo.tool_choice = requisicao.toolChoice
+      ? requisicao.toolChoice === "required"
+        ? "required"
+        : { type: "function", function: { name: requisicao.toolChoice } }
+      : "auto";
   }
 
   const raciocinioAtivo = requisicao.raciocinioAtivo !== false;
