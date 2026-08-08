@@ -4,6 +4,7 @@ import {
   confabulouImagem,
   pediuImagem,
   respostaAlegaImagemEnviada,
+  respostaPrometeImagemSemFerramenta,
   textoDesculpaImagem,
   vazouPseudoToolImagem,
 } from "./guardaImagem.js";
@@ -29,6 +30,15 @@ describe("guardaImagem", () => {
       confabulouImagem("prontinho, mandei a imagem!", 1, "desenha um gato"),
     ).toBe(false);
     expect(confabulouImagem("kk bom dia", 0, "bom dia")).toBe(false);
+  });
+
+  it("bloqueia promessa de imagem em follow-up pendente sem URL real", () => {
+    const resposta =
+      "Vou buscar uma imagem bem nessa linha — estilo anime, cores vivas. Ja te mostro!";
+
+    expect(respostaPrometeImagemSemFerramenta(resposta)).toBe(true);
+    expect(confabulouImagem(resposta, 0, "Gera pra mim", true)).toBe(true);
+    expect(confabulouImagem(resposta, 1, "Gera pra mim", true)).toBe(false);
   });
 
   it("bloqueia pseudo-tool de imagem vazada mesmo em continuacao", () => {

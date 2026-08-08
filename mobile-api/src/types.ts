@@ -358,6 +358,8 @@ export type HealthResponse = {
     imagemSemReasoningToolCall: boolean;
     /** Turno de imagem usa tool_choice forçado para nao virar promessa em texto. */
     imagemToolChoiceForcado: boolean;
+    /** Confirmacao curta apos prompt visual tambem abre ferramenta de imagem. */
+    imagemAceitePromptVisual: boolean;
   };
   /**
    * O commit que estÃ¡ a correr AQUI.

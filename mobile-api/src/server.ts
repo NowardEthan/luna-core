@@ -748,6 +748,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         pseudoToolImagemGateStream: true,
         imagemSemReasoningToolCall: true,
         imagemToolChoiceForcado: true,
+        imagemAceitePromptVisual: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.

@@ -370,7 +370,7 @@ export function mensagemPedeGerarImagem(mensagem: string): boolean {
 function mensagemConfirmaPedidoCurto(mensagem: string): boolean {
   const limpa = mensagem.trim().toLowerCase();
   if (limpa.length > 80) return false;
-  return /^(sim|s|claro|pode|pode sim|faz|faz sim|manda|manda sim|bora|vai|ok|okay|por favor|sim por favor|pode fazer)([!. ]*)$/i.test(
+  return /^(sim|s|claro|pode|pode sim|faz|faz sim|manda|manda sim|gera|gera sim|gere|gerar|gera pra mim|gera para mim|bora|vai|ok|okay|por favor|sim por favor|pode fazer)([!. ]*)$/i.test(
     limpa,
   );
 }
@@ -380,8 +380,14 @@ function historicoTemConviteImagemPendente(
 ): boolean {
   const ultimoAssistant = [...historico].reverse().find((m) => m.papel === "assistant")?.conteudo ?? "";
   if (!ultimoAssistant) return false;
+  const parecePromptVisual =
+    /\b(prompt|descri[cç][aã]o|cena)\b/i.test(ultimoAssistant) &&
+    /\b(imagem|arte|artwork|ilustra[cç][aã]o|desenho|foto|render|anime|cartoon|poster|p[oô]ster|wallpaper|retrato|capa)\b/i.test(
+      ultimoAssistant,
+    );
   return (
-    /\b(quer|prefere|posso|vou|devo)\b[^.?!\n]{0,80}\b(gerar|desenhar|criar|fazer|mandar)\b[^.?!\n]{0,80}\b(imagem|arte|ilustra[cç][aã]o|desenho|foto)\b/i.test(
+    parecePromptVisual ||
+    /\b(quer|prefere|posso|vou|devo)\b[^.?!\n]{0,80}\b(gerar|desenhar|criar|fazer|mandar|buscar)\b[^.?!\n]{0,80}\b(imagem|arte|ilustra[cç][aã]o|desenho|foto)\b/i.test(
       ultimoAssistant,
     ) ||
     /\b(gerar assim|mando gerar|mande gerar|fa[cç]o uma imagem|desenho pra voc[eê]|desenho para voc[eê])\b/i.test(
@@ -390,7 +396,7 @@ function historicoTemConviteImagemPendente(
   );
 }
 
-function mensagemAceitaImagemPendente(
+export function mensagemAceitaImagemPendente(
   mensagem: string,
   historico: Array<{ papel: "user" | "assistant"; conteudo: string }>,
 ): boolean {
@@ -1448,7 +1454,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
     // narração pela desculpa honesta. Sem reexecução (Flash falharia de novo).
     if (
       usarModoAgentico &&
-      confabulouImagem(resposta.texto, imagensComUrlNoTurno, mensagem)
+      confabulouImagem(resposta.texto, imagensComUrlNoTurno, mensagem, imagemPendente)
     ) {
       if (process.env.LUNA_DEBUG_REGISTRO === "1") {
         console.error("[guarda] alegou imagem sem URL real — trocando pela desculpa.");

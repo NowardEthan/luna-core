@@ -13,6 +13,10 @@
 const ALEGA_IMAGEM =
   /\b(desenhei|desenh[aá]mos|gerei|ger[aá]mos|criei (a |uma )?(imagem|arte|ilustra[cç][aã]o|desenho)|mande[ei]|enviei|aqui est[aá] (a |sua |tua )?(imagem|arte|ilustra[cç][aã]o|desenho)|prontinh[oa].{0,40}(imagem|arte|desenho|ilustra)|a imagem (j[aá] )?(est[aá]|saiu|ficou)|olha (a |essa |esta )?(imagem|arte|ilustra))\b/i;
 
+/** A resposta promete execucao futura/imediata de imagem sem chamar ferramenta. */
+const PROMETE_IMAGEM =
+  /\b(vou|posso|deixa eu|deixa-me|deixa)\b.{0,60}\b(gerar|desenhar|criar|fazer|mandar|enviar|buscar)\b.{0,80}\b(imagem|foto|arte|ilustra[cÃ§][aÃ£]o|desenho|render)\b|\b(j[aÃ¡] te mostro|te mostro j[aÃ¡]|vou te mostrar|vou mostrar)\b/i;
+
 /**
  * O pedido dele pedia desenho/imagem?
  * Cobre «desenha um gato» (sem a palavra imagem) e «gera uma imagem de…».
@@ -26,6 +30,10 @@ const PSEUDO_TOOL_IMAGEM =
 
 export function respostaAlegaImagemEnviada(resposta: string): boolean {
   return ALEGA_IMAGEM.test(resposta);
+}
+
+export function respostaPrometeImagemSemFerramenta(resposta: string): boolean {
+  return PROMETE_IMAGEM.test(resposta);
 }
 
 export function pediuImagem(mensagemUsuario: string): boolean {
@@ -43,6 +51,7 @@ export function confabulouImagem(
   resposta: string,
   imagensComUrl: number,
   mensagemUsuario: string,
+  imagemPendente = false,
 ): boolean {
   const raw = process.env.LUNA_GUARDA_IMAGEM?.trim().toLowerCase();
   if (raw === "0" || raw === "false" || raw === "off") return false;
@@ -51,7 +60,8 @@ export function confabulouImagem(
   if (imagensComUrl > 0) return false;
   return (
     vazouPseudoToolImagem(resposta) ||
-    (pediuImagem(mensagemUsuario) && respostaAlegaImagemEnviada(resposta))
+    ((imagemPendente || pediuImagem(mensagemUsuario)) &&
+      (respostaAlegaImagemEnviada(resposta) || respostaPrometeImagemSemFerramenta(resposta)))
   );
 }
 
