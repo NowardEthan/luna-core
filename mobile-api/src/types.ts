@@ -354,6 +354,8 @@ export type HealthResponse = {
     pseudoToolImagemExecutada: boolean;
     /** Pedido/confirmacao de imagem abre tools reais e SSE barra pseudo-tool textual. */
     pseudoToolImagemGateStream: boolean;
+    /** Turno de imagem desliga reasoning na chamada de tool para preservar tool calling. */
+    imagemSemReasoningToolCall: boolean;
   };
   /**
    * O commit que está a correr AQUI.

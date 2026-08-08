@@ -773,7 +773,10 @@ export async function executarPipelineCompleto(
     memoriaMotivo: memoria.decisao.motivo,
   };
   const narrativaPipeline = montarNarrativaRaciocinio(traceCompleto);
-  if (raciocinioAtivo && narrativaPipeline) {
+  const imagemPendenteNoTurno =
+    mensagemPedeGerarImagem(mensagem) ||
+    mensagemAceitaImagemPendente(mensagem, contextoSessao?.historico ?? []);
+  if (raciocinioAtivo && !imagemPendenteNoTurno && narrativaPipeline) {
     opcoes.onRaciocinioRodada?.(1, narrativaPipeline, true);
     opcoes.onRaciocinioRodada?.(1, narrativaPipeline, false);
   }
@@ -802,7 +805,8 @@ export async function executarPipelineCompleto(
     humorLinha = nucleo.humor;
 
     // L4 — CoT na voz só em turno pesado (custo alto no Groq/OpenRouter sem ganho no papo).
-    const raciocinioNaVoz = pesoTurno === "leve" ? false : raciocinioAtivo;
+    const raciocinioNaVoz =
+      imagemPendenteNoTurno || pesoTurno === "leve" ? false : raciocinioAtivo;
 
     const registro = registroConversaAtivo()
       ? calcularRegistro({
@@ -1056,7 +1060,7 @@ export async function executarPipelineCompleto(
     const anexosDesteTurno = anexosImagem.filter((a) => !a.deTurnoAnterior);
     const anexosDocumento = opcoes.anexosDocumento ?? [];
     const imagemPendente =
-      mensagemPedeGerarImagem(mensagem) || mensagemAceitaImagemPendente(mensagem, historico);
+      imagemPendenteNoTurno || mensagemAceitaImagemPendente(mensagem, historico);
     const documentosAtivoNestaRodada = documentosAtivo || imagemPendente;
     const usarModoAgentico = deveUsarModoAgentico(
       provedor,
