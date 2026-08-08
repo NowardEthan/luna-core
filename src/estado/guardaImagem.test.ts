@@ -5,6 +5,7 @@ import {
   pediuImagem,
   respostaAlegaImagemEnviada,
   textoDesculpaImagem,
+  vazouPseudoToolImagem,
 } from "./guardaImagem.js";
 
 describe("guardaImagem", () => {
@@ -14,7 +15,7 @@ describe("guardaImagem", () => {
     expect(pediuImagem("bom dia luna")).toBe(false);
   });
 
-  it("reconhece alegação de envio", () => {
+  it("reconhece alegacao de envio", () => {
     expect(respostaAlegaImagemEnviada("prontinho, mandei a imagem!")).toBe(true);
     expect(respostaAlegaImagemEnviada("desenhei um gato pastel pra ti")).toBe(true);
     expect(respostaAlegaImagemEnviada("posso desenhar se quiseres")).toBe(false);
@@ -30,7 +31,16 @@ describe("guardaImagem", () => {
     expect(confabulouImagem("kk bom dia", 0, "bom dia")).toBe(false);
   });
 
-  it("desculpa é honesta e curta", () => {
+  it("bloqueia pseudo-tool de imagem vazada mesmo em continuacao", () => {
+    const resposta =
+      'Feito! Mandei gerar.\n[Tool: gen_images]{"queries":["cute baby t-rex"]}';
+
+    expect(vazouPseudoToolImagem(resposta)).toBe(true);
+    expect(confabulouImagem(resposta, 0, "Sim por favor")).toBe(true);
+    expect(confabulouImagem(resposta, 1, "Sim por favor")).toBe(false);
+  });
+
+  it("desculpa e honesta e curta", () => {
     expect(textoDesculpaImagem()).toMatch(/tentei desenhar/i);
     expect(textoDesculpaImagem()).toMatch(/tente de novo/i);
   });

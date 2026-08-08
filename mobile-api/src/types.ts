@@ -350,6 +350,8 @@ export type HealthResponse = {
     videoFrameFallback: boolean;
     /** BYOK do criador: base URL + API key pessoal para Claude/OpenAI-compatible. */
     personalClaudeByok: boolean;
+    /** Converte pseudo-tool textual de imagem em chamada real, sem vazar no chat. */
+    pseudoToolImagemExecutada: boolean;
   };
   /**
    * O commit que está a correr AQUI.

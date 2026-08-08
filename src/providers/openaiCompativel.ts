@@ -285,6 +285,141 @@ function parsearChamadas(
     .filter((c) => c.nome.length > 0);
 }
 
+function nomePseudoFerramenta(nome: string): string {
+  const normalizado = nome.trim().toLowerCase().replace(/[-\s]+/g, "_");
+  if (
+    normalizado === "gen_images" ||
+    normalizado === "generate_image" ||
+    normalizado === "image_generation" ||
+    normalizado === "gerar_imagem"
+  ) {
+    return "gerar_imagem";
+  }
+  if (
+    normalizado === "edit_image" ||
+    normalizado === "image_edit" ||
+    normalizado === "editar_imagem"
+  ) {
+    return "editar_imagem";
+  }
+  return normalizado;
+}
+
+function extrairObjetosJson(texto: string, inicio: number): { fim: number; json: string } | null {
+  const abre = texto.indexOf("{", inicio);
+  if (abre < 0) return null;
+  let profundidade = 0;
+  let emString = false;
+  let escape = false;
+  for (let i = abre; i < texto.length; i++) {
+    const ch = texto[i]!;
+    if (emString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === "\\") {
+        escape = true;
+      } else if (ch === "\"") {
+        emString = false;
+      }
+      continue;
+    }
+    if (ch === "\"") {
+      emString = true;
+    } else if (ch === "{") {
+      profundidade += 1;
+    } else if (ch === "}") {
+      profundidade -= 1;
+      if (profundidade === 0) return { fim: i + 1, json: texto.slice(abre, i + 1) };
+    }
+  }
+  return null;
+}
+
+function primeiroTexto(valor: unknown): string {
+  if (typeof valor === "string") return valor.trim();
+  if (Array.isArray(valor)) {
+    for (const item of valor) {
+      const texto = primeiroTexto(item);
+      if (texto) return texto;
+    }
+  }
+  return "";
+}
+
+function normalizarArgsPseudoFerramenta(
+  nome: string,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  if (nome === "gerar_imagem") {
+    const prompt =
+      primeiroTexto(args.prompt) ||
+      primeiroTexto(args.query) ||
+      primeiroTexto(args.queries) ||
+      primeiroTexto(args.description);
+    return {
+      ...args,
+      ...(prompt ? { prompt } : {}),
+      ...(typeof args.aspect_ratio === "string" ? { aspect_ratio: args.aspect_ratio } : {}),
+    };
+  }
+  if (nome === "editar_imagem") {
+    const instrucao =
+      primeiroTexto(args.instrucao) ||
+      primeiroTexto(args.prompt) ||
+      primeiroTexto(args.query) ||
+      primeiroTexto(args.queries);
+    return {
+      ...args,
+      ...(instrucao ? { instrucao } : {}),
+    };
+  }
+  return args;
+}
+
+function parsearPseudoFerramentasNoTexto(
+  texto: string,
+  ferramentas?: DefinicaoFerramenta[],
+): { texto: string; chamadas: ChamadaFerramenta[]; detectou: boolean } {
+  if (!texto || !/\[Tool:/i.test(texto)) return { texto, chamadas: [], detectou: false };
+
+  const disponiveis = new Set((ferramentas ?? []).map((f) => f.nome));
+  const chamadas: ChamadaFerramenta[] = [];
+  let limpo = "";
+  let cursor = 0;
+  const marcador = /\[Tool:\s*([^\]\s]+)\s*\]/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = marcador.exec(texto)) !== null) {
+    const bruto = match[1] ?? "";
+    const nome = nomePseudoFerramenta(bruto);
+    const obj = extrairObjetosJson(texto, marcador.lastIndex);
+    if (!obj) continue;
+
+    limpo += texto.slice(cursor, match.index);
+    cursor = obj.fim;
+    marcador.lastIndex = obj.fim;
+
+    if (disponiveis.size > 0 && !disponiveis.has(nome)) continue;
+
+    try {
+      const parsed = JSON.parse(obj.json);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        chamadas.push({
+          id: randomUUID(),
+          nome,
+          argumentos: normalizarArgsPseudoFerramenta(nome, parsed as Record<string, unknown>),
+        });
+      }
+    } catch {
+      /* se o JSON veio invalido, so removemos o bloco visivel */
+    }
+  }
+
+  if (cursor === 0) return { texto, chamadas: [], detectou: false };
+  limpo += texto.slice(cursor);
+  return { texto: limpo.trim(), chamadas, detectou: true };
+}
+
 async function completarComFerramentasUmaVez(
   url: string,
   apiKey: string,
@@ -346,6 +481,7 @@ async function completarComFerramentasStream(
   );
 
   let conteudo = "";
+  let conteudoPendente = "";
   let raciocinio = "";
   let modelo = requisicao.modelo;
   const toolAcc = new Map<
@@ -360,7 +496,16 @@ async function completarComFerramentasStream(
     }
     if (chunk.tipo === "content") {
       conteudo += chunk.delta;
-      requisicao.onDelta?.({ tipo: "content", delta: chunk.delta });
+      if (requisicao.ferramentas?.length) {
+        conteudoPendente += chunk.delta;
+        if (!/\[Tool:/i.test(conteudoPendente) && conteudoPendente.length > 512) {
+          const emitir = conteudoPendente.slice(0, conteudoPendente.length - 512);
+          conteudoPendente = conteudoPendente.slice(-512);
+          requisicao.onDelta?.({ tipo: "content", delta: emitir });
+        }
+      } else {
+        requisicao.onDelta?.({ tipo: "content", delta: chunk.delta });
+      }
       return;
     }
     if (chunk.tipo === "reasoning") {
@@ -388,6 +533,7 @@ async function completarComFerramentasStream(
   );
   const conteudoFinal = resolvido.conteudo.trim();
   const raciocinioFinal = resolvido.raciocinio ?? (raciocinio.trim() || undefined);
+  const pseudo = parsearPseudoFerramentasNoTexto(conteudoFinal, requisicao.ferramentas);
 
   const chamadas: ChamadaFerramenta[] = [...toolAcc.entries()]
     .sort(([a], [b]) => a - b)
@@ -406,18 +552,24 @@ async function completarComFerramentasStream(
     })
     .filter((c) => c.nome.length > 0);
 
-  if (chamadas.length > 0) {
+  const chamadasEfetivas = chamadas.length > 0 ? chamadas : pseudo.chamadas;
+
+  if (chamadasEfetivas.length > 0) {
     return {
-      ...(conteudoFinal ? { conteudo: conteudoFinal } : {}),
-      chamadas,
+      ...(!pseudo.detectou && conteudoFinal ? { conteudo: conteudoFinal } : {}),
+      chamadas: chamadasEfetivas,
       raciocinio: raciocinioFinal,
       modelo,
       latencia_ms,
     };
   }
 
+  if (requisicao.ferramentas?.length && conteudoPendente && !pseudo.detectou) {
+    requisicao.onDelta?.({ tipo: "content", delta: conteudoPendente });
+  }
+
   return {
-    conteudo: conteudoFinal,
+    conteudo: pseudo.texto || conteudoFinal,
     raciocinio: raciocinioFinal,
     modelo,
     latencia_ms,
@@ -491,6 +643,7 @@ async function completarComFerramentasJson(
   const resolvido = resolverRaciocinioResposta(mensagem, conteudoBruto);
   const conteudo = resolvido.conteudo.trim();
   const raciocinio = resolvido.raciocinio ?? raciocinioApi;
+  const pseudo = parsearPseudoFerramentasNoTexto(conteudo, requisicao.ferramentas);
 
   if (toolCalls?.length) {
     const chamadas = parsearChamadas(toolCalls);
@@ -505,8 +658,17 @@ async function completarComFerramentasJson(
     }
   }
 
+  if (pseudo.chamadas.length > 0) {
+    return {
+      chamadas: pseudo.chamadas,
+      raciocinio,
+      modelo,
+      latencia_ms,
+    };
+  }
+
   return {
-    conteudo,
+    conteudo: pseudo.texto || conteudo,
     raciocinio,
     modelo,
     latencia_ms,

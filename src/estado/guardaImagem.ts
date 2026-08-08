@@ -21,12 +21,19 @@ const ALEGA_IMAGEM =
 const PEDE_IMAGEM =
   /\b(desenha|desenhar|pinta|pintar|ilustra|ilustrar)\b|\b(gera|gerar|cria|criar|faz|fazer|manda|envia|mostra)\b.{0,40}\b(imagem|foto|arte|ilustra[cç][aã]o|desenho|quadro|retrato)\b|\b(imagem|arte|ilustra[cç][aã]o|desenho)\b.{0,24}\b(de|d[aeou]m?|com|pra|para)\b/i;
 
+const PSEUDO_TOOL_IMAGEM =
+  /\[Tool:\s*(gen_images|generate_image|image_generation|gerar_imagem|edit_image|image_edit|editar_imagem)\s*\]/i;
+
 export function respostaAlegaImagemEnviada(resposta: string): boolean {
   return ALEGA_IMAGEM.test(resposta);
 }
 
 export function pediuImagem(mensagemUsuario: string): boolean {
   return PEDE_IMAGEM.test(mensagemUsuario);
+}
+
+export function vazouPseudoToolImagem(resposta: string): boolean {
+  return PSEUDO_TOOL_IMAGEM.test(resposta);
 }
 
 /**
@@ -42,7 +49,10 @@ export function confabulouImagem(
 
   if (!resposta.trim()) return false;
   if (imagensComUrl > 0) return false;
-  return pediuImagem(mensagemUsuario) && respostaAlegaImagemEnviada(resposta);
+  return (
+    vazouPseudoToolImagem(resposta) ||
+    (pediuImagem(mensagemUsuario) && respostaAlegaImagemEnviada(resposta))
+  );
 }
 
 /** Texto honesto no lugar da mentira — sem segunda passagem cara. */
