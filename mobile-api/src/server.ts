@@ -144,6 +144,14 @@ function sendSseEvent(res: ServerResponse, event: string, data: unknown): void {
   flushable.flush?.();
 }
 
+const PSEUDO_TOOL_IMAGEM_TEXTO =
+  /\[Tool:\s*(gen_images|generate_image|image_generation|gerar_imagem|edit_image|image_edit|editar_imagem)\s*\]/i;
+
+function textoSeguroContraPseudoToolImagem(texto: string): string {
+  if (!PSEUDO_TOOL_IMAGEM_TEXTO.test(texto)) return texto;
+  return "Tentei desenhar, mas a imagem nao chegou a sair desta vez. Quer que eu tente de novo?";
+}
+
 /** Comentário SSE cru (linha começando com `:`) — o cliente ignora, o proxy vê byte na linha. */
 function sendSseHeartbeat(res: ServerResponse): void {
   if (res.writableEnded || res.destroyed) return;
@@ -737,6 +745,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         videoFrameFallback: true,
         personalClaudeByok: true,
         pseudoToolImagemExecutada: true,
+        pseudoToolImagemGateStream: true,
       },
       // Railway injeta o SHA. Sem isto, nenhum marcador booleano distingue o deploy novo do
       // velho depois da primeira vez.
@@ -897,15 +906,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       if (auth && parsed.lunaMessageId) {
         const cached = await buscarTurnoCacheado(auth.uid, sessionId, parsed.lunaMessageId);
         if (cached) {
+          const cachedText = textoSeguroContraPseudoToolImagem(cached.text);
           res.writeHead(200, {
             "content-type": "text/event-stream; charset=utf-8",
             "cache-control": "no-cache",
             connection: "keep-alive",
             ...corsHeaders(),
           });
-          sendSseEvent(res, "content", { delta: cached.text });
+          sendSseEvent(res, "content", { delta: cachedText });
           sendSseEvent(res, "done", {
-            text: cached.text,
+            text: cachedText,
             sessionId,
             providerId: llmSelection.providerId,
             modelKey: llmSelection.modelKey,
@@ -960,12 +970,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       // Mantém a linha viva mesmo nos silêncios (geração de argumento de tool grande).
       heartbeat = setInterval(() => sendSseHeartbeat(res), 10_000);
 
+      let contentBufferSeguro = "";
+      let contentSuprimidoPorPseudoTool = false;
+      const enviarContentSeguro = (delta = "", force = false) => {
+        if (contentSuprimidoPorPseudoTool) return;
+        contentBufferSeguro += delta;
+        if (PSEUDO_TOOL_IMAGEM_TEXTO.test(contentBufferSeguro)) {
+          contentBufferSeguro = "";
+          contentSuprimidoPorPseudoTool = true;
+          return;
+        }
+        if (!contentBufferSeguro) return;
+        if (force || contentBufferSeguro.length > 512) {
+          const emitir = force
+            ? contentBufferSeguro
+            : contentBufferSeguro.slice(0, contentBufferSeguro.length - 512);
+          contentBufferSeguro = force ? "" : contentBufferSeguro.slice(-512);
+          if (emitir) {
+            contentEnviado = true;
+            sendSseEvent(res, "content", { delta: emitir });
+          }
+        }
+      };
+
       const streamCallbacks: ChatStreamCallbacks = {
         onStatus: (phase, label) => sendSseEvent(res, "status", { phase, label }),
         onReasoningDelta: (delta) => sendSseEvent(res, "reasoning", { delta }),
         onContentDelta: (delta) => {
-          if (delta) contentEnviado = true;
-          sendSseEvent(res, "content", { delta });
+          enviarContentSeguro(delta);
         },
         onAcao: (acao) => sendSseEvent(res, "acao", acao),
       };
@@ -1039,6 +1071,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
       clearTimeout(streamTimeout);
       clearInterval(heartbeat);
+
+      const textoSeguro = textoSeguroContraPseudoToolImagem(result.text);
+      if (textoSeguro !== result.text) {
+        contentBufferSeguro = "";
+        contentSuprimidoPorPseudoTool = true;
+        result = { ...result, text: textoSeguro };
+      } else {
+        enviarContentSeguro("", true);
+      }
 
       // Rede de segurança: se o provedor não streamou (ex.: flag antiga), ainda
       // emite um content antes do fecho — o cliente/harness mede TTFT pelo content.

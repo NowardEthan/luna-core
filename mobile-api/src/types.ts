@@ -352,6 +352,8 @@ export type HealthResponse = {
     personalClaudeByok: boolean;
     /** Converte pseudo-tool textual de imagem em chamada real, sem vazar no chat. */
     pseudoToolImagemExecutada: boolean;
+    /** Pedido/confirmacao de imagem abre tools reais e SSE barra pseudo-tool textual. */
+    pseudoToolImagemGateStream: boolean;
   };
   /**
    * O commit que está a correr AQUI.

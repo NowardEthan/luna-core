@@ -265,6 +265,7 @@ function deveUsarModoAgentico(
   documentosAtivo = false,
   conversaTemDocumentos = false,
   forcarAgentico = false,
+  imagemPendente = false,
 ): boolean {
   return avaliarGateAgentico(
     provedor,
@@ -274,6 +275,7 @@ function deveUsarModoAgentico(
     documentosAtivo,
     conversaTemDocumentos,
     forcarAgentico,
+    imagemPendente,
   ).usar;
 }
 
@@ -289,6 +291,7 @@ export function avaliarGateAgentico(
   documentosAtivo = false,
   conversaTemDocumentos = false,
   forcarAgentico = false,
+  imagemPendente = false,
 ): { usar: boolean; motivo: MotivoGateAgentico | null } {
   if (!ehProvedorAgente(provedor)) return { usar: false, motivo: null };
   const vision =
@@ -302,7 +305,7 @@ export function avaliarGateAgentico(
   const editaDocumento =
     documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);
   const financas = mensagemPedeFinancas(mensagem);
-  const gerarImagem = documentosAtivo && mensagemPedeGerarImagem(mensagem);
+  const gerarImagem = imagemPendente || mensagemPedeGerarImagem(mensagem);
   const gate = decidirGateAgentico({
     forcar: forcarAgentico,
     vision,
@@ -364,6 +367,36 @@ export function mensagemPedeGerarImagem(mensagem: string): boolean {
  * Tipos de texto que costumam virar artefato (criação). Inclui livro/capítulo — sem isso,
  * «escreve o primeiro capítulo» caía no caminho leve e ela só papava no chat.
  */
+function mensagemConfirmaPedidoCurto(mensagem: string): boolean {
+  const limpa = mensagem.trim().toLowerCase();
+  if (limpa.length > 80) return false;
+  return /^(sim|s|claro|pode|pode sim|faz|faz sim|manda|manda sim|bora|vai|ok|okay|por favor|sim por favor|pode fazer)([!. ]*)$/i.test(
+    limpa,
+  );
+}
+
+function historicoTemConviteImagemPendente(
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string }>,
+): boolean {
+  const ultimoAssistant = [...historico].reverse().find((m) => m.papel === "assistant")?.conteudo ?? "";
+  if (!ultimoAssistant) return false;
+  return (
+    /\b(quer|prefere|posso|vou|devo)\b[^.?!\n]{0,80}\b(gerar|desenhar|criar|fazer|mandar)\b[^.?!\n]{0,80}\b(imagem|arte|ilustra[cç][aã]o|desenho|foto)\b/i.test(
+      ultimoAssistant,
+    ) ||
+    /\b(gerar assim|mando gerar|mande gerar|fa[cç]o uma imagem|desenho pra voc[eê]|desenho para voc[eê])\b/i.test(
+      ultimoAssistant,
+    )
+  );
+}
+
+function mensagemAceitaImagemPendente(
+  mensagem: string,
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string }>,
+): boolean {
+  return mensagemConfirmaPedidoCurto(mensagem) && historicoTemConviteImagemPendente(historico);
+}
+
 const TIPOS_ARTEFATO =
   "texto|carta|plano|planos|rascunho|resumo|relat[óo]rio|ensaio|ata|roteiro|documento|" +
   "cap[íi]tulo|ep[íi]logo|pr[óo]logo|livro|conto|hist[óo]ria|novela|romance|cr[ôo]nica";
@@ -1022,14 +1055,18 @@ export async function executarPipelineCompleto(
 
     const anexosDesteTurno = anexosImagem.filter((a) => !a.deTurnoAnterior);
     const anexosDocumento = opcoes.anexosDocumento ?? [];
+    const imagemPendente =
+      mensagemPedeGerarImagem(mensagem) || mensagemAceitaImagemPendente(mensagem, historico);
+    const documentosAtivoNestaRodada = documentosAtivo || imagemPendente;
     const usarModoAgentico = deveUsarModoAgentico(
       provedor,
       mensagem,
       anexosDesteTurno,
       anexosDocumento,
-      documentosAtivo,
+      documentosAtivoNestaRodada,
       conversaTemDocumentos,
       forcarAgentico,
+      imagemPendente,
     );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
@@ -1131,7 +1168,7 @@ export async function executarPipelineCompleto(
           raciocinioEffort,
           pesquisaProfunda,
           modoTecnico,
-          documentosAtivo,
+          documentosAtivo: documentosAtivoNestaRodada,
           onAcao: onAcaoComRegisto,
           // HÍBRIDO: no caminho agêntico NÃO transmitimos o raciocínio cru.
           //
@@ -1227,7 +1264,7 @@ export async function executarPipelineCompleto(
               raciocinioEffort,
               pesquisaProfunda,
               modoTecnico,
-              documentosAtivo,
+              documentosAtivo: documentosAtivoNestaRodada,
               onAcao: onAcaoComRegisto,
             })
           : await responderComoLuna(
@@ -1393,7 +1430,7 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         raciocinioEffort,
         pesquisaProfunda,
         modoTecnico,
-        documentosAtivo,
+        documentosAtivo: documentosAtivoNestaRodada,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;
