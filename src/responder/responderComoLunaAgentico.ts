@@ -568,11 +568,15 @@ const DIRETRIZ_PLANO =
  */
 const DIRETRIZ_NARRACAO_AGENTICA =
   "QUANDO fores USAR FERRAMENTAS: fala COM ele em pontes curtas (1 frase), no mesmo turno da tool — " +
-  "como um agente que mostra o que está fazendo. Exemplos bons: «Vou ler o artefato pra me informar.» / " +
+  "como um agente que mostra o que está fazendo. Cada ponte deve caber em UMA linha curta (máx. ~90 caracteres). " +
+  "Exemplos bons: «Vou ler o artefato pra me informar.» / " +
   "«Entendi. Agora ajusto só esse trecho.» / «Deixa eu checar o extrato.» Depois CHAMA a ferramenta. " +
   "A timeline já mostra o gerúndio (Lendo… / Editando…); a tua frase é a intenção humana, não um relatório. " +
-  "NÃO escrevas monólogos longos entre passos, NÃO narres o teu tom interno, NÃO digas que fez algo " +
-  "sem ter chamado a ferramenta. Small talk sem tools: responde normal, sem teatro de «vou…».";
+  "Enquanto ainda há ferramenta/plano em aberto, NÃO escrevas parágrafos, NÃO abras discussão, NÃO peças nova permissão " +
+  "se ele já disse para seguir, NÃO narres medo/risco/estilo interno, NÃO faças piada longa. " +
+  "Se precisares escrever conteúdo grande, escreve DENTRO da ferramenta/artefato, não na bolha do chat. " +
+  "A resposta final vem só depois das tools: 2–4 frases limpas, sem repetir o diário de bordo. " +
+  "NÃO digas que fez algo sem ter chamado a ferramenta. Small talk sem tools: responde normal, sem teatro de «vou…».";
 
 /**
  * Ambientar → agir → conferir. Corta o salto direto pra edição e lembra que web_search existe
@@ -690,7 +694,10 @@ const DIRETRIZ_PLANO_OPERACIONAL =
   "comeca por `planejar` antes de agir, mesmo que pareca uma operacao simples. Usa 2 a 5 passos curtos e concretos; para uma acao unica, " +
   "faz um plano curto tipo [\"confirmar o alvo\", \"executar a ferramenta\", \"conferir e responder\"]. A lista fica visivel pra ele conferir " +
   "o caminho. Depois executa UM passo de cada vez e, a cada passo realmente feito, chama `concluir_passo(nº)`; se descobrires que falta algo, " +
-  "`adicionar_passo`. Enquanto houver passo por marcar, NAO escrevas a resposta final - o trabalho nao acabou. Perguntar (`perguntar`) e " +
+  "`adicionar_passo`. Enquanto houver passo por marcar, NAO escrevas a resposta final - o trabalho nao acabou. " +
+  "Entre `planejar` e o ultimo `concluir_passo`, usa no maximo pontes curtissimas; nada de explicar o metodo em paragrafos. " +
+  "Se o usuario ja autorizou a mudanca (\"pode ir\", \"faz\", \"segue\"), nao volte a pedir confirmacao: execute e confira. " +
+  "Perguntar (`perguntar`) e " +
   "leituras puras (`listar_artefatos`, `ler_artefato`, `ler_estrutura`, `ler_secao`, `ver_rotina`, `resumo_financeiro`, `web_search`) podem acontecer sem plano quando " +
   "forem so consulta; qualquer mutacao/criacao precisa do todo primeiro.";
 
