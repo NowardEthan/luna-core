@@ -382,9 +382,26 @@ export function mensagemPedeGerarImagem(mensagem: string): boolean {
  * «escreve o primeiro capítulo» caía no caminho leve e ela só papava no chat.
  */
 function mensagemConfirmaPedidoCurto(mensagem: string): boolean {
-  const limpa = mensagem.trim().toLowerCase();
-  if (limpa.length > 80) return false;
-  return /^(sim|s|claro|pode|pode sim|faz|faz sim|manda|manda sim|gera|gera sim|gere|gerar|gera pra mim|gera para mim|bora|vai|ok|okay|por favor|sim por favor|pode fazer)([!. ]*)$/i.test(
+  const limpa = mensagem
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[“”"']/g, "")
+    .replace(/\s+/g, " ");
+  if (!limpa || limpa.length > 180) return false;
+  if (/^(nao|n|negativo|prefiro nao|melhor nao)\b/.test(limpa)) return false;
+  if (/\b(nao|n)\s+(pode|faz|faca|manda|gera|vai|segue)\b/.test(limpa)) return false;
+
+  if (
+    /^(sim|s|claro|pode|pode sim|faz|faz sim|manda|manda sim|gera|gera sim|gere|gerar|gera pra mim|gera para mim|bora|vai|ok|okay|por favor|sim por favor|pode fazer)([!. ]*)$/i.test(
+      limpa,
+    )
+  ) {
+    return true;
+  }
+
+  return /^(sim|s|claro|pode|pode ir|pode fazer|pode seguir|faz|faca|manda|manda ver|gera|gere|bora|vai|segue|toca|fechado|ok|okay)\b/.test(
     limpa,
   );
 }
