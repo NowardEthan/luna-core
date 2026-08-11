@@ -272,6 +272,7 @@ function deveUsarModoAgentico(
   conversaTemDocumentos = false,
   forcarAgentico = false,
   imagemPendente = false,
+  historicoRecente: Array<{ papel?: string; conteudo?: string }> = [],
 ): boolean {
   return avaliarGateAgentico(
     provedor,
@@ -282,6 +283,7 @@ function deveUsarModoAgentico(
     conversaTemDocumentos,
     forcarAgentico,
     imagemPendente,
+    historicoRecente,
   ).usar;
 }
 
@@ -298,6 +300,7 @@ export function avaliarGateAgentico(
   conversaTemDocumentos = false,
   forcarAgentico = false,
   imagemPendente = false,
+  historicoRecente: Array<{ papel?: string; conteudo?: string }> = [],
 ): { usar: boolean; motivo: MotivoGateAgentico | null } {
   if (!ehProvedorAgente(provedor)) return { usar: false, motivo: null };
   const vision =
@@ -307,9 +310,14 @@ export function avaliarGateAgentico(
   const web =
     mensagemContemUrl(mensagem) ||
     (featureFlagAgenticoWebAtiva() && mensagemSugerePesquisaWeb(mensagem));
-  const pedeDocumento = documentosAtivo && mensagemPedeDocumento(mensagem);
+  const pedeDocumento =
+    documentosAtivo &&
+    (mensagemPedeDocumento(mensagem) || contextoRecentePedeArtefato(historicoRecente, mensagem));
   const editaDocumento =
-    documentosAtivo && conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem);
+    documentosAtivo &&
+    conversaTemDocumentos &&
+    (mensagemPareceEdicaoDocumento(mensagem) ||
+      contextoRecentePedeArtefato(historicoRecente, mensagem));
   const financas = mensagemPedeFinancas(mensagem);
   const gerarImagem = imagemPendente || mensagemPedeGerarImagem(mensagem);
   const gate = decidirGateAgentico({
@@ -407,6 +415,125 @@ export function mensagemAceitaImagemPendente(
   historico: Array<{ papel: "user" | "assistant"; conteudo: string }>,
 ): boolean {
   return mensagemConfirmaPedidoCurto(mensagem) && historicoTemConviteImagemPendente(historico);
+}
+
+function contextoRecentePedeArtefato(
+  historicoRecente: Array<{ papel?: string; conteudo?: string }>,
+  mensagem: string,
+): boolean {
+  if (!mensagemConfirmaPedidoCurto(mensagem)) return false;
+
+  const contexto = historicoRecente
+    .slice(-6)
+    .map((m) => String(m.conteudo ?? ""))
+    .join("\n")
+    .slice(-4_000);
+  if (!contexto.trim()) return false;
+
+  if (mensagemPedeDocumento(contexto)) return true;
+  const falaDeArtefato =
+    /\b(artefato|artefatos|documento|documentos|folder|folheto|panfleto|flyer|carta|texto|rascunho|resumo|plano|roteiro|cap[ií]tulo|livro|se[cç][aã]o|canvas|design|layout|diagrama)\b/i.test(
+      contexto,
+    );
+  if (!falaDeArtefato) return false;
+
+  return (
+    mensagemPareceEdicaoDocumento(contexto) ||
+    /\b(criar|crio|cria|fazer|fa[cç]o|fa[cç]a|montar|monto|escrever|escrevo|editar|edito|revisar|reviso|diagramar|diagrama|guardar|salvar|atualizar|ajustar)\b/i.test(
+      contexto,
+    )
+  );
+}
+
+const FERRAMENTAS_ARTEFATO = new Set([
+  "criar_artefato",
+  "listar_artefatos",
+  "ler_artefato",
+  "ler_estrutura",
+  "ler_secao",
+  "buscar_no_artefato",
+  "editar_trecho_artefato",
+  "editar_artefato",
+  "anotar_canone",
+]);
+
+const FERRAMENTAS_MUTACAO_ARTEFATO = new Set([
+  "criar_artefato",
+  "editar_trecho_artefato",
+  "editar_artefato",
+  "anotar_canone",
+]);
+
+function algumaFerramentaArtefatoCorreu(ferramentas: string[]): boolean {
+  return ferramentas.some((f) => FERRAMENTAS_ARTEFATO.has(f));
+}
+
+function algumaMutacaoArtefatoCorreu(ferramentas: string[]): boolean {
+  return ferramentas.some((f) => FERRAMENTAS_MUTACAO_ARTEFATO.has(f));
+}
+
+function respostaAlegaMutacaoArtefato(resposta: string): boolean {
+  return (
+    /\b(criei|criad[oa]|montei|montad[oa]|escrevi|escrit[oa]|guardei|guardad[oa]|salvei|salv[oa]|editei|editad[oa]|reescrevi|reescrit[oa]|revisei|revisad[oa]|atualizei|atualizad[oa]|ajustei|ajustad[oa]|corrigi|corrigid[oa]|troquei|alterei|mudei|diagram[eiou]+|feito|pronto|j[aá] est[aá])\b/i.test(
+      resposta,
+    ) &&
+    /\b(artefato|documento|texto|folder|folheto|panfleto|flyer|carta|plano|rascunho|resumo|roteiro|cap[ií]tulo|livro|se[cç][aã]o|canvas|design|layout|diagrama|estante|cart[aã]o)\b/i.test(
+      resposta,
+    )
+  );
+}
+
+function respostaAlegaLeituraArtefato(resposta: string): boolean {
+  return (
+    /\b(li|reli|consultei|abri|olhei|verifiquei|analisei|procurei|busquei|achei|encontrei)\b/i.test(
+      resposta,
+    ) &&
+    /\b(artefato|documento|texto|folder|folheto|panfleto|flyer|carta|plano|rascunho|resumo|roteiro|cap[ií]tulo|livro|se[cç][aã]o|canvas|design|layout|diagrama|estante)\b/i.test(
+      resposta,
+    )
+  );
+}
+
+function pedidoTemContextoDeArtefato(
+  mensagem: string,
+  historicoRecente: Array<{ papel?: string; conteudo?: string }>,
+  conversaTemDocumentos: boolean,
+): boolean {
+  return (
+    mensagemPedeDocumento(mensagem) ||
+    (conversaTemDocumentos && mensagemPareceEdicaoDocumento(mensagem)) ||
+    contextoRecentePedeArtefato(historicoRecente, mensagem)
+  );
+}
+
+function confabulouArtefato(
+  resposta: string,
+  ferramentasUsadas: string[],
+  mensagem: string,
+  historicoRecente: Array<{ papel?: string; conteudo?: string }>,
+  conversaTemDocumentos: boolean,
+): boolean {
+  const raw = process.env.LUNA_GUARDA_ARTEFATO?.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "off") return false;
+  if (!resposta.trim()) return false;
+  if (!pedidoTemContextoDeArtefato(mensagem, historicoRecente, conversaTemDocumentos)) return false;
+
+  if (respostaAlegaMutacaoArtefato(resposta)) {
+    return !algumaMutacaoArtefatoCorreu(ferramentasUsadas);
+  }
+  if (respostaAlegaLeituraArtefato(resposta)) {
+    return !algumaFerramentaArtefatoCorreu(ferramentasUsadas);
+  }
+  return false;
+}
+
+function blocoReexecucaoArtefato(): string {
+  return [
+    "ATENCAO: tu falaste como se tivesses criado, lido ou editado um artefato, mas a ferramenta certa nao correu.",
+    "Artefato so existe ou muda quando uma destas ferramentas roda de verdade:",
+    "`criar_artefato`, `listar_artefatos`, `ler_artefato`, `ler_estrutura`, `ler_secao`, `buscar_no_artefato`, `editar_trecho_artefato`, `editar_artefato`, `anotar_canone`.",
+    "Agora refaz o turno chamando a ferramenta adequada. Se for editar, nao basta listar/ler: chama `editar_trecho_artefato` ou `editar_artefato`. So depois confirma no chat, curto, sem colar o corpo inteiro.",
+  ].join("\n");
 }
 
 const TIPOS_ARTEFATO =
@@ -1013,6 +1140,28 @@ export async function executarPipelineCompleto(
       dietaMinima ? "simples" : mapProfundidadeOrcamento(profundidade),
     );
     contextoCompilado = compilarContexto(entradas, orcamento);
+    const resumoOperacionalCore = [
+      "RESUMO OPERACIONAL DO CORE (usa para decidir; nao repitas este bloco no chat):",
+      narrativaPipeline ? `- Pipeline: ${narrativaPipeline}` : null,
+      `- Peso/profundidade: ${pesoTurno}/${profundidade}.`,
+      neuroniosAtivos.length > 0
+        ? `- Neuronios ativados: ${neuroniosAtivos.join(", ")}.`
+        : "- Neuronios ativados: base/sempre ativos.",
+      intencaoLuna ? `- Vontade da Luna: ${intencaoLuna.impulso}` : null,
+      memoria.decisao.acao
+        ? `- Memoria: ${memoria.decisao.acao}${memoria.decisao.tipo ? ` (${memoria.decisao.tipo})` : ""}${
+            memoria.decisao.motivo ? ` - ${memoria.decisao.motivo}` : ""
+          }.`
+        : null,
+      registro ? `- Registro: ${registro.extensao}; alvo ~${registro.alvoPalavras} palavras.` : null,
+      objecaoDoTurno ? `- Objecao ativa: ${objecaoDoTurno.furos.length} ponto(s) para cobrir.` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    contextoCompilado = {
+      ...contextoCompilado,
+      briefing: `${contextoCompilado.briefing}\n\n${resumoOperacionalCore}`,
+    };
     // Módulo Finanças: ela precisa saber ONDE está em todo turno desta conversa —
     // não só quando a mensagem cita «gastei». Pré-carga do mês vem do mobile-api.
     // Fora do chat dedicado, se o turno CHEIRA a grana, injeta a variante neutra: ela
@@ -1088,6 +1237,7 @@ export async function executarPipelineCompleto(
       conversaTemDocumentos,
       forcarAgentico,
       imagemPendente,
+      historico,
     );
 
     // P1 camada 1 — gate de peso: papo leve responde no modelo rápido; peso
@@ -1494,6 +1644,46 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         onAcao: onAcaoComRegisto,
       });
       if (refeitaArtefato.texto.trim()) resposta = refeitaArtefato;
+    }
+
+    if (
+      usarModoAgentico &&
+      ehProvedorAgente(provedor) &&
+      confabulouArtefato(
+        resposta.texto,
+        ferramentasDoTurno,
+        mensagem,
+        historico,
+        conversaTemDocumentos,
+      )
+    ) {
+      if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+        console.error("[guarda] ela alegou artefato sem a ferramenta certa - a refazer.");
+      }
+      const ctxEmpurraoArtefatoGenerico: ContextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${blocoReexecucaoArtefato()}`,
+      };
+      const refeitaArtefatoGenerico = await responderComoLunaAgentico(
+        mensagem,
+        provedor,
+        configResposta,
+        ctxEmpurraoArtefatoGenerico,
+        {
+          historico,
+          timeZone: opcoes.timeZone,
+          anexosImagem,
+          anexosDocumento,
+          rotinaDeps: opcoes.rotinaDeps,
+          raciocinioAtivo: raciocinioNaVoz,
+          raciocinioEffort,
+          pesquisaProfunda,
+          modoTecnico,
+          documentosAtivo,
+          onAcao: onAcaoComRegisto,
+        },
+      );
+      if (refeitaArtefatoGenerico.texto.trim()) resposta = refeitaArtefatoGenerico;
     }
 
     // ── A guarda V2: «explicou em vez de fazer» ──────────────────────────────────

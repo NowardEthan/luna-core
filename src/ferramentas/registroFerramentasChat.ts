@@ -1101,7 +1101,7 @@ const FERRAMENTA_EDITAR_DOCUMENTO: DefinicaoFerramenta = {
           "fica, não só o trecho novo.",
       },
     },
-    required: ["id"],
+    required: ["id", "conteudo"],
   },
 };
 

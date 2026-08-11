@@ -87,6 +87,34 @@ const MAX_RODADAS_PESQUISA_PROFUNDA = 18;
 /** Um passo do plano do turno: o texto e se já foi marcado como feito. */
 export type PassoPlano = { texto: string; feito: boolean };
 
+const FERRAMENTAS_OPERACAO_EXIGEM_PLANO = new Set([
+  "criar_bloco",
+  "editar_bloco",
+  "detalhar_bloco",
+  "organizar_tarefas",
+  "pausar_bloco",
+  "retomar_bloco",
+  "criar_rotina",
+  "editar_rotina",
+  "apagar_rotina",
+  "apagar_bloco",
+  "anotar_ideia",
+  "registrar_lancamento",
+  "registrar_lancamentos",
+  "gerir_recorrente",
+  "gerir_carteira",
+  "gerir_meta",
+  "transferir",
+  "criar_artefato",
+  "inserir_blocos",
+  "editar_bloco_artefato",
+  "editar_trecho_artefato",
+  "editar_artefato",
+  "anotar_canone",
+  "gerar_imagem",
+  "editar_imagem",
+]);
+
 export type AcaoAgenticoChat = {
   tipo: "inicio_ferramenta" | "fim_ferramenta" | "plano";
   ferramenta: string;
@@ -657,6 +685,15 @@ const FERRAMENTAS_ESCRITA_ARTEFATO = new Set([
  * ia pra internet quando ele perguntava «quanto gastei» — inventava fontes públicas em vez de
  * ler a carteira. Mesmo espírito da DIRETRIZ_DOCUMENTOS: ter a ferramenta não basta.
  */
+const DIRETRIZ_PLANO_OPERACIONAL =
+  "TAREFA EM PASSOS / TODO: quando fores OPERAR com ferramenta que muda algo ou produz algo (artefato, imagem, rotina, financas, ideia), " +
+  "comeca por `planejar` antes de agir, mesmo que pareca uma operacao simples. Usa 2 a 5 passos curtos e concretos; para uma acao unica, " +
+  "faz um plano curto tipo [\"confirmar o alvo\", \"executar a ferramenta\", \"conferir e responder\"]. A lista fica visivel pra ele conferir " +
+  "o caminho. Depois executa UM passo de cada vez e, a cada passo realmente feito, chama `concluir_passo(nº)`; se descobrires que falta algo, " +
+  "`adicionar_passo`. Enquanto houver passo por marcar, NAO escrevas a resposta final - o trabalho nao acabou. Perguntar (`perguntar`) e " +
+  "leituras puras (`listar_artefatos`, `ler_artefato`, `ler_estrutura`, `ler_secao`, `ver_rotina`, `resumo_financeiro`, `web_search`) podem acontecer sem plano quando " +
+  "forem so consulta; qualquer mutacao/criacao precisa do todo primeiro.";
+
 const DIRETRIZ_FINANCAS =
   "FINANÇAS DELE (módulo Finanças do app): tens mãos REAIS — `resumo_financeiro`, `listar_lancamentos`, " +
   "`registrar_lancamento`, `registrar_lancamentos` (VÁRIOS de uma vez), `gerir_recorrente`, `gerir_carteira`, " +
@@ -725,12 +762,21 @@ export async function responderComoLunaAgentico(
     documentosAtivo: opcoes.documentosAtivo,
     planejamentoAtivo,
   });
+  const ferramentasComPlanoOperacional = ferramentasBrutas.map((f) =>
+    f.nome === "planejar"
+      ? {
+          ...f,
+          descricao:
+            "Cria uma LISTA DE PASSOS visivel (todo) para operar com ferramentas. No OrbitLab, chama isto PRIMEIRO antes de qualquer ferramenta que muda ou produz algo: artefato, imagem, rotina, financas ou ideia. Mesmo para uma operacao simples, cria um plano curto com 2 a 3 passos, executa um por vez e marca cada passo com `concluir_passo`.",
+        }
+      : f,
+  );
   const ferramentas =
     pedeFinancas && !pedeWebExplicita
-      ? ferramentasBrutas.filter(
+      ? ferramentasComPlanoOperacional.filter(
           (f) => f.nome !== "web_search" && f.nome !== "verificar_fontes",
         )
-      : ferramentasBrutas;
+      : ferramentasComPlanoOperacional;
 
   // ── O plano em passos deste turno (estado vivo, morre com o turno) ────────────
   // A Luna DECLARA os passos (`planejar`), marca um a um (`concluir_passo`), pode acrescentar
@@ -929,7 +975,7 @@ export async function responderComoLunaAgentico(
     // empurrão. A voz calorosa e concisa de sempre continua a ser tu — mas aqui o rigor vem à frente.
     opcoes.modoTecnico ? DIRETRIZ_MODO_TECNICO : null,
     // A coleira do plano — antes da diretriz de documentos, porque rege COMO ela encadeia as mãos.
-    planejamentoAtivo ? DIRETRIZ_PLANO : null,
+    planejamentoAtivo ? DIRETRIZ_PLANO_OPERACIONAL : null,
     // Pontes curtas entre tools (sempre no path agentico — é o que faz parecer Cursor).
     DIRETRIZ_NARRACAO_AGENTICA,
     // Ler/conferir antes de editar; web quando o fato não está no contexto.
@@ -1118,6 +1164,14 @@ export async function responderComoLunaAgentico(
       }
 
       // ── O plano em passos (a coleira) ───────────────────────────────────────
+      if (planejamentoAtivo && plano.length === 0 && FERRAMENTAS_OPERACAO_EXIGEM_PLANO.has(nome)) {
+        return (
+          "ERRO: antes de operar com essa ferramenta, cria o todo com `planejar`. " +
+          "Faz 2 a 3 passos curtos, depois executa a ferramenta certa e marca o passo com `concluir_passo`. " +
+          "Nao digas que fizeste nada antes de a ferramenta rodar de verdade."
+        );
+      }
+
       if (nome === "planejar") {
         const passos = Array.isArray(args.passos)
           ? args.passos.filter((p): p is string => typeof p === "string" && p.trim().length > 0).map((p) => p.trim())
