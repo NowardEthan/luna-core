@@ -70,6 +70,12 @@ import {
 } from "../estado/neuronioObjecao.js";
 import { passarPelaLinha } from "../revisao/linhaDeRevisao.js";
 import { confabulouAcao, blocoReexecucaoAcao } from "../estado/guardaAcaoRotina.js";
+import {
+  confabulouEscritaDeArtefato,
+  blocoReexecucaoEscritaArtefato,
+  exposMetodoSemExecutar,
+  blocoReexecucaoExposicaoMetodo,
+} from "../estado/guardaEscritaArtefato.js";
 import { confabulouImagem, textoDesculpaImagem } from "../estado/guardaImagem.js";
 import type { DependenciasRotina } from "../ferramentas/maosDaRotina.js";
 import {
@@ -416,8 +422,13 @@ const TIPOS_ARTEFATO =
  */
 export function mensagemPedeDocumento(mensagem: string): boolean {
   if (/\b(documento|documentos|artifact|artefato)\b/i.test(mensagem)) return true;
+  // P20/P21: a regex antiga só aceitava «cria/faz/escreve» + alvo. O bug real do Ethan
+  // («insere uma epígrafe no capítulo 2») caía fora e o gate agentico NUNCA abria —
+  // ela ia pelo caminho leve, narrando a edição sem ferramenta. Aqui somamos os verbos
+  // de MUTAÇÃO (insere, adiciona, tira, edita, ajusta, refaz, reescreve, formata, …) —
+  // qualquer pedido de mexer num livro/capítulo/documento abre o agentico.
   return new RegExp(
-    String.raw`\b(escrev\w+|redij\w+|redig\w+|faz|faça|faca|cria\w*|crie|monta\w*|monte|gera\w*|gere|guarda\w*|guarde|salva\w*|salve|reescrev\w+|revis\w+|continu\w*)\b[^.?!\n]{0,48}\b(${TIPOS_ARTEFATO})\b`,
+    String.raw`\b(escrev\w+|redij\w+|redig\w+|faz|faça|faca|cria\w*|crie|monta\w*|monte|gera\w*|gere|guarda\w*|guarde|salva\w*|salve|reescrev\w+|revis\w+|continu\w*|inser\w*|adicion\w*|tir\w*|apag\w*|edit\w*|ajust\w*|corrig\w*|refaz|refa[çc]a|reformul\w*|inclu\w*|coloc\w*|preench\w*|complet\w*|ampli\w*|expand\w*|remov\w*|substitu\w*|troc\w*|alter\w*|muda|mude|mud\w*|format\w+|formatar)\b[^.?!\n]{0,48}\b(${TIPOS_ARTEFATO})\b`,
     "i",
   ).test(mensagem);
 }
@@ -1447,6 +1458,78 @@ ${blocoRevisaoObjecao(objecaoParaGuarda.furos)}`,
         onAcao: onAcaoComRegisto,
       });
       if (refeita.texto.trim()) resposta = refeita;
+    }
+
+    // ── A guarda da confabulação de ESCRITA de ARTEFATO ──────────────────────────
+    //
+    // Gêmea da P16/P20, mas para o outro lado da Luna: ela diz «inseri a epígrafe no
+    // capítulo 2», «tá no livro», «editei a seção» — e não chamou nenhuma ferramenta de
+    // artefato. Sem guarda nova, qualquer pedido de mexer no livro se resolve em narração.
+    // Mesma família de detetores: pediu mexida + alegou ter feito + 0 escrita de
+    // artefato correu = mentira. Reexecuta com empurrão pra ela CHAMAR a ferramenta.
+    // Kill-switch: LUNA_GUARDA_ESCRITA_ARTEFATO=0.
+    if (
+      usarModoAgentico &&
+      ehProvedorAgente(provedor) &&
+      confabulouEscritaDeArtefato(resposta.texto, ferramentasDoTurno, mensagem)
+    ) {
+      if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+        console.error("[guarda] ela alegou ter escrito num artefato sem chamar ferramenta — a refazer.");
+      }
+      const ctxEmpurraoArtefato: ContextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${blocoReexecucaoEscritaArtefato()}`,
+      };
+      const refeitaArtefato = await responderComoLunaAgentico(mensagem, provedor, configResposta, ctxEmpurraoArtefato, {
+        historico,
+        timeZone: opcoes.timeZone,
+        anexosImagem,
+        anexosDocumento,
+        rotinaDeps: opcoes.rotinaDeps,
+        raciocinioAtivo: raciocinioNaVoz,
+        raciocinioEffort,
+        pesquisaProfunda,
+        modoTecnico,
+        documentosAtivo,
+        onAcao: onAcaoComRegisto,
+      });
+      if (refeitaArtefato.texto.trim()) resposta = refeitaArtefato;
+    }
+
+    // ── A guarda V2: «explicou em vez de fazer» ──────────────────────────────────
+    //
+    // Bug do Fable que a P20 expôs: a Luna não confabula — ela DIDÁTICA. «claro! fica
+    // assim: 1. abre o capítulo 2 / 2. coloca a epígrafe / 3. salva». Ela responde em
+    // formato de tutorial SEM chamar nenhuma ferramenta. O Ethan fica à procura de algo
+    // que não aconteceu. Sinal: imperativos + lista/didática + 0 ferramenta de escrita.
+    // Reexecuta com nudge mais FIRME («não repitas o tutorial, CHAMA a tool»).
+    // Kill-switch: LUNA_GUARDA_EXPOSICAO_METODO=0.
+    if (
+      usarModoAgentico &&
+      ehProvedorAgente(provedor) &&
+      exposMetodoSemExecutar(resposta.texto, ferramentasDoTurno, mensagem)
+    ) {
+      if (process.env.LUNA_DEBUG_REGISTRO === "1") {
+        console.error("[guarda] ela EXPÔS o método em vez de EXECUTAR — a refazer.");
+      }
+      const ctxEmpurraoExpos: ContextoCompilado = {
+        ...contextoCompilado,
+        briefing: `${contextoCompilado.briefing}\n\n${blocoReexecucaoExposicaoMetodo()}`,
+      };
+      const refeitaExpos = await responderComoLunaAgentico(mensagem, provedor, configResposta, ctxEmpurraoExpos, {
+        historico,
+        timeZone: opcoes.timeZone,
+        anexosImagem,
+        anexosDocumento,
+        rotinaDeps: opcoes.rotinaDeps,
+        raciocinioAtivo: raciocinioNaVoz,
+        raciocinioEffort,
+        pesquisaProfunda,
+        modoTecnico,
+        documentosAtivo,
+        onAcao: onAcaoComRegisto,
+      });
+      if (refeitaExpos.texto.trim()) resposta = refeitaExpos;
     }
 
     // ── Guarda da imagem ────────────────────────────────────────────────────────
