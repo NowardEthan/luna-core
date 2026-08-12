@@ -42,3 +42,26 @@ ferramentas dela ficam em `src/`.
 
 _Na dúvida sobre deploy, dados ou auth: pergunte antes. O guia completo está em
 `orbit-mobile/AGENTS.md`._
+
+## Cursor Cloud specific instructions
+
+Ambiente já tem as dependências instaladas (update script roda `npm install` na raiz e em
+`mobile-api/`). Node ≥ 20. Comandos padrão estão no `README.md` e nos `scripts` do `package.json`.
+
+- **`dist/` é obrigatório para a mobile-api e é gitignored.** `mobile-api/src/loadCore.ts` importa
+  de `../../dist/...`, então rode `npm run build` (na raiz) **antes** de `npm run mobile-api:dev`
+  (porta 7742). O Core em si (CLI, testes via `tsx`/`vitest`) não precisa de build.
+- **Sem chaves de API neste ambiente por padrão.** `/health` mostra `llmConfigured:false`,
+  `visionConfigured:false`, `firebaseConfigured:false`. Chat, visão e STT ao vivo exigem segredos
+  (`LUNA_API_KEY`/Groq, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`) —
+  adicione-os em Secrets para testar contra modelos reais. Sem eles, os endpoints respondem com erro
+  claro (ex.: "Nenhum provedor de LLM configurado"), mas o servidor sobe normalmente.
+- **Testar o caminho de visão/agêntico offline:** injete um `ProvedorAgente` mock e
+  `visaoDeps.descreverImagem` — nenhuma rede é tocada. Ver `tests/agenticoChat.test.ts` como
+  molde. Duas camadas de visão coexistem: a agêntica (`ver_imagem` → `src/agentico/especialistas/
+  visaoGemma.ts` → OpenRouter) usada no chat mobile, e o endpoint legado `/v1/vision`
+  (`mobile-api/src/describeVision.ts` → Groq). Quando a visão não vê, o código força honestidade
+  (nada de adivinhar) — confabulação de leitura vem do MODELO de visão, não do pipeline.
+- **`npm test` (vitest): 3 arquivos falham sempre aqui** porque importam de `../../../orbit-mobile`
+  (repo separado, não versionado neste monorepo): `quotaMerge`, `rosaryLogic`, `rosaryJournalUtils`.
+  É esperado sem o repo irmão ao lado. As suítes do Core passam.
