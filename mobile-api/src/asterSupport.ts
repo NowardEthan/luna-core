@@ -12,7 +12,7 @@ import { executarChatAster } from "./loadCore.js";
  */
 
 export const AsterSupportRequestSchema = z.object({
-  instructions: z.string().min(1).max(16_000),
+  instructions: z.string().min(1).max(24_000),
   context: z.string().max(8_000).optional(),
   messages: z
     .array(
