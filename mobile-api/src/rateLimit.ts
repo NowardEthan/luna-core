@@ -26,7 +26,8 @@ export type RateLimitBucket =
   | "extract"
   | "buscar"
   | "rosary"
-  | "titulo";
+  | "titulo"
+  | "aster";
 
 export type RateLimitOk = { ok: true };
 export type RateLimitDenied = {
@@ -76,6 +77,8 @@ export function rateLimitForBucket(bucket: RateLimitBucket): number {
       return envInt("LUNA_RL_ROSARY_PER_MIN", 20);
     case "titulo":
       return envInt("LUNA_RL_TITULO_PER_MIN", 30);
+    case "aster":
+      return envInt("LUNA_RL_ASTER_PER_MIN", 12);
   }
 }
 

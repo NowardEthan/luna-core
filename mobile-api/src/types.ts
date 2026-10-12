@@ -310,6 +310,8 @@ export type HealthResponse = {
     rateLimit: boolean;
     /** POST /v1/conversa/titulo — batiza a conversa no servidor (sem OpenRouter no APK). */
     tituloConversa: boolean;
+    /** POST /v1/aster/support configurado (ASTER_LUNA_KEY + provedor). */
+    asterSupport?: boolean;
     /** Orientação + autoauditoria de artefatos (ler antes, conferir depois, coleiras). */
     auditoriaArtefato: boolean;
     /** Legado: Qwen 3.6 Plus como default pago (agora false — DeepSeek V4 Pro). */

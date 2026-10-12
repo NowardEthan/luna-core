@@ -77,6 +77,13 @@ import { handleBillingRoute, isBillingConfigured } from "./billing/billingRoutes
 import { generateRosaryReflection } from "./rosaryReflection.js";
 import { gerarTituloConversa } from "./gerarTituloConversa.js";
 import {
+  AsterSupportRequestSchema,
+  asterSupportKey,
+  isAsterAuthorized,
+  isAsterSupportConfigured,
+  responderSuporteAster,
+} from "./asterSupport.js";
+import {
   checkRateLimit,
   clientIp,
   rateLimitedPayload,
@@ -613,6 +620,26 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
   }
 
+  if (method === "POST" && url.pathname === "/v1/aster/support") {
+    if (!asterSupportKey()) {
+      return sendJson(res, 503, { ok: false, error: "Suporte do Aster não configurado." });
+    }
+    const keyHeader = req.headers["x-aster-key"];
+    if (!isAsterAuthorized(typeof keyHeader === "string" ? keyHeader : readAuthHeader(req))) {
+      return sendJson(res, 401, { ok: false, error: "Chave do Aster inválida." });
+    }
+    try {
+      const parsed = AsterSupportRequestSchema.parse(await readJson(req));
+      const uid = parsed.memberId ? `aster:${parsed.memberId}` : null;
+      if (denyIfRateLimited(req, res, { uid, bucket: "aster" })) return;
+      const result = await responderSuporteAster(parsed);
+      return sendJson(res, 200, { ok: true, ...result });
+    } catch (err) {
+      const status = err instanceof ZodError || err instanceof SyntaxError ? 400 : 502;
+      return sendJson(res, status, { ok: false, error: friendlyErrorMessage(err) });
+    }
+  }
+
   if (method === "POST" && url.pathname === "/v1/rosary/reflection") {
     try {
       const auth = await verifyFirebaseBearer(readAuthHeader(req));
@@ -706,6 +733,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         rateLimit: true,
         /** Batiza conversa no servidor (sem OpenRouter no APK). */
         tituloConversa: true,
+        asterSupport: isAsterSupportConfigured(),
         /** Orientação + autoauditoria de artefatos (coleiras pré/pós + índice no retorno). */
         auditoriaArtefato: true,
         /** Qwen 3.6 Plus — desligado; default pago voltou pro DeepSeek V4 Pro. */
@@ -1303,6 +1331,7 @@ server.listen(PORT, HOST, () => {
   console.log("  POST /v1/billing/checkout | sync | trial/sync | credit-pack");
   console.log("  POST /v1/billing/webhook/asaas");
   console.log("  POST /v1/conversa/titulo   { mensagens[] } → title");
+  console.log("  POST /v1/aster/support     { instructions, messages[] } → text (x-aster-key)");
   console.log("  POST /v1/transcribe { audioBase64, mimeType?, language? }");
   console.log("  POST /v1/vision            { images[], userPrompt? }");
   console.log("  POST /v1/extract-documents { files[] }");
