@@ -241,7 +241,7 @@ export type OpcoesPipelineCompleto = {
 };
 
 function pipelineMobileRapido(ambiente?: string): boolean {
-  if (ambiente === "orbit_mobile") return true;
+  if (ambiente === "orbit_mobile" || ambiente === "aster") return true;
   const flag = process.env.LUNA_MOBILE_FAST?.trim().toLowerCase();
   return flag === "1" || flag === "true";
 }

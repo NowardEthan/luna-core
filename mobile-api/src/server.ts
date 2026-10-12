@@ -630,8 +630,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
     try {
       const parsed = AsterSupportRequestSchema.parse(await readJson(req));
-      const uid = parsed.memberId ? `aster:${parsed.memberId}` : null;
-      if (denyIfRateLimited(req, res, { uid, bucket: "aster" })) return;
+      if (denyIfRateLimited(req, res, { uid: `aster_${parsed.memberId}`, bucket: "aster" })) return;
       const result = await responderSuporteAster(parsed);
       return sendJson(res, 200, { ok: true, ...result });
     } catch (err) {

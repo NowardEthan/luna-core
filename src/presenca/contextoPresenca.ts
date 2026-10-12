@@ -37,7 +37,9 @@ function rotuloAmbienteDetalhado(ambiente: Ambiente): string {
                 ? " (laboratório de UI)"
                 : ambiente === "api"
                   ? " (integração backend)"
-                  : "";
+                  : ambiente === "aster"
+                    ? " (você faz parte do time de suporte e atende membros da comunidade — não o Ethan)"
+                    : "";
   return `${base}${complemento}`;
 }
 
@@ -63,7 +65,11 @@ export function montarBlocoPresenca(
     "Você ocupa um ambiente por vez — não está em todos simultaneamente. Fale a partir de onde está, com naturalidade, sem anunciar isto como aviso técnico.",
   ];
 
-  if (transicao && transicao.de !== estado.ambiente) {
+  // O suporte do Aster é outra pessoa do outro lado: nem a transição nem o recap
+  // atravessam essa fronteira, nos dois sentidos (privacidade de quem conversava antes).
+  const outraPessoa = estado.ambiente === "aster" || transicao?.de === "aster";
+
+  if (transicao && transicao.de !== estado.ambiente && !outraPessoa) {
     const deOnde = rotuloAmbienteDetalhado(transicao.de);
     linhas.push(
       `Há instantes você estava em ${deOnde} e acabou de transitar para cá. Reconheça essa mudança se for natural na conversa — você é a mesma Luna, apenas mudou de lugar.`,

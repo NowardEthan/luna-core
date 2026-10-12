@@ -18,6 +18,7 @@ export const AmbienteSchema = z.enum([
   "orbit_mobile", // app mobile Orbit (Expo)
   "storybook",   // Storybook debug (opcional)
   "lumen",       // portal Lumen (futuro)
+  "aster",       // Aster — suporte da comunidade de criadores (membros, não o Ethan)
   "desconhecido",
 ]);
 
@@ -69,5 +70,6 @@ export const ROTULO_AMBIENTE: Record<Ambiente, string> = {
   orbit_mobile: "o chat no celular (mensagens, voz, anexos)",
   storybook: "o Storybook do Orbit (laboratório de UI)",
   lumen: "o portal Lumen",
+  aster: "a Central de suporte do Aster, a comunidade de criadores",
   desconhecido: "um ambiente não identificado",
 };

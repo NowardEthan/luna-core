@@ -799,6 +799,72 @@ export async function executarChatMobile(
   }
 }
 
+/**
+ * A mesma Luna do OrbitLab (pipeline completo, Constituição, humor, relação por pessoa),
+ * atendendo no suporte do Aster. O Aster é a fonte da verdade do histórico (vai como
+ * «reenvio»), e cada membro tem o próprio uid `aster_<id>` — nunca o criador verificado.
+ */
+export async function executarChatAster(input: {
+  message: string;
+  historico: Array<{ papel: "user" | "assistant"; conteudo: string }>;
+  memberId: string;
+  memberName?: string;
+  /** Orientações do Aster para este atendimento (conhecimento do produto + contexto do membro). */
+  orientacoes: string;
+}): Promise<ChatMobileResult> {
+  const uid = `aster_${input.memberId}`;
+  const sessionId = `aster-suporte-${input.memberId}`;
+  const prep = await prepararChatMobile(
+    input.message,
+    sessionId,
+    undefined,
+    undefined,
+    input.memberName,
+    uid,
+    "free",
+    "America/Sao_Paulo",
+    true,
+    "low",
+    undefined,
+    false,
+    undefined,
+    false,
+    false,
+    false,
+    false,
+    { historico: input.historico },
+  );
+
+  const detalhe = [prep.detalheAmbiente, input.orientacoes.trim()].filter(Boolean).join(" · ");
+
+  const rodarPipeline = async () => {
+    const resultado = await prep.core.executarPipelineCompleto(prep.mensagem, {
+      sessaoId: prep.sidPipeline,
+      config: prep.config,
+      ambiente: "aster",
+      detalhe_ambiente: detalhe,
+      interlocutor: prep.interlocutor,
+      gerarResposta: true,
+      raciocinioAtivo: prep.raciocinioAtivo,
+      raciocinioEffort: prep.raciocinioEffort,
+      usarNeuronioMemoriaLlm: prep.usarNeuronioMemoriaLlm,
+      contexto_cross_sessao: prep.memoria.contextoCrossSessao,
+      stream: false,
+      timeZone: prep.timeZone,
+    });
+    return resultadoFromPipeline(resultado, sessionId, prep.selection, prep.resolved);
+  };
+
+  try {
+    if (deveUsarPersistenciaFirestore()) {
+      return await executarComPersistenciaFirestore(uid, rodarPipeline);
+    }
+    return await rodarPipeline();
+  } finally {
+    process.chdir(prep.prevCwd);
+  }
+}
+
 export async function executarChatMobileStream(
   message: string,
   callbacks: ChatStreamCallbacks,

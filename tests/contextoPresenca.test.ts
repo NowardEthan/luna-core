@@ -62,3 +62,23 @@ describe("montarBlocoPresenca — transição entre superfícies", () => {
     expect(bloco).toContain("continuidade");
   });
 });
+
+describe("montarBlocoPresenca - suporte do Aster", () => {
+  it("não leva transição nem recap da conversa anterior para o Aster", () => {
+    const bloco = montarBlocoPresenca(estado("aster"), {
+      de: "orbit_mobile",
+      recap: "RECAP_PRIVADO_DO_ETHAN",
+    });
+    expect(bloco).toContain("Aster");
+    expect(bloco).not.toContain("transitar");
+    expect(bloco).not.toContain("RECAP_PRIVADO_DO_ETHAN");
+  });
+
+  it("não traz o atendimento do Aster de volta para o Ethan", () => {
+    const bloco = montarBlocoPresenca(estado("orbit_mobile"), {
+      de: "aster",
+      recap: "RECAP_DO_MEMBRO",
+    });
+    expect(bloco).not.toContain("RECAP_DO_MEMBRO");
+  });
+});
