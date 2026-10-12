@@ -7,7 +7,7 @@ import { groqApiKey } from "./llmProviders.js";
 /**
  * Luna no suporte do Aster (comunidade de criadores). Servidor-a-servidor:
  * o Aster manda as instruções do produto + a conversa; aqui entra a voz da Luna
- * e a chave do provedor, que nunca saem do Railway. Sem memória, cota ou sessão:
+ * e as chaves (OpenRouter, Groq de reserva), que nunca saem do Railway. Sem memória, cota ou sessão:
  * quem fala é um membro do Aster, não o dono do OrbitLab.
  */
 
@@ -41,8 +41,12 @@ export function asterSupportKey(): string | undefined {
   return process.env.ASTER_LUNA_KEY?.trim() || undefined;
 }
 
+function openrouterKey(): string | undefined {
+  return process.env.OPENROUTER_API_KEY?.trim() || undefined;
+}
+
 export function isAsterSupportConfigured(): boolean {
-  return Boolean(asterSupportKey() && groqApiKey());
+  return Boolean(asterSupportKey() && (openrouterKey() || groqApiKey()));
 }
 
 /** Compara a chave do Aster em tempo constante (header `x-aster-key` ou Bearer). */
@@ -55,26 +59,59 @@ export function isAsterAuthorized(header: string | undefined): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export async function responderSuporteAster(
-  input: AsterSupportRequest,
-): Promise<{ text: string; model: string }> {
-  const apiKey = groqApiKey();
-  if (!apiKey) throw new Error("Provedor da Luna indisponível.");
+type Provedor = {
+  nome: "openrouter" | "groq";
+  url: string;
+  apiKey: string;
+  model: string;
+  headers?: Record<string, string>;
+  extra?: Record<string, unknown>;
+};
 
-  const baseUrl = process.env.LUNA_API_BASE?.trim() || "https://api.groq.com/openai/v1";
-  const model = process.env.ASTER_SUPPORT_MODEL?.trim() || "openai/gpt-oss-120b";
+/** OpenRouter (mesma carteira do chat) primeiro; Groq segura se ele cair. */
+function provedores(): Provedor[] {
+  const lista: Provedor[] = [];
+  const or = openrouterKey();
+  if (or) {
+    const referer = process.env.OPENROUTER_HTTP_REFERER?.trim();
+    const title = process.env.OPENROUTER_APP_TITLE?.trim();
+    lista.push({
+      nome: "openrouter",
+      url: `${process.env.OPENROUTER_API_BASE?.trim() || "https://openrouter.ai/api/v1"}/chat/completions`,
+      apiKey: or,
+      model: process.env.ASTER_SUPPORT_MODEL?.trim() || "deepseek/deepseek-v4-flash",
+      headers: {
+        ...(referer ? { "HTTP-Referer": referer } : {}),
+        ...(title ? { "X-Title": title } : {}),
+      },
+      extra: { reasoning: { effort: "low", exclude: true }, max_tokens: 1_400 },
+    });
+  }
+  const groq = groqApiKey();
+  if (groq) {
+    lista.push({
+      nome: "groq",
+      url: `${process.env.LUNA_API_BASE?.trim() || "https://api.groq.com/openai/v1"}/chat/completions`,
+      apiKey: groq,
+      model: process.env.ASTER_SUPPORT_GROQ_MODEL?.trim() || "openai/gpt-oss-120b",
+      extra: { reasoning_effort: "low", max_completion_tokens: 1_400 },
+    });
+  }
+  return lista;
+}
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+async function perguntar(p: Provedor, input: AsterSupportRequest): Promise<string> {
+  const res = await fetch(p.url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${p.apiKey}`,
       "Content-Type": "application/json",
+      ...p.headers,
     },
     body: JSON.stringify({
-      model,
+      model: p.model,
       temperature: 0.4,
-      reasoning_effort: "low",
-      max_completion_tokens: 1_400,
+      ...p.extra,
       ...(input.json ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: VOZ_DA_LUNA },
@@ -83,20 +120,33 @@ export async function responderSuporteAster(
         ...input.messages,
       ],
     }),
+    signal: AbortSignal.timeout(30_000),
   });
-
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    console.error("[aster-support] provedor falhou:", res.status, errText.slice(0, 300));
-    throw new Error(`Provedor da Luna falhou (${res.status}).`);
+    throw new Error(`${p.nome} ${res.status}: ${errText.slice(0, 300)}`);
   }
-
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
   const text = (data.choices?.[0]?.message?.content ?? "")
     .replace(/<think>[\s\S]*?<\/think>/g, "")
     .trim();
-  if (!text) throw new Error("Resposta vazia da Luna.");
-  return { text, model };
+  if (!text) throw new Error(`${p.nome}: resposta vazia`);
+  return text;
+}
+
+export async function responderSuporteAster(
+  input: AsterSupportRequest,
+): Promise<{ text: string; model: string; provider: Provedor["nome"] }> {
+  const lista = provedores();
+  if (!lista.length) throw new Error("Provedor da Luna indisponível.");
+  for (const p of lista) {
+    try {
+      return { text: await perguntar(p, input), model: p.model, provider: p.nome };
+    } catch (err) {
+      console.error("[aster-support] provedor falhou:", err instanceof Error ? err.message : err);
+    }
+  }
+  throw new Error("A Luna não conseguiu responder agora.");
 }
