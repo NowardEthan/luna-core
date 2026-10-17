@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,7 +43,11 @@ export type EventoErroUxSse = {
 };
 
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const CAMINHO_GUIA = join(RAIZ_PACOTE, "src", "personalidade", "guiaFeedbackFalhas.json");
+function caminhoGuia(): string {
+  const dist = join(RAIZ_PACOTE, "dist", "personalidade", "guiaFeedbackFalhas.json");
+  return existsSync(dist) ? dist : join(RAIZ_PACOTE, "src", "personalidade", "guiaFeedbackFalhas.json");
+}
+const CAMINHO_GUIA = caminhoGuia();
 
 let guiaCache: GuiaFeedbackFalhas | null = null;
 

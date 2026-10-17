@@ -188,7 +188,7 @@ async function executarAgenteIdeInterno(
 
   // ── 2. Tálamo (determinístico — antes da memória para filtrar busca) ────────
   const profundidade = classificarProfundidade(mensagem, sessao.estado_interno);
-  opcoes.onStatusHint?.(`A analisar pedido (${profundidade})…`);
+  opcoes.onStatusHint?.(`Analisando pedido (${profundidade})…`);
 
   // ── 3. Memória longa ────────────────────────────────────────────────────────
   // Threshold alto (0.55) para evitar memórias de outros contextos (billing,
@@ -211,7 +211,7 @@ async function executarAgenteIdeInterno(
   // ── 4. Planejador (modelo maior — só se não for simples) ─────────────────────
   let plano: PlanoExecucao | undefined;
   if (profundidade !== "simples") {
-    opcoes.onStatusHint?.("A planear execução…");
+    opcoes.onStatusHint?.("Planejando execução…");
     try {
       plano = await planejadorIde(
         {
@@ -236,7 +236,7 @@ async function executarAgenteIdeInterno(
   );
 
   // ── 6. Executor agêntico (modelo maior + ferramentas) ─────────────────────────
-  opcoes.onStatusHint?.("A executar no workspace…");
+  opcoes.onStatusHint?.("Executando no workspace…");
 
   let resultadoExec: ResultadoExecutor = await executorAgentico({
     mensagemUsuario: mensagem,

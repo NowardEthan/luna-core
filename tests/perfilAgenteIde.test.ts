@@ -8,12 +8,14 @@ describe("perfilAgenteIde", () => {
     expect(ehAmbienteIde("desktop")).toBe(false);
   });
 
-  it("pede Markdown e profundidade na resposta final, não resumo curto", () => {
+  it("pede Markdown e profundidade na resposta final, em PT-BR", () => {
     const bloco = montarBlocoPerfilAgenteIde();
     expect(bloco).toMatch(/Luna IDE/);
     expect(bloco).toMatch(/Markdown/);
     expect(bloco).toMatch(/Resposta final/);
-    expect(bloco).not.toMatch(/2-3 linhas/);
+    expect(bloco).toMatch(/PT-BR|português do Brasil/);
+    expect(bloco).toMatch(/arquivos/);
+    expect(bloco).not.toMatch(/ficheiro|utilizador|directamente/);
     expect(bloco).toMatch(/análise/);
   });
 });

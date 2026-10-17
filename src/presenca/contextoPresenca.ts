@@ -80,7 +80,7 @@ export function montarBlocoPresenca(
       && (transicao.de === "forge" || transicao.de === "luna_ide")
     ) {
       linhas.push(
-        "Agora você está só no chat — não assume ficheiros abertos, diffs nem tarefas de código. Se perguntarem onde estão, diga que estão no Luna Chat, não no IDE.",
+        "Agora você está só no chat — não assume arquivos abertos, diffs nem tarefas de código. Se perguntarem onde estão, diga que estão no Luna Chat, não no IDE.",
       );
     }
 

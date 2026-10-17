@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AnaliseContexto } from "../analyzers/esquema.js";
@@ -37,7 +37,9 @@ type NucleoPersonalidade = {
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function carregarNucleo(): NucleoPersonalidade {
-  const caminho = join(RAIZ_PACOTE, "src", "personalidade", "nucleo.json");
+  // O pacote publica "dist" sem "src"; em dev, "dist" é espelho de "src".
+  const dist = join(RAIZ_PACOTE, "dist", "personalidade", "nucleo.json");
+  const caminho = existsSync(dist) ? dist : join(RAIZ_PACOTE, "src", "personalidade", "nucleo.json");
   return JSON.parse(readFileSync(caminho, "utf-8")) as NucleoPersonalidade;
 }
 

@@ -1,18 +1,19 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { carregarSessao, PASTA_SESSOES } from "./storeSessao.js";
+import { carregarSessao, obterPastaSessoes } from "./storeSessao.js";
 import type { MemoriaSessao } from "./esquemaMemoria.js";
 
 /** M4 — lista sessões recentes (últimos 7 dias), mais recente primeiro. */
 export function listarSessoesRecentes(dias = 7, limite = 20): MemoriaSessao[] {
-  if (!existsSync(PASTA_SESSOES)) return [];
+  const pastaSessoes = obterPastaSessoes();
+  if (!existsSync(pastaSessoes)) return [];
 
   const corte = Date.now() - dias * 86_400_000;
-  const arquivos = readdirSync(PASTA_SESSOES).filter((f) => f.endsWith(".json") && !f.startsWith("."));
+  const arquivos = readdirSync(pastaSessoes).filter((f) => f.endsWith(".json") && !f.startsWith("."));
 
   const sessoes: MemoriaSessao[] = [];
   for (const arquivo of arquivos) {
-    const caminho = join(PASTA_SESSOES, arquivo);
+    const caminho = join(pastaSessoes, arquivo);
     try {
       const mtime = statSync(caminho).mtimeMs;
       if (mtime < corte) continue;

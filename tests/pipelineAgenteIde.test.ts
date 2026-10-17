@@ -303,6 +303,86 @@ describe("retry do executor via avaliador", () => {
 // ─── Callbacks de progresso ───────────────────────────────────────────────────
 
 describe("callbacks", () => {
+  it("emite o plano assim que ele é criado", async () => {
+    const onPlano = vi.fn();
+    const provedor = provedorCompleto({
+      planoJson: {
+        objetivo: "editar módulo",
+        tipo: "edicao",
+        arquivos_relevantes: ["src/index.ts"],
+        ferramentas_previstas: ["write_file"],
+        complexidade: "media",
+        requer_confirmacao: false,
+      },
+    });
+
+    await executarAgenteIde(
+      "adiciona validação no módulo de autenticação TypeScript",
+      opcoesBase({ provedor, onPlano }),
+    );
+
+    expect(onPlano).toHaveBeenCalledOnce();
+    expect(onPlano).toHaveBeenCalledWith(expect.objectContaining({ objetivo: "editar módulo" }));
+    expect(provedor.completarComFerramentas.mock.invocationCallOrder[0]).toBeGreaterThan(
+      onPlano.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("repassa narração do executor principal e do retry", async () => {
+    let completarCalls = 0;
+    const provedor: ProvedorAgente = {
+      completar: vi.fn().mockImplementation(async () => {
+        completarCalls++;
+        const conteudo = completarCalls === 1
+          ? {
+              objetivo: "editar arquivo",
+              tipo: "edicao",
+              arquivos_relevantes: ["a.ts"],
+              ferramentas_previstas: ["read_file", "write_file"],
+              complexidade: "alta",
+              requer_confirmacao: false,
+            }
+          : completarCalls === 2
+            ? {
+                concluido: false,
+                confianca: 0.8,
+                pendencias: ["falta editar"],
+                sugestao_nova_rodada: "edite a.ts",
+              }
+            : { concluido: true, confianca: 0.9 };
+        return { conteudo: JSON.stringify(conteudo), modelo: CONFIG.modeloMenor, latencia_ms: 1 };
+      }),
+      completarComFerramentas: vi.fn()
+        .mockResolvedValueOnce({
+          conteudo: "Vou ler.",
+          chamadas: [{ id: "c1", nome: "read_file", argumentos: { path: "a.ts" } }],
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 1,
+        })
+        .mockResolvedValueOnce({ conteudo: "Li o arquivo.", modelo: CONFIG.modeloMaior, latencia_ms: 1 })
+        .mockResolvedValueOnce({
+          conteudo: "Vou editar.",
+          chamadas: [{ id: "c2", nome: "write_file", argumentos: { path: "a.ts", content: "novo" } }],
+          modelo: CONFIG.modeloMaior,
+          latencia_ms: 1,
+        })
+        .mockResolvedValueOnce({ conteudo: "Editei o arquivo.", modelo: CONFIG.modeloMaior, latencia_ms: 1 }),
+    };
+    const onNarracaoRodada = vi.fn();
+
+    await executarAgenteIde(
+      "refatora o módulo de autenticação com async/await e TypeScript",
+      opcoesBase({ provedor, onNarracaoRodada }),
+    );
+
+    expect(onNarracaoRodada.mock.calls.map(([texto]) => texto)).toEqual([
+      "Vou ler.",
+      "\n\nLi o arquivo.",
+      "Vou editar.",
+      "\n\nEditei o arquivo.",
+    ]);
+  });
+
   it("dispara onStatusHint ao longo do pipeline", async () => {
     const hints: string[] = [];
     const provedor = provedorTexto("Pronto.");
@@ -385,6 +465,20 @@ describe("abort signal", () => {
 // ─── Resultado final ──────────────────────────────────────────────────────────
 
 describe("resultado", () => {
+  it("normaliza falha não tratada na fronteira pública", async () => {
+    const provedor = provedorTexto("nunca");
+    provedor.completarComFerramentas.mockRejectedValue(new Error("network timeout"));
+
+    const resultado = await executarAgenteIde("oi", opcoesBase({ provedor }));
+
+    expect(resultado.erro).toEqual({
+      code: "LUNA_TIMEOUT",
+      message: "network timeout",
+      retryable: true,
+    });
+    expect(resultado.resposta).toBe("network timeout");
+  });
+
   it("inclui campos de auditoria: rodadas, latencia_total_ms, profundidade", async () => {
     const resultado = await executarAgenteIde(
       "qual é a função main?",

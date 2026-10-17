@@ -11,7 +11,7 @@ import {
   obterOuCriarSessao,
 } from "../memoria/gerenciadorSessao.js";
 import type { MemoriaSessao } from "../memoria/esquemaMemoria.js";
-import { carregarSessao, PASTA_SESSOES, salvarSessao } from "../memoria/storeSessao.js";
+import { carregarSessao, obterPastaSessoes, salvarSessao } from "../memoria/storeSessao.js";
 import { carregarConfig } from "../providers/tipos.js";
 import { criarProvedorOpenAi } from "../providers/openaiCompativel.js";
 
@@ -137,7 +137,7 @@ export function buscarContextoOutrasSessoes(
 
   let arquivos: string[] = [];
   try {
-    arquivos = readdirSync(PASTA_SESSOES).filter(
+    arquivos = readdirSync(obterPastaSessoes()).filter(
       (f) => f.endsWith(".json") && !f.startsWith("."),
     );
   } catch {

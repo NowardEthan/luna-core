@@ -1,17 +1,21 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { type EstadoPresenca, PRESENCA_INICIAL } from "./esquemaPresenca.js";
 import type { SolicitacaoFila } from "./filaPresenca.js";
+import { obterDiretoriosDados } from "../config/diretoriosDados.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const logDir = path.resolve(__dirname, "../../logs/presenca");
-const estadoPath = path.join(logDir, "estado.json");
-const filaPath = path.join(logDir, "fila.json");
+function caminhosPresenca() {
+  const logDir = obterDiretoriosDados().presenca;
+  return {
+    logDir,
+    estadoPath: path.join(logDir, "estado.json"),
+    filaPath: path.join(logDir, "fila.json"),
+  };
+}
 
 // Assegura que o diretório exista
 function assegurarDiretorio(): void {
+  const { logDir } = caminhosPresenca();
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
   }
@@ -19,6 +23,7 @@ function assegurarDiretorio(): void {
 
 export function lerEstado(): EstadoPresenca {
   assegurarDiretorio();
+  const { estadoPath } = caminhosPresenca();
   try {
     if (fs.existsSync(estadoPath)) {
       const data = fs.readFileSync(estadoPath, "utf-8");
@@ -32,6 +37,7 @@ export function lerEstado(): EstadoPresenca {
 
 export function salvarEstado(estado: EstadoPresenca): void {
   assegurarDiretorio();
+  const { estadoPath } = caminhosPresenca();
   try {
     fs.writeFileSync(estadoPath, JSON.stringify(estado, null, 2), "utf-8");
   } catch (error) {
@@ -41,6 +47,7 @@ export function salvarEstado(estado: EstadoPresenca): void {
 
 export function lerFila(): SolicitacaoFila[] {
   assegurarDiretorio();
+  const { filaPath } = caminhosPresenca();
   try {
     if (fs.existsSync(filaPath)) {
       const data = fs.readFileSync(filaPath, "utf-8");
@@ -54,6 +61,7 @@ export function lerFila(): SolicitacaoFila[] {
 
 export function salvarFila(fila: SolicitacaoFila[]): void {
   assegurarDiretorio();
+  const { filaPath } = caminhosPresenca();
   try {
     fs.writeFileSync(filaPath, JSON.stringify(fila, null, 2), "utf-8");
   } catch (error) {
@@ -63,6 +71,7 @@ export function salvarFila(fila: SolicitacaoFila[]): void {
 
 /** Limpa os arquivos de persistência (usado em testes e resets) */
 export function limparPersistencia(): void {
+  const { estadoPath, filaPath } = caminhosPresenca();
   try {
     if (fs.existsSync(estadoPath)) fs.unlinkSync(estadoPath);
     if (fs.existsSync(filaPath)) fs.unlinkSync(filaPath);

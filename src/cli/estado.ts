@@ -3,8 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { analisarContextoPorRegras } from "../analyzers/analisadorContextoRegras.js";
 import { calcularEstadoInterno } from "../estado/calculadorEstadoInterno.js";
-import { carregarSessao } from "../memoria/storeSessao.js";
-import { PASTA_SESSOES } from "../memoria/storeSessao.js";
+import { carregarSessao, obterPastaSessoes } from "../memoria/storeSessao.js";
 
 function barra(valor: number, largura = 20): string {
   const preenchido = Math.round(valor * largura);
@@ -23,7 +22,7 @@ async function main(): Promise<void> {
   console.log("║   Luna Core — Estado Interno V2.1    ║");
   console.log("╚══════════════════════════════════════╝\n");
 
-  const pathUltima = join(PASTA_SESSOES, ".ultima-sessao");
+  const pathUltima = join(obterPastaSessoes(), ".ultima-sessao");
   const sessaoId = existsSync(pathUltima)
     ? readFileSync(pathUltima, "utf-8").trim()
     : null;

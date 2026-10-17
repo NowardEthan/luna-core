@@ -78,8 +78,13 @@ export type IdentidadeCompilada = {
 };
 
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const DIR_PERSONALIDADE = join(RAIZ_PACOTE, "src", "personalidade");
-const DIR_IDENTIDADE = join(RAIZ_PACOTE, "src", "identidade");
+function diretorioRuntime(nome: string): string {
+  // O build publica "dist" espelhando "src"; em dev, usamos "src" diretamente.
+  const dist = join(RAIZ_PACOTE, "dist", nome);
+  return existsSync(dist) ? dist : join(RAIZ_PACOTE, "src", nome);
+}
+const DIR_PERSONALIDADE = diretorioRuntime("personalidade");
+const DIR_IDENTIDADE = diretorioRuntime("identidade");
 
 const CAMINHO_CANON = join(DIR_PERSONALIDADE, "canon.json");
 const CAMINHO_VOZ = join(DIR_PERSONALIDADE, "vozCultural.json");

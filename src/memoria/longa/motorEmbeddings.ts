@@ -1,11 +1,5 @@
 import { pipeline, env, type PipelineType } from "@xenova/transformers";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-// Cache de modelos na raiz do pacote (não depende de process.cwd)
-
-const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-env.cacheDir = join(RAIZ_PACOTE, "logs", "modelos");
+import { obterDiretoriosDados } from "../../config/diretoriosDados.js";
 
 export interface EmbeddingProvider {
   gerarEmbedding(texto: string): Promise<number[]>;
@@ -21,6 +15,7 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
 
   private async getPipe() {
     if (!this.pipePromise) {
+      env.cacheDir = obterDiretoriosDados().modelos;
       this.pipePromise = pipeline("feature-extraction" as PipelineType, this.modeloNome, {
         quantized: true, // Mantém modelo rápido e leve
       });

@@ -431,6 +431,7 @@ export async function executorAgentico(opcoes: OpcoeExecutor): Promise<Resultado
             }
           }
         : undefined,
+      abortSignal,
     });
 
     const raciocinio = resposta.raciocinio?.trim() ?? "";

@@ -1,14 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { MemoriaSessaoSchema, type MemoriaSessao } from "./esquemaMemoria.js";
+import { DIRETORIOS_DADOS_PADRAO, obterDiretoriosDados } from "../config/diretoriosDados.js";
 
-const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const PASTA_SESSOES = join(RAIZ_PACOTE, "logs", "sessoes");
+/** @deprecated Para operações, use obterPastaSessoes(). */
+export const PASTA_SESSOES = DIRETORIOS_DADOS_PADRAO.sessoes;
+
+export function obterPastaSessoes(): string {
+  return obterDiretoriosDados().sessoes;
+}
 
 export function caminhoSessao(id: string): string {
-  return join(PASTA_SESSOES, `${id}.json`);
+  return join(obterPastaSessoes(), `${id}.json`);
 }
 
 export function carregarSessao(id: string): MemoriaSessao | null {
@@ -20,20 +24,20 @@ export function carregarSessao(id: string): MemoriaSessao | null {
 }
 
 export function salvarSessao(sessao: MemoriaSessao): string {
-  mkdirSync(PASTA_SESSOES, { recursive: true });
+  mkdirSync(obterPastaSessoes(), { recursive: true });
   const caminho = caminhoSessao(sessao.id);
   writeFileSync(caminho, JSON.stringify(sessao, null, 2), "utf-8");
   return caminho;
 }
 
-const ARQUIVO_ULTIMA_SESSAO = join(PASTA_SESSOES, ".ultima-sessao");
-
 export function salvarUltimaSessao(id: string): void {
-  mkdirSync(PASTA_SESSOES, { recursive: true });
-  writeFileSync(ARQUIVO_ULTIMA_SESSAO, id, "utf-8");
+  const pasta = obterPastaSessoes();
+  mkdirSync(pasta, { recursive: true });
+  writeFileSync(join(pasta, ".ultima-sessao"), id, "utf-8");
 }
 
 export function lerUltimaSessao(): string | null {
+  const ARQUIVO_ULTIMA_SESSAO = join(obterPastaSessoes(), ".ultima-sessao");
   if (!existsSync(ARQUIVO_ULTIMA_SESSAO)) return null;
   const id = readFileSync(ARQUIVO_ULTIMA_SESSAO, "utf-8").trim();
   return id || null;

@@ -21,7 +21,7 @@ import { serializarCorpoLlm } from "./cerebrasPayload.js";
 import { lerCorpoSseStreamAgente } from "./streamAgente.js";
 import { randomUUID } from "node:crypto";
 
-type OpcoesOpenAi = {
+export type OpcoesOpenAi = {
   apiKey: string;
   baseUrl: string;
   maxTentativas?: number;
@@ -197,6 +197,7 @@ async function completarUmaVez(
       method: "POST",
       headers,
       body,
+      signal: requisicao.abortSignal,
     },
     maxTentativas,
     url,
@@ -479,7 +480,7 @@ async function completarComFerramentasStream(
 
   const resposta = await fetchComRetry(
     `${url}/chat/completions`,
-    { method: "POST", headers, body },
+    { method: "POST", headers, body, signal: requisicao.abortSignal },
     maxTentativas,
     url,
   );
@@ -623,6 +624,7 @@ async function completarComFerramentasJson(
       method: "POST",
       headers,
       body,
+      signal: requisicao.abortSignal,
     },
     maxTentativas,
     url,

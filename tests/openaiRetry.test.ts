@@ -68,4 +68,30 @@ describe("openaiCompativel — A2: retry em rede/timeout", () => {
       }),
     ).rejects.toThrow(/rede\/timeout/i);
   });
+
+  it("interrompe uma requisição HTTP em andamento sem tentar novamente", async () => {
+    const controller = new AbortController();
+    global.fetch = vi.fn((_url, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("cancelado", "AbortError")), {
+        once: true,
+      });
+    })) as unknown as typeof fetch;
+
+    const prov = criarProvedorOpenAi({
+      apiKey: "sk-or-test",
+      baseUrl: "https://openrouter.ai/api/v1",
+      maxTentativas: 3,
+    });
+    const requisicao = prov.completar({
+      modelo: "modelo-teste",
+      mensagens: [{ papel: "user", conteudo: "oi" }],
+      temperatura: 0,
+      abortSignal: controller.signal,
+    });
+
+    controller.abort();
+
+    await expect(requisicao).rejects.toMatchObject({ name: "AbortError" });
+    expect(global.fetch).toHaveBeenCalledOnce();
+  });
 });

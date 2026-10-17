@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +19,8 @@ type GuiaFerramentas = {
 const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function carregarGuiaFerramentas(): GuiaFerramentas {
-  const caminho = join(RAIZ_PACOTE, "src", "personalidade", "guiaFerramentas.json");
+  const dist = join(RAIZ_PACOTE, "dist", "personalidade", "guiaFerramentas.json");
+  const caminho = existsSync(dist) ? dist : join(RAIZ_PACOTE, "src", "personalidade", "guiaFerramentas.json");
   return JSON.parse(readFileSync(caminho, "utf-8")) as GuiaFerramentas;
 }
 

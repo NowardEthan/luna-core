@@ -1,26 +1,19 @@
 import { createRequire } from "node:module";
 import type DatabaseType from "better-sqlite3";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 
-const RAIZ_PACOTE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-
 import { SQL_CRIAR_TABELAS, type FatoConfirmadoDb } from "./esquemaSqlite.js";
+import { obterDiretoriosDados } from "../../config/diretoriosDados.js";
 import { getCacheMundo } from "../../persistencia/contextoMundo.js";
 import { sqliteFallbackPermitido } from "../../persistencia/modoStore.js";
 import { obterMotorEmbeddings } from "./motorEmbeddings.js";
 import { calcularCosineSimilarity } from "./cosineSimilarity.js";
 import { calcularSaliencia, calcularScoreRetrieval, type InputSaliencia } from "./calculadorSaliencia.js";
 import { inferirCategoria, CATEGORIAS_RELACIONADAS, type CategoriaMemoria } from "./categorizador.js";
-
-// Override por env — permite rodar baselines/testes contra um DB isolado, sem
-// contaminar a memória real da Luna (lição: replays de conversa gravavam fatos
-// do "usuário" de teste no memoria.db de produção).
-const CAMINHO_DB = process.env.LUNA_DB_PATH?.trim() || join(RAIZ_PACOTE, "logs", "memoria.db");
 
 let dbInstancia: DatabaseType.Database | null = null;
 
@@ -35,6 +28,7 @@ export function obterDb(): DatabaseType.Database {
     );
   }
   if (!dbInstancia) {
+    const CAMINHO_DB = obterDiretoriosDados().sqlite;
     const dirDb = dirname(CAMINHO_DB);
     if (!existsSync(dirDb)) mkdirSync(dirDb, { recursive: true });
 

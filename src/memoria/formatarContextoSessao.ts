@@ -12,18 +12,18 @@ function formatarBlocoContextoAmbiente(
       : "WORKSPACE DO LUNA FORGE (estado do IDE — editor, terminal, git):";
     return [
       titulo,
-      "O bloco abaixo inclui modo do composer (Agente vs Chat), estado do workspace, ficheiros e terminal.",
-      "Em modo Agente, ferramentas podem executar após a tua resposta; em modo Chat, limita-te a conversa/explicação.",
-      "Respeita o modo indicado nos metadados — não peças scripts externos para ler ficheiros que já estão no contexto.",
+      "O bloco abaixo inclui modo do composer (Agente vs Chat), estado do workspace, arquivos e terminal.",
+      "Em modo Agente, ferramentas podem executar após a sua resposta; em modo Chat, limite-se a conversa/explicação.",
+      "Respeite o modo indicado nos metadados — não peça scripts externos para ler arquivos que já estão no contexto.",
       "",
       contextoAmbiente,
     ];
   }
 
   return [
-    "CONTEXTO OPERACIONAL (Luna Runtime — superfície activa):",
-    "Este bloco descreve onde estás agora (chat, CLI, etc.) e permissões. NÃO assumes IDE, ficheiros abertos nem Orbit/Forge/Luna IDE salvo a superfície ser IDE.",
-    "Se o utilizador perguntar onde está, responde com base em PRESENÇA + este bloco — não inventes IDE nem código em curso.",
+    "CONTEXTO OPERACIONAL (Luna Runtime — superfície ativa):",
+    "Este bloco descreve onde você está agora (chat, CLI, etc.) e permissões. NÃO assuma IDE, arquivos abertos nem Orbit/Forge/Luna IDE salvo a superfície ser IDE.",
+    "Se o usuário perguntar onde está, responda com base em PRESENÇA + este bloco — não invente IDE nem código em andamento.",
     "",
     contextoAmbiente,
   ];
@@ -35,19 +35,19 @@ function formatarBlocoSense(
 ): string[] {
   if (ehAmbienteIde(ambiente)) {
     return [
-      "ACTIVIDADE DO COMPUTADOR (Luna Sense — em paralelo ao IDE):",
-      "Descreve apps, media e foco no PC. NÃO confundir com ficheiros abertos, diff ou terminal do IDE.",
-      "Se o utilizador perguntar o que está a fazer no PC, usa este bloco — não o workspace do IDE.",
+      "ATIVIDADE DO COMPUTADOR (Luna Sense — em paralelo ao IDE):",
+      "Descreve apps, mídia e foco no PC. NÃO confundir com arquivos abertos, diff ou terminal do IDE.",
+      "Se o usuário perguntar o que está fazendo no PC, use este bloco — não o workspace do IDE.",
       "",
       contextoSense,
     ];
   }
 
   return [
-    "ACTIVIDADE DO COMPUTADOR (Luna Sense):",
-    "Sinais locais sobre o que o utilizador está a fazer no PC (app focada, media, timeline).",
-    "«O que estou a fazer?» → secção Agora. «Últimos minutos/horas/o que fiz?» → secção Recente (timeline).",
-    "Não inventes Forge, código nem apps que não apareçam abaixo.",
+    "ATIVIDADE DO COMPUTADOR (Luna Sense):",
+    "Sinais locais sobre o que o usuário está fazendo no PC (app focada, mídia, timeline).",
+    "«O que estou fazendo?» → seção Agora. «Últimos minutos/horas/o que fiz?» → seção Recente (timeline).",
+    "Não invente Forge, código nem apps que não apareçam abaixo.",
     "",
     contextoSense,
   ];
