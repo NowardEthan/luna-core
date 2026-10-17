@@ -26,11 +26,13 @@ export async function formatarGuiaSuperficie(ambiente: string): Promise<string |
       ? "orbit-desktop.json"
       : ambiente === "forge"
         ? "forge-live.json"
-        : ambiente === "lumen"
-          ? "lumen-inapp.json"
-          : ambiente === "aster"
-            ? "aster-suporte.json"
-            : null;
+        : ambiente === "luna_ide"
+          ? "luna-ide.json"
+          : ambiente === "lumen"
+            ? "lumen-inapp.json"
+            : ambiente === "aster"
+              ? "aster-suporte.json"
+              : null;
   if (!arquivo) return null;
 
   const guia = await carregarGuia(arquivo);

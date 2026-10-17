@@ -1,10 +1,17 @@
 {
   "name": "luna-core",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Luna Core — arquitetura de identidade artificial persistente (V1)",
   "type": "module",
   "main": "./dist/entry-desktop.js",
   "types": "./dist/entry-desktop.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "constitution/*.json",
+    "responder/instrucao_sistema.md",
+    "scripts/postinstall-native.mjs"
+  ],
   "exports": {
     ".": {
       "types": "./dist/entry-desktop.d.ts",

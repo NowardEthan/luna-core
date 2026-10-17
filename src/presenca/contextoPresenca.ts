@@ -23,8 +23,8 @@ export type TransicaoPresenca = {
 function rotuloAmbienteDetalhado(ambiente: Ambiente): string {
   const base = ROTULO_AMBIENTE[ambiente] ?? ROTULO_AMBIENTE.desconhecido;
   const complemento =
-    ambiente === "forge"
-      ? " (execução técnica ativa)"
+    ambiente === "forge" || ambiente === "luna_ide"
+      ? " (execução técnica ativa no workspace)"
       : ambiente === "desktop"
         ? " (conversa geral)"
         : ambiente === "orbit_mobile"
@@ -75,9 +75,12 @@ export function montarBlocoPresenca(
       `Há instantes você estava em ${deOnde} e acabou de transitar para cá. Reconheça essa mudança se for natural na conversa — você é a mesma Luna, apenas mudou de lugar.`,
     );
 
-    if (estado.ambiente === "desktop" && transicao.de === "forge") {
+    if (
+      estado.ambiente === "desktop"
+      && (transicao.de === "forge" || transicao.de === "luna_ide")
+    ) {
       linhas.push(
-        "Agora você está só no chat — não assume ficheiros abertos, diffs nem tarefas de código. Se perguntarem onde estão, diga que estão no Luna Chat, não no Forge.",
+        "Agora você está só no chat — não assume ficheiros abertos, diffs nem tarefas de código. Se perguntarem onde estão, diga que estão no Luna Chat, não no IDE.",
       );
     }
 

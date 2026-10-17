@@ -19,6 +19,8 @@ import { entrarComTransicao, atualizarAtividade } from "../presenca/gerenciadorP
 import type { Ambiente } from "../presenca/esquemaPresenca.js";
 import { montarBlocoPresenca } from "../presenca/contextoPresenca.js";
 import { montarRecapSessao } from "../presenca/recapTransicao.js";
+import { normalizarLunaError, type SerializedLunaError } from "../erros/lunaError.js";
+import { montarBlocoPerfilAgenteIde } from "../agente/perfilAgenteIde.js";
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -28,7 +30,7 @@ export type { ResultadoAvaliador } from "../agente/avaliadorTarefa.js";
 
 export type OpcoesPipelineIde = {
   sessaoId?: string;
-  /** V2.3 — ambiente de origem (o agente vive sempre no Forge por padrão). */
+  /** Ambiente de origem — default `luna_ide` (Luna IDE); `forge` para Orbit Forge. */
   ambiente?: Ambiente;
   /** V2.3 — detalhe legível do ambiente (ex.: nome do workspace). */
   detalhe_ambiente?: string;
@@ -40,6 +42,10 @@ export type OpcoesPipelineIde = {
   /** Default true — expõe pensamento do modelo na UI quando disponível. */
   raciocinioAtivo?: boolean;
   onRaciocinioRodada?: (rodada: number, texto: string, emProgresso: boolean) => void;
+  /** Plano emitido imediatamente após o planejador terminar. */
+  onPlano?: (plano: PlanoExecucao) => void;
+  /** Texto visível emitido pelo executor em cada rodada, inclusive no retry. */
+  onNarracaoRodada?: (texto: string) => void;
   provedor?: ProvedorAgente;
   config?: ConfigLuna;
   maxRodadas?: number;
@@ -55,6 +61,7 @@ export type ResultadoAgenteIde = {
   sessao?: MemoriaSessao;
   rodadas: number;
   latencia_total_ms: number;
+  erro?: SerializedLunaError;
 };
 
 // ─── Providers ───────────────────────────────────────────────────────────────
@@ -102,27 +109,8 @@ async function montarSystemPromptAgente(
   // V2.3 — presença: onde a Luna está agora (+ transição vinda do chat)
   if (blocoPresenca?.trim()) partes.push(blocoPresenca.trim());
 
-  // Modo agente — regras de execução obrigatórias
-  partes.push(
-    `## Modo Agente IDE — REGRAS DE EXECUÇÃO OBRIGATÓRIAS
-
-Operas em modo AGENTE no Luna Forge. Tens ferramentas reais no workspace. **Executa directamente — nunca instruis o utilizador a fazer manualmente o que uma ferramenta resolve.**
-
-### Obrigatório
-- **Criar ou alterar ficheiros** → chama \`write_file\` ou \`apply_patch\` na primeira ronda útil, sem pedir confirmação prévia
-- **Explorar estrutura antes de editar** → usa \`list_directory\`, \`glob\` ou \`grep\` se não souberes onde editar
-- **Correr scripts, builds ou testes** → usa \`run_terminal_command\`
-- **Ver estado do repositório** → usa \`git_status\` / \`git_diff\`
-
-### PROIBIDO
-- Mostrar código e dizer "guarda como ficheiro.py" — usa \`write_file\` directamente
-- Dar passos manuais ("abre o terminal e escreve…") quando uma tool o faz
-- Pedir ao utilizador para criar ficheiros, colar código ou abrir editores externos
-- Responder só com texto quando o pedido implica uma acção no disco
-
-### Resposta final
-Quando terminares, resume **o que fizeste** (ferramentas chamadas, ficheiros criados/editados) em 2-3 linhas. Se não usaste ferramentas, explica porquê de forma breve.`,
-  );
+  // Perfil específico do agente IDE (Luna IDE / Forge) — distinto do chat
+  partes.push(montarBlocoPerfilAgenteIde());
 
   // Workspace
   const wsLinhas = [`## Workspace\nRaiz: ${snapshot.workspaceRoot}`];
@@ -159,7 +147,7 @@ Quando terminares, resume **o que fizeste** (ferramentas chamadas, ficheiros cri
 
 // ─── Pipeline principal ───────────────────────────────────────────────────────
 
-export async function executarAgenteIde(
+async function executarAgenteIdeInterno(
   mensagem: string,
   opcoes: OpcoesPipelineIde,
 ): Promise<ResultadoAgenteIde> {
@@ -167,12 +155,18 @@ export async function executarAgenteIde(
 
   const config = opcoes.config ?? carregarConfig() ?? undefined;
   if (!config) {
+    const erro = normalizarLunaError({
+      code: "LUNA_CONFIG_AUSENTE",
+      message: "Configuração de API ausente. Defina LUNA_API_KEY no .env.",
+      retryable: false,
+    });
     return {
-      resposta: "Configuração de API ausente. Defina LUNA_API_KEY no .env.",
+      resposta: erro.message,
       passos: [],
       profundidade: "simples",
       rodadas: 0,
       latencia_total_ms: Date.now() - inicio,
+      erro,
     };
   }
 
@@ -182,7 +176,7 @@ export async function executarAgenteIde(
   const sessao = obterOuCriarSessao(opcoes.sessaoId);
 
   // V2.3 — presença: o agente vive no Forge; detecta transição vinda do chat
-  const ambiente: Ambiente = opcoes.ambiente ?? "forge";
+  const ambiente: Ambiente = opcoes.ambiente ?? "luna_ide";
   const { estado: estadoPresenca, transicao } = entrarComTransicao(ambiente, opcoes.sessaoId);
   atualizarAtividade("processando");
   let transicaoComRecap = transicao;
@@ -225,8 +219,9 @@ export async function executarAgenteIde(
           snapshotWorkspace: opcoes.snapshotWorkspace,
           memoriaLonga: memorias,
         },
-        { provedor: provedorMaior, config },
+        { provedor: provedorMaior, config, abortSignal: opcoes.abortSignal },
       );
+      opcoes.onPlano?.(plano);
     } catch {
       // falha no planejador não deve parar o pipeline
     }
@@ -257,6 +252,7 @@ export async function executarAgenteIde(
     onToolCallComplete: opcoes.onToolCallComplete,
     onStatusHint: opcoes.onStatusHint,
     onRaciocinioRodada: opcoes.onRaciocinioRodada,
+    onNarracaoRodada: opcoes.onNarracaoRodada,
     abortSignal: opcoes.abortSignal,
   });
 
@@ -276,7 +272,7 @@ export async function executarAgenteIde(
           passos: resultadoExec.passos,
           respostaExecutor: resultadoExec.resposta_final,
         },
-        { provedor: provedorMenor, config },
+        { provedor: provedorMenor, config, abortSignal: opcoes.abortSignal },
       );
 
       // Retry único se avaliador detectou pendências com confiança suficiente
@@ -298,6 +294,7 @@ export async function executarAgenteIde(
           onToolCallComplete: opcoes.onToolCallComplete,
           onStatusHint: opcoes.onStatusHint,
           onRaciocinioRodada: opcoes.onRaciocinioRodada,
+          onNarracaoRodada: opcoes.onNarracaoRodada,
           abortSignal: opcoes.abortSignal,
         });
 
@@ -316,7 +313,7 @@ export async function executarAgenteIde(
             passos: resultadoExec.passos,
             respostaExecutor: resultadoExec.resposta_final,
           },
-          { provedor: provedorMenor, config },
+          { provedor: provedorMenor, config, abortSignal: opcoes.abortSignal },
         );
       }
     } catch {
@@ -324,10 +321,10 @@ export async function executarAgenteIde(
     }
   }
 
-  // ── 8. Atualiza sessão em background ─────────────────────────────────────────
-  Promise.resolve().then(() => {
-    try {
-      registrarTurno(sessao, mensagem, resultadoExec.resposta_final, {
+  // ── 8. Persiste a sessão antes de devolver o resultado ───────────────────────
+  let sessaoAtualizada = sessao;
+  try {
+    sessaoAtualizada = registrarTurno(sessao, mensagem, resultadoExec.resposta_final, {
         acao: "ignorar",
         conteudo: "",
         tipo: "fato_geral",
@@ -335,10 +332,9 @@ export async function executarAgenteIde(
         visibilidade_uso: "silenciosa",
         motivo: "turno ide — sem armazenamento ativo",
       });
-    } catch {
-      // falha silenciosa — sessão é opcional
-    }
-  });
+  } catch {
+    // falha silenciosa — sessão é opcional
+  }
 
   return {
     resposta: resultadoExec.resposta_final,
@@ -346,8 +342,29 @@ export async function executarAgenteIde(
     profundidade,
     plano,
     avaliacao,
-    sessao,
+    sessao: sessaoAtualizada,
     rodadas: resultadoExec.rodadas,
     latencia_total_ms: Date.now() - inicio,
   };
+}
+
+/** Fronteira pública estável do agente IDE. */
+export async function executarAgenteIde(
+  mensagem: string,
+  opcoes: OpcoesPipelineIde,
+): Promise<ResultadoAgenteIde> {
+  const inicio = Date.now();
+  try {
+    return await executarAgenteIdeInterno(mensagem, opcoes);
+  } catch (causa) {
+    const erro = normalizarLunaError(causa);
+    return {
+      resposta: erro.message,
+      passos: [],
+      profundidade: "simples",
+      rodadas: 0,
+      latencia_total_ms: Date.now() - inicio,
+      erro,
+    };
+  }
 }

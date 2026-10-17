@@ -14,6 +14,7 @@ export const AmbienteSchema = z.enum([
   "chat_cli",    // interface CLI de desenvolvimento
   "desktop",     // Orbit — chat normal (desktop Electron)
   "forge",       // Orbit — Luna Forge (IDE integrado: editor, terminal, git)
+  "luna_ide",    // Luna IDE — IDE próprio (agente de workspace, distinto do chat)
   "api",         // chamada direta via API
   "orbit_mobile", // app mobile Orbit (Expo)
   "storybook",   // Storybook debug (opcional)
@@ -66,6 +67,7 @@ export const ROTULO_AMBIENTE: Record<Ambiente, string> = {
   chat_cli: "o chat de linha de comando (CLI de desenvolvimento)",
   desktop: "o Luna Chat (app desktop — conversa geral, sem IDE)",
   forge: "o Luna Forge (ambiente de desenvolvimento — editor, terminal, git)",
+  luna_ide: "o Luna IDE (IDE próprio — editor, tools de workspace, agente técnico)",
   api: "uma chamada direta via API",
   orbit_mobile: "o chat no celular (mensagens, voz, anexos)",
   storybook: "o Storybook do Orbit (laboratório de UI)",
