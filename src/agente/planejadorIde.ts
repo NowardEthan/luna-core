@@ -32,6 +32,7 @@ export type PlanoExecucao = {
 type OpcoesplanejadorIde = {
   provedor: ProvedorLlm;
   config: ConfigLuna;
+  abortSignal?: AbortSignal;
 };
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────
@@ -174,7 +175,7 @@ export async function planejadorIde(
   input: InputPlanejador,
   opcoes: OpcoesplanejadorIde,
 ): Promise<PlanoExecucao> {
-  const { provedor, config } = opcoes;
+  const { provedor, config, abortSignal } = opcoes;
 
   const resposta = await provedor.completar({
     modelo: config.modeloMaior,
@@ -184,6 +185,7 @@ export async function planejadorIde(
     ],
     temperatura: 0,
     json: true,
+    abortSignal,
   });
 
   try {

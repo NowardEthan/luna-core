@@ -18,6 +18,8 @@ export type RequisicaoCompletacao = {
    * não se negocia. Quem o calcula é o neurônio de registro (`estado/registroConversa.ts`).
    */
   maxTokens?: number;
+  /** Cancela a requisição HTTP em andamento. */
+  abortSignal?: AbortSignal;
 };
 
 export type RespostaCompletacao = {
@@ -101,6 +103,8 @@ export type RequisicaoAgente = {
    * Se presente, o provedor tenta `stream: true` e acumula tool_calls no fim.
    */
   onDelta?: (chunk: { tipo: "content" | "reasoning"; delta: string }) => void;
+  /** Cancela a requisição HTTP ou stream em andamento. */
+  abortSignal?: AbortSignal;
 };
 
 /**

@@ -20,6 +20,7 @@ export type ResultadoAvaliador = {
 type OpcoeAvaliador = {
   provedor: ProvedorLlm;
   config: ConfigLuna;
+  abortSignal?: AbortSignal;
 };
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────
@@ -131,7 +132,7 @@ export async function avaliadorTarefa(
   input: InputAvaliador,
   opcoes: OpcoeAvaliador,
 ): Promise<ResultadoAvaliador> {
-  const { provedor, config } = opcoes;
+  const { provedor, config, abortSignal } = opcoes;
 
   const resposta = await provedor.completar({
     modelo: config.modeloMenor,
@@ -141,6 +142,7 @@ export async function avaliadorTarefa(
     ],
     temperatura: 0,
     json: true,
+    abortSignal,
   });
 
   try {
